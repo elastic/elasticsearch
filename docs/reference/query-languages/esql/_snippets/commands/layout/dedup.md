@@ -17,7 +17,14 @@ DEDUP
 
 A multivalued column is compared as a whole: two values are equal only if they hold the same values in the same order. `[a, b]`, `[b, a]` and `[a, a, b]` are three different values, so `DEDUP` keeps a row for each of them. This differs from [`STATS ... BY`](/reference/query-languages/esql/commands/stats-by.md), which puts a row with a multivalued grouping key into one group for each of its values.
 
-`_source` and spatial shapes (`geo_shape`, `cartesian_shape`) are compared by the bytes loaded for that column. A shape that lists the same vertices from another starting point is a different value. Stored `_source` keeps the original key order, so that order is part of the comparison. Synthetic `_source` rebuilds the document in a fixed field order, so two documents that differ only in key order are the same value and `DEDUP` keeps one row.
+`_source` and spatial shapes (`geo_shape`, `cartesian_shape`) are compared by
+the bytes loaded for that column. A shape that lists the same vertices from
+another starting point is a different value. Stored `_source` keeps the original
+key order, so that order is part of the comparison. Synthetic `_source` normally
+reconstructs objects in a fixed field order, but settings such as
+`synthetic_source_keep: all` can preserve the original
+representation. Documents that differ only in key order can therefore still form
+distinct groups.
 
 After a [`SORT`](/reference/query-languages/esql/commands/sort.md), the rows that `DEDUP` keeps stay in sort order, each at the position of its first occurrence. Without a `SORT`, the order of the output rows is not defined.
 

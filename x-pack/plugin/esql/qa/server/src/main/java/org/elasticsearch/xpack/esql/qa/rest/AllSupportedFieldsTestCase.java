@@ -468,6 +468,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
+    protected boolean groupingCapabilitySupported(EsqlCapabilities.Cap capability) throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of(capability.capabilityName())).orElse(false);
+    }
+
     protected MapMatcher allTypesColumnsMatcher(
         TransportVersion coordinatorVersion,
         TransportVersion minimumVersionAcrossInvolvedNodes,
@@ -777,6 +781,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         boolean dedup = dedupGroupingSupported();
         boolean limitBy = limitByGroupingSupported();
         TransportVersion minimumVersion = minVersion();
+        boolean groupByDoubleRange = groupingCapabilitySupported(EsqlCapabilities.Cap.GROUP_BY_DOUBLE_RANGE);
+        boolean groupByFlattened = groupingCapabilitySupported(EsqlCapabilities.Cap.GROUP_BY_FLATTENED);
+
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersion) == false || excludedInColumnar(type, indexMode)) {
                 continue;
@@ -784,6 +791,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // Until the type's release version, an older node can map the field as something else. Field caps then
             // rejects the name, so there is no grouping result to assert. Same gate as the column type matcher.
             if (type.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                continue;
+            }
+            if (type == DataType.DOUBLE_RANGE && groupByDoubleRange == false) {
+                continue;
+            }
+            if (type == DataType.FLATTENED && groupByFlattened == false) {
                 continue;
             }
             String field = fieldName(type);
@@ -804,7 +817,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 );
             }
             if (dedup) {
-                assertGrouping(fromAllQuery(" | KEEP " + field + " | DEDUP | LIMIT 10"), limitAccepted, "cannot dedup on");
+                assertGrouping(
+                    fromAllQuery(" | KEEP " + field + " | DEDUP | LIMIT 10"),
+                    limitAccepted,
+                    "cannot dedup on [" + type.typeName() + "]",
+                    "cannot group by on [" + type.typeName() + "]"
+                );
             }
         }
     }
@@ -886,7 +904,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertGrouping(String query, boolean accepted, String errorFragment) throws IOException {
+    private void assertGrouping(String query, boolean accepted, String... errorFragments) throws IOException {
         try {
             Map<String, Object> response = runQuery(query).v1();
             if (accepted == false) {
@@ -899,7 +917,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             if (accepted) {
                 throw new AssertionError("expected [" + query + "] to succeed: " + body, e);
             }
-            assertThat(body, containsString(errorFragment));
+            assertTrue(
+                "expected grouping rejection for [" + query + "], got " + body,
+                Arrays.stream(errorFragments).anyMatch(body::contains)
+            );
         }
     }
 

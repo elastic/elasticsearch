@@ -74,6 +74,12 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     }
 
     @Override
+    protected boolean groupingCapabilitySupported(EsqlCapabilities.Cap capability) throws IOException {
+        return super.groupingCapabilitySupported(capability)
+            && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of(capability.capabilityName())).orElse(false);
+    }
+
+    @Override
     protected Map<String, NodeInfo> allNodeToInfo() throws IOException {
         Map<String, NodeInfo> all = new TreeMap<>();
         all.putAll(super.allNodeToInfo());
@@ -151,11 +157,21 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     protected boolean inlineStatsGroupingSupported() throws IOException {
         return super.inlineStatsGroupingSupported()
             && clusterHasCapability(
+                client(),
+                "GET",
+                "/_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.capabilityName())
+            ).orElse(false)
+            && clusterHasCapability(
                 remoteClient(),
                 "GET",
                 "/_query",
                 List.of(),
-                List.of(EsqlCapabilities.Cap.INLINE_STATS.capabilityName())
+                List.of(
+                    EsqlCapabilities.Cap.INLINE_STATS.capabilityName(),
+                    EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.capabilityName()
+                )
             ).orElse(false);
     }
 

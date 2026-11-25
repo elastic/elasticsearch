@@ -1014,6 +1014,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                     // Exhaustive so a new element type does not compile until this fixed-width path can encode it.
                     case NULL, FLOAT, BYTES_REF, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST,
                         LONG_RANGE, DOUBLE_RANGE -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                    case null -> throw new NullPointerException();
                 }
             }
         }
@@ -1067,6 +1068,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                                 LONG_RANGE, DOUBLE_RANGE -> throw new IllegalStateException(
                                     "unsupported type: " + specs.get(g).elementType()
                                 );
+                            case null -> throw new NullPointerException();
                         }
                     }
                 }

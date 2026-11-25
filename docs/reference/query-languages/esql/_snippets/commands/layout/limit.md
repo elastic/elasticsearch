@@ -47,9 +47,11 @@ puts such a row into one group per value. `_source` and spatial shapes
 (`geo_shape`, `cartesian_shape`) are compared by the bytes loaded for that
 column. A shape that lists the same vertices from another starting point
 counts as a separate group. Stored `_source` keeps the original key order, so
-that order is part of the comparison. Synthetic `_source` rebuilds the document
-in a fixed field order, so two documents that differ only in key order form
-one group.
+that order is part of the comparison. Synthetic `_source` normally reconstructs
+objects in a fixed field order,
+but settings such as `synthetic_source_keep: all` can preserve the original
+representation. Documents that differ only in key order can therefore
+still form distinct groups.
 
 {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` To remove
 duplicate rows, use [`DEDUP`](/reference/query-languages/esql/commands/dedup.md)

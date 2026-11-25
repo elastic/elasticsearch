@@ -123,6 +123,7 @@ public class GroupKeyEncoder implements Accountable, Releasable {
             // Exhaustive so a new element type does not compile until this encoder decides how to write it.
             case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
                 throw new IllegalArgumentException("unsupported element type for group key encoding: " + type);
+            case null -> throw new NullPointerException();
         }
     }
 

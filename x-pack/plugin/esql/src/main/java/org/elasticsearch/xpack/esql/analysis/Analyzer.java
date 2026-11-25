@@ -4917,6 +4917,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * evaluated by {@code ValuesSourceReaderOperator}, where the only attribute it can read is the field being loaded.
          */
         private static @Nullable String unusableAsFieldConversion(Expression conversion, Expression original) {
+            if (conversion.children().size() == 1) {
+                // Only the field. Not looking at it further also avoids caching the references of every conversion of the union, which
+                // are retained by the field in the plan and add up for fields with many types.
+                return null;
+            }
             if (conversion.typeResolved().unresolved()) {
                 // An argument that is invalid for this type, like a non-numeric base. Surrogates are not substituted in this case.
                 return conversion.typeResolved().message();
@@ -5067,8 +5072,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> children = new ArrayList<>(fn.children());
             children.set(0, resolvedAttr);
             Expression e = ((Expression) convert).replaceChildren(children);
-            if (e.typeResolved().unresolved()) {
-                // A surrogate can only be substituted when its arguments are valid. The caller reports the error.
+            if (e.children().size() > 1 && e.typeResolved().unresolved()) {
+                // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when
+                // they are valid. The caller reports the error. Conversions of the field alone don't resolve for every type they
+                // convert, like small numerics, which are widened when converting.
                 return e;
             }
             /*

@@ -1749,6 +1749,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             mtimeMillis = mtime.toEpochMilli();
         } catch (IOException e) {
+            // The throwable stays out: a store's own message can quote the signed URL back.
+            logger.debug(
+                "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                ExternalFailures.redactHttpUrl(object.path().toString()),
+                e.getClass().getSimpleName()
+            );
             return new SimpleSourceMetadata(
                 schema,
                 formatName(),
@@ -2810,7 +2816,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             logger.debug(
                 "{} read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
                 displayName(format),
-                object.path(),
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 readSchema == null ? "null" : "present(" + readSchema.size() + ")",
                 context.firstSplit(),
                 context.recordAligned(),
@@ -2923,7 +2929,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // the finalize marker is present.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {
@@ -2936,6 +2943,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     chunkMode = false;
                 }
             } catch (IOException e) {
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    ExternalFailures.redactHttpUrl(object.path().toString()),
+                    e.getClass().getSimpleName()
+                );
                 cacheable = false;
                 wholeFileRead = false;
                 chunkMode = false;
@@ -2972,7 +2985,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
-            chunkMode ? context.statsStripeSize() : -1L,
+            cacheable && chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
             context.statsStripeSink(),
@@ -4640,7 +4653,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * whole-file path. Snapshotted at close alongside {@link #columnStats} — its superset wins per column.
          */
         private ColumnStatsAccumulator allFileColumnStats;
-        /** True when the direct path feeds {@link #columnStats} inline (cacheable read with tracked columns). */
+        /** True when the direct path feeds {@link #columnStats} inline (gridless PROJECTED cacheable read, tracked columns). */
         private boolean accumulateDirectStats;
         /** True when the most recent batch already accumulated stats inline, so {@link #captureBlockStats} must skip it. */
         private boolean lastBatchAccumulatedStats;
@@ -5111,6 +5124,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         && projectionDependentDrop == false
                         && statsColumnScope != StripeColumnScope.NONE) {
                         if (statsStripeSize > 0) {
+                            assert columnStats == null : "the inline column fold must stay disarmed under a stripe grid";
                             // Chunk-parallel read: only per-stripe fragments are cacheable. Emit one
                             // stripe-addressed fragment per stripe this chunk touched (the coordinator
                             // interval-covers and folds them) if capture stayed aligned and non-empty;
@@ -5120,9 +5134,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 emitPerStripe();
                             }
                         } else {
-                            // Non-chunk whole-file read. PROJECTED/COUNT commit columnStats (projected / none).
-                            // ALL additionally commits allFileColumnStats (every file column) → strict superset
-                            // of PROJECTED's set.
+                            // Non-chunk whole-file read. Only PROJECTED builds columnStats; COUNT and ALL
+                            // build none. ALL commits allFileColumnStats instead (every file column), a strict
+                            // superset of PROJECTED's set.
                             Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(
                                 columnStats,
                                 allFileColumnStats
@@ -5778,11 +5792,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 stageBool = new boolean[columnCount];
                 stageRef = new BytesRef[columnCount];
                 stageNull = new boolean[columnCount];
-                // For cacheable reads, fold the cache's per-column null/min/max stats into the parse
-                // loop (see appendStagedRow) instead of re-walking every built block. Build the
-                // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
-                // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
-                if (cacheableObject != null) {
+                // A gridless PROJECTED read is the only one that publishes this accumulator, so it is the only
+                // one that builds it. Folding per-column null/min/max into the parse loop (see appendStagedRow)
+                // beats re-walking every built block; captureBlockStats then skips direct-produced pages
+                // (lastBatchAccumulatedStats) to avoid double counting.
+                if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED && statsStripeSize <= 0) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }

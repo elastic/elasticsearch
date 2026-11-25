@@ -390,13 +390,23 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         private final boolean supportsLoaderConfig;
+        private final boolean singleValue;
 
         public TestSearchStats() {
             this(true);
         }
 
         public TestSearchStats(boolean supportsLoaderConfig) {
+            this(supportsLoaderConfig, false);
+        }
+
+        /**
+         * @param multiValue whether every field is reported as possibly multivalued, i.e. {@link #isSingleValue} returns
+         *                   {@code false}. Defaults to {@code false}, meaning all fields are single-valued.
+         */
+        public TestSearchStats(boolean supportsLoaderConfig, boolean multiValue) {
             this.supportsLoaderConfig = supportsLoaderConfig;
+            this.singleValue = multiValue == false;
         }
 
         @Override
@@ -455,7 +465,7 @@ public final class EsqlTestUtils {
 
         @Override
         public boolean isSingleValue(FieldName field) {
-            return false;
+            return singleValue;
         }
 
         @Override
@@ -569,7 +579,20 @@ public final class EsqlTestUtils {
         }
 
         public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues, boolean supportsLoaderConfig) {
-            super(supportsLoaderConfig);
+            this(minValues, maxValues, supportsLoaderConfig, false);
+        }
+
+        /**
+         * @param multiValue whether every field is reported as possibly multivalued, see
+         *                   {@link TestSearchStats#TestSearchStats(boolean, boolean)}.
+         */
+        public TestSearchStatsWithMinMax(
+            Map<String, Object> minValues,
+            Map<String, Object> maxValues,
+            boolean supportsLoaderConfig,
+            boolean multiValue
+        ) {
+            super(supportsLoaderConfig, multiValue);
             this.minValues = minValues;
             this.maxValues = maxValues;
         }

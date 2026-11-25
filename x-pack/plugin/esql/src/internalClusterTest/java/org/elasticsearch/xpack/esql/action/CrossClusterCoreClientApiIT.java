@@ -38,7 +38,6 @@ public class CrossClusterCoreClientApiIT extends AbstractCrossClusterTestCase {
     }
 
     public void testDescribeReportsClustersWithCcsMetadata() throws Exception {
-        assumeTrue("DESCRIBE is snapshot-only", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
         setupClusters(2);
         try (var response = run(CROSS_CLUSTER_PATTERN + " | DESCRIBE", b -> b.executionMetadata(ExecutionMetadata.CCS_ONLY))) {
             assertBothClustersSuccessful(response.response().clusters());

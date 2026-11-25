@@ -214,6 +214,8 @@ public class FederationTests extends ESTestCase {
         clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
         AtomicInteger maxListedObjects = new AtomicInteger();
         clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        AtomicInteger maxDirectoryListings = new AtomicInteger();
+        clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, maxDirectoryListings::set);
         AtomicBoolean cacheEnabled = new AtomicBoolean(true);
         clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheEnabled::set);
         AtomicInteger maxDataSources = new AtomicInteger();
@@ -223,6 +225,7 @@ public class FederationTests extends ESTestCase {
             .put(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.getKey(), true)
             .put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 42)
             .put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 2_000_000)
+            .put(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.getKey(), 4_000)
             .put(ExternalSourceCacheSettings.CACHE_ENABLED.getKey(), false)
             .put(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey(), 7)
             .build();
@@ -232,6 +235,7 @@ public class FederationTests extends ESTestCase {
         assertTrue("federated identity must be settable while federation is off", federatedIdentity.get());
         assertEquals(42, maxDiscoveredFiles.get());
         assertEquals(2_000_000, maxListedObjects.get());
+        assertEquals(4_000, maxDirectoryListings.get());
         assertFalse(cacheEnabled.get());
         assertEquals(7, maxDataSources.get());
     }

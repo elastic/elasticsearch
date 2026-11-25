@@ -224,7 +224,8 @@ public class NestedScopeFieldTests extends ESTestCase {
                         1,
                         0,
                         1L,
-                        1L
+                        1L,
+                        null
                     )
                 );
             }
@@ -248,7 +249,8 @@ public class NestedScopeFieldTests extends ESTestCase {
                         1,
                         0,
                         1L,
-                        1L
+                        1L,
+                        null
                     )
                 );
             }
@@ -270,7 +272,7 @@ public class NestedScopeFieldTests extends ESTestCase {
         for (IndexFieldCapabilities field : fields) {
             byName.put(field.name(), field);
         }
-        return new FieldCapabilitiesIndexResponse(name, name, byName, true, IndexMode.STANDARD, 1, 0, 1L, 1L);
+        return new FieldCapabilitiesIndexResponse(name, name, byName, true, IndexMode.STANDARD, 1, 0, 1L, 1L, null);
     }
 
     private static Map<String, IndexFieldCapabilities> counting(AtomicLong lookups, IndexFieldCapabilities... fields) {

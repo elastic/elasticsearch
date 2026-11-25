@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
@@ -663,6 +664,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
                 mtimeMillis = mtime.toEpochMilli();
             } catch (IOException e) {
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    sourceLocation,
+                    e.getClass().getSimpleName()
+                );
                 return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows()).withWarnings(warnings)
                     .withWidenedColumns(widenedColumns);
             }
@@ -752,7 +759,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "NDJSON read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
-                object.path(),
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 context.readSchema() == null ? "null" : "present(" + context.readSchema().size() + ")",
                 context.firstSplit(),
                 context.recordAligned(),
@@ -782,7 +789,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // new mtime with old data.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {
@@ -794,6 +802,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                     chunkMode = false;
                 }
             } catch (IOException e) {
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    ExternalFailures.redactHttpUrl(object.path().toString()),
+                    e.getClass().getSimpleName()
+                );
                 cacheable = false;
                 chunkMode = false;
             }

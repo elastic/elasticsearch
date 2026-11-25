@@ -621,9 +621,11 @@ class RepositoryIntegrityVerifier {
                     final List<String> duplicatePhysicalNames = new ArrayList<>(1);
                     final var snapshotFiles = getFilesByPhysicalName(blobStoreIndexShardSnapshot.indexFiles(), duplicatePhysicalNames);
                     if (duplicatePhysicalNames.isEmpty() == false) {
-                        // Assuming we only got here because the repository contents were modified by an external force, we cannot tell what
-                        // else it might have done. We consider this snapshot restorable as it won't actually fail during the restore.
-                        // Whether the restore process yields a valid set of files on which to start a shard is something we cannot answer.
+                        // Assuming we only got here because the contents of this object were modified by an external force, we cannot tell
+                        // what else it might have done to the repository contents. We don't count it as unrestorable here: it won't fail
+                        // during the restore just because of this anomaly. Of course it might fail because of other changes to the
+                        // repository contents, but we do not claim to detect all such changes anyway. Once external forces are changing the
+                        // contents of objects in the repository, all bets are off.
                         assert snapshotFiles.isEmpty();
                         anomaly("duplicate physical file name in snapshot").snapshotId(snapshotId)
                             .shardDescription(indexDescription, shardId)

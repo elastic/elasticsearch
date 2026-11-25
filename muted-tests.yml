@@ -260,11 +260,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159043
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testMixedOperationsDuringSplitWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/159143
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereCompletions {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159162
@@ -330,11 +325,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {yaml=aggregations/terms/Basic test}
   issue: https://github.com/elastic/elasticsearch/issues/161650
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/161494
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   tasks:
   - :x-pack:plugin:stateless:test

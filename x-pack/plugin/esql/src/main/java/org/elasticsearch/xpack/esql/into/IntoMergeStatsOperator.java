@@ -74,11 +74,14 @@ public final class IntoMergeStatsOperator implements Operator {
      * data stream or an alias that is every backing or aliased index, not only the one that was written to.
      */
     public record Refresher(Client client, Supplier<ThreadContext.StoredContext> caller, String destination) {
-        void refresh(ActionListener<Void> listener) {
+        /**
+         * @param listener told whether the refresh had to skip closed members of the destination
+         */
+        void refresh(ActionListener<Boolean> listener) {
             send(new RefreshRequest(destination), ActionListener.notifyOnce(listener), true);
         }
 
-        private void send(RefreshRequest request, ActionListener<Void> listener, boolean retryIfAMemberIsClosed) {
+        private void send(RefreshRequest request, ActionListener<Boolean> listener, boolean retryIfAMemberIsClosed) {
             try (ThreadContext.StoredContext ignored = caller.get()) {
                 client.execute(RefreshAction.INSTANCE, request, ActionListener.wrap(response -> {
                     if (response.getFailedShards() > 0) {
@@ -89,12 +92,14 @@ public final class IntoMergeStatsOperator implements Operator {
                             new ElasticsearchStatusException("no shard of the destination was refreshed", RestStatus.SERVICE_UNAVAILABLE)
                         );
                     } else {
-                        listener.onResponse(null);
+                        // Only the retry skips closed members
+                        listener.onResponse(retryIfAMemberIsClosed == false);
                     }
                 }, e -> {
                     // Only a failure of the action itself gets here, such as resolving the targets. A shard that fails to refresh is
                     // in the response above, and a closed one is not retried: the write index may have closed after the targets were
                     // resolved, and skipping it would report success without having refreshed the rows that were written.
+                    // The retry below does skip closed members, as it cannot tell which of them the write went to, so it warns.
                     if (retryIfAMemberIsClosed && ExceptionsHelper.unwrapCause(e) instanceof IndexClosedException) {
                         // An alias can have closed members that the write never touched, which the strict options reject. Only now
                         // are unavailable targets skipped, since the caller was already authorized for the destination by the first
@@ -183,7 +188,14 @@ public final class IntoMergeStatsOperator implements Operator {
         refreshing = new SubscribableListener<>();
         driverContext.addAsyncAction();
         // Complete the async action before waking the driver, so a woken driver sees no pending actions
-        refresher.refresh(ActionListener.runAfter(ActionListener.wrap(ignored -> {}, this::recordRefreshFailure), () -> {
+        refresher.refresh(ActionListener.runAfter(ActionListener.wrap(skippedClosedMembers -> {
+            if (skippedClosedMembers) {
+                refreshWarning = Strings.format(
+                    "index refresh for INTO [%s] skipped the closed indices of the destination",
+                    refresher.destination()
+                );
+            }
+        }, this::recordRefreshFailure), () -> {
             driverContext.removeAsyncAction();
             refreshing.onResponse(null);
         }));

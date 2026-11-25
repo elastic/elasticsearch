@@ -202,7 +202,8 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.answerRefresh();
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
-        assertThat(warnings(), empty());
+        // It cannot tell which closed member the write went to, so the caller is told that some were not refreshed
+        assertThat(warnings(), equalTo(List.of("index refresh for INTO [" + DEST + "] skipped the closed indices of the destination")));
     }
 
     public void testClosedShardDuringTheRefreshIsNotRetried() {

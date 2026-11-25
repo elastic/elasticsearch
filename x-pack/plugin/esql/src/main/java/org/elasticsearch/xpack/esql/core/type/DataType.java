@@ -1071,7 +1071,10 @@ public enum DataType implements Writeable {
      * type. Callers must check command-specific restrictions and transport compatibility themselves:
      * <ul>
      *     <li>{@code dense_vector} is groupable, but not in {@code STATS} or {@code INLINE STATS}, because
-     *         {@code BlockHash} cannot group it. {@code LIMIT BY} and {@code DEDUP} encode it row by row;</li>
+     *         {@code BlockHash} cannot group it. {@code ==} compares its elements in order with floating-point
+     *         equality. A vector is one value. {@code LIMIT BY} and {@code DEDUP} encode those elements in
+     *         order and keep the raw bits, so a {@code NaN} element and a signed zero follow the same
+     *         exceptions as a {@code double} key;</li>
      *     <li>{@code ==} does not imply groupable. {@code date_range}, {@code exponential_histogram} and
      *         {@code tdigest} compare and are not groupable. Their siblings {@code double_range} and
      *         {@code histogram} are groupable;</li>

@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.RowKeyHash;
@@ -28,9 +32,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -43,6 +50,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.versionfield.Version;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +60,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -62,16 +74,28 @@ import static org.hamcrest.Matchers.not;
  */
 public class GroupingEqualityTests extends ESTestCase {
 
+    private final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+    private final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+    private final MockBlockFactory blockFactory = new MockBlockFactory(
+        BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
+    );
+
+    @After
+    public void checkBreaker() {
+        blockFactory.ensureAllBlocksAreReleased();
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
     /**
      * Groupable types whose {@code ==} result can be the oracle. {@code null}, {@code _source} and {@code _tsid}
-     * have no evaluator. {@code dense_vector} is a multivalue {@code ==} returns null for, and single-key
-     * {@code STATS} cannot group it.
+     * have no evaluator. {@code dense_vector} compares element by element, in order, and only the row-key hash
+     * can group it. Its {@code NaN} and signed-zero exceptions are pinned with the {@code double} ones.
      */
-    private static List<DataType> equalityTypes() {
+    private static List<DataType> equalityTypes(BlockHashKind kind) {
         return Arrays.stream(DataType.values())
             .filter(DataType::isGroupable)
             .filter(type -> type != DataType.NULL && type != DataType.SOURCE && type != DataType.TSID_DATA_TYPE)
-            .filter(type -> type != DataType.DENSE_VECTOR)
+            .filter(type -> type != DataType.DENSE_VECTOR || kind == BlockHashKind.ROW)
             .toList();
     }
 
@@ -96,21 +120,40 @@ public class GroupingEqualityTests extends ESTestCase {
     }
 
     /**
-     * {@code version}, spatial types and {@code histogram} compare encoded bytes, so a second byte sequence is a
-     * different key. A copy of the same bytes is the same key.
+     * {@code version}, spatial types and {@code histogram} compare encoded bytes. A copy of those bytes is the
+     * same key. A second value this type can produce is a different key.
      */
     public void testEncodedBytesStayDistinct() {
-        for (DataType type : List.of(DataType.VERSION, DataType.GEO_POINT, DataType.HISTOGRAM)) {
-            BytesRef value = (BytesRef) ordinary(type);
-            BytesRef copy = BytesRef.deepCopyOf(value);
-            BytesRef flipped = BytesRef.deepCopyOf(value);
-            assertThat(type.typeName(), flipped.length, not(equalTo(0)));
-            flipped.bytes[flipped.offset] ^= 0x01;
-            for (BlockHashKind kind : BlockHashKind.values()) {
-                assertAgrees(type, kind, value, copy);
-                assertAgrees(type, kind, value, flipped);
-            }
-            assertFalse(type.typeName(), valuesEqual(type, value, flipped));
+        assertEncodedBytesStayDistinct(DataType.VERSION, new Version("1.2.3").toBytesRef(), new Version("1.2.4").toBytesRef());
+        assertEncodedBytesStayDistinct(DataType.GEO_POINT, GEO.asWkb(new Point(0, 0)), GEO.asWkb(new Point(1, 1)));
+        assertEncodedBytesStayDistinct(DataType.GEO_SHAPE, GEO.asWkb(new Rectangle(0, 1, 1, 0)), GEO.asWkb(new Rectangle(2, 3, 1, 0)));
+        assertEncodedBytesStayDistinct(DataType.CARTESIAN_POINT, CARTESIAN.asWkb(new Point(0, 0)), CARTESIAN.asWkb(new Point(1, 1)));
+        assertEncodedBytesStayDistinct(
+            DataType.CARTESIAN_SHAPE,
+            CARTESIAN.asWkb(new Rectangle(0, 1, 1, 0)),
+            CARTESIAN.asWkb(new Rectangle(2, 3, 1, 0))
+        );
+        assertEncodedBytesStayDistinct(DataType.HISTOGRAM, histogram(1.0d), histogram(2.0d));
+    }
+
+    private void assertEncodedBytesStayDistinct(DataType type, BytesRef value, BytesRef other) {
+        assertFalse(type.typeName(), value.bytesEquals(other));
+        BytesRef copy = BytesRef.deepCopyOf(value);
+        assertTrue(type.typeName(), value.bytesEquals(copy));
+        for (BlockHashKind kind : BlockHashKind.values()) {
+            assertAgrees(type, kind, value, copy);
+            assertAgrees(type, kind, value, other);
+        }
+    }
+
+    /** One bucket, in the layout {@link EsqlTestUtils#randomHistogram()} writes. */
+    private static BytesRef histogram(double value) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVLong(1);
+            out.writeLong(Double.doubleToRawLongBits(value));
+            return out.bytes().toBytesRef();
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 
@@ -142,12 +185,11 @@ public class GroupingEqualityTests extends ESTestCase {
      * {@code (2, a)}.
      */
     public void testCompositeKeyGroupsByEveryColumn() {
-        BlockFactory factory = blockFactory();
         BytesRef a = new BytesRef("a");
         BytesRef b = new BytesRef("b");
         try (
-            Block numbers = factory.newIntBlockBuilder(4).appendInt(1).appendInt(1).appendInt(1).appendInt(2).build();
-            Block names = factory.newBytesRefBlockBuilder(4)
+            Block numbers = blockFactory.newIntBlockBuilder(4).appendInt(1).appendInt(1).appendInt(1).appendInt(2).build();
+            Block names = blockFactory.newBytesRefBlockBuilder(4)
                 .appendBytesRef(a)
                 .appendBytesRef(a)
                 .appendBytesRef(b)
@@ -155,14 +197,19 @@ public class GroupingEqualityTests extends ESTestCase {
                 .build();
             BlockHash hash = BlockHash.buildPackedValuesBlockHash(
                 List.of(new BlockHash.GroupSpec(0, ElementType.INT), new BlockHash.GroupSpec(1, ElementType.BYTES_REF)),
-                factory,
+                blockFactory,
                 1024
             )
         ) {
+            // (1, a), (1, a), (1, b), (2, a)
             int[][] ids = collect(hash, new Page(numbers, names), false);
+            for (int[] id : ids) {
+                assertThat(id.length, equalTo(1));
+            }
             assertThat(ids[1][0], equalTo(ids[0][0]));
             assertThat(ids[2][0], not(equalTo(ids[0][0])));
             assertThat(ids[3][0], not(equalTo(ids[0][0])));
+            assertThat(ids[2][0], not(equalTo(ids[3][0])));
         }
     }
 
@@ -172,34 +219,59 @@ public class GroupingEqualityTests extends ESTestCase {
      * https://github.com/elastic/elasticsearch/issues/167086
      */
     public void testCompositeKeyFloatBitsStayRaw() {
-        BlockFactory factory = blockFactory();
         double otherNan = Double.longBitsToDouble(Double.doubleToRawLongBits(Double.NaN) | 1L);
         try (
-            Block ones = factory.newIntBlockBuilder(2).appendInt(1).appendInt(1).build();
-            Block nans = factory.newDoubleBlockBuilder(2).appendDouble(Double.NaN).appendDouble(otherNan).build();
+            Block ones = blockFactory.newIntBlockBuilder(4).appendInt(1).appendInt(1).appendInt(1).appendInt(2).build();
+            Block nans = blockFactory.newDoubleBlockBuilder(4)
+                .appendDouble(Double.NaN)
+                .appendDouble(Double.NaN)
+                .appendDouble(otherNan)
+                .appendDouble(Double.NaN)
+                .build();
             BlockHash nanHash = BlockHash.buildPackedValuesBlockHash(
                 List.of(new BlockHash.GroupSpec(0, ElementType.INT), new BlockHash.GroupSpec(1, ElementType.DOUBLE)),
-                factory,
+                blockFactory,
                 1024
             )
         ) {
+            // (1, NaN), (1, NaN), (1, other NaN), (2, NaN)
             int[][] ids = collect(nanHash, new Page(ones, nans), false);
-            assertThat(ids[1][0], not(equalTo(ids[0][0])));
+            assertOneIdEach(ids);
+            assertThat(ids[1][0], equalTo(ids[0][0]));
+            assertThat(ids[2][0], not(equalTo(ids[0][0])));
+            assertThat(ids[3][0], not(equalTo(ids[0][0])));
+            assertThat(ids[3][0], not(equalTo(ids[2][0])));
         }
         assertFalse(valuesEqual(DataType.DOUBLE, Double.NaN, otherNan));
         try (
-            Block ones = factory.newIntBlockBuilder(2).appendInt(1).appendInt(1).build();
-            Block zeros = factory.newDoubleBlockBuilder(2).appendDouble(0.0d).appendDouble(-0.0d).build();
+            Block ones = blockFactory.newIntBlockBuilder(4).appendInt(1).appendInt(1).appendInt(1).appendInt(2).build();
+            Block zeros = blockFactory.newDoubleBlockBuilder(4)
+                .appendDouble(0.0d)
+                .appendDouble(0.0d)
+                .appendDouble(-0.0d)
+                .appendDouble(0.0d)
+                .build();
             BlockHash zeroHash = BlockHash.buildPackedValuesBlockHash(
                 List.of(new BlockHash.GroupSpec(0, ElementType.INT), new BlockHash.GroupSpec(1, ElementType.DOUBLE)),
-                factory,
+                blockFactory,
                 1024
             )
         ) {
+            // (1, 0.0), (1, 0.0), (1, -0.0), (2, 0.0)
             int[][] ids = collect(zeroHash, new Page(ones, zeros), false);
-            assertThat(ids[1][0], not(equalTo(ids[0][0])));
+            assertOneIdEach(ids);
+            assertThat(ids[1][0], equalTo(ids[0][0]));
+            assertThat(ids[2][0], not(equalTo(ids[0][0])));
+            assertThat(ids[3][0], not(equalTo(ids[0][0])));
+            assertThat(ids[3][0], not(equalTo(ids[2][0])));
         }
         assertTrue(valuesEqual(DataType.DOUBLE, 0.0d, -0.0d));
+    }
+
+    private static void assertOneIdEach(int[][] ids) {
+        for (int[] id : ids) {
+            assertThat(id.length, equalTo(1));
+        }
     }
 
     /**
@@ -238,8 +310,10 @@ public class GroupingEqualityTests extends ESTestCase {
      */
     public void testStatsSplitsMultivalue() {
         for (BlockHashKind kind : List.of(BlockHashKind.SINGLE, BlockHashKind.PACKED)) {
-            assertSplit(kind, intMultivalue(blockFactory()));
-            assertSplit(kind, keywordMultivalue(blockFactory()));
+            try (Block ints = intMultivalue(blockFactory); Block keywords = keywordMultivalue(blockFactory)) {
+                assertSplit(kind, ints);
+                assertSplit(kind, keywords);
+            }
         }
     }
 
@@ -248,66 +322,105 @@ public class GroupingEqualityTests extends ESTestCase {
      * not {@code [2, 1]} or {@code 1}.
      */
     public void testRowKeyKeepsMultivalueOrder() {
-        assertWhole(intMultivalue(blockFactory()));
-        assertWhole(keywordMultivalue(blockFactory()));
+        try (Block ints = intMultivalue(blockFactory); Block keywords = keywordMultivalue(blockFactory)) {
+            assertWhole(ints);
+            assertWhole(keywords);
+        }
     }
 
     /**
-     * {@code dense_vector} compares element by element, in order. {@link BlockHash} cannot group it, so
-     * {@code STATS} and {@code INLINE STATS} reject it. {@code LIMIT BY} and {@code DEDUP} encode that order.
+     * {@code dense_vector} compares element by element, in order, with floating-point {@code ==}. {@link BlockHash}
+     * cannot group it, so {@code STATS} and {@code INLINE STATS} reject it. {@code LIMIT BY} and {@code DEDUP}
+     * encode that order and keep the raw bits, so a {@code NaN} element groups with the same bits even though
+     * {@code NaN == NaN} is false, and {@code 0.0} stays apart from {@code -0.0}. Tracked by
+     * https://github.com/elastic/elasticsearch/issues/167086
      */
     public void testDenseVectorRowKeyUsesElementOrder() {
-        BlockFactory factory = blockFactory();
         List<Float> forward = List.of(1f, 2f);
         List<Float> reversed = List.of(2f, 1f);
         assertTrue(valuesEqual(DataType.DENSE_VECTOR, forward, forward));
         assertFalse(valuesEqual(DataType.DENSE_VECTOR, forward, reversed));
-        try (Block block = floatVectors(factory); RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(ElementType.FLOAT), factory)) {
+        try (
+            Block block = floatVectors(blockFactory);
+            RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(ElementType.FLOAT), blockFactory)
+        ) {
             int[] ids = hash.add(new Page(block));
             assertThat(ids[1], equalTo(ids[0]));
             assertThat(ids[2], not(equalTo(ids[0])));
         }
+        List<Float> nan = List.of(Float.NaN);
+        float otherNan = Float.intBitsToFloat(Float.floatToRawIntBits(Float.NaN) | 1);
+        assertFalse(valuesEqual(DataType.DENSE_VECTOR, nan, nan));
+        assertTrue(sameGroup(DataType.DENSE_VECTOR, nan, nan, BlockHashKind.ROW));
+        assertFalse(valuesEqual(DataType.DENSE_VECTOR, nan, List.of(otherNan)));
+        assertFalse(sameGroup(DataType.DENSE_VECTOR, nan, List.of(otherNan), BlockHashKind.ROW));
+        assertTrue(valuesEqual(DataType.DENSE_VECTOR, List.of(0.0f), List.of(-0.0f)));
+        assertFalse(sameGroup(DataType.DENSE_VECTOR, List.of(0.0f), List.of(-0.0f), BlockHashKind.ROW));
         expectThrows(
             IllegalArgumentException.class,
-            () -> BlockHash.build(List.of(new BlockHash.GroupSpec(0, ElementType.FLOAT)), factory, 16, false).close()
+            () -> BlockHash.build(List.of(new BlockHash.GroupSpec(0, ElementType.FLOAT)), blockFactory, 16, false).close()
         );
     }
 
     /**
      * The {@code INLINE STATS} join looks keys up in a {@link RowInTableLookup} built from the grouped output.
-     * Probing the original rows, including a repeated key, finds the group that hashing assigned. The lookup
-     * rejects a multivalued build key; {@code STATS} splits a multivalue before that join.
+     * Probing the original rows, including a repeated key, finds the group that hashing assigned.
      */
     public void testLookupRoundTripFindsOriginalRows() {
-        BlockFactory factory = blockFactory();
-        for (DataType type : equalityTypes()) {
+        for (DataType type : equalityTypes(BlockHashKind.SINGLE)) {
             ElementType elementType = PlannerUtils.toElementType(type);
-            try (Block input = repeatedKeyBlock(elementType, factory)) {
+            try (Block input = repeatedKeyBlock(elementType, blockFactory)) {
                 assertRoundTrip(
                     type.typeName() + " single",
                     input,
-                    BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), factory, 1024, false)
+                    BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024, false)
                 );
                 assertRoundTrip(
                     type.typeName() + " packed",
                     input,
-                    BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, elementType)), factory, 1024)
+                    BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024)
                 );
             }
         }
         for (DataType type : List.of(DataType.NULL, DataType.SOURCE, DataType.TSID_DATA_TYPE)) {
             ElementType elementType = PlannerUtils.toElementType(type);
-            try (Block input = repeatedKeyBlock(elementType, factory)) {
+            try (Block input = repeatedKeyBlock(elementType, blockFactory)) {
                 assertRoundTrip(
                     type.typeName() + " single",
                     input,
-                    BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), factory, 1024, false)
+                    BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024, false)
                 );
                 assertRoundTrip(
                     type.typeName() + " packed",
                     input,
-                    BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, elementType)), factory, 1024)
+                    BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024)
                 );
+            }
+        }
+    }
+
+    /**
+     * A multivalue applies to the {@code STATS} hashes. They split it, the grouped keys are single values, and
+     * probing the original page finds every group that position was given. The lookup rejects a multivalued
+     * build key. {@code LIMIT BY} and {@code DEDUP} keep the list whole, and that hash does not look rows up.
+     */
+    public void testLookupRoundTripFindsSplitMultivalues() {
+        for (BlockHashKind kind : List.of(BlockHashKind.SINGLE, BlockHashKind.PACKED)) {
+            for (ElementType elementType : List.of(
+                ElementType.BOOLEAN,
+                ElementType.INT,
+                ElementType.LONG,
+                ElementType.DOUBLE,
+                ElementType.BYTES_REF,
+                ElementType.DOUBLE_RANGE
+            )) {
+                try (Block block = multivalue(elementType)) {
+                    assertSplit(kind, block);
+                    BlockHash hash = kind == BlockHashKind.SINGLE
+                        ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024, false)
+                        : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024);
+                    assertRoundTrip(elementType + " " + kind, block, hash);
+                }
             }
         }
     }
@@ -336,7 +449,7 @@ public class GroupingEqualityTests extends ESTestCase {
     }
 
     private void agrees(BlockHashKind kind) {
-        for (DataType type : equalityTypes()) {
+        for (DataType type : equalityTypes(kind)) {
             for (int i = 0; i < 8; i++) {
                 Object left = ordinary(type);
                 Object right = ordinary(type);
@@ -350,8 +463,7 @@ public class GroupingEqualityTests extends ESTestCase {
     private static Object ordinary(DataType type) {
         for (int i = 0; i < 20; i++) {
             Object value = EsqlTestUtils.randomLiteralValue(type);
-            if (value instanceof Double d
-                && (Double.isFinite(d) == false || Double.doubleToRawLongBits(d) == Double.doubleToRawLongBits(-0.0d))) {
+            if (skipsFloatBits(value)) {
                 continue;
             }
             return value;
@@ -359,7 +471,23 @@ public class GroupingEqualityTests extends ESTestCase {
         throw new AssertionError(type);
     }
 
-    private static void assertAgrees(DataType type, BlockHashKind kind, Object left, Object right) {
+    /** {@code NaN} and a negative zero are pinned on their own, including inside a {@code dense_vector}. */
+    private static boolean skipsFloatBits(Object value) {
+        if (value instanceof Double d) {
+            return Double.isFinite(d) == false || Double.doubleToRawLongBits(d) == Double.doubleToRawLongBits(-0.0d);
+        }
+        if (value instanceof List<?> values) {
+            for (Object element : values) {
+                if (element instanceof Float f
+                    && (Float.isFinite(f) == false || Float.floatToRawIntBits(f) == Float.floatToRawIntBits(-0.0f))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void assertAgrees(DataType type, BlockHashKind kind, Object left, Object right) {
         boolean equal = valuesEqual(type, left, right);
         assertThat(type.typeName() + " " + kind + " [" + left + "] [" + right + "]", sameGroup(type, left, right, kind), equalTo(equal));
     }
@@ -378,15 +506,15 @@ public class GroupingEqualityTests extends ESTestCase {
     }
 
     /** Runtime {@code ==} on one page of blocks. Constant folding must report the same boolean. */
-    private static boolean valuesEqual(DataType type, Object left, Object right) {
+    private boolean valuesEqual(DataType type, Object left, Object right) {
         Boolean runtime = evaluateEquals(type, left, right);
         assertNotNull(type.typeName(), runtime);
         assertThat(type.typeName() + " fold", foldEquals(type, left, right), equalTo(runtime));
         return runtime;
     }
 
-    private static Boolean evaluateEquals(DataType type, Object left, Object right) {
-        BlockFactory factory = blockFactory();
+    private Boolean evaluateEquals(DataType type, Object left, Object right) {
+        BlockFactory factory = blockFactory;
         DriverContext context = new DriverContext(factory.bigArrays(), factory, null);
         Equals equals = new Equals(Source.EMPTY, new ChannelValue(type, 0), new ChannelValue(type, 1));
         try (
@@ -419,12 +547,12 @@ public class GroupingEqualityTests extends ESTestCase {
         );
     }
 
-    private static boolean sameGroup(BlockHashKind kind, double left, double right) {
+    private boolean sameGroup(BlockHashKind kind, double left, double right) {
         return sameGroup(DataType.DOUBLE, left, right, kind);
     }
 
-    private static boolean sameGroup(DataType type, Object left, Object right, BlockHashKind kind) {
-        BlockFactory factory = blockFactory();
+    private boolean sameGroup(DataType type, Object left, Object right, BlockHashKind kind) {
+        BlockFactory factory = blockFactory;
         ElementType elementType = PlannerUtils.toElementType(type);
         try (Block block = pairBlock(factory, left, right)) {
             if (kind == BlockHashKind.ROW) {
@@ -497,10 +625,6 @@ public class GroupingEqualityTests extends ESTestCase {
         }
     }
 
-    private static BlockFactory blockFactory() {
-        return TestBlockFactory.getNonBreakingInstance();
-    }
-
     /**
      * Positions are {@code [1, 2]}, {@code [2, 1]}, {@code 1}, {@code 2}, {@code [1, 1]}. {@code STATS} splits the
      * lists. The repeated {@code 1} is one group.
@@ -554,25 +678,131 @@ public class GroupingEqualityTests extends ESTestCase {
             .build();
     }
 
-    private static void assertSplit(BlockHashKind kind, Block block) {
-        ElementType elementType = block.elementType();
-        BlockFactory factory = blockFactory();
-        try (block) {
-            BlockHash hash = kind == BlockHashKind.SINGLE
-                ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), factory, 1024, false)
-                : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, elementType)), factory, 1024);
-            int[][] ids = collect(hash, new Page(block), true);
-            assertThat(set(ids[0]), equalTo(set(ids[2][0], ids[3][0])));
-            assertThat(set(ids[1]), equalTo(set(ids[0])));
-            assertThat(set(ids[5]), equalTo(set(ids[0])));
-            assertThat(ids[2][0], not(equalTo(ids[3][0])));
-            assertThat(ids[4].length, equalTo(1));
-            assertThat(ids[4][0], equalTo(ids[2][0]));
-        }
+    /**
+     * The {@link #intMultivalue} positions for every element type {@code STATS} splits. {@code a} is the first
+     * distinct value and {@code b} the second.
+     */
+    private Block multivalue(ElementType elementType) {
+        return switch (elementType) {
+            case INT -> intMultivalue(blockFactory);
+            case BYTES_REF -> keywordMultivalue(blockFactory);
+            case LONG -> longMultivalue(blockFactory);
+            case DOUBLE -> doubleMultivalue(blockFactory);
+            case BOOLEAN -> booleanMultivalue(blockFactory);
+            case DOUBLE_RANGE -> doubleRangeMultivalue(blockFactory);
+            case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
+                throw new AssertionError("not a split multivalue [" + elementType + "]");
+        };
     }
 
-    private static void assertWhole(Block block) {
-        try (block; RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(block.elementType()), blockFactory())) {
+    private static Block longMultivalue(BlockFactory factory) {
+        return factory.newLongBlockBuilder(6)
+            .beginPositionEntry()
+            .appendLong(1)
+            .appendLong(2)
+            .endPositionEntry()
+            .beginPositionEntry()
+            .appendLong(2)
+            .appendLong(1)
+            .endPositionEntry()
+            .appendLong(1)
+            .appendLong(2)
+            .beginPositionEntry()
+            .appendLong(1)
+            .appendLong(1)
+            .endPositionEntry()
+            .beginPositionEntry()
+            .appendLong(1)
+            .appendLong(2)
+            .endPositionEntry()
+            .build();
+    }
+
+    private static Block doubleMultivalue(BlockFactory factory) {
+        return factory.newDoubleBlockBuilder(6)
+            .beginPositionEntry()
+            .appendDouble(1.5)
+            .appendDouble(2.5)
+            .endPositionEntry()
+            .beginPositionEntry()
+            .appendDouble(2.5)
+            .appendDouble(1.5)
+            .endPositionEntry()
+            .appendDouble(1.5)
+            .appendDouble(2.5)
+            .beginPositionEntry()
+            .appendDouble(1.5)
+            .appendDouble(1.5)
+            .endPositionEntry()
+            .beginPositionEntry()
+            .appendDouble(1.5)
+            .appendDouble(2.5)
+            .endPositionEntry()
+            .build();
+    }
+
+    private static Block booleanMultivalue(BlockFactory factory) {
+        return factory.newBooleanBlockBuilder(6)
+            .beginPositionEntry()
+            .appendBoolean(false)
+            .appendBoolean(true)
+            .endPositionEntry()
+            .beginPositionEntry()
+            .appendBoolean(true)
+            .appendBoolean(false)
+            .endPositionEntry()
+            .appendBoolean(false)
+            .appendBoolean(true)
+            .beginPositionEntry()
+            .appendBoolean(false)
+            .appendBoolean(false)
+            .endPositionEntry()
+            .beginPositionEntry()
+            .appendBoolean(false)
+            .appendBoolean(true)
+            .endPositionEntry()
+            .build();
+    }
+
+    private static Block doubleRangeMultivalue(BlockFactory factory) {
+        return factory.newDoubleRangeBlockBuilder(6)
+            .beginPositionEntry()
+            .appendDoubleRange(1, 2)
+            .appendDoubleRange(1, 3)
+            .endPositionEntry()
+            .beginPositionEntry()
+            .appendDoubleRange(1, 3)
+            .appendDoubleRange(1, 2)
+            .endPositionEntry()
+            .appendDoubleRange(1, 2)
+            .appendDoubleRange(1, 3)
+            .beginPositionEntry()
+            .appendDoubleRange(1, 2)
+            .appendDoubleRange(1, 2)
+            .endPositionEntry()
+            .beginPositionEntry()
+            .appendDoubleRange(1, 2)
+            .appendDoubleRange(1, 3)
+            .endPositionEntry()
+            .build();
+    }
+
+    private void assertSplit(BlockHashKind kind, Block block) {
+        ElementType elementType = block.elementType();
+        BlockHash hash = kind == BlockHashKind.SINGLE
+            ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024, false)
+            : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024);
+        int[][] ids = collect(hash, new Page(block), true);
+        assertThat(set(ids[0]), equalTo(set(ids[2][0], ids[3][0])));
+        assertThat(set(ids[1]), equalTo(set(ids[0])));
+        assertThat(set(ids[5]), equalTo(set(ids[0])));
+        assertThat(ids[2][0], not(equalTo(ids[3][0])));
+        assertThat(ids[4].length, equalTo(1));
+        assertThat(ids[4][0], equalTo(ids[2][0]));
+    }
+
+    private void assertWhole(Block block) {
+        try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(block.elementType()), blockFactory)) {
             int[] ids = hash.add(new Page(block));
             assertThat(ids[5], equalTo(ids[0]));
             assertThat(ids[0], not(equalTo(ids[1])));
@@ -599,32 +829,35 @@ public class GroupingEqualityTests extends ESTestCase {
             .build();
     }
 
-    private static void assertRoundTrip(String label, Block input, BlockHash hash) {
+    private void assertRoundTrip(String label, Block input, BlockHash hash) {
         try {
             int[][] ids = collect(hash, new Page(input), false);
             try (IntVector nonEmpty = hash.nonEmpty()) {
                 Block[] grouped = hash.getKeys(nonEmpty);
+                input.incRef();
+                Page probe = new Page(input);
                 try {
-                    input.incRef();
-                    Page probe = new Page(input);
-                    try (RowInTableLookup lookup = RowInTableLookup.build(blockFactory(), grouped)) {
+                    try (RowInTableLookup lookup = RowInTableLookup.build(blockFactory, grouped)) {
                         try (
-                            ReleasableIterator<IntBlock> rows = lookup.lookup(probe, blockFactory(), ByteSizeValue.ofMb(1));
+                            ReleasableIterator<IntBlock> rows = lookup.lookup(probe, blockFactory, ByteSizeValue.ofMb(1));
                             IntBlock matches = rows.next()
                         ) {
                             assertThat(label, matches.getPositionCount(), equalTo(input.getPositionCount()));
                             for (int p = 0; p < matches.getPositionCount(); p++) {
                                 assertFalse(label + " position " + p, matches.isNull(p));
-                                assertThat(label, ids[p].length, equalTo(1));
-                                int ordinal = matches.getInt(matches.getFirstValueIndex(p));
-                                assertThat(label + " position " + p, nonEmpty.getInt(ordinal), equalTo(ids[p][0]));
+                                Set<Integer> found = new HashSet<>();
+                                int start = matches.getFirstValueIndex(p);
+                                int count = matches.getValueCount(p);
+                                for (int v = 0; v < count; v++) {
+                                    found.add(nonEmpty.getInt(matches.getInt(start + v)));
+                                }
+                                assertThat(label + " position " + p, found, equalTo(set(ids[p])));
                             }
                             assertFalse(rows.hasNext());
-                        } finally {
-                            probe.releaseBlocks();
                         }
                     }
                 } finally {
+                    probe.releaseBlocks();
                     Releasables.close(grouped);
                 }
             }

@@ -175,7 +175,10 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-            VectorScorer vectorScorer = query.vectorScorer(context);
+            // Scorers advance in doc order, so they read the vectors in order, in a conjunction too.
+            // TODO: a very selective filter skips most vectors and wastes the readahead; the cost of
+            // the filter or the lead cost could pick the random input instead.
+            VectorScorer vectorScorer = query.vectorScorer(context, DataAccessHint.SEQUENTIAL);
             if (vectorScorer == null) {
                 return null;
             }
@@ -195,21 +198,12 @@ public abstract class DenseVectorQuery extends Query {
             return new ScorerSupplier() {
                 @Override
                 public Scorer get(long leadCost) throws IOException {
-                    return sequentialScorer();
+                    return new DenseVectorScorer(vectorScorer, filterIterator, boost);
                 }
 
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
-                    return new DenseVectorBulkScorer(sequentialScorer(), cost);
-                }
-
-                /**
-                 * Scorers advance in doc order, so they read the vectors in order, in a conjunction too.
-                 * TODO: a very selective filter skips most vectors and wastes the readahead; the cost of
-                 * the filter or the lead cost could pick the random input instead.
-                 */
-                private DenseVectorScorer sequentialScorer() throws IOException {
-                    return new DenseVectorScorer(query.vectorScorer(context, DataAccessHint.SEQUENTIAL), filterIterator, boost);
+                    return new DenseVectorBulkScorer(new DenseVectorScorer(vectorScorer, filterIterator, boost), cost);
                 }
 
                 @Override

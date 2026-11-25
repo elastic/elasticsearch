@@ -175,6 +175,14 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            // checked first, so a leaf the filter rules out opens no vector input
+            ScorerSupplier filterSupplier = null;
+            if (filterWeight != null) {
+                filterSupplier = filterWeight.scorerSupplier(context);
+                if (filterSupplier == null) {
+                    return null;
+                }
+            }
             // Scorers advance in doc order, so they read the vectors in order, in a conjunction too.
             // TODO: a very selective filter skips most vectors and wastes the readahead; the cost of
             // the filter or the lead cost could pick the random input instead.
@@ -184,11 +192,7 @@ public abstract class DenseVectorQuery extends Query {
             }
             final DocIdSetIterator filterIterator;
             final long cost;
-            if (filterWeight != null) {
-                ScorerSupplier filterSupplier = filterWeight.scorerSupplier(context);
-                if (filterSupplier == null) {
-                    return null;
-                }
+            if (filterSupplier != null) {
                 filterIterator = filterSupplier.get(Long.MAX_VALUE).iterator();
                 cost = Math.min(vectorScorer.iterator().cost(), filterIterator.cost());
             } else {

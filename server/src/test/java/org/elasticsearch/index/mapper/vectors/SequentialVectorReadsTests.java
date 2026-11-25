@@ -138,6 +138,10 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
             Query tagged = new TermQuery(new Term("tag", "a"));
 
             opens.clear();
+            // a leaf the filter rules out opens nothing
+            assertThat(searcher.search(query.filteredBy(new TermQuery(new Term("tag", "none"))), 10).scoreDocs.length, equalTo(0));
+            assertThat(opens.toString(), sequentialOpens(IOContext.Context.DEFAULT), hasSize(0));
+
             Query conjunction = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
                 .add(tagged, BooleanClause.Occur.FILTER)
                 .build();

@@ -68,7 +68,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -985,6 +987,77 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertOptimizedMatchesBaseline(data, List.of("s"));
     }
 
+    // --- Corrupt negative PLAIN BINARY length ---
+
+    /**
+     * A corrupt negative PLAIN length reads as an empty KEYWORD value (see {@link PlainValueDecoder}). The full
+     * read and a sparse read that skips over it both land on the same following values.
+     */
+    public void testPlainKeywordNegativeLengthIsEmptyForReadAndSkip() throws IOException {
+        byte[] first = "aaa".getBytes(StandardCharsets.UTF_8);
+        byte[][] values = { first, new byte[0], "bbb".getBytes(StandardCharsets.UTF_8), "ccc".getBytes(StandardCharsets.UTF_8) };
+        byte[] data = writePlainKeywordFile(false, row -> values[row], values.length);
+        corruptEmptyPrefixAfter(data, first);
+
+        try (Block full = fullRead(data, "s", DataType.KEYWORD)) {
+            assertEquals(4, full.getPositionCount());
+            assertBytesRefAt(full, 0, "aaa");
+            assertBytesRefAt(full, 1, "");
+            assertBytesRefAt(full, 2, "bbb");
+            assertBytesRefAt(full, 3, "ccc");
+        }
+        // Rows 1 and 2 are skipped: the skip must step over the corrupt prefix without moving backwards.
+        try (Block sparse = sparseRead(data, "s", DataType.KEYWORD, new int[] { 0, 3 })) {
+            assertEquals(2, sparse.getPositionCount());
+            assertBytesRefAt(sparse, 0, "aaa");
+            assertBytesRefAt(sparse, 1, "ccc");
+        }
+    }
+
+    /**
+     * An empty unscaled value in a BINARY-backed DECIMAL reads as 0 rather than failing, whether a writer stored
+     * zero bytes or a corrupt negative PLAIN length decoded as empty; the values after it decode unchanged.
+     */
+    public void testPlainBinaryDecimalEmptyValueReadsAsZero() throws IOException {
+        byte[] first = BigInteger.valueOf(12345).toByteArray();
+        byte[][] values = { first, new byte[0], BigInteger.valueOf(-678).toByteArray() };
+        byte[] data = writeBinaryFile(LogicalTypeAnnotation.decimalType(2, 9), false, false, 64 * 1024, row -> values[row], values.length);
+        boolean corrupt = randomBoolean();
+        if (corrupt) {
+            corruptEmptyPrefixAfter(data, first);
+        }
+
+        try (Block raw = fullRead(data, "s", DataType.DOUBLE)) {
+            DoubleBlock block = (DoubleBlock) raw;
+            assertEquals(3, block.getPositionCount());
+            assertEquals(123.45, block.getDouble(0), 0.0);
+            assertEquals("empty unscaled value, corrupt=" + corrupt, 0.0, block.getDouble(1), 0.0);
+            assertEquals(-6.78, block.getDouble(2), 0.0);
+        }
+    }
+
+    /**
+     * Finds the one PLAIN value {@code before} (length prefix and payload) that is immediately followed by an
+     * empty value, and overwrites the empty value's prefix with a random negative length, as a corrupt page
+     * would hold. Only an empty value's prefix is rewritten so the rest of the page stays aligned. The written
+     * files carry no page checksums that the reader verifies.
+     */
+    private static void corruptEmptyPrefixAfter(byte[] file, byte[] before) {
+        byte[] pattern = new byte[2 * Integer.BYTES + before.length];
+        ByteBuffer.wrap(pattern).order(ByteOrder.LITTLE_ENDIAN).putInt(before.length).put(before).putInt(0);
+        int at = -1;
+        for (int i = 0; i + pattern.length <= file.length; i++) {
+            if (Arrays.equals(file, i, i + pattern.length, pattern, 0, pattern.length)) {
+                assertEquals("the PLAIN value must occur once in the file", -1, at);
+                at = i;
+            }
+        }
+        assertThat("the PLAIN value must occur in the file", at, greaterThan(-1));
+        ByteBuffer.wrap(file)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .putInt(at + Integer.BYTES + before.length, -randomIntBetween(1, Integer.MAX_VALUE));
+    }
+
     private void assertPlainKeywordBlock(byte[] data, int numRows, boolean expectOrdinal, IntFunction<BytesRef> expected, String ctx)
         throws IOException {
         try (Block raw = fullRead(data, "s", DataType.KEYWORD)) {
@@ -1037,9 +1110,21 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     private byte[] writeKeywordFile(boolean optional, boolean dictionary, int dictionaryPageSize, IntFunction<byte[]> valueFor, int numRows)
         throws IOException {
+        return writeBinaryFile(LogicalTypeAnnotation.stringType(), optional, dictionary, dictionaryPageSize, valueFor, numRows);
+    }
+
+    /** Writes one uncompressed V1 BINARY column {@code s} annotated with {@code logical}. */
+    private byte[] writeBinaryFile(
+        LogicalTypeAnnotation logical,
+        boolean optional,
+        boolean dictionary,
+        int dictionaryPageSize,
+        IntFunction<byte[]> valueFor,
+        int numRows
+    ) throws IOException {
         Types.MessageTypeBuilder schemaBuilder = Types.buildMessage();
         var col = optional ? Types.optional(BINARY) : Types.required(BINARY);
-        col.as(LogicalTypeAnnotation.stringType());
+        col.as(logical);
         schemaBuilder.addField(col.named("s"));
         MessageType schema = schemaBuilder.named("plain_utf8");
         ByteArrayOutputStream out = new ByteArrayOutputStream();

@@ -14,6 +14,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Tests for {@link PlainValueDecoder}, focusing on boolean bit-packing correctness
@@ -289,6 +290,91 @@ public class PlainValueDecoderTests extends ESTestCase {
         expectThrows(BufferUnderflowException.class, () -> decoder.plainPayloadBytes(1));
     }
 
+    /**
+     * A negative length in the middle of a page reads as an empty value that consumes only its 4-byte prefix,
+     * over both a heap and a direct buffer: the values after it decode unchanged and nothing is left over.
+     */
+    public void testReadBinariesNegativeLengthIsEmpty() {
+        byte[][] payloads = { new byte[] { 'a' }, new byte[0], new byte[] { 'c', 'd' } };
+        byte[] packed = packPlainWithNegativeLengths(payloads, new boolean[] { false, true, false });
+        for (ByteBuffer buffer : List.of(ByteBuffer.wrap(packed), directBuffer(packed))) {
+            PlainValueDecoder decoder = new PlainValueDecoder();
+            decoder.init(buffer);
+            BytesRef[] vals = new BytesRef[3];
+            decoder.readBinaries(vals, 0, 3);
+            assertEquals(new BytesRef("a"), vals[0]);
+            assertEquals("the negative length is an empty value", new BytesRef(), vals[1]);
+            assertEquals("the value after it decodes unchanged", new BytesRef("cd"), vals[2]);
+            expectThrows(BufferUnderflowException.class, () -> decoder.plainPayloadBytes(1));
+        }
+    }
+
+    /** Skipping over a negative length consumes only its prefix, so the next read lands on the following value. */
+    public void testSkipBinariesNegativeLengthSkipsOnlyPrefix() {
+        byte[][] payloads = { new byte[] { 'a' }, new byte[0], new byte[] { 'c', 'd' }, new byte[] { 'e' } };
+        byte[] packed = packPlainWithNegativeLengths(payloads, new boolean[] { false, true, false, false });
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(randomPlainBuffer(packed));
+        decoder.skipBinaries(2);
+        BytesRef[] vals = new BytesRef[2];
+        decoder.readBinaries(vals, 0, 2);
+        assertEquals(new BytesRef("cd"), vals[0]);
+        assertEquals(new BytesRef("e"), vals[1]);
+        expectThrows(BufferUnderflowException.class, () -> decoder.plainPayloadBytes(1));
+    }
+
+    /**
+     * Every length-prefixed path agrees on a page with random negative lengths: {@code readBinaries} over the
+     * whole page, {@code skipBinaries} then {@code readBinaries}, and {@code plainPayloadBytes} plus
+     * {@code copyPlainPayloads} in two chunks all see the same values and all end exactly at the buffer end.
+     */
+    public void testNegativeLengthReadSkipAndCopyAgree() {
+        int n = randomIntBetween(2, 32);
+        byte[][] payloads = new byte[n][];
+        boolean[] negative = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            negative[i] = randomBoolean();
+            payloads[i] = negative[i] ? new byte[0] : randomByteArrayOfLength(randomIntBetween(0, 300));
+        }
+        byte[] packed = packPlainWithNegativeLengths(payloads, negative);
+        int split = randomIntBetween(0, n);
+
+        PlainValueDecoder read = new PlainValueDecoder();
+        read.init(randomPlainBuffer(packed));
+        BytesRef[] all = new BytesRef[n];
+        read.readBinaries(all, 0, n);
+        for (int i = 0; i < n; i++) {
+            assertEquals("readBinaries value " + i, new BytesRef(payloads[i]), all[i]);
+        }
+
+        PlainValueDecoder skipThenRead = new PlainValueDecoder();
+        skipThenRead.init(randomPlainBuffer(packed));
+        skipThenRead.skipBinaries(split);
+        BytesRef[] rest = new BytesRef[n - split];
+        skipThenRead.readBinaries(rest, 0, n - split);
+        for (int i = 0; i < n - split; i++) {
+            assertEquals("skip+read value " + (split + i), new BytesRef(payloads[split + i]), rest[i]);
+        }
+
+        PlainValueDecoder copy = new PlainValueDecoder();
+        copy.init(randomPlainBuffer(packed));
+        for (int[] chunk : new int[][] { { 0, split }, { split, n } }) {
+            int count = chunk[1] - chunk[0];
+            byte[] dest = new byte[copy.plainPayloadBytes(count)];
+            int[] ends = new int[count];
+            assertEquals(dest.length, copy.copyPlainPayloads(dest, 0, ends, count));
+            int start = 0;
+            for (int i = 0; i < count; i++) {
+                assertArrayEquals("copy value " + (chunk[0] + i), payloads[chunk[0] + i], Arrays.copyOfRange(dest, start, ends[i]));
+                start = ends[i];
+            }
+        }
+
+        for (PlainValueDecoder decoder : List.of(read, skipThenRead, copy)) {
+            expectThrows(BufferUnderflowException.class, () -> decoder.plainPayloadBytes(1));
+        }
+    }
+
     public void testReadBinariesNonZeroOffset() {
         byte[] packed = packPlain(new byte[][] { new byte[] { 'x' }, new byte[] { 'y' } });
         PlainValueDecoder decoder = new PlainValueDecoder();
@@ -315,6 +401,25 @@ public class PlainValueDecoderTests extends ESTestCase {
             pos += Integer.BYTES;
             System.arraycopy(p, 0, packed, pos, p.length);
             pos += p.length;
+        }
+        return packed;
+    }
+
+    /**
+     * Packs {@code payloads} as PLAIN BINARY, then overwrites the length prefix of every value flagged in
+     * {@code negative} with a random negative length, as a corrupt page would hold. Flagged values must be
+     * empty so the bytes after the rewritten prefix are still the next value's prefix.
+     */
+    private static byte[] packPlainWithNegativeLengths(byte[][] payloads, boolean[] negative) {
+        byte[] packed = packPlain(payloads);
+        ByteBuffer view = ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN);
+        int pos = 0;
+        for (int i = 0; i < payloads.length; i++) {
+            if (negative[i]) {
+                assertEquals("only an empty value can carry a negative length", 0, payloads[i].length);
+                view.putInt(pos, -randomIntBetween(1, Integer.MAX_VALUE));
+            }
+            pos += Integer.BYTES + payloads[i].length;
         }
         return packed;
     }

@@ -1225,7 +1225,10 @@ final class PageColumnReader implements Releasable {
                 }
                 case BINARY, FIXED_LEN_BYTE_ARRAY -> {
                     readBinariesDispatch(binScratch, 0, 1);
-                    yield new BigInteger(binScratch[0].bytes, binScratch[0].offset, binScratch[0].length);
+                    BytesRef raw = binScratch[0];
+                    // An empty unscaled value reads as 0 rather than failing: BigInteger rejects zero bytes, and a
+                    // corrupt negative PLAIN length decodes as an empty value (see PlainValueDecoder).
+                    yield raw.length == 0 ? BigInteger.ZERO : new BigInteger(raw.bytes, raw.offset, raw.length);
                 }
                 default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
             };

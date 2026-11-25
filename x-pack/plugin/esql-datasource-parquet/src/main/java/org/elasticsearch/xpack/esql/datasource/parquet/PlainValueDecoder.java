@@ -18,6 +18,15 @@ import java.nio.ByteOrder;
  * Bulk PLAIN decoder over a little-endian value {@link ByteBuffer} for page-level Parquet reads.
  * Fixed-width types (INT32, INT64, FLOAT, DOUBLE) are read contiguously; BOOLEAN is bit-packed
  * (1 bit per value); BINARY is length-prefixed; FIXED_LEN_BYTE_ARRAY uses a fixed stride.
+ *
+ * <p><b>Negative BINARY lengths.</b> A PLAIN BINARY value is an {@code [int32 LE length][bytes]} pair,
+ * and a negative length can only come from a corrupt page. Every length-prefixed method here
+ * ({@link #readBinaries}, {@link #skipBinaries}, {@link #plainPayloadBytes} and
+ * {@link #copyPlainPayloads}) treats it the same lenient way: the value is empty and only its 4-byte
+ * prefix is consumed, so the next value is read from the byte right after that prefix. Because all four
+ * agree, any mix of reads, skips and bulk copies over the same page lands on the same values and
+ * positions. Moving the position by a negative length instead would step backwards and silently
+ * misalign every later value.
  */
 final class PlainValueDecoder {
 
@@ -76,23 +85,35 @@ final class PlainValueDecoder {
         boolBitOffset = totalBits % 8;
     }
 
-    /** Returned BytesRef instances share storage with the value buffer and must be copied before the buffer is reused. */
+    /**
+     * Reads {@code count} PLAIN BINARY values. Returned BytesRef instances share storage with the value buffer
+     * and must be copied before the buffer is reused. A non-positive length yields an empty value and consumes
+     * only its prefix; see the {@link PlainValueDecoder class Javadoc}.
+     */
     void readBinaries(BytesRef[] values, int offset, int count) {
         if (buffer.hasArray()) {
             byte[] backing = buffer.array();
             int baseOffset = buffer.arrayOffset();
             for (int i = 0; i < count; i++) {
                 int length = buffer.getInt();
-                int pos = buffer.position();
-                values[offset + i] = new BytesRef(backing, baseOffset + pos, length);
-                buffer.position(pos + length);
+                if (length > 0) {
+                    int pos = buffer.position();
+                    values[offset + i] = new BytesRef(backing, baseOffset + pos, length);
+                    buffer.position(pos + length);
+                } else {
+                    values[offset + i] = new BytesRef();
+                }
             }
         } else {
             for (int i = 0; i < count; i++) {
                 int length = buffer.getInt();
-                byte[] copy = UninitializedArrays.newByteArray(length);
-                buffer.get(copy);
-                values[offset + i] = new BytesRef(copy);
+                if (length > 0) {
+                    byte[] copy = UninitializedArrays.newByteArray(length);
+                    buffer.get(copy);
+                    values[offset + i] = new BytesRef(copy);
+                } else {
+                    values[offset + i] = new BytesRef();
+                }
             }
         }
     }
@@ -106,9 +127,9 @@ final class PlainValueDecoder {
      * Walks the {@code [int32 LE length][bytes]} prefixes with absolute reads, so the buffer position
      * is left unchanged. A truncated length prefix, or a payload running past the buffer limit, throws
      * {@link BufferUnderflowException} as the relative reads in {@link #copyPlainPayloads} do. A negative
-     * length, which only a corrupt page holds, counts as an empty value exactly as in
-     * {@link #copyPlainPayloads}: it contributes no payload bytes and only its 4-byte prefix is consumed,
-     * so the two methods always agree. Bounds are checked as {@code length > limit - pos}, so neither
+     * length counts as an empty value that contributes no payload bytes (see the
+     * {@link PlainValueDecoder class Javadoc}), so this method and {@link #copyPlainPayloads}
+     * always agree. Bounds are checked as {@code length > limit - pos}, so neither
      * the position nor the total can overflow: the total never exceeds the buffer limit.
      */
     int plainPayloadBytes(int count) {
@@ -136,7 +157,8 @@ final class PlainValueDecoder {
     /**
      * Copies {@code count} PLAIN BINARY payloads (no length prefixes) into {@code dest} starting
      * at {@code destOff}. {@code exclusiveEnds[i]} is the exclusive dest offset of value {@code i}
-     * relative to {@code destOff}. Returns packed length.
+     * relative to {@code destOff}. Returns packed length. A negative length is an empty value;
+     * see the {@link PlainValueDecoder class Javadoc}.
      */
     int copyPlainPayloads(byte[] dest, int destOff, int[] exclusiveEnds, int count) {
         int d = destOff;
@@ -223,10 +245,16 @@ final class PlainValueDecoder {
         boolBitOffset = totalBits % 8;
     }
 
+    /**
+     * Skips {@code count} PLAIN BINARY values. A negative length skips only its prefix; see the
+     * {@link PlainValueDecoder class Javadoc}.
+     */
     void skipBinaries(int count) {
         for (int i = 0; i < count; i++) {
             int length = buffer.getInt();
-            buffer.position(buffer.position() + length);
+            if (length > 0) {
+                buffer.position(buffer.position() + length);
+            }
         }
     }
 

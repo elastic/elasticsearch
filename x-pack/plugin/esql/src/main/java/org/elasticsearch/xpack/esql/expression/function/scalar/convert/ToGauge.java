@@ -106,6 +106,12 @@ public class ToGauge extends AbstractConvertFunction {
         return EVALUATORS;
     }
 
+    @Override
+    public boolean lenientOnInputType() {
+        // The type of the result follows the type of the input, so an input it can't convert has no type to give a null.
+        return false;
+    }
+
     /**
      * Returns the plain numeric variant of the input type: {@code counter_long→long}, etc.
      * Plain numeric inputs pass through unchanged. Returns the input type unchanged when it

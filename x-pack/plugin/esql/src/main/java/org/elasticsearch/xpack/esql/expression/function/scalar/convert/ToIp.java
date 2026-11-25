@@ -171,6 +171,10 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
 
     @Override
     protected TypeResolution resolveType() {
+        return LenientConversion.resolve(this);
+    }
+
+    private TypeResolution doResolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
@@ -191,6 +195,11 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
             return new TypeResolution(e.getMessage());
         }
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
+    public TypeResolution strictTypeResolution() {
+        return doResolveType();
     }
 
     public enum LeadingZeros {

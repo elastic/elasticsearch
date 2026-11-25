@@ -745,7 +745,7 @@ public abstract class FullTextFunction extends Function
         }
 
         Expression fieldExpression = field;
-        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction && convertFunction.convertsInput()) {
             fieldExpression = convertFunction.field();
         }
         if (fieldExpression instanceof Attribute == false) {
@@ -944,8 +944,9 @@ public abstract class FullTextFunction extends Function
 
     protected FieldAttribute fieldAsFieldAttribute(Expression field) {
         Expression fieldExpression = field;
-        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
-        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field.
+        // A conversion that doesn't convert its field is null for every row, so it isn't a search on the field.
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction && convertFunction.convertsInput()) {
             fieldExpression = convertFunction.field();
         }
 

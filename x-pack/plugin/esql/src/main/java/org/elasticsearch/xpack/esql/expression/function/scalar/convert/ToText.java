@@ -197,8 +197,8 @@ public class ToText extends AbstractConvertFunction
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        return super.resolveType().and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS));
+    protected TypeResolution doResolveType() {
+        return super.doResolveType().and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS));
     }
 
     @Override

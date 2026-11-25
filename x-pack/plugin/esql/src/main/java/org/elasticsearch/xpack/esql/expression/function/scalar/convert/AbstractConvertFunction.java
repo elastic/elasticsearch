@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
@@ -58,22 +59,43 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
     /**
      * Build the evaluator given the evaluator a multivalued field.
+     * <p>
+     * An input this function doesn't convert (see {@link #convertsInput()}) is {@code null} for every row. The Verifier fails the query
+     * when a node takes part in it that can't evaluate that.
+     * </p>
      */
     protected final ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         DataType sourceType = field().dataType().widenSmallNumeric();
         var factory = factories().get(sourceType);
         if (factory == null) {
+            if (convertsInput() == false) {
+                return ConstantEvaluators.CONSTANT_NULL_FACTORY;
+            }
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
         }
         return factory.build(source(), fieldEval);
     }
 
     @Override
-    protected TypeResolution resolveType() {
+    protected final TypeResolution resolveType() {
+        return LenientConversion.resolve(this);
+    }
+
+    /**
+     * Checks the types of the arguments, as it did before conversions could be lenient on the type of their input: a conversion that
+     * overrides this adds the checks of its other arguments. It must be checked through this method and never through
+     * {@code resolveType()}, {@code typeResolved()} or {@code resolved()}.
+     */
+    protected TypeResolution doResolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
         return isTypeOrUnionType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(supportedTypes()));
+    }
+
+    @Override
+    public final TypeResolution strictTypeResolution() {
+        return doResolveType();
     }
 
     @Override

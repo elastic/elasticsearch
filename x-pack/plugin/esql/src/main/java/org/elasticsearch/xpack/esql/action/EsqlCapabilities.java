@@ -5105,6 +5105,33 @@ public class EsqlCapabilities {
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
+        /**
+         * Conversions of a union type (a field mapped to different types across indices) keep and validate their other arguments.
+         * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} on a field mapped as keyword and text keep the base, instead of
+         * failing. The options of {@code TO_IP(x, {...})} are validated, including when {@code x} is converted first, as in
+         * {@code x::keyword}. An argument that is invalid for one of the types, or a base that isn't a constant, is a verification
+         * error. Older nodes failed with an internal server error, silently dropped these arguments, or reported invalid options
+         * without the position of the call.
+         */
+        UNION_TYPES_CONVERSION_WITH_BASE,
+
+        /**
+         * The error for a field mapped to different types, and unmapped in some indices, with {@code unmapped_fields="load"}
+         * counts the indices of each type like it does without it. Older nodes listed {@code ...} as an index and undercounted.
+         */
+        PARTIALLY_UNMAPPED_CONFLICT_INDEX_COUNT,
+
+        /**
+         * A cast, or a type conversion function, whose input has a type it can't convert is {@code null} with a warning instead of
+         * failing the query: {@code ip_field::long}, {@code (a + 1)::ip}, {@code true::ip} or {@code TO_DEGREES("1")}. Conversions that
+         * need the input's type to know their own result ({@code TO_GAUGE}, {@code TO_COUNTER}), or a constant
+         * ({@code TO_DATEPERIOD}, {@code TO_TIMEDURATION}), and {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)}, keep failing.
+         * Invalid options and other arguments still fail. Union fields, and fields of a type ES|QL doesn't support, are
+         * handled by the changes that build on this one. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/144400">#144400</a>.
+         */
+        LENIENT_CAST,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

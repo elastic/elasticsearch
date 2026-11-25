@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -19,7 +18,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ToGeohashErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class ToGeohashErrorTests extends ErrorsForLenientConversionTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(ToGeohashTests.parameters());

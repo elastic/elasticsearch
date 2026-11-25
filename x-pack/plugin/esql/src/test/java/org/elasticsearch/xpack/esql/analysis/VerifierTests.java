@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -165,6 +166,52 @@ public class VerifierTests extends AnalyzerTestCase {
                     + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]"
             )
         );
+    }
+
+    /**
+     * Resolving a union type replaces the conversion with per-type conversions, so its other arguments, like the options of
+     * {@code TO_IP}, are validated instead of being dropped.
+     */
+    public void testUnionTypeConversionValidatesOtherArguments() {
+        EsField ipOrKeyword = new InvalidMappedField("ip_or_keyword", Map.of("ip", Set.of("test1"), "keyword", Set.of("test2")));
+        TestAnalyzer analyzer = analyzer().addIndex(
+            "test*",
+            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("ip_or_keyword", ipOrKeyword)))
+        ).stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword, {\"unknown\": \"x\"})",
+            containsString("Invalid option [unknown] in [to_ip(ip_or_keyword, {\"unknown\": \"x\"})], expected one of [leading_zeros]")
+        );
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword, {\"leading_zeros\": \"bad\"})",
+            containsString("Illegal leading_zeros [bad]")
+        );
+        analyzer.query("from test* | eval x = to_ip(ip_or_keyword, {\"leading_zeros\": \"octal\"})");
+    }
+
+    /**
+     * The options of a {@code TO_IP} over another conversion of a union type, like {@code ip_or_keyword::keyword}, are kept and
+     * validated, instead of being dropped when the inner conversion is resolved.
+     */
+    public void testUnionTypeConversionOfConversionValidatesOtherArguments() {
+        EsField ipOrKeyword = new InvalidMappedField("ip_or_keyword", Map.of("ip", Set.of("test1"), "keyword", Set.of("test2")));
+        TestAnalyzer analyzer = analyzer().addIndex(
+            "test*",
+            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("ip_or_keyword", ipOrKeyword)))
+        ).stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword::keyword, {\"unknown\": \"x\"})",
+            containsString(
+                "Invalid option [unknown] in [to_ip(ip_or_keyword::keyword, {\"unknown\": \"x\"})], expected one of [leading_zeros]"
+            )
+        );
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword::keyword, {\"leading_zeros\": \"bad\"})",
+            containsString("Illegal leading_zeros [bad]")
+        );
+        analyzer.query("from test* | eval x = to_ip(ip_or_keyword::keyword, {\"leading_zeros\": \"octal\"})");
     }
 
     public void testUnsupportedAndMultiTypedFields() {
@@ -1724,10 +1771,15 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     public void testInlineImpossibleConvert() {
-        defaultAnalyzer().error(
-            "ROW false::ip",
-            equalTo("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]")
-        );
+        if (minimumVersion.supports(ConvertFunction.LENIENT_CAST)) {
+            defaultAnalyzer().query("ROW false::ip");
+            assertWarnings("[false] of type [boolean] cannot be converted to [IP] and will be null.");
+        } else {
+            defaultAnalyzer().error(
+                "ROW false::ip",
+                equalTo("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]")
+            );
+        }
     }
 
     public void testAggregateOnCounter() {

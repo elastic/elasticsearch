@@ -102,7 +102,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     }
 
     @Override
-    protected TypeResolution resolveType() {
+    protected TypeResolution doResolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }

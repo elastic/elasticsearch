@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167494
+summary: Keep and validate the other arguments of conversions on union types
+type: bug

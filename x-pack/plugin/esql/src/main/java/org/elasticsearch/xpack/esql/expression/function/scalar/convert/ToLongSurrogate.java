@@ -170,6 +170,10 @@ public class ToLongSurrogate extends EsqlScalarFunction
 
     @Override
     protected TypeResolution resolveType() {
+        return LenientConversion.resolve(this);
+    }
+
+    private TypeResolution doResolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
@@ -186,8 +190,19 @@ public class ToLongSurrogate extends EsqlScalarFunction
         } else {
 
             // single parameter TO_LONG(field) supports many types
-            return (new ToLong(source(), field)).resolveType();
+            return (new ToLong(source(), field)).strictTypeResolution();
         }
+    }
+
+    @Override
+    public TypeResolution strictTypeResolution() {
+        return doResolveType();
+    }
+
+    @Override
+    public boolean lenientOnInputType() {
+        // With a base it only parses strings, and surrogate() fails for any other type.
+        return base == null;
     }
 
     @Override
@@ -240,7 +255,14 @@ public class ToLongSurrogate extends EsqlScalarFunction
 
     @Override
     public Set<DataType> supportedTypes() {
-        return ToLong.EVALUATORS.keySet();
+        // With a base only strings can be converted, see resolveType.
+        return base == null ? ToLong.EVALUATORS.keySet() : Set.of(DataType.KEYWORD, DataType.TEXT);
+    }
+
+    @Override
+    public boolean isNoop() {
+        // A base is not an input of a conversion from long, it's an error, so dropping it silently is wrong.
+        return base == null && ConvertFunction.super.isNoop();
     }
 
 }

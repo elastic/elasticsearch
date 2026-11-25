@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -20,7 +19,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ToIpErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class ToIpErrorTests extends ErrorsForLenientConversionTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(ToIpTests.parameters());

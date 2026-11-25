@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.hamcrest.Matcher;
 
@@ -27,6 +29,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Extend me to test that all cases not mentioned in a subclass of
@@ -92,12 +95,37 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             if (expression instanceof AggregateFunction af && af.fields().stream().anyMatch(f -> f.dataType() == DataType.NULL)) {
                 continue;
             }
-            assertTrue("expected unresolved " + expression, expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), expectedTypeErrorMatcher(validPerPosition, signature));
+            if (invalidSignatureResolvesToNull(signature)) {
+                assertResolvesToNull(expression);
+            } else {
+                assertTrue("expected unresolved " + expression, expression.typeResolved().unresolved());
+                assertThat(expression.typeResolved().message(), expectedTypeErrorMatcher(validPerPosition, signature));
+            }
             checked++;
         }
         logger.info("checked {} signatures", checked);
         assertCheckedSignatures(invalidSignatureSamples);
+    }
+
+    /**
+     * Whether {@code signature}, which the function doesn't take, still resolves and evaluates to {@code null}, because the function
+     * is lenient on the type of its input, like the type conversion functions are. Such a signature is checked with
+     * {@link #assertResolvesToNull} instead of {@link #expectedTypeErrorMatcher}. Functions that fail on a type they don't take, which
+     * is nearly all of them, don't override this.
+     */
+    protected boolean invalidSignatureResolvesToNull(List<DataType> signature) {
+        return false;
+    }
+
+    /**
+     * Assert that {@code expression} resolves, and that it's {@code null} for its literal arguments. Functions that only exist as the
+     * surrogate they are rewritten to are evaluated through it.
+     */
+    protected final void assertResolvesToNull(Expression expression) {
+        assertTrue("expected resolved " + expression, expression.typeResolved().resolved());
+        Expression evaluable = expression instanceof SurrogateExpression surrogate ? surrogate.surrogate() : expression;
+        assertTrue("expected foldable " + evaluable, evaluable.foldable());
+        assertThat("expected null for " + evaluable, evaluable.fold(FoldContext.small()), nullValue());
     }
 
     /**

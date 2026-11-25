@@ -105,6 +105,12 @@ public class ToCounter extends AbstractConvertFunction {
         return EVALUATORS;
     }
 
+    @Override
+    public boolean lenientOnInputType() {
+        // The type of the result follows the type of the input, so an input it can't convert has no type to give a null.
+        return false;
+    }
+
     /**
      * Returns the counter variant of the input type: {@code long→counter_long}, etc.
      * Counter inputs pass through unchanged. Returns {@link DataType#NULL} when the

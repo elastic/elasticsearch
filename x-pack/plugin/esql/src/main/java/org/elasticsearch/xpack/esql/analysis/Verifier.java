@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunctio
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -212,6 +214,7 @@ public class Verifier {
             }
 
             planCheckers.forEach(c -> c.accept(p, failures));
+            checkLenientConversions(p, failures, warnings, context.minimumVersion());
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
                     va.postAnalysisVerification(context.analysisRegistry(), warnings, failures);
@@ -237,6 +240,37 @@ public class Verifier {
         }
 
         return failures.failures();
+    }
+
+    /**
+     * A conversion that resolved without converting its input is {@code null} for every row. That is only valid when every node that
+     * takes part in the query supports it ({@link ConvertFunction#LENIENT_CAST}), as older data nodes fail when asked to evaluate it.
+     * Otherwise the query fails with the error it always had. This is checked on the final plan, so a conversion that analysis
+     * replaced, like the one of a union field, doesn't count.
+     */
+    private static void checkLenientConversions(
+        LogicalPlan plan,
+        Failures failures,
+        Consumer<String> warnings,
+        TransportVersion minimumVersion
+    ) {
+        plan.forEachExpression(Expression.class, e -> {
+            if (e instanceof ConvertFunction convert && e.resolved() && convert.convertsInput() == false) {
+                if (minimumVersion.supports(ConvertFunction.LENIENT_CAST)) {
+                    DataType inputType = convert.field().dataType();
+                    warnings.accept(
+                        Strings.format(
+                            "[%s] of type [%s] cannot be converted to [%s] and will be null.",
+                            convert.field().sourceText(),
+                            inputType.typeName(),
+                            convert.dataType().nameUpper()
+                        )
+                    );
+                } else {
+                    failures.add(fail(e, "{}", convert.strictTypeResolution().message()));
+                }
+            }
+        });
     }
 
     /**

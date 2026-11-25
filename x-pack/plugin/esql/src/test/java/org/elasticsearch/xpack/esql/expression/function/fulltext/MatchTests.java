@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -136,6 +137,37 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
             "a union field resolved via the compact representation with a non-KEYWORD branch must not be pushed down",
             match.isRuntimeSearch()
         );
+    }
+
+    private static FieldAttribute plainField(String name, DataType type) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    /**
+     * {@code ip_field::long} is {@code null} for every row, so searching it must not read the ip field: it's a runtime search over the
+     * cast, not a pushed down query over the field.
+     */
+    public void testCastThatCannotConvertItsFieldIsRuntimeSearch() {
+        Match match = new Match(
+            Source.EMPTY,
+            new ToLong(Source.EMPTY, plainField("ip", DataType.IP)),
+            new Literal(Source.EMPTY, new BytesRef("1.2.3.4"), DataType.KEYWORD),
+            null
+        );
+        assertTrue(
+            "a cast that can't convert its field is null, and must not be pushed down as a query on the field",
+            match.isRuntimeSearch()
+        );
+    }
+
+    public void testCastThatConvertsItsFieldIsNotRuntimeSearch() {
+        Match match = new Match(
+            Source.EMPTY,
+            new ToLong(Source.EMPTY, plainField("keyword", DataType.KEYWORD)),
+            new Literal(Source.EMPTY, new BytesRef("1"), DataType.KEYWORD),
+            null
+        );
+        assertFalse("a cast that converts its field is searched through the field", match.isRuntimeSearch());
     }
 
     protected static List<TestCaseSupplier> testCaseSuppliers() {

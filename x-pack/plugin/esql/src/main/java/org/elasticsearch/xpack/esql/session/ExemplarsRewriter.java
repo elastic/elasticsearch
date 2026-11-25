@@ -356,7 +356,8 @@ public final class ExemplarsRewriter {
      */
     @Nullable
     private static FieldAttribute metricField(Expression expression) {
-        while (expression instanceof ConvertFunction convert) {
+        // A conversion that doesn't convert its field is null for every row, whatever the field has.
+        while (expression instanceof ConvertFunction convert && convert.convertsInput()) {
             expression = convert.field();
         }
         return expression instanceof FieldAttribute field && field.isMetric() ? field : null;

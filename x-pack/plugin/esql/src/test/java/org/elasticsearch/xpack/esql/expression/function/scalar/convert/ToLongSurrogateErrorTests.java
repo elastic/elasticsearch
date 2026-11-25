@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -20,7 +19,7 @@ import java.util.Set;
 
 // import org.elasticsearch.test.junit.annotations.TestLogging;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-public class ToLongSurrogateErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class ToLongSurrogateErrorTests extends ErrorsForLenientConversionTestCase {
 
     @Override
     protected List<TestCaseSupplier> cases() {

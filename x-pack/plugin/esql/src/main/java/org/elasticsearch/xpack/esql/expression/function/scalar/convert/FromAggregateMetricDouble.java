@@ -146,6 +146,17 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     }
 
     @Override
+    public TypeResolution strictTypeResolution() {
+        return resolveType();
+    }
+
+    @Override
+    public boolean lenientOnInputType() {
+        // Internal: only built over an aggregate_metric_double.
+        return false;
+    }
+
+    @Override
     public boolean foldable() {
         return Expressions.foldable(children());
     }

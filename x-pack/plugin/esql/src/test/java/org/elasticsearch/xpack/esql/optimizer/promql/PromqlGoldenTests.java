@@ -19,6 +19,7 @@ import java.util.EnumSet;
  * Golden tests for PromQL to ESQL plan translation.
  */
 public class PromqlGoldenTests extends GoldenTestCase {
+    private static final String ENABLE_TSMETADATA_FN = "enable_tsmetadata_fn";
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
@@ -200,6 +201,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ENABLE_TSMETADATA_FN)
             .run();
     }
 
@@ -208,6 +210,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
     // Uses the flat-dimension k8s index (rather than the labels.* passthrough index) so the stored dimension being
     // overwritten is materialized as a supported column - a passthrough dimension is unsupported in this static analyzer.
     public void testLabelReplaceOverwritesStoredLabel() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
         builder("""
@@ -217,12 +220,14 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ENABLE_TSMETADATA_FN)
             .run();
     }
 
     // No-match preserves the existing destination: the outer COALESCE falls back to the stored pod rather than "".
     // Uses the flat-dimension k8s index so the preserved stored destination is materialized as a supported column.
     public void testLabelReplaceNoMatchPreservesExisting() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
         builder("""
@@ -232,6 +237,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ENABLE_TSMETADATA_FN)
             .run();
     }
 }

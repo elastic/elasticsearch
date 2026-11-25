@@ -176,6 +176,35 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A concrete index excluded again by name resolves to nothing, which is an empty result like
+     * {@code FROM index-*,-*} rather than an "Unknown index" error.
+     */
+    public void testSelfExclusionOfConcreteIndexReturnsEmpty() {
+        assertAcked(client().admin().indices().prepareCreate("index-1"));
+        indexRandom(true, "index-1", 1);
+        assertAcked(client().admin().indices().prepareCreate("index-2"));
+        indexRandom(true, "index-2", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM index-1,-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);// concrete include cancelled by the same concrete exclude
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM index-1,-index* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);// concrete include cancelled by a wildcard exclude
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM index-1,index-2,-index-2 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1");// only one of the concrete includes is cancelled
+        }
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [-index-1,no-such-index]"),
+            () -> run(syncEsqlQueryRequest("FROM -index-1,no-such-index"))
+        );// an exclusion only cancels includes that precede it
+    }
+
     public void testResolveEmptyPattern() {
         assertAcked(client().admin().indices().prepareCreate("data"));
         indexRandom(true, "data", 1);

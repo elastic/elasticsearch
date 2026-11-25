@@ -879,6 +879,28 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertThat(EsqlCCSUtils.concreteIndexRequested("*"), equalTo(false));
     }
 
+    public void testConcreteIndexRequestedWithExclusions() {
+        // an exclusion removes names, it never requests one
+        assertThat(EsqlCCSUtils.concreteIndexRequested("logs*,-logs-old"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("-logs"), equalTo(false));
+        // a concrete inclusion cancelled by a later exclusion is no longer requested
+        assertThat(EsqlCCSUtils.concreteIndexRequested("index-1,-index-1"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("view-1,-view-1"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("index-1,-index*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("index-*,-*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:index-1,remote:-index-1"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:index-1,remote:-index*"), equalTo(false));
+        // concrete inclusions that survive the exclusions are still requested
+        assertThat(EsqlCCSUtils.concreteIndexRequested("index-1,index-2,-index-2"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("index-1,-i-do-not-exist"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("index-1,-index-2*"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:index-1,-index-1"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:index-1,other:-index-1"), equalTo(true));
+        // an exclusion only cancels inclusions that precede it
+        assertThat(EsqlCCSUtils.concreteIndexRequested("-index-1,index-1"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("index-1,-index-1,index-1"), equalTo(true));
+    }
+
     public void testConcreteIndexRequestedWithEmptySegments() {
         // empty segments must not cause StringIndexOutOfBoundsException
         assertThat(EsqlCCSUtils.concreteIndexRequested(",logs*"), equalTo(false));

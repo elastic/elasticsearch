@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -311,11 +312,19 @@ public class EsqlCCSUtils {
         return indexViewOrigins.describe(indexExpression).map(views -> error + " " + views).orElse(error);
     }
 
+    /**
+     * Whether the expression names at least one concrete (non-wildcard) index that must exist, so that resolving
+     * it to nothing is an "Unknown index" error rather than an empty result. Exclusions only ever remove names, so
+     * they are never requests on their own, and a concrete inclusion stops counting once a later exclusion removes
+     * it, mirroring the ordered evaluation in {@code IndexNameExpressionResolver}: {@code index-1,-index-1} and
+     * {@code index-1,-index*} request nothing, while {@code index-1,index-2,-index-2} still requests {@code index-1}.
+     */
     // visible for testing
     static boolean concreteIndexRequested(String indexExpression) {
         if (Strings.isNullOrBlank(indexExpression)) {
             return false;
         }
+        Set<String> concreteInclusions = new HashSet<>();
         for (String expr : indexExpression.split(",")) {
             if (expr.isEmpty()) {
                 continue;
@@ -324,11 +333,34 @@ public class EsqlCCSUtils {
                 // skip date math expressions
                 continue;
             }
-            if (expr.indexOf('*') < 0) {
-                return true;
+            String excluded = exclusionTarget(expr);
+            if (excluded != null) {
+                if (Regex.isSimpleMatchPattern(excluded)) {
+                    concreteInclusions.removeIf(included -> Regex.simpleMatch(excluded, included));
+                } else {
+                    concreteInclusions.remove(excluded);
+                }
+            } else if (expr.indexOf('*') < 0) {
+                concreteInclusions.add(expr);
             }
         }
-        return false;
+        return concreteInclusions.isEmpty() == false;
+    }
+
+    /**
+     * If {@code expr} is an exclusion ({@code -index} or {@code cluster:-index}), the expression it excludes,
+     * qualified the same way as the inclusion it would cancel; otherwise {@code null}.
+     */
+    @Nullable
+    private static String exclusionTarget(String expr) {
+        if (expr.startsWith("-")) {
+            return expr.substring(1);
+        }
+        RemoteClusterAware.QualifiedIndexExpression qualified = RemoteClusterAware.splitIndexName(expr);
+        if (qualified.clusterAlias() != null && qualified.indexExpression().startsWith("-")) {
+            return qualified.clusterAlias() + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + qualified.indexExpression().substring(1);
+        }
+        return null;
     }
 
     // visible for testing

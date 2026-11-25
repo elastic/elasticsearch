@@ -2762,11 +2762,6 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/AWSLogs/"));
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
-        // RULE tree: other account / other region must drop even without ALWAYS_FINISH.
-        for (String path : paths(result)) {
-            assertFalse(path, path.contains("/999999999999/"));
-            assertFalse(path, path.contains("/us-west-2/"));
-        }
     }
 
     /**

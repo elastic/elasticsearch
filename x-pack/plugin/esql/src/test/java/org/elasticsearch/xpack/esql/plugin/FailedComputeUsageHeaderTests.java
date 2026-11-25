@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -32,9 +33,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
             base + 5,
             base + 6,
             base + 7,
-            base + 8,
-            base + 9,
-            base + 10,
+            new SearchLoadMetrics(base + 8, base + 9, base + 10),
             List.of(),
             List.of(),
             Map.of(),
@@ -53,9 +52,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         assertThat(actual.readCpuNanos(), equalTo(expected.readCpuNanos()));
         assertThat(actual.cpuNanos(), equalTo(expected.cpuNanos()));
         assertThat(actual.driverNanos(), equalTo(expected.driverNanos()));
-        assertThat(actual.searchLoadNanos(), equalTo(expected.searchLoadNanos()));
-        assertThat(actual.searchCpuNanos(), equalTo(expected.searchCpuNanos()));
-        assertThat(actual.searchWaitingNanos(), equalTo(expected.searchWaitingNanos()));
+        assertThat(actual.searchLoad(), equalTo(expected.searchLoad()));
     }
 
     public void testRoundTrip() {
@@ -70,6 +67,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         FailedComputeUsageHeader.write(threadContext, usage(10));
         FailedComputeUsageHeader.take(threadContext);
         assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.NAME));
+        assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.SEARCH_LOAD_NAME));
         assertThat(FailedComputeUsageHeader.take(threadContext), sameInstance(DriverCompletionInfo.EMPTY));
     }
 
@@ -90,14 +88,55 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
 
     public void testValuesThatCannotBeReadAreIgnoredAndStillRemoved() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3,4,5,6,7,8,9,10,11");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3,4,5,6,7,8");
         threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "1:1,2,3");
-        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "1:1,2,3,4,5,6,7,8,9,10,eleven");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "1:1,2,3,4,5,6,7,eight");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.SEARCH_LOAD_NAME, "1:1,2,3,4,5,6,7,8");
+        threadContext.addResponseHeader(FailedComputeUsageHeader.SEARCH_LOAD_NAME, "1:1,2,three");
         FailedComputeUsageHeader.write(threadContext, usage(10));
         DriverCompletionInfo taken = FailedComputeUsageHeader.take(threadContext);
         // only the well formed value counts
         assertSameNumbers(taken, usage(10));
         assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.NAME));
+        assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.SEARCH_LOAD_NAME));
+    }
+
+    /**
+     * The search load goes in a header of its own, so a coordinator that reads only the other counters still reads them.
+     */
+    public void testSearchLoadHasAHeaderOfItsOwn() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        FailedComputeUsageHeader.write(threadContext, usage(10));
+        Map<String, List<String>> headers = threadContext.getResponseHeaders();
+        assertThat(headers.get(FailedComputeUsageHeader.NAME), equalTo(List.of("1:10,11,12,13,14,15,16,17")));
+        assertThat(headers.get(FailedComputeUsageHeader.SEARCH_LOAD_NAME), equalTo(List.of("1:18,19,20")));
+    }
+
+    /**
+     * A compute that only waited is still reported.
+     */
+    public void testSearchLoadAloneIsReported() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        DriverCompletionInfo written = new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            new SearchLoadMetrics(0, 0, 7),
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
+        FailedComputeUsageHeader.write(threadContext, written);
+        assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.NAME));
+        assertSameNumbers(FailedComputeUsageHeader.take(threadContext), written);
     }
 
     /**
@@ -109,9 +148,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         DriverCompletionInfo taken = FailedComputeUsageHeader.take(threadContext);
         assertThat(taken.documentsFound(), equalTo(1L));
         assertThat(taken.driverNanos(), equalTo(8L));
-        assertThat(taken.searchLoadNanos(), equalTo(0L));
-        assertThat(taken.searchCpuNanos(), equalTo(0L));
-        assertThat(taken.searchWaitingNanos(), equalTo(0L));
+        assertThat(taken.searchLoad(), equalTo(SearchLoadMetrics.EMPTY));
     }
 
     /**
@@ -121,5 +158,9 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
     public void testHeaderCarriesAllTheCountersOfTheCompletionInfo() {
         long counters = Arrays.stream(DriverCompletionInfo.class.getRecordComponents()).filter(c -> c.getType() == long.class).count();
         assertThat(counters, equalTo((long) FailedComputeUsageHeader.FIELDS));
+        long searchLoadCounters = Arrays.stream(SearchLoadMetrics.class.getRecordComponents())
+            .filter(c -> c.getType() == long.class)
+            .count();
+        assertThat(searchLoadCounters, equalTo((long) FailedComputeUsageHeader.SEARCH_LOAD_FIELDS));
     }
 }

@@ -113,6 +113,7 @@ final class DefaultSearchContext extends SearchContext {
     private DirectoryMetricsAwareExecutor metricsAwareExecutor;
     private final DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture;
     private DirectoryMetrics fetchThreadsMetrics = DirectoryMetrics.EMPTY;
+    @Nullable
     private volatile QueryLoad.Charging searchLoad;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
@@ -219,12 +220,17 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                // parallel segment searches are charged to the shard and the phase
+                // parallel segment searches are charged to the shard and the phase, or else the load of the task that starts them
                 TaskLoadAttribution.Target shardLoad = readerContext.indexShard().shardSearchStats().searchLoadTarget();
-                Executor shardExecutor = TaskLoadAttribution.charging(executor, (nanos, cpuNanos, finishNanos) -> {
-                    TaskLoadAttribution.Target phaseLoad = searchLoad;
-                    (phaseLoad == null ? shardLoad : phaseLoad).charge(nanos, cpuNanos, finishNanos);
-                });
+                Executor searchExecutor = executor;
+                Executor shardExecutor = task -> {
+                    TaskLoadAttribution.Target load = searchLoad;
+                    if (load == null) {
+                        QueryLoad.Charging running = QueryLoad.Charging.running();
+                        load = running == null ? shardLoad : running.load().charging(shardLoad);
+                    }
+                    TaskLoadAttribution.charging(searchExecutor, load).execute(task);
+                };
                 // Always wrap: cache and directory metrics must be collected on worker threads.
                 this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(shardExecutor, currentThreadDirectoryMetricsCapture);
                 executor = this.metricsAwareExecutor;
@@ -282,6 +288,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    @Nullable
     public QueryLoad.Charging searchLoad() {
         return searchLoad;
     }

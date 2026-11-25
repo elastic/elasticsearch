@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -5691,13 +5693,12 @@ public class FileSplitProviderTests extends ESTestCase {
                     public int read() throws IOException {
                         throw new IOException("connection reset");
                     }
-                };
-            }
 
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                abortCalls.incrementAndGet();
-                stream.close();
+                    @Override
+                    public void close() {
+                        abortCalls.incrementAndGet();
+                    }
+                };
             }
 
             @Override
@@ -8570,6 +8571,227 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Guard: if {@code gatherSkippingCachedFooters} passed a null reader, that reader would
+     * fail-open (no wave cap) and parquet would open every footer. Expected to pass with or
+     * without the text-wave skip. Does not reproduce the text regression.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfFootersAsync() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(contextWithFilteredLimit(files, taskConcurrency), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        SplitDiscoveryResult result = future.actionGet(30, TimeUnit.SECONDS);
+
+        assertEquals("only the first wave opens a footer", taskConcurrency, opened.get());
+        assertEquals("the rest still produce a whole-file split so a selective filter can continue", files, result.splits().size());
+    }
+
+    /**
+     * Text has no footer, so the filtered-LIMIT plan wave must not collapse files past
+     * {@code taskConcurrency} into whole-file splits. Each CSV file large enough to range-split
+     * still produces record-aligned macro splits: sequential {@code executor == null},
+     * {@link FileSplitProvider#discoverSplits} with a non-null executor, and
+     * {@link FileSplitProvider#discoverSplitsAsync}.
+     */
+    public void testFilteredLimitDoesNotApplyPlanWaveToText() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        byte[] payload = delimitedPayload("a,b,c\n");
+        Map<String, byte[]> payloads = new LinkedHashMap<>();
+        for (int i = 0; i < files; i++) {
+            payloads.put("f" + i + ".csv", payload);
+        }
+
+        List<StorageEntry> entries = new ArrayList<>();
+        for (Map.Entry<String, byte[]> file : payloads.entrySet()) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/" + file.getKey()), file.getValue().length, Instant.EPOCH));
+        }
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(entries, "s3://b/*.csv"),
+                Map.of(),
+                Map.of("mode", "plain"),
+                PartitionMetadata.EMPTY,
+                List.of(),
+                ExternalSchema.EMPTY,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.NONE
+            ),
+            taskConcurrency
+        );
+
+        assertTextDidNotApplyPlanWave(plainCsvProvider(payloads, null).discoverSplits(ctx), files);
+
+        FileSplitProvider parallel = plainCsvProvider(payloads, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        assertTextDidNotApplyPlanWave(parallel.discoverSplits(ctx), files);
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        parallel.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertTextDidNotApplyPlanWave(future.actionGet(30, TimeUnit.SECONDS), files);
+    }
+
+    private static FileSplitProvider plainCsvProvider(Map<String, byte[]> payloads, @Nullable Executor executor) {
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(
+            "csv",
+            (s, bf) -> new CsvFormatReader(bf, CsvFormatOptions.DEFAULT, "csv", List.of(".csv")),
+            Settings.EMPTY,
+            null
+        );
+        formatRegistry.registerExtension(".csv", "csv");
+        formatRegistry.byName("csv");
+        return new FileSplitProvider(
+            CSV_MIN_SEGMENT_BYTES,
+            new DecompressionCodecRegistry(),
+            createMultiFileStorageRegistry(payloads, null),
+            formatRegistry,
+            Settings.EMPTY,
+            executor
+        );
+    }
+
+    private static void assertTextDidNotApplyPlanWave(SplitDiscoveryResult result, int files) {
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals("every listed file still produces splits", files, byFile.size());
+        for (int i = 0; i < files; i++) {
+            String name = "f" + i + ".csv";
+            List<FileSplit> fileSplits = byFile.get(name);
+            assertThat(
+                "file " + name + " must range-split, not collapse to a whole-file split past the first wave",
+                fileSplits.size(),
+                greaterThan(1)
+            );
+            for (FileSplit fs : fileSplits) {
+                assertEquals("true", fs.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+            }
+        }
+    }
+
+    /**
+     * The wave helper itself: a {@link RangeAwareFormatReader} is capped at {@code taskConcurrency};
+     * CSV is not. Splittable compressed text still waves because planning scans for block
+     * boundaries; gzip does not. A null reader fail-opens. Resolving through
+     * {@link FormatReaderRegistry#byName} then {@link FormatReader#withConfig} (the production
+     * {@code resolveConfiguredReader} shape) still waves: {@code ParquetFormatReader#withSchemaMaxFields}
+     * returns another {@code ParquetFormatReader}, and ORC's {@code NoConfigFormatReader} returns
+     * {@code this}. Neither supports whole-file compression, so the registry cannot wrap them in
+     * {@code CompressionDelegatingFormatReader}.
+     */
+    public void testFilteredLimitPlanWaveAppliesOnlyToRangeAwareReaders() {
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(8, 2);
+        RangeAwareFormatReader parquet = countingRowCountReader(new AtomicInteger(), 10);
+        CsvFormatReader csv = new CsvFormatReader(
+            BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build()
+        );
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, parquet));
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, csv));
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, null));
+
+        FormatReader splittable = new CompressionDelegatingFormatReader(csv, new FakeSplittableCodec(new long[] { 0L }));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, splittable));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, splittable.withConfig(Map.of())));
+        FormatReader gzip = new CompressionDelegatingFormatReader(csv, new GzipDecompressionCodec());
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, gzip));
+
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("parquet", (s, bf) -> parquet, Settings.EMPTY, null);
+        registry.byName("parquet");
+        FormatReader resolved = registry.byName("parquet").withConfig(Map.of());
+        assertThat(resolved, instanceOf(RangeAwareFormatReader.class));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, resolved));
+    }
+
+    /**
+     * Splittable compressed text still pays {@code findBlockBoundaries} per planned file, so the
+     * filtered-LIMIT wave keeps that scan to {@code taskConcurrency}. Files past the wave become
+     * whole-file splits with no object-store I/O. Sequential, parallel, and async all cap the scan.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfBlockBoundaryScans() throws Exception {
+        assumeTrue("bzip2 wrap is snapshot-only", Build.current().isSnapshot());
+        int files = 8;
+        int taskConcurrency = 2;
+        long fileLength = 1_000_000_000L;
+        long[] boundaries = new long[200];
+        for (int i = 0; i < boundaries.length; i++) {
+            boundaries[i] = (long) i * 5_000_000L;
+        }
+        FakeSplittableCodec codec = new FakeSplittableCodec(boundaries);
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < files; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/f" + i + ".ndjson.bz2"), fileLength, Instant.EPOCH));
+        }
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(entries, "s3://b/*.ndjson.bz2"),
+                Map.of(),
+                PartitionMetadata.EMPTY,
+                List.of()
+            ),
+            taskConcurrency
+        );
+
+        codec.resetScans();
+        assertBlockBoundaryWave(splittableBz2Provider(codec, null).discoverSplits(ctx), files, taskConcurrency);
+        assertEquals("sequential plans only the first wave", taskConcurrency, codec.scans());
+
+        FileSplitProvider parallel = splittableBz2Provider(codec, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        codec.resetScans();
+        assertBlockBoundaryWave(parallel.discoverSplits(ctx), files, taskConcurrency);
+        assertEquals("parallel plans only the first wave", taskConcurrency, codec.scans());
+
+        codec.resetScans();
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        parallel.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertBlockBoundaryWave(future.actionGet(30, TimeUnit.SECONDS), files, taskConcurrency);
+        assertEquals("async plans only the first wave", taskConcurrency, codec.scans());
+    }
+
+    private static FileSplitProvider splittableBz2Provider(FakeSplittableCodec codec, @Nullable Executor executor) {
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(codec);
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecRegistry);
+        formatRegistry.registerLazy("ndjson", (s, bf) -> new NdJsonFormatReader(s, bf, null), Settings.EMPTY, null);
+        formatRegistry.registerExtension(".ndjson", "ndjson");
+        formatRegistry.byName("ndjson");
+        return new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            createMockStorageRegistry(),
+            formatRegistry,
+            Settings.EMPTY,
+            executor
+        );
+    }
+
+    private static void assertBlockBoundaryWave(SplitDiscoveryResult result, int files, int taskConcurrency) {
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals("every listed file still produces splits", files, byFile.size());
+        for (int i = 0; i < files; i++) {
+            String name = "f" + i + ".ndjson.bz2";
+            List<FileSplit> fileSplits = byFile.get(name);
+            if (i < taskConcurrency) {
+                assertThat("wave file " + name + " must keep block-aligned splits", fileSplits.size(), greaterThan(1));
+            } else {
+                assertEquals("file " + name + " past the wave collapses to a whole-file split", 1, fileSplits.size());
+            }
+        }
+    }
+
+    /**
      * A unit that cannot say how many records it holds makes the running total a floor rather than a count, so the
      * budget gives up and every file is planned. The reader here reports ranges without statistics, which is what
      * every format that is not row-group or stripe based does.
@@ -8715,7 +8937,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static SplitDiscoveryContext contextWithFilteredLimit(int fileCount, int taskConcurrency) {
-        SplitDiscoveryContext base = rangeAwareContext(fileCount);
+        return contextWithFilteredLimit(rangeAwareContext(fileCount), taskConcurrency);
+    }
+
+    private static SplitDiscoveryContext contextWithFilteredLimit(SplitDiscoveryContext base, int taskConcurrency) {
         return new SplitDiscoveryContext(
             base.metadata(),
             base.fileList(),
@@ -10548,9 +10773,18 @@ public class FileSplitProviderTests extends ESTestCase {
     /** Fake SplittableDecompressionCodec returning canned block boundaries, for unit-testing split logic. */
     private static final class FakeSplittableCodec implements SplittableDecompressionCodec {
         private final long[] boundaries;
+        private final AtomicInteger scans = new AtomicInteger();
 
         FakeSplittableCodec(long[] boundaries) {
             this.boundaries = boundaries;
+        }
+
+        int scans() {
+            return scans.get();
+        }
+
+        void resetScans() {
+            scans.set(0);
         }
 
         @Override
@@ -10570,6 +10804,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         @Override
         public long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer ignored) {
+            scans.incrementAndGet();
             return boundaries.clone();
         }
 

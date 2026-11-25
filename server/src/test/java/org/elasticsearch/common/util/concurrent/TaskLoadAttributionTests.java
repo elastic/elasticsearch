@@ -216,6 +216,81 @@ public class TaskLoadAttributionTests extends ESTestCase {
     }
 
     /**
+     * Retargeting charges the task so far to its target, and the rest to the new one.
+     */
+    public void testRetargetChargesTheTaskSoFarToItsTarget() {
+        onPoolThread(clocks -> {
+            Charges first = new Charges();
+            Charges second = new Charges();
+            TaskLoadAttribution.taskStarted(clocks.now);
+            TaskLoadAttribution.attribute(first);
+            clocks.cpu += 300;
+            TaskLoadAttribution.retarget(second, clocks.now + TASK_NANOS);
+            assertSame(second, TaskLoadAttribution.target());
+            assertThat(first, contains(new Charge(TASK_NANOS, 300)));
+            clocks.cpu += 200;
+            TaskLoadAttribution.taskCompleted(3 * TASK_NANOS, clocks.now + 3 * TASK_NANOS);
+            assertThat(first, contains(new Charge(TASK_NANOS, 300)));
+            assertThat(second, contains(new Charge(2 * TASK_NANOS, 200)));
+        });
+    }
+
+    /**
+     * Retargeting after a short time reads the CPU time of the previous target, so the new target is charged its own.
+     */
+    public void testRetargetReadsTheCpuTimeOfAShortTarget() {
+        onPoolThread(clocks -> {
+            Charges first = new Charges();
+            Charges second = new Charges();
+            TaskLoadAttribution.taskStarted(clocks.now);
+            TaskLoadAttribution.attribute(first);
+            clocks.cpu += 5;
+            TaskLoadAttribution.retarget(second, clocks.now + SHORT_NANOS / 2);
+            assertThat(first, contains(new Charge(SHORT_NANOS / 2, 5)));
+            clocks.cpu += 300;
+            TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now + TASK_NANOS);
+            assertThat(second, contains(new Charge(TASK_NANOS - SHORT_NANOS / 2, 300)));
+        });
+    }
+
+    /**
+     * Retargeting reads the CPU clock when the task was all charged already, so short charges are not taken back from the new
+     * target.
+     */
+    public void testRetargetAfterAShortPartDoesNotTakeItBackFromTheNewTarget() {
+        onPoolThread(clocks -> {
+            Charges first = new Charges();
+            Charges part = new Charges();
+            Charges second = new Charges();
+            TaskLoadAttribution.taskStarted(clocks.now);
+            TaskLoadAttribution.attribute(first);
+            TaskLoadAttribution.startPart();
+            clocks.cpu += 5;
+            TaskLoadAttribution.charge(part, SHORT_NANOS / 2, clocks.now + SHORT_NANOS / 2);
+            TaskLoadAttribution.retarget(second, clocks.now + SHORT_NANOS / 2);
+            assertThat(first, empty());
+            clocks.cpu += 300;
+            TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now + TASK_NANOS);
+            assertThat(part, contains(new Charge(SHORT_NANOS / 2, SHORT_NANOS / 2)));
+            assertThat(second, contains(new Charge(TASK_NANOS - SHORT_NANOS / 2, 300)));
+        });
+    }
+
+    /**
+     * Retargeting a task without a target charges it all to the new one.
+     */
+    public void testRetargetWithoutTargetChargesTheWholeTask() {
+        onPoolThread(clocks -> {
+            Charges charges = new Charges();
+            TaskLoadAttribution.taskStarted(clocks.now);
+            TaskLoadAttribution.retarget(charges, clocks.now + TASK_NANOS);
+            clocks.cpu += 300;
+            TaskLoadAttribution.taskCompleted(2 * TASK_NANOS, clocks.now + 2 * TASK_NANOS);
+            assertThat(charges, contains(new Charge(2 * TASK_NANOS, 300)));
+        });
+    }
+
+    /**
      * Outside a pool task nothing measures the CPU time, so the time counts as CPU time.
      */
     public void testOutsideAPoolTaskTheTimeCountsAsCpuTime() {

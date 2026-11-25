@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.generator.command.source.EqlGenerator;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.List;
@@ -44,10 +45,9 @@ import static org.hamcrest.Matchers.nullValue;
 public class EqlRequestsTests extends ESTestCase {
 
     private static final List<Attribute> NO_SCHEMA = List.of();
-    private static final int CAP = 10_000;
-    private static final EqlRequests.EnclosingQuery DEFAULT_ENCLOSING = new EqlRequests.EnclosingQuery(CAP, false, null, null);
+    private static final EqlRequests.EnclosingQuery DEFAULT_ENCLOSING = new EqlRequests.EnclosingQuery(false, null, null);
 
-    /** Delegates to {@link EqlRequests#build} with no pushed limit and the truncation cap as the size default. */
+    /** Delegates to {@link EqlRequests#build} with no pushed limit. */
     private static EqlSearchRequest build(String query, String indices, List<Attribute> schema, Map<String, Object> options) {
         return EqlRequests.build(query, indices, schema, options, null, DEFAULT_ENCLOSING);
     }
@@ -138,25 +138,25 @@ public class EqlRequestsTests extends ESTestCase {
         assertThat(request.fetchFields(), nullValue());
     }
 
-    public void testSizeDefaultsToTruncationCap() {
-        // No WITH size, no pushed LIMIT → the cap; and usesTruncationCapSize is true so the caller warns.
-        EqlSearchRequest request = EqlRequests.build("process where true", "logs", NO_SCHEMA, Map.of(), null, DEFAULT_ENCLOSING);
-        assertThat(request.size(), equalTo(CAP));
-        assertThat(EqlRequests.usesTruncationCapSize(Map.of(), null), equalTo(true));
+    public void testSizeDefaultsToTheEqlDefault() {
+        int size = build("process where true", "logs", NO_SCHEMA, Map.of()).size();
+        assertThat(size, equalTo(10));
+        assertThat(EqlGenerator.DEFAULT_SIZE, equalTo(size));
     }
 
-    public void testPushedLimitDrivesSize() {
-        EqlSearchRequest request = EqlRequests.build("process where true", "logs", NO_SCHEMA, Map.of(), 5, DEFAULT_ENCLOSING);
-        assertThat(request.size(), equalTo(5));
-        assertThat(EqlRequests.usesTruncationCapSize(Map.of(), 5), equalTo(false));
+    public void testPushedLimitLowersTheDefaultSize() {
+        assertThat(buildWithPushedLimit(Map.of(), 5).size(), equalTo(5));
+        assertThat(buildWithPushedLimit(Map.of(), 0).size(), equalTo(0));
     }
 
-    public void testWithSizeWinsOverPushedLimit() {
-        // WITH {"size": 7} beats a pushed LIMIT of 5, and disables the truncation warning.
-        EqlSearchRequest request = EqlRequests.build("process where true", "logs", NO_SCHEMA, Map.of("size", 7), 5, DEFAULT_ENCLOSING);
-        assertThat(request.size(), equalTo(7));
-        assertThat(EqlRequests.usesTruncationCapSize(Map.of("size", 7), 5), equalTo(false));
-        assertThat(EqlRequests.usesTruncationCapSize(Map.of("size", 7), null), equalTo(false));
+    public void testPushedLimitLowersTheWithSize() {
+        assertThat(buildWithPushedLimit(Map.of("size", 50), 5).size(), equalTo(5));
+    }
+
+    public void testPushedLimitNeverRaisesTheSize() {
+        assertThat(buildWithPushedLimit(Map.of(), 1000).size(), equalTo(10));
+        assertThat(buildWithPushedLimit(Map.of("size", 7), 20).size(), equalTo(7));
+        assertThat(buildWithPushedLimit(Map.of("size", 7), 7).size(), equalTo(7));
     }
 
     public void testOptionalTuning() {
@@ -307,26 +307,27 @@ public class EqlRequestsTests extends ESTestCase {
 
     public void testBridgesPartialSearchResultsFromEnclosingQuery() {
         // An event source inherits the enclosing ES|QL query's partial-results contract rather than a hard pin.
-        assertThat(buildWith(new EqlRequests.EnclosingQuery(CAP, true, null, null)).allowPartialSearchResults(), equalTo(true));
-        assertThat(buildWith(new EqlRequests.EnclosingQuery(CAP, false, null, null)).allowPartialSearchResults(), equalTo(false));
+        assertThat(buildWith(new EqlRequests.EnclosingQuery(true, null, null)).allowPartialSearchResults(), equalTo(true));
+        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, null, null)).allowPartialSearchResults(), equalTo(false));
     }
 
-    public void testSequencePartialResultsDefaultsFalseAndIsOptIn() {
-        assertThat(build("sequence [a] [b]", "logs", NO_SCHEMA, Map.of()).allowPartialSequenceResults(), equalTo(false));
+    public void testSequencePartialResultsIsLeftToTheEqlDefaultUnlessSet() {
+        assertThat(build("sequence [a] [b]", "logs", NO_SCHEMA, Map.of()).allowPartialSequenceResults(), nullValue());
+        boolean allow = randomBoolean();
         assertThat(
-            build("sequence [a] [b]", "logs", NO_SCHEMA, Map.of("allow_partial_sequence_results", true)).allowPartialSequenceResults(),
-            equalTo(true)
+            build("sequence [a] [b]", "logs", NO_SCHEMA, Map.of("allow_partial_sequence_results", allow)).allowPartialSequenceResults(),
+            equalTo(allow)
         );
     }
 
     public void testBridgesProjectRouting() {
-        assertThat(buildWith(new EqlRequests.EnclosingQuery(CAP, false, "_origin:*", null)).getProjectRouting(), equalTo("_origin:*"));
+        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, "_origin:*", null)).getProjectRouting(), equalTo("_origin:*"));
         assertThat(build("process where true", "logs", NO_SCHEMA, Map.of()).getProjectRouting(), nullValue());
     }
 
     public void testBridgesRequestFilter() {
         MatchAllQueryBuilder filter = new MatchAllQueryBuilder();
-        assertThat(buildWith(new EqlRequests.EnclosingQuery(CAP, false, null, filter)).filter(), equalTo(filter));
+        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, null, filter)).filter(), equalTo(filter));
         assertThat(build("process where true", "logs", NO_SCHEMA, Map.of()).filter(), nullValue());
     }
 
@@ -336,5 +337,9 @@ public class EqlRequestsTests extends ESTestCase {
 
     private static EqlSearchRequest buildWith(EqlRequests.EnclosingQuery enclosing) {
         return EqlRequests.build("process where true", "logs", NO_SCHEMA, Map.of(), null, enclosing);
+    }
+
+    private static EqlSearchRequest buildWithPushedLimit(Map<String, Object> options, int pushedLimit) {
+        return EqlRequests.build("process where true", "logs", NO_SCHEMA, options, pushedLimit, DEFAULT_ENCLOSING);
     }
 }

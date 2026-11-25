@@ -11,7 +11,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -60,7 +64,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -113,9 +116,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.fetch.FetchContextTracker;
+import org.elasticsearch.xpack.esql.fetch.FetchService;
+import org.elasticsearch.xpack.esql.fetch.QueryFetchScope;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.into.IntoPageWriter;
-import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
@@ -126,19 +130,19 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -261,6 +265,8 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final FetchService fetchService;
+    private final SearchTransportService searchTransportService;
     private final InferenceService inferenceService;
     private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
@@ -282,6 +288,8 @@ public class ComputeService {
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
     /** Which nodes of the cluster state may be given external splits right now; see {@link #externalWorkers()}. */
     private final ExternalWorkerReadiness externalWorkerReadiness;
+    private final BatchIndexingEnabled batchIndexingEnabled;
+    private final EscfBulkService escfBulkService;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -295,9 +303,12 @@ public class ComputeService {
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry,
         Client client,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        EscfBulkService escfBulkService,
+        SearchTransportService searchTransportService
     ) {
         this.externalWorkerReadiness = externalWorkerReadiness;
+        this.escfBulkService = escfBulkService;
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -316,6 +327,7 @@ public class ComputeService {
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
+        this.batchIndexingEnabled = transportActionServices.batchIndexingEnabled();
         this.clusterService.getClusterSettings()
             .initializeAndWatch(
                 GROK_WATCHDOG_MAX_EXECUTION_TIME,
@@ -341,6 +353,19 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.formatReaderRegistry = formatReaderRegistry;
+        this.fetchService = new FetchService(
+            transportService,
+            clusterService,
+            projectResolver,
+            transportActionServices.indexNameExpressionResolver(),
+            searchService,
+            this.bigArrays,
+            blockFactory,
+            plannerSettings::get,
+            computeExecutor
+        );
+        this.fetchService.registerHandlers();
+        this.searchTransportService = searchTransportService;
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -469,7 +494,7 @@ public class ComputeService {
                     List.of(),
                     FormatReader.NO_LIMIT,
                     discoveryMemory(run),
-                    configuration.pragmas().taskConcurrency(),
+                    configuration.pragmas().taskConcurrency(clusterService.getSettings()),
                     minTransportVersion(),
                     ioExecutor,
                     ActionListener.wrap(result -> {
@@ -556,11 +581,10 @@ public class ComputeService {
     }
 
     private int externalCoalesceFloor(Configuration configuration) {
-        int taskConcurrency = configuration.pragmas().taskConcurrency();
-        // The TASK_CONCURRENCY default is computed from Settings.EMPTY at class-load time and therefore ignores
-        // node.processors. On a K8s node with node.processors=4 on a 64-CPU host the default is 97 while the
-        // esql_worker pool has only 7 threads. Cap against the pool size so the floor never creates more groups
-        // than there are workers to drain them. ThreadPool#info returns null for a pool this node did not register,
+        int taskConcurrency = configuration.pragmas().taskConcurrency(clusterService.getSettings());
+        // Cap against the live esql_worker pool so the floor never creates more groups than there are
+        // workers to drain them. Still needed when esql.worker.thread_pool_size is overridden below the
+        // search-formula default. ThreadPool#info returns null for a pool this node did not register,
         // in which case there is no pool size to cap against and the pragma value stands on its own.
         ThreadPool.Info computePoolInfo = threadPool.info(EsqlPlugin.computePool());
         int effectiveConcurrency = computePoolInfo == null ? taskConcurrency : Math.min(taskConcurrency, computePoolInfo.getMax());
@@ -788,7 +812,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
-            configuration.pragmas().taskConcurrency(),
+            configuration.pragmas().taskConcurrency(clusterService.getSettings()),
             ActionListener.wrap(rewritten -> {
                 if (SplitCoalescer.shouldCoalesce(splits.size())) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
@@ -1243,27 +1267,6 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
-        if (physicalPlan instanceof IntoExec into) {
-            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, into.destination(), into.child().output());
-            physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
-            listener = listener.delegateFailureAndWrap((l, result) -> {
-                Exception failure = sink.failure();
-                if (failure != null) {
-                    throw failure;
-                }
-                l.onResponse(
-                    new Result(
-                        IntoStats.ATTRIBUTES,
-                        List.of(sink.stats().toPage(blockFactory)),
-                        result.attributeMetadata(),
-                        result.configuration(),
-                        result.completionInfo(),
-                        result.executionInfo(),
-                        result.approximationApplied()
-                    )
-                );
-            });
-        }
         final SubPlan executionPlan;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
@@ -1601,7 +1604,12 @@ public class ComputeService {
                 foldContext,
                 null,
                 exchangeSinkSupplier,
-                false
+                false,
+                null,
+                null,
+                FetchOperatorProvider.UNSUPPORTED,
+                execInfo,
+                new QueryLoad()
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
@@ -1650,6 +1658,11 @@ public class ComputeService {
             return;
         }
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
+        // documents that leave the data nodes name the contexts they keep open for the fetch phase, which this execution
+        // frees once it no longer reads them, and at the latest once its computes ended
+        final FetchContextTracker fetchContexts = dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)
+            ? new FetchContextTracker(searchTransportService, clusterService)
+            : null;
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         /*
@@ -1676,7 +1689,7 @@ public class ComputeService {
                 try (
                     var localListener = new ComputeListener(
                         cancelQueryOnFailure,
-                        computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
+                        closingFetchContexts(computeListener.acquireCompute(), fetchContexts).delegateFailure((l, completionInfo) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.queryProfile().total().timeSinceStarted();
@@ -1699,6 +1712,15 @@ public class ComputeService {
                         execInfo::addFailedWork
                     )
                 ) {
+                    final FetchOperatorProvider fetchOperators;
+                    if (fetchContexts == null) {
+                        fetchOperators = FetchOperatorProvider.UNSUPPORTED;
+                    } else {
+                        // the fetches of the query send their requests as children of its task, and count their drivers as its own
+                        fetchOperators = fetchService.operatorProvider(
+                            new QueryFetchScope(rootTask, sessionId, configuration, localListener::acquireCompute, fetchContexts)
+                        );
+                    }
                     runCompute(
                         rootTask,
                         new ComputeContext(
@@ -1712,7 +1734,12 @@ public class ComputeService {
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
-                            false
+                            false,
+                            null,
+                            null,
+                            fetchOperators,
+                            execInfo,
+                            new QueryLoad()
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1733,6 +1760,7 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
+                            fetchContexts,
                             cancelQueryOnFailure,
                             // what the workers that succeeded did is lost with the failure of the query unless it is reported here
                             execInfo::addFailedWork,
@@ -1865,7 +1893,12 @@ public class ComputeService {
                     foldContext,
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
-                    false
+                    false,
+                    null,
+                    null,
+                    FetchOperatorProvider.UNSUPPORTED,
+                    execInfo,
+                    new QueryLoad()
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -1927,7 +1960,8 @@ public class ComputeService {
                         builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
                     }
                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                        boolean failed = zeroIfNull(v.getFailedShards()) > 0 || v.getFailures().isEmpty() == false;
+                        builder.setStatus(failed ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                     }
                     return builder.build();
                 });
@@ -2172,6 +2206,8 @@ public class ComputeService {
         }
         assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         QueryLoad queryLoad = context.queryLoad();
+        // the tasks of the compute outside its drivers, which report what they charged through the query's load
+        TaskLoadAttribution.Target outsideDrivers = computeLoad == null ? null : queryLoad.charging(computeLoad);
         // a compute that charges no load, such as on the coordinator, takes none of the query's waiting either
         QueryLoad waitingLoad = computeLoad == null ? null : queryLoad;
         Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of(), waitingLoad);
@@ -2184,13 +2220,10 @@ public class ComputeService {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
-            // The planner's client is used solely by the coordinator-local EQL source, which delegates one
-            // EqlSearchAction. Assign the compute task as that search's parent so cancelling the ES|QL query
-            // cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
-            var eqlDelegateClient = new ParentTaskAssigningClient(
-                client,
-                task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
-            );
+            // The planner's client sends the requests a query makes on its own behalf: the coordinator-local EQL source's
+            // EqlSearchAction and INTO's bulk writes. They run as children of the compute task, so cancelling the ES|QL
+            // query cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
+            var taskClient = new ParentTaskAssigningClient(client, task.taskInfo(transportService.getLocalNode().getId(), false).taskId());
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
@@ -2198,8 +2231,7 @@ public class ComputeService {
             DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
             // DF producer/I/O reach QueryLoad only through this target; passing raw computeLoad
             // would charge the shard/no-shard inner target and omit the time from the query report.
-            TaskLoadAttribution.Target queryCharged = computeLoad == null ? null : queryLoad.charging(computeLoad);
-            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), queryCharged, queryCharged);
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), outsideDrivers, outsideDrivers);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -2220,13 +2252,17 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
+                context.fetchOperators(),
                 // the workers of parallel operators are tasks of the query, with no shard of their own
-                computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, queryLoad.charging(computeLoad)),
+                outsideDrivers == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, outsideDrivers),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),
-                eqlDelegateClient,
-                externalCompute
+                taskClient,
+                externalCompute,
+                escfBulkService,
+                () -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),
+                context.executionInfo()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2235,10 +2271,8 @@ public class ComputeService {
             final String logicalPlanJson;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
-                // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
-                List<SearchExecutionContext> localContexts = new ArrayList<>();
-                shardContexts.iterable()
-                    .forEach(shardContext -> localContexts.add(((DefaultShardContext) shardContext).executionContext()));
+                // Planning sees the fields the plan reads as each shard resolves them
+                SearchStats localStats = SearchContextStats.fromShards(shardContexts.iterable());
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,
@@ -2246,7 +2280,7 @@ public class ComputeService {
                         context.configuration(),
                         context.foldCtx(),
                         plan,
-                        SearchContextStats.from(localContexts),
+                        localStats,
                         formatReaderRegistry,
                         coordinatorExternalSplits,
                         planTimeProfile,
@@ -2259,10 +2293,10 @@ public class ComputeService {
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
                         plannerSettings,
                         context.flags(),
-                        localContexts,
                         context.configuration(),
                         context.foldCtx(),
                         plan,
+                        localStats,
                         planTimeProfile
                     );
                     localPlan = localPlanResult.physicalPlan();
@@ -2379,8 +2413,9 @@ public class ComputeService {
                 waitingLoad
             );
             // includes the task that prepared the compute, such as acquiring search contexts
-            if (TaskLoadAttribution.target() instanceof QueryLoad.Charging charging && charging.load() == queryLoad) {
-                TaskLoadAttribution.chargeSoFar(charging, System.nanoTime());
+            QueryLoad.Charging running = QueryLoad.Charging.running();
+            if (running != null && running.load() == queryLoad) {
+                TaskLoadAttribution.chargeSoFar(running, System.nanoTime());
             }
             driverRunner.executeDrivers(task, drivers, driverExecutor, ActionListener.releaseAfter(driverListener, () -> {
                 if (hookExecInfo != null) {
@@ -2467,11 +2502,11 @@ public class ComputeService {
         Exception e,
         List<Driver> drivers,
         long planningBytesRead,
-        QueryLoad computeLoad,
+        QueryLoad queryLoad,
         boolean approximated
     ) {
         if (listener instanceof ComputeCompletionListener completionListener) {
-            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, computeLoad, approximated));
+            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, queryLoad, approximated));
         } else {
             listener.onFailure(e);
         }
@@ -2486,11 +2521,11 @@ public class ComputeService {
     private static DriverCompletionInfo usageOfFailedDrivers(
         List<Driver> drivers,
         long planningBytesRead,
-        QueryLoad computeLoad,
+        QueryLoad queryLoad,
         boolean approximated
     ) {
         try {
-            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, computeLoad, approximated);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, queryLoad, approximated);
         } catch (Exception e) {
             LOGGER.debug("failed to read the usage of the drivers of a failed compute", e);
             return DriverCompletionInfo.EMPTY;
@@ -2671,6 +2706,14 @@ public class ComputeService {
 
     String profileDescription(String qualifier, String label) {
         return qualifier == null ? label : qualifier + "." + label;
+    }
+
+    /**
+     * Frees the fetch contexts left once the computes of an execution ended, whether they succeeded or not. The fetch frees
+     * them earlier, once it ends. A query that fails or is cancelled before its fetch starts frees them here.
+     */
+    private static <T> ActionListener<T> closingFetchContexts(ActionListener<T> listener, @Nullable FetchContextTracker fetchContexts) {
+        return fetchContexts == null ? listener : ActionListener.runBefore(listener, fetchContexts::close);
     }
 
     Runnable cancelQueryOnFailure(CancellableTask task) {

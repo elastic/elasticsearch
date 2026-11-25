@@ -70,6 +70,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
@@ -593,6 +594,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES, this::setFetchPhaseTargetChunkBytes);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(DocValuesBatchPrefetcher.BUDGET_SETTING, fetchPhase::setDocValuesPrefetchBudget);
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
@@ -1352,23 +1355,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
-        result.setDirectoryMetrics(withSearchLoad(metricsDelta.get().merge(context.getWorkerThreadsMetrics()), context));
+        result.setDirectoryMetrics(chargeAndAddSearchLoad(metricsDelta.get().merge(context.getWorkerThreadsMetrics()), context));
     }
 
     private static void setFetchDirectoryMetrics(SearchPhaseResult result, SearchContext context) {
-        result.setDirectoryMetrics(withSearchLoad(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()), context));
+        result.setDirectoryMetrics(
+            chargeAndAddSearchLoad(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()), context)
+        );
     }
 
     /**
      * Adds the load of the phase to its result, after charging the running task so far.
      */
-    private static DirectoryMetrics withSearchLoad(DirectoryMetrics metrics, SearchContext context) {
+    private static DirectoryMetrics chargeAndAddSearchLoad(DirectoryMetrics metrics, SearchContext context) {
         QueryLoad.Charging searchLoad = context.searchLoad();
         if (searchLoad == null) {
             return metrics;
         }
         TaskLoadAttribution.chargeSoFar(searchLoad, System.nanoTime());
-        return metrics.merge(SearchLoadMetrics.of(searchLoad.load()));
+        return metrics.merge(SearchLoadMetrics.directoryMetricsOf(searchLoad.load()));
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
@@ -2158,7 +2163,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
         // slices are charged to the phase that creates the context
-        if (TaskLoadAttribution.target() instanceof QueryLoad.Charging searchLoad) {
+        QueryLoad.Charging searchLoad = QueryLoad.Charging.running();
+        if (searchLoad != null) {
             context.searchLoad(searchLoad);
         }
 

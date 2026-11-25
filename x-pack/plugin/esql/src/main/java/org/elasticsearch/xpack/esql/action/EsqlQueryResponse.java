@@ -26,6 +26,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -101,9 +102,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final long readCpuNanos;
     private final long cpuNanos;
     private final long driverNanos;
-    private final long searchLoadNanos;
-    private final long searchCpuNanos;
-    private final long searchWaitingNanos;
+    private final SearchLoadMetrics searchLoad;
     private final Profile profile;
     private final boolean columnar;
     private final String asyncExecutionId;
@@ -134,9 +133,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long readCpuNanos,
         long cpuNanos,
         long driverNanos,
-        long searchLoadNanos,
-        long searchCpuNanos,
-        long searchWaitingNanos,
+        SearchLoadMetrics searchLoad,
         @Nullable Profile profile,
         boolean columnar,
         @Nullable String asyncExecutionId,
@@ -159,9 +156,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.readCpuNanos = readCpuNanos;
         this.cpuNanos = cpuNanos;
         this.driverNanos = driverNanos;
-        this.searchLoadNanos = searchLoadNanos;
-        this.searchCpuNanos = searchCpuNanos;
-        this.searchWaitingNanos = searchWaitingNanos;
+        this.searchLoad = searchLoad;
         this.profile = profile;
         this.columnar = columnar;
         this.asyncExecutionId = asyncExecutionId;
@@ -199,9 +194,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             0L,
             0L,
             0L,
-            0L,
-            0L,
-            0L,
+            SearchLoadMetrics.EMPTY,
             profile,
             columnar,
             asyncExecutionId,
@@ -298,13 +291,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
             Boolean approximationApplied = in.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED) ? in.readOptionalBoolean() : null;
             long driverNanos = in.getTransportVersion().supports(ESQL_DRIVER_NANOS) ? in.readVLong() : 0;
-            long searchLoadNanos = 0;
-            long searchCpuNanos = 0;
-            long searchWaitingNanos = 0;
+            SearchLoadMetrics searchLoad = SearchLoadMetrics.EMPTY;
             if (in.getTransportVersion().supports(SEARCH_LOAD_REPORT)) {
-                searchLoadNanos = in.readVLong();
-                searchCpuNanos = in.readVLong();
-                searchWaitingNanos = in.readVLong();
+                searchLoad = new SearchLoadMetrics(in.readVLong(), in.readVLong(), in.readVLong());
             }
             EsqlQueryResponse response = new EsqlQueryResponse(
                 columns,
@@ -317,9 +306,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 readCpuNanos,
                 cpuNanos,
                 driverNanos,
-                searchLoadNanos,
-                searchCpuNanos,
-                searchWaitingNanos,
+                searchLoad,
                 profile,
                 columnar,
                 asyncExecutionId,
@@ -380,9 +367,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeVLong(driverNanos);
         }
         if (out.getTransportVersion().supports(SEARCH_LOAD_REPORT)) {
-            out.writeVLong(searchLoadNanos);
-            out.writeVLong(searchCpuNanos);
-            out.writeVLong(searchWaitingNanos);
+            out.writeVLong(searchLoad.loadNanos());
+            out.writeVLong(searchLoad.cpuNanos());
+            out.writeVLong(searchLoad.waitingNanos());
         }
     }
 
@@ -448,24 +435,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     /**
-     * Nanos the query was charged on the shards it searched, from the tasks that ran for it.
+     * Nanos the query was charged on the shards it searched, from the tasks that ran for it, the part of it the threads spent
+     * on CPU, and the nanos the query waited with tasks queued and none running, summed over nodes.
      */
-    public long searchLoadNanos() {
-        return searchLoadNanos;
-    }
-
-    /**
-     * The part of {@link #searchLoadNanos()} the threads spent on CPU.
-     */
-    public long searchCpuNanos() {
-        return searchCpuNanos;
-    }
-
-    /**
-     * Nanos the query waited with tasks queued and none running, summed over nodes.
-     */
-    public long searchWaitingNanos() {
-        return searchWaitingNanos;
+    public SearchLoadMetrics searchLoad() {
+        return searchLoad;
     }
 
     public long documentsFound() {
@@ -564,9 +538,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 .field("read_cpu_nanos", readCpuNanos)
                 .field("cpu_nanos", cpuNanos)
                 .field("driver_nanos", driverNanos)
-                .field("search_load_nanos", searchLoadNanos)
-                .field("search_cpu_nanos", searchCpuNanos)
-                .field("search_waiting_nanos", searchWaitingNanos);
+                .field("search_load_nanos", searchLoad.loadNanos())
+                .field("search_cpu_nanos", searchLoad.cpuNanos())
+                .field("search_waiting_nanos", searchLoad.waitingNanos());
 
             if (startTimeMillis != 0L) {
                 builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
@@ -636,9 +610,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && readCpuNanos == that.readCpuNanos
             && cpuNanos == that.cpuNanos
             && driverNanos == that.driverNanos
-            && searchLoadNanos == that.searchLoadNanos
-            && searchCpuNanos == that.searchCpuNanos
-            && searchWaitingNanos == that.searchWaitingNanos
+            && Objects.equals(searchLoad, that.searchLoad)
             && Objects.equals(profile, that.profile)
             && Objects.equals(executionInfo, that.executionInfo);
     }
@@ -660,9 +632,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             readCpuNanos,
             cpuNanos,
             driverNanos,
-            searchLoadNanos,
-            searchCpuNanos,
-            searchWaitingNanos,
+            searchLoad,
             profile,
             executionInfo
         );

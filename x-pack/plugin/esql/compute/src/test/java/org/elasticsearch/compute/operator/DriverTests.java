@@ -57,11 +57,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -157,7 +161,7 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().driverNanos(), greaterThan(0L));
         assertThat(charged.get(), equalTo(driver.status().driverNanos()));
-        assertThat(driver.searchLoad().nanos(), equalTo(charged.get()));
+        assertThat(driver.searchLoad().snapshot().loadNanos(), equalTo(charged.get()));
     }
 
     /**
@@ -212,17 +216,10 @@ public class DriverTests extends ESTestCase {
             }));
             long elapsedNanos = elapsed.get(10, TimeUnit.SECONDS);
             assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
-            assertThat(driver.searchLoad().nanos(), greaterThan(0L));
-            assertThat(driver.searchLoad().nanos(), lessThanOrEqualTo(elapsedNanos));
+            assertThat(driver.searchLoad().snapshot().loadNanos(), greaterThan(0L));
+            assertThat(driver.searchLoad().snapshot().loadNanos(), lessThanOrEqualTo(elapsedNanos));
         } finally {
             ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
-        }
-    }
-
-    private static void spin(long nanos) {
-        long start = System.nanoTime();
-        while (System.nanoTime() - start < nanos) {
-            Thread.onSpinWait();
         }
     }
 
@@ -241,7 +238,7 @@ public class DriverTests extends ESTestCase {
         };
         QueryLoad driverLoad = new QueryLoad();
         assertTrue(source.reportSearchLoad(400, System.nanoTime(), driverLoad));
-        assertThat(driverLoad.nanos(), equalTo(400L));
+        assertThat(driverLoad.snapshot().loadNanos(), equalTo(400L));
         assertThat(first.rowsEmitted(), equalTo(3L));
         assertThat(second.rowsEmitted(), equalTo(1L));
         assertThat(empty.rowsEmitted(), equalTo(0L));
@@ -288,7 +285,81 @@ public class DriverTests extends ESTestCase {
         assertThat(shardNanos, greaterThan(0L));
         assertThat(charged.get(), greaterThan(0L));
         assertThat(shardNanos + charged.get(), equalTo(driver.status().driverNanos()));
-        assertThat(driver.searchLoad().nanos(), equalTo(driver.status().driverNanos()));
+        assertThat(driver.searchLoad().snapshot().loadNanos(), equalTo(driver.status().driverNanos()));
+    }
+
+    /**
+     * A finished driver must not keep its operators reachable. An operator gives its memory back to the breaker when it
+     * closes, and the runner holds every driver of a request until the last one is done, so whatever a finished driver
+     * still refers to is memory that nothing accounts for.
+     */
+    public void testFinishedDriverDoesNotHoldItsOperators() throws Exception {
+        List<WeakReference<Operator>> operators = new ArrayList<>();
+        Driver driver = labelledDriver(operators, false);
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertLabelled(driver.status().completedOperators());
+        assertUnreachable(operators);
+        Reference.reachabilityFence(driver);
+    }
+
+    /**
+     * Like {@link #testFinishedDriverDoesNotHoldItsOperators}, for a driver that is aborted while its operators are active.
+     */
+    public void testAbortedDriverDoesNotHoldItsOperators() throws Exception {
+        List<WeakReference<Operator>> operators = new ArrayList<>();
+        Driver driver = labelledDriver(operators, true);
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertLabelled(driver.status().completedOperators());
+        assertUnreachable(operators);
+        Reference.reachabilityFence(driver);
+    }
+
+    /** The operators of {@link #labelledDriver} report their labels however the driver closed them. */
+    private static void assertLabelled(List<OperatorStatus> completed) {
+        assertThat(completed.stream().map(OperatorStatus::planNodeId).toList(), equalTo(List.of("source", "intermediate", "sink")));
+        assertThat(
+            completed.stream().map(OperatorStatus::exchangeId).toList(),
+            equalTo(Arrays.asList("source exchange", null, "sink exchange"))
+        );
+    }
+
+    private static void assertUnreachable(List<WeakReference<Operator>> operators) throws Exception {
+        assertBusy(() -> {
+            System.gc();
+            for (WeakReference<Operator> operator : operators) {
+                assertNull("the driver still holds an operator", operator.get());
+            }
+        }, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * A driver whose operators have plan node and exchange ids, either run to completion or aborted before it runs.
+     * It is built here so that no local variable of the test keeps the operators alive.
+     */
+    private Driver labelledDriver(List<WeakReference<Operator>> operators, boolean abort) {
+        SourceOperator source = new CannedSourceOperator(randomList(1, 10, DriverTests::randomPage).iterator());
+        Operator intermediate = new HoldUntilFinishedOperator();
+        SinkOperator sink = new TestResultPageSinkOperator(page -> {});
+        Driver driver = TestDriverFactory.create(driverContext(), source, List.of(intermediate), sink);
+        Map<Operator, String> planNodeIds = new IdentityHashMap<>();
+        planNodeIds.put(source, "source");
+        planNodeIds.put(intermediate, "intermediate");
+        planNodeIds.put(sink, "sink");
+        Map<Operator, String> exchangeIds = new IdentityHashMap<>();
+        exchangeIds.put(source, "source exchange");
+        exchangeIds.put(sink, "sink exchange");
+        // the driver must cope with maps it can't change
+        driver.setPlanNodeIds(randomBoolean() ? planNodeIds : Collections.unmodifiableMap(planNodeIds));
+        driver.setExchangeIds(randomBoolean() ? exchangeIds : Collections.unmodifiableMap(exchangeIds));
+        for (Operator operator : List.of(source, intermediate, sink)) {
+            operators.add(new WeakReference<>(operator));
+        }
+        if (abort) {
+            driver.abort(new RuntimeException("test"), ActionListener.noop());
+        } else {
+            driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, System::nanoTime);
+        }
+        return driver;
     }
 
     /**
@@ -1568,6 +1639,10 @@ public class DriverTests extends ESTestCase {
             List.of(failing),
             new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
         );
+        Map<Operator, String> labels = new IdentityHashMap<>();
+        labels.put(brokenStatus, "broken");
+        driver.setPlanNodeIds(labels);
+        driver.setExchangeIds(labels);
         ThreadPool threadPool = threadPool();
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -1579,6 +1654,8 @@ public class DriverTests extends ESTestCase {
             assertFinishedWithUsage(driver, 0, 0, 0);
             assertThat(driver.status().completedOperators().size(), equalTo(3));
             assertNull(driver.status().completedOperators().get(0).status());
+            assertThat(driver.status().completedOperators().get(0).planNodeId(), equalTo("broken"));
+            assertThat(driver.status().completedOperators().get(0).exchangeId(), equalTo("broken"));
         } finally {
             driver.close();
             terminate(threadPool);

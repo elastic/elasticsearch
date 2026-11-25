@@ -183,6 +183,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -3927,7 +3928,50 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             long charged = indexShard.shardSearchStats().totalSearchLoadNanos() - chargedBefore;
             assertThat(charged, greaterThan(0L));
-            assertThat(phaseLoad.nanos(), equalTo(charged));
+            assertThat(phaseLoad.snapshot().loadNanos(), equalTo(charged));
+        });
+    }
+
+    /**
+     * Parallel segment searches of a context with no phase, as ES|QL opens, are charged to the load of the task that starts them.
+     */
+    public void testSlicesAreChargedToTheTaskThatStartsThem() throws Exception {
+        IndexService indexService = createIndex("index", Settings.EMPTY);
+        Executor executor = indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+        for (int i = 0; i < 30; i++) {
+            prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
+            if (i % 5 == 0) {
+                indicesAdmin().prepareRefresh("index").get();
+            }
+        }
+        indicesAdmin().prepareRefresh("index").get();
+        final IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId(), System.currentTimeMillis(), AliasFilter.EMPTY);
+        SearchService service = getInstanceFromNode(SearchService.class);
+        QueryLoad taskLoad = new QueryLoad();
+        AtomicLong taskNanos = new AtomicLong();
+        TaskLoadAttribution.Target taskTarget = taskLoad.charging((nanos, cpuNanos, finishNanos) -> taskNanos.addAndGet(nanos));
+        long chargedBefore = indexShard.shardSearchStats().totalSearchLoadNanos();
+        try (SearchContext searchContext = service.createSearchContext(request, SearchService.NO_TIMEOUT)) {
+            assertNull(searchContext.searchLoad());
+            ContextIndexSearcher searcher = searchContext.searcher();
+            assertTrue(searcher.hasExecutor());
+            assertThat(searcher.getSlices().length, greaterThan(1));
+            PlainActionFuture<Integer> searched = new PlainActionFuture<>();
+            executor.execute(ActionRunnable.supply(searched, () -> {
+                TaskLoadAttribution.attribute(taskTarget);
+                return searcher.search(
+                    new NonCountingTermQuery(new Term("field", "value")),
+                    new TotalHitCountCollectorManager(searcher.getSlices())
+                );
+            }));
+            assertThat(searched.get(), equalTo(30));
+        }
+        assertBusy(() -> {
+            long shardNanos = indexShard.shardSearchStats().totalSearchLoadNanos() - chargedBefore;
+            assertThat(shardNanos, greaterThan(0L));
+            assertThat(taskNanos.get(), greaterThan(0L));
+            assertThat(taskLoad.snapshot().loadNanos(), equalTo(taskNanos.get() + shardNanos));
         });
     }
 

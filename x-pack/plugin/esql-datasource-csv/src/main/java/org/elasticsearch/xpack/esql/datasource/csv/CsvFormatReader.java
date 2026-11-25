@@ -88,12 +88,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -1643,6 +1643,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             mtimeMillis = mtime.toEpochMilli();
         } catch (IOException e) {
+            // The throwable stays out: a store's own message can quote the signed URL back.
+            logger.debug(
+                "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                ExternalFailures.redactHttpUrl(object.path().toString()),
+                e.getClass().getSimpleName()
+            );
             return new SimpleSourceMetadata(
                 schema,
                 formatName(),
@@ -1708,7 +1714,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // so discarding the connection here is acceptable. The abort is wrapped in a Closeable
         // so try-with-resources attaches any abort-time error as a suppressed exception on the
         // primary failure rather than replacing it.
-        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+        try (stream) {
             CsvLogicalRecordReader recordReader = openLeadingRecords(stream);
             if (options.headerRow() == false) {
                 return inferSchemaWithSyntheticNames(recordReader, sourceLocation, warningSink, widenedColumnSink);
@@ -2544,7 +2550,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 leadingColumns = leadingColumns(leading);
                 leadingBytes = leading.bytesRead();
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
         }
@@ -2581,7 +2587,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "CSV read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
-                object.path(),
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 readSchema == null ? "null" : "present(" + readSchema.size() + ")",
                 context.firstSplit(),
                 context.recordAligned(),
@@ -2592,7 +2598,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
         }
@@ -2628,7 +2634,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // An inferred headerless schema binds positionally, as does an inferred headered one under
                 // headerBindingByProvenance: no binding, rows bounded by the schema's width.
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
             if (headeredByName && context.firstSplit() == false && context.fileHeaderColumns() != null) {
@@ -2636,7 +2642,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // The file has no header record anywhere, so it has no rows to bind and this split holds only the
                     // comment, blank or skipped lines that precede one. Reading them positionally would emit them as rows.
                     try {
-                        object.abortStream(rawStream);
+                        rawStream.close();
                     } catch (IOException e) {
                         logger.debug("failed to abort the stream of a split of a file without columns", e);
                     }
@@ -2679,7 +2685,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 skipLeadingPartialRecord(recordReader, effective);
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
             effectiveSchema = resolvedSchema;
@@ -2694,7 +2700,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // the finalize marker is present.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {
@@ -2707,6 +2714,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     chunkMode = false;
                 }
             } catch (IOException e) {
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    ExternalFailures.redactHttpUrl(object.path().toString()),
+                    e.getClass().getSimpleName()
+                );
                 cacheable = false;
                 wholeFileRead = false;
                 chunkMode = false;
@@ -2733,9 +2746,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
-            chunkMode ? context.statsStripeSize() : -1L,
+            cacheable && chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
+            context.statsStripeSink(),
             context.informationalWarningSink()
         );
     }
@@ -2880,13 +2894,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Releases a read's stream after it failed before the returned iterator took ownership of it. Aborts rather than
-     * closes: a provider that drains on close would transfer the rest of a multi-GB file to reuse the connection, for a
-     * failure that is already decided.
+     * Releases a read's stream after it failed before the returned iterator took ownership of it.
+     * Does not close the file-level {@link StorageObject}: a split parse error must not cancel
+     * sibling GETs. The leaf decides drain vs drop on stream close.
      */
-    private static void abortRead(StorageObject object, InputStream rawStream, Exception cause) {
+    private static void abortRead(InputStream rawStream, Exception cause) {
         try {
-            object.abortStream(rawStream);
+            rawStream.close();
         } catch (IOException suppressed) {
             cause.addSuppressed(suppressed);
         }
@@ -2946,7 +2960,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return null;
         }
         InputStream stream = file.newStream();
-        try (Closeable abortOnExit = () -> file.abortStream(stream)) {
+        try (stream) {
             CsvLogicalRecordReader leading = openLeadingRecords(stream);
             List<String> columns = leadingColumns(leading);
             return columns.isEmpty() || leading.lastRecordTerminated() ? columns : List.of();
@@ -4376,7 +4390,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * whole-file path. Snapshotted at close alongside {@link #columnStats} — its superset wins per column.
          */
         private ColumnStatsAccumulator allFileColumnStats;
-        /** True when the direct path feeds {@link #columnStats} inline (cacheable read with tracked columns). */
+        /** True when the direct path feeds {@link #columnStats} inline (gridless PROJECTED cacheable read, tracked columns). */
         private boolean accumulateDirectStats;
         /** True when the most recent batch already accumulated stats inline, so {@link #captureBlockStats} must skip it. */
         private boolean lastBatchAccumulatedStats;
@@ -4527,6 +4541,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             long statsStripeSize,
             boolean statsFileFinal,
             StripeColumnScope statsColumnScope,
+            @Nullable StripeStatsSink statsStripeSink,
             @Nullable Consumer<String> warningSink
         ) {
             this.reader = reader;
@@ -4560,7 +4575,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
-            this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal) : null;
+            this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink) : null;
             // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
             // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
             this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
@@ -4825,6 +4840,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         && projectionDependentDrop == false
                         && statsColumnScope != StripeColumnScope.NONE) {
                         if (statsStripeSize > 0) {
+                            assert columnStats == null : "the inline column fold must stay disarmed under a stripe grid";
                             // Chunk-parallel read: only per-stripe fragments are cacheable. Emit one
                             // stripe-addressed fragment per stripe this chunk touched (the coordinator
                             // interval-covers and folds them) if capture stayed aligned and non-empty;
@@ -4834,9 +4850,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 emitPerStripe();
                             }
                         } else {
-                            // Non-chunk whole-file read. PROJECTED/COUNT commit columnStats (projected / none).
-                            // ALL additionally commits allFileColumnStats (every file column) → strict superset
-                            // of PROJECTED's set.
+                            // Non-chunk whole-file read. Only PROJECTED builds columnStats; COUNT and ALL
+                            // build none. ALL commits allFileColumnStats instead (every file column), a strict
+                            // superset of PROJECTED's set.
                             Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(
                                 columnStats,
                                 allFileColumnStats
@@ -5488,11 +5504,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 stageBool = new boolean[columnCount];
                 stageRef = new BytesRef[columnCount];
                 stageNull = new boolean[columnCount];
-                // For cacheable reads, fold the cache's per-column null/min/max stats into the parse
-                // loop (see appendStagedRow) instead of re-walking every built block. Build the
-                // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
-                // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
-                if (cacheableObject != null) {
+                // A gridless PROJECTED read is the only one that publishes this accumulator, so it is the only
+                // one that builds it. Folding per-column null/min/max into the parse loop (see appendStagedRow)
+                // beats re-walking every built block; captureBlockStats then skips direct-produced pages
+                // (lastBatchAccumulatedStats) to avoid double counting.
+                if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED && statsStripeSize <= 0) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }
@@ -6681,8 +6697,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case DOUBLE -> {
                     // Parse the double straight from the record's char range, skipping the substring.
                     // jackson-core's fast parser is bit-identical to Double.parseDouble on accepted
-                    // inputs; on rejection we fall back to the shared conversion path, which itself
-                    // uses Double.parseDouble, so the accepted/rejected boundary matches the baseline.
+                    // inputs. Text outside the plain number grammar (type suffix, hex float, non-ASCII) and any
+                    // rejection go to the shared conversion path, which refuses or parses it by the same rule.
+                    if (DeclaredTypeCoercions.isPlainNumberText(buf, start, len) == false) {
+                        return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
+                    }
                     try {
                         stageDoubleValue(bufIdx, NumberInput.parseDouble(buf, start, len, true));
                         return true;
@@ -7506,7 +7525,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // stringToDouble (StringUtils.parseDouble) rejects NaN/Infinity that the direct-block fast path
             // (NumberInput.parseDouble) accepts - routing here would break the direct-block parity contract.
             try {
-                return Double.parseDouble(value);
+                return DeclaredTypeCoercions.parseDoubleText(value);
             } catch (NumberFormatException e) {
                 lastFieldError = cannotRead(value, DataType.DOUBLE);
                 return null;

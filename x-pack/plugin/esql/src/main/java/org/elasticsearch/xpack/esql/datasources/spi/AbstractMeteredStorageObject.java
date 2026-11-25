@@ -46,16 +46,11 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
 
     /**
      * Wraps a leaf {@code newStream} return so received body bytes (not the planned range)
-     * enter {@link #counters}. Pass {@code onAbort} only when {@link InputStream#close()}
-     * would drain; S3 uses it to abort the typed SDK stream.
+     * enter {@link #counters}. Inner {@link InputStream#close()} owns drain vs drop.
      */
     protected final InputStream metered(InputStream in) {
-        return metered(in, null);
-    }
-
-    protected final InputStream metered(InputStream in, Runnable onAbort) {
         counters.bindPlanningIo();
-        return new MeteredInputStream(in, counters, onAbort);
+        return new MeteredInputStream(in, counters);
     }
 
     /**

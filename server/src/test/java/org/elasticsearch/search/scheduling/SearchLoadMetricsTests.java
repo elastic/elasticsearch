@@ -28,11 +28,23 @@ public class SearchLoadMetricsTests extends ESTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
 
-    public void testOfTheLoad() {
+    public void testDirectoryMetricsOfTheLoad() {
         QueryLoad load = new QueryLoad();
         load.charging((nanos, cpuNanos, finishNanos) -> {}).charge(300, 200, 0);
         load.addWaiting(50);
-        assertThat(SearchLoadMetrics.of(load).metrics(SearchLoadMetrics.NAME), equalTo(new SearchLoadMetrics(300, 200, 50)));
+        assertThat(
+            SearchLoadMetrics.directoryMetricsOf(load).metrics(SearchLoadMetrics.NAME),
+            equalTo(new SearchLoadMetrics(300, 200, 50))
+        );
+    }
+
+    /**
+     * The CPU time of a snapshot is at most its load.
+     */
+    public void testSnapshotCapsTheCpuAtTheLoad() {
+        QueryLoad load = new QueryLoad();
+        load.charging((nanos, cpuNanos, finishNanos) -> {}).charge(100, 150, 0);
+        assertThat(load.snapshot(), equalTo(new SearchLoadMetrics(100, 100, 0)));
     }
 
     /**

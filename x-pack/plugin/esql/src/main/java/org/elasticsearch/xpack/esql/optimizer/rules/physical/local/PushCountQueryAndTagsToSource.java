@@ -97,7 +97,7 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
      * Pushes an aggregate accepted by {@link #isPushableGroupedCount}, or returns {@code null} if the queries cannot be pushed.
      */
     @Nullable
-    private static PhysicalPlan pushCount(AggregateExec aggregateExec, EsQueryExec queryExec) {
+    static PhysicalPlan pushCount(AggregateExec aggregateExec, EsQueryExec queryExec) {
         List<EsQueryExec.QueryBuilderAndTags> withFilter = pushableCountQueries(queryExec.queryBuilderAndTags());
         if (withFilter == null) {
             return null;

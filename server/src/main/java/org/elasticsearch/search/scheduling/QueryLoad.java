@@ -10,7 +10,9 @@
 package org.elasticsearch.search.scheduling;
 
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
+import org.elasticsearch.core.Nullable;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -39,22 +41,33 @@ public final class QueryLoad {
         waitingNanos.add(nanos);
     }
 
-    public long nanos() {
-        return nanos.sum();
-    }
-
-    public long cpuNanos() {
-        return cpuNanos.sum();
-    }
-
-    public long waitingNanos() {
-        return waitingNanos.sum();
+    /**
+     * The load, CPU time and waiting so far. The CPU time is read before the load, as each charge adds its load first, and
+     * is at most the load.
+     */
+    public SearchLoadMetrics snapshot() {
+        long cpu = cpuNanos.sum();
+        long load = nanos.sum();
+        return new SearchLoadMetrics(load, Math.min(cpu, load), waitingNanos.sum());
     }
 
     /**
      * Charges {@code target} and adds the charge to {@code load}.
      */
     public record Charging(QueryLoad load, TaskLoadAttribution.Target target) implements TaskLoadAttribution.Target {
+        public Charging {
+            Objects.requireNonNull(load);
+            Objects.requireNonNull(target);
+        }
+
+        /**
+         * The target of the task running on this thread, if it charges a load.
+         */
+        @Nullable
+        public static Charging running() {
+            return TaskLoadAttribution.target() instanceof Charging charging ? charging : null;
+        }
+
         @Override
         public void charge(long nanos, long cpuNanos, long finishNanos) {
             load.add(nanos, cpuNanos);

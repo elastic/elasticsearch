@@ -59,6 +59,7 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -796,9 +797,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 7777,
                 8888,
                 9999,
-                11,
-                12,
-                13,
+                new SearchLoadMetrics(11, 12, 13),
                 null,
                 true,
                 null,
@@ -814,16 +813,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             try (EsqlQueryResponse copy = copyInstance(response, TransportVersion.current())) {
                 assertThat(copy.cpuNanos(), equalTo(8888L));
                 assertThat(copy.driverNanos(), equalTo(9999L));
-                assertThat(copy.searchLoadNanos(), equalTo(11L));
-                assertThat(copy.searchCpuNanos(), equalTo(12L));
-                assertThat(copy.searchWaitingNanos(), equalTo(13L));
+                assertThat(copy.searchLoad(), equalTo(new SearchLoadMetrics(11, 12, 13)));
             }
             TransportVersion beforeSearchLoad = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("search_load_report"));
             try (EsqlQueryResponse copy = copyInstance(response, beforeSearchLoad)) {
                 assertThat(copy.driverNanos(), equalTo(9999L));
-                assertThat(copy.searchLoadNanos(), equalTo(0L));
-                assertThat(copy.searchCpuNanos(), equalTo(0L));
-                assertThat(copy.searchWaitingNanos(), equalTo(0L));
+                assertThat(copy.searchLoad(), equalTo(SearchLoadMetrics.EMPTY));
             }
             TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_driver_nanos"));
             try (EsqlQueryResponse copy = copyInstance(response, beforeDriverNanos)) {
@@ -851,9 +846,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 7777, // read_cpu_nanos
                 8888, // cpu_nanos
                 9999, // driver_nanos
-                1212, // search_load_nanos
-                1313, // search_cpu_nanos
-                1414, // search_waiting_nanos
+                new SearchLoadMetrics(1212, 1313, 1414), // search_load
                 null,
                 true,
                 null,
@@ -1022,9 +1015,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 0,
                 0,
                 0,
-                0,
-                0,
-                0,
+                SearchLoadMetrics.EMPTY,
                 null,
                 true,
                 null,

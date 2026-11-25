@@ -7,16 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,18 +22,19 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
+/**
+ * Joins its left side's rows to the rows of local data, the build side, on equal keys.
+ * <p>
+ * Never serialized: the {@code Mapper} only puts it in the coordinator's plan, never below an exchange, and a data node builds
+ * its own from the logical join that reaches it inside a {@link FragmentExec}.
+ */
 public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        PhysicalPlan.class,
-        "HashJoinExec",
-        HashJoinExec::new
-    );
-    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
-
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
     private final List<Attribute> addedFields;
-    private List<Attribute> lazyOutput;
+    /** Whether the build side may repeat a key. See {@code HashJoin} for what that changes. */
+    private final boolean repeatedKeys;
+    private volatile List<Attribute> lazyOutput;
     private AttributeSet lazyAddedFields;
 
     public HashJoinExec(
@@ -46,38 +43,24 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         PhysicalPlan hashData,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        List<Attribute> addedFields
+        List<Attribute> addedFields,
+        boolean repeatedKeys
     ) {
         super(source, left, hashData);
         this.leftFields = leftFields;
         this.rightFields = rightFields;
         this.addedFields = addedFields;
-    }
-
-    private HashJoinExec(StreamInput in) throws IOException {
-        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readNamedWriteable(PhysicalPlan.class));
-        if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
-            in.readNamedWriteableCollectionAsList(Attribute.class);
-        }
-        this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
-        this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
-        this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.repeatedKeys = repeatedKeys;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
-            out.writeNamedWriteableCollection(leftFields);
-        }
-        out.writeNamedWriteableCollection(leftFields);
-        out.writeNamedWriteableCollection(rightFields);
-        out.writeNamedWriteableCollection(addedFields);
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     public PhysicalPlan joinData() {
@@ -92,11 +75,17 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         return rightFields;
     }
 
+    public boolean repeatedKeys() {
+        return repeatedKeys;
+    }
+
     public Set<Attribute> addedFields() {
-        if (lazyAddedFields == null) {
-            lazyAddedFields = AttributeSet.of(addedFields);
+        AttributeSet added = lazyAddedFields;
+        if (added == null) {
+            added = AttributeSet.of(addedFields);
+            lazyAddedFields = added;
         }
-        return lazyAddedFields;
+        return added;
     }
 
     @Override
@@ -147,12 +136,12 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public HashJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
-        return new HashJoinExec(source(), left, right, leftFields, rightFields, addedFields);
+        return new HashJoinExec(source(), left, right, leftFields, rightFields, addedFields, repeatedKeys);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, HashJoinExec::new, left(), right(), leftFields, rightFields, addedFields);
+        return NodeInfo.create(this, HashJoinExec::new, left(), right(), leftFields, rightFields, addedFields, repeatedKeys);
     }
 
     @Override
@@ -167,11 +156,14 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
             return false;
         }
         HashJoinExec hash = (HashJoinExec) o;
-        return leftFields.equals(hash.leftFields) && rightFields.equals(hash.rightFields) && addedFields.equals(hash.addedFields);
+        return leftFields.equals(hash.leftFields)
+            && rightFields.equals(hash.rightFields)
+            && addedFields.equals(hash.addedFields)
+            && repeatedKeys == hash.repeatedKeys;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields);
+        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields, repeatedKeys);
     }
 }

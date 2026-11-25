@@ -12,12 +12,14 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
@@ -29,13 +31,17 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -50,6 +56,13 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
         return List.of(CsvDataSourcePlugin.class, ParquetDataSourcePlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(AcquisitionsPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -125,9 +138,9 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
                 "FROM read | WHERE v > 100 | KEEP k, v | LIMIT 1000"
             );
             try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
-                assertThat(response.searchLoadNanos(), greaterThan(0L));
-                assertThat(response.searchCpuNanos(), lessThanOrEqualTo(response.searchLoadNanos()));
-                reported += response.searchLoadNanos();
+                assertThat(response.searchLoad().loadNanos(), greaterThan(0L));
+                assertThat(response.searchLoad().cpuNanos(), lessThanOrEqualTo(response.searchLoad().loadNanos()));
+                reported += response.searchLoad().loadNanos();
             }
         }
 
@@ -151,7 +164,7 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
 
     /**
      * An external CSV query on a data node reports load and CPU on {@code DriverCompletionInfo}
-     * (and the response). Coordinator work is not charged yet; see #166054.
+     * (and the response). Coordinator work is not charged; {@code "final"} has no load target.
      *
      * <p>{@code AdaptiveStrategy} stays {@code LOCAL} for a single split or a LIMIT-only plan, which
      * runs coordinator {@code "single"} with a null load. Two files plus grouped {@code STATS} fan
@@ -179,7 +192,7 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
 
     /**
      * Data node: load and CPU on {@code DriverCompletionInfo} (copied onto the response). Coordinator
-     * {@code "final"} compute has no load target — #166054 does not charge coordinator work.
+     * {@code "final"} compute has no load target.
      */
     private void assertExternalQueryReportsSearchLoad(String dataNode, String coordinator, String query) throws Exception {
         ThreadPool dataPool = internalCluster().getInstance(ThreadPool.class, dataNode);
@@ -192,14 +205,13 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
         long coordAttributedBefore = coordWorkers.getAttributedTaskExecutionTime();
 
         try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
-            assertThat(response.searchLoadNanos(), greaterThan(0L));
-            assertThat(response.searchCpuNanos(), greaterThan(0L));
-            assertThat(response.searchCpuNanos(), lessThanOrEqualTo(response.searchLoadNanos()));
+            assertThat(response.searchLoad().loadNanos(), greaterThan(0L));
+            assertThat(response.searchLoad().cpuNanos(), greaterThan(0L));
+            assertThat(response.searchLoad().cpuNanos(), lessThanOrEqualTo(response.searchLoad().loadNanos()));
         }
 
         assertBusy(() -> {
             assertThat(dataWorkers.getAttributedTaskExecutionTime() - dataAttributedBefore, greaterThan(0L));
-            // I/O-pool attrib is 0 unless esql_external_io tracks and the planner wrap has a target.
             assertThat(dataIo.getAttributedTaskExecutionTime() - dataIoAttributedBefore, greaterThan(0L));
         });
         assertThat(coordWorkers.getAttributedTaskExecutionTime() - coordAttributedBefore, equalTo(0L));
@@ -211,6 +223,72 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
             csv.append("k").append(i % 10).append(',').append(i).append('\n');
         }
         return csv.toString();
+    }
+
+    /**
+     * A batch whose only search context fails to open completes on the task that acquired it, which then acquires the next
+     * batch. That acquisition is charged to the next batch.
+     */
+    public void testNextBatchAcquiredOnTheSameTaskIsChargedToItsBatch() {
+        internalCluster().startNode();
+        AcquisitionsPlugin.ACQUISITIONS.clear();
+        // an explicit refresh interval, so that the shards never wait for a refresh and acquire on the same task
+        Settings settings = indexSettings(1, 0).put("index.refresh_interval", "-1").build();
+        // without @timestamp, its shard runs first
+        assertAcked(prepareCreate(AcquisitionsPlugin.FAILS_TO_OPEN).setSettings(settings).setMapping("v", "type=long"));
+        assertAcked(prepareCreate(AcquisitionsPlugin.OPENS).setSettings(settings).setMapping("@timestamp", "type=date", "v", "type=long"));
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulk.add(prepareIndex(AcquisitionsPlugin.FAILS_TO_OPEN).setSource("v", 1));
+        bulk.add(prepareIndex(AcquisitionsPlugin.OPENS).setSource("@timestamp", "2026-01-01", "v", 2));
+        assertNoFailures(bulk.get());
+
+        var request = syncEsqlQueryRequest("FROM " + AcquisitionsPlugin.FAILS_TO_OPEN + "," + AcquisitionsPlugin.OPENS + " | LIMIT 10");
+        request.allowPartialResults(true);
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
+        try (var response = client().execute(EsqlQueryAction.INSTANCE, request).actionGet()) {
+            assertTrue(response.isPartial());
+        }
+
+        List<Acquisition> acquisitions = List.copyOf(AcquisitionsPlugin.ACQUISITIONS);
+        assertThat(
+            acquisitions.stream().map(Acquisition::index).toList(),
+            contains(AcquisitionsPlugin.FAILS_TO_OPEN, AcquisitionsPlugin.OPENS)
+        );
+        Acquisition failed = acquisitions.get(0);
+        Acquisition opened = acquisitions.get(1);
+        assertSame(failed.thread(), opened.thread());
+        assertNotSame(failed.charging().load(), opened.charging().load());
+    }
+
+    private record Acquisition(String index, Thread thread, QueryLoad.Charging charging) {}
+
+    /**
+     * Records the target charged when a search context of its indices acquires its searcher, and fails it for
+     * {@link #FAILS_TO_OPEN}.
+     */
+    public static class AcquisitionsPlugin extends Plugin {
+        static final String FAILS_TO_OPEN = "fails_to_open";
+        static final String OPENS = "opens";
+        static final Queue<Acquisition> ACQUISITIONS = new ConcurrentLinkedQueue<>();
+
+        @Override
+        public void onIndexModule(IndexModule module) {
+            String index = module.getIndex().getName();
+            if (index.equals(FAILS_TO_OPEN) || index.equals(OPENS)) {
+                module.setReaderWrapper(indexService -> reader -> {
+                    // only the acquisitions of the data node compute run charged to a query load
+                    QueryLoad.Charging charging = QueryLoad.Charging.running();
+                    if (charging != null) {
+                        ACQUISITIONS.add(new Acquisition(index, Thread.currentThread(), charging));
+                        if (index.equals(FAILS_TO_OPEN)) {
+                            throw new IllegalStateException("fails to open");
+                        }
+                    }
+                    return reader;
+                });
+            }
+        }
     }
 
     private static long chargedToShards(String node) {

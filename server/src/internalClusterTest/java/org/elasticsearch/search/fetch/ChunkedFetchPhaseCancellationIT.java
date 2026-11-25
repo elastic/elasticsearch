@@ -12,9 +12,7 @@ package org.elasticsearch.search.fetch;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchService;
@@ -73,11 +71,5 @@ public class ChunkedFetchPhaseCancellationIT extends AbstractSearchCancellationT
                 lessThanOrEqualTo(breakerBefore)
             )
         );
-    }
-
-    private long getRequestBreakerUsed(String node) {
-        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        return breaker.getUsed();
     }
 }

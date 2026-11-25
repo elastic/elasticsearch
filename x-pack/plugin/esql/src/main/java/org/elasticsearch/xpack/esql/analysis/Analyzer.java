@@ -4845,10 +4845,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
-                    for (Expression conversion : typeResolutions.values()) {
-                        String unusable = unusableAsFieldConversion(conversion, convertExpression);
-                        if (unusable != null) {
-                            return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
+                    for (Map.Entry<TypeResolutionKey, Expression> typeResolution : typeResolutions.entrySet()) {
+                        // The conversion of a type it doesn't accept, which a lenient conversion keeps, is null and not evaluated
+                        if (supportedTypes.contains(typeResolution.getKey().fieldType().widenSmallNumeric())) {
+                            String unusable = unusableAsFieldConversion(typeResolution.getValue(), convertExpression);
+                            if (unusable != null) {
+                                return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
+                            }
                         }
                     }
                     boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
@@ -5181,10 +5184,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> children = new ArrayList<>(fn.children());
             children.set(0, resolvedAttr);
             Expression e = ((Expression) convert).replaceChildren(children);
-            if (e.children().size() > 1 && e.typeResolved().unresolved()) {
+            boolean nullForThisType = convert.lenientOnInputType() && convert.supportedTypes().contains(type.widenSmallNumeric()) == false;
+            if (e.children().size() > 1 && e.typeResolved().unresolved() && nullForThisType == false) {
                 // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when
                 // they are valid. The caller reports the error. Conversions of the field alone don't resolve for every type they
-                // convert, like small numerics, which are widened when converting.
+                // convert, like small numerics, which are widened when converting. The conversion of a type that a lenient
+                // conversion doesn't accept is unresolved too, but it is null and has no error to report: it still has to be
+                // substituted, because the surrogates are not serializable.
                 return e;
             }
             /*

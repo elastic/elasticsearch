@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -26,6 +28,8 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapab
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * A cast of a field mapped to several types is lenient on the types it doesn't convert: the field is {@code null} in the indices that
@@ -112,6 +116,26 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
         );
     }
 
+    /**
+     * With a base, {@code TO_LONG} and {@code TO_INTEGER} only parse strings, so they aren't lenient on the types of a union: a union
+     * of keyword and text keeps the base, and any other type of the union is an error, as it is when every node has the lenient casts.
+     */
+    public void testConversionWithBaseStaysStrict() {
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            String query = "FROM foo, bar | EVAL x = " + function + "(value, 16) | KEEP x | LIMIT 1";
+
+            LogicalPlan plan = analyzerWithUnion("keyword", "text").query(query);
+            assertTrue(plan.resolved());
+            assertThat(plan.output().getLast().dataType(), equalTo(function.equals("TO_LONG") ? DataType.LONG : DataType.INTEGER));
+
+            analyzerWithUnion("keyword", "long").error(query, ambiguous());
+            analyzerWithUnion("keyword", "rank_feature").error(
+                query,
+                containsString("Cannot use field [value] with unsupported type [rank_feature]")
+            );
+        }
+    }
+
     private static Matcher<String> ambiguous() {
         return containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types");
     }
@@ -187,6 +211,39 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
         assertWarnings(warning("ip", "foo", "LONG"));
     }
 
+    /**
+     * The per-type conversions of a union are sent to the data nodes, and surrogates like {@code TO_LONG} and {@code TO_IP} can't be
+     * serialized, so they are replaced also for the type the conversion doesn't accept, which is unsupported here.
+     */
+    public void testSurrogateConversionsOfUnsupportedTypeAreSubstituted() {
+        if (lenient() == false) {
+            return;
+        }
+        for (String[] conversion : new String[][] {
+            { "TO_LONG(value)", "LONG" },
+            { "TO_INTEGER(value)", "INTEGER" },
+            { "TO_IP(value)", "IP" },
+            { "TO_IP(value, {\"leading_zeros\": \"octal\"})", "IP" } }) {
+            LogicalPlan plan = analyzerWithUnion("keyword", "rank_feature").query(
+                "FROM foo, bar | EVAL x = " + conversion[0] + " | KEEP x | LIMIT 1"
+            );
+            List<UnionTypeEsField> unions = new ArrayList<>();
+            plan.forEachDown(p -> p.forEachExpression(FieldAttribute.class, fa -> {
+                if (fa.field() instanceof UnionTypeEsField union) {
+                    unions.add(union);
+                }
+            }));
+            assertFalse("expected the union field in the plan for " + conversion[0], unions.isEmpty());
+            for (UnionTypeEsField union : unions) {
+                assertThat(union.getConversionExpressions().size(), equalTo(2));
+                for (Expression expression : union.getConversionExpressions()) {
+                    assertThat(expression.toString(), expression, not(instanceOf(SurrogateExpression.class)));
+                }
+            }
+            assertWarnings(warning("rank_feature", "bar", conversion[1]));
+        }
+    }
+
     public void testNoWarningWhenEveryTypeConverts() {
         TestAnalyzer analyzer = analyzerWithUnion("keyword", "long");
         assertTrue(analyzer.query("FROM foo, bar | EVAL x = value::long | KEEP x | LIMIT 1").resolved());
@@ -209,7 +266,8 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
      * Only the types the cast converts are lenient: other arguments are still checked.
      */
     public void testOptionsAreStillChecked() {
-        analyzerWithUnion("long", "keyword").error(
+        // TO_IP doesn't accept a long: without lenient casts that union is rejected before the options are checked
+        analyzerWithUnion(lenient() ? "long" : "ip", "keyword").error(
             "FROM foo, bar | EVAL x = TO_IP(value, {\"unknown\": \"x\"}) | LIMIT 1",
             containsString("Invalid option [unknown]")
         );

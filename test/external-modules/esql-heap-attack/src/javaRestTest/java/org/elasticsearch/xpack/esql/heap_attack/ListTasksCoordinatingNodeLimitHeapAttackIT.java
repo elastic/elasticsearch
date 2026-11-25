@@ -44,10 +44,18 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
     private static final String COORDINATING_NODE_LIMIT = "30mb";
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.buildClusterSpec()
-        .nodes(3)
-        .node(0, node -> node.setting("network.breaker.inflight_requests.limit", COORDINATING_NODE_LIMIT))
-        .build();
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        try {
+            return Clusters.buildClusterSpec()
+                .nodes(3)
+                .node(0, node -> node.setting("network.breaker.inflight_requests.limit", COORDINATING_NODE_LIMIT))
+                .build();
+        } catch (UnsupportedOperationException e) {
+            return Clusters.buildCluster();
+        }
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -56,6 +64,7 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
     }
 
     public void testRepliesOfSeveralNodesTripCircuitBreakerOfCoordinatingNode() throws Exception {
+        assumeFalse("serverless does not allow changing the number of nodes", isServerless());
         createPausableIndex();
         blockPauseField();
         List<String> asyncIds = new ArrayList<>();

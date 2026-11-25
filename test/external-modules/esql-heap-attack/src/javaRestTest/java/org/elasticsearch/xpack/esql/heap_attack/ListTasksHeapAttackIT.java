@@ -50,7 +50,15 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
     private static final int CALLS_PER_CLIENT = 10;
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.buildClusterSpec().nodes(NODES).build();
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        try {
+            return Clusters.buildClusterSpec().nodes(NODES).build();
+        } catch (UnsupportedOperationException e) {
+            return Clusters.buildCluster();
+        }
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -59,6 +67,7 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
     }
 
     public void testListingTheTasksOfManyNodesDoesNotExhaustTheHeapOfTheCoordinatingNode() throws Exception {
+        assumeFalse("serverless does not allow changing the number of nodes", isServerless());
         String coordinatingAddress = cluster.getHttpAddresses().split(",")[0];
         int portSeparator = coordinatingAddress.lastIndexOf(':');
         String host = coordinatingAddress.substring(0, portSeparator).replace("[", "").replace("]", "");

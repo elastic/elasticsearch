@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.index.mapper.AbstractColumnarNullContractTestCase;
+import org.elasticsearch.index.mapper.IndexingStrategy;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
@@ -31,42 +32,42 @@ public class WildcardColumnarNullContractTests extends AbstractColumnarNullContr
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
-    public void testWildcardExistsRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(wildcard(), Path.REGULAR);
+    public void testWildcardExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(wildcard(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
     public void testWildcardExistsBatch() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(wildcard(), Path.BATCH);
+        assertExistsMatchesOnlyDocumentsWithValue(wildcard(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testWildcardSourceRegular() throws IOException {
-        assertSourceDropsNullElements(wildcard(), Path.REGULAR);
+    public void testWildcardSourceDocument() throws IOException {
+        assertSourceDropsNullElements(wildcard(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testWildcardSourceBatch() throws IOException {
-        assertSourceDropsNullElements(wildcard(), Path.BATCH);
+        assertSourceDropsNullElements(wildcard(), IndexingStrategy.BATCH);
     }
 
-    public void testWildcardRemainingValuesKeepTheirOrderRegular() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(wildcard(), Path.REGULAR);
+    public void testWildcardRemainingValuesKeepTheirOrderDocument() throws IOException {
+        assertSourceKeepsTheOrderOfTheRemainingValues(wildcard(), IndexingStrategy.DOCUMENT);
     }
 
     public void testWildcardRemainingValuesKeepTheirOrderBatch() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(wildcard(), Path.BATCH);
+        assertSourceKeepsTheOrderOfTheRemainingValues(wildcard(), IndexingStrategy.BATCH);
     }
 
-    public void testWildcardNullValueReplacesNullRegular() throws IOException {
+    public void testWildcardNullValueReplacesNullDocument() throws IOException {
         final Scenario scenario = wildcard().withNullValue("NA");
-        assertExistsMatchesOnlyDocumentsWithValue(scenario, Path.REGULAR);
-        assertSourceDropsNullElements(scenario, Path.REGULAR);
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.DOCUMENT);
+        assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
     }
 
     public void testWildcardNullValueReplacesNullBatch() throws IOException {
         final Scenario scenario = wildcard().withNullValue("NA");
-        assertExistsMatchesOnlyDocumentsWithValue(scenario, Path.BATCH);
-        assertSourceDropsNullElements(scenario, Path.BATCH);
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.BATCH);
+        assertSourceDropsNullElements(scenario, IndexingStrategy.BATCH);
     }
 }

@@ -20,32 +20,21 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.escf.EscfBatch;
-import org.elasticsearch.escf.EscfColumn;
-import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.sourcebatch.MappedColumns;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,12 +53,11 @@ import java.util.function.Supplier;
  * dropped after {@code null_value}, a field with no remaining value is absent from {@code exists} and from the reconstructed
  * {@code _source}, and a single remaining value is reconstructed as a scalar.
  *
- * <p>Each helper indexes the same documents through the regular parser or through the batch path, in each strict mode. The batch path
- * is the one {@code InternalEngine} takes: {@code ShardBatchMapper.resolveMappers}, {@code mapColumnBatch} and
- * {@code IndexWriter#addBatch}. Any exception from the mappers makes the chunk fall back to the regular parser, as it does in production,
- * so a scenario states which column shapes it expects to take the batch path today ({@link Scenario#batchedGroups}) and a helper fails
- * when one of them falls back. A shape that is not listed may take either path, which keeps the tests valid when the batch path learns
- * to map more shapes.
+ * <p>Each helper indexes the same documents with an {@link IndexingStrategy}, in each strict mode. Batch indexing is the path
+ * {@code InternalEngine} takes. Any exception from the mappers makes the chunk fall back to document indexing, as it does in
+ * production, so a scenario states which column shapes it expects to execute as a batch today ({@link Scenario#batchedGroups}) and a
+ * helper fails when one of them falls back. A shape that is not listed may execute either way, which keeps the tests valid when batch
+ * indexing learns to map more shapes. A test of a scenario that lists no shape exercises the fallback, not batch indexing.
  *
  * <p>Order and multiplicity of the remaining values belong to the array-order tests. The source check compares the distinct values that
  * remain, and {@link #assertSourceKeepsTheOrderOfTheRemainingValues} only checks that dropping a null does not move or lose the values
@@ -88,16 +76,6 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
     private static final List<IndexMode> MODES = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
 
     protected static final Predicate<Configuration> ALL = configuration -> true;
-
-    protected enum Path {
-        REGULAR,
-        BATCH
-    }
-
-    private enum Executed {
-        REGULAR,
-        BATCH
-    }
 
     private enum Kind {
         ABSENT,
@@ -145,7 +123,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
      * @param nullValue     the {@code null_value} of the field, or {@code null} when it has none
      * @param canonical     the form in which a value is compared, applied to the expected values and to those in the reconstructed source
      * @param hasIndex      whether the type has an {@code index} parameter, which the tests run both ways
-     * @param batchedGroups the configurations and column shapes that are known to take the batch path today
+     * @param batchedGroups the configurations and column shapes that are known to execute as a batch today
      * @param modes         the strict modes that accept the type
      * @param singleValued  whether the type rejects a document with more than one value, which the documents then respect
      */
@@ -230,8 +208,8 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         return new TestDocument(Kind.ARRAY, Arrays.asList(slots));
     }
 
-    // NOTE: each group is one column shape. The batch path maps a column of mixed scalars and arrays, or one that holds a null, as a
-    // UNION, which most mappers refuse, so a group that mixes shapes would hide whether the others reach the batch path.
+    // NOTE: each group is one column shape. Batch indexing maps a column of mixed scalars and arrays, or one that holds a null, as a
+    // UNION, which most mappers refuse, so a group that mixes shapes would hide whether the others execute as a batch.
     private static List<List<TestDocument>> documentGroups(Scenario scenario) {
         final Supplier<Object> values = scenario.values();
         if (scenario.singleValued()) {
@@ -318,94 +296,12 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             );
     }
 
-    private String fallbackReason;
-
-    private Executed index(
-        MapperService mapperService,
-        IndexWriter indexWriter,
-        List<TestDocument> documents,
-        Path requested,
-        int firstSeqNo
-    ) throws IOException {
-        if (requested == Path.BATCH && indexAsBatch(mapperService, indexWriter, documents, firstSeqNo)) {
-            return Executed.BATCH;
+    private static List<String> sources(List<TestDocument> documents) throws IOException {
+        final List<String> sources = new ArrayList<>(documents.size());
+        for (final TestDocument document : documents) {
+            sources.add(document.json());
         }
-        for (int i = 0; i < documents.size(); i++) {
-            final SourceToParse source = new SourceToParse(
-                "d" + (firstSeqNo + i),
-                new BytesArray(documents.get(i).json()),
-                XContentType.JSON
-            );
-            final ParsedDocument parsed = mapperService.documentMapper().parse(source);
-            parsed.updateSeqID(firstSeqNo + i, 1);
-            parsed.version().setLongValue(1);
-            indexWriter.addDocuments(parsed.docs());
-        }
-        return Executed.REGULAR;
-    }
-
-    // NOTE: mirrors ShardBatchMapper#mapColumnBatch. A refused resolution or any exception from a mapper is the production signal to
-    // index the chunk through the regular path instead.
-    private boolean indexAsBatch(MapperService mapperService, IndexWriter indexWriter, List<TestDocument> documents, int firstSeqNo)
-        throws IOException {
-        final int count = documents.size();
-        final BytesReference[] sources = new BytesReference[count];
-        final IndexRequest[] requests = new IndexRequest[count];
-        for (int i = 0; i < count; i++) {
-            sources[i] = new BytesArray(documents.get(i).json().getBytes(StandardCharsets.UTF_8));
-            requests[i] = new IndexRequest("index").id("d" + (firstSeqNo + i)).source(sources[i], XContentType.JSON);
-        }
-        final MappingLookup lookup = mapperService.mappingLookup();
-        final IndexSettings indexSettings = mapperService.getIndexSettings();
-        try (
-            BatchMappingContext context = new BatchMappingContext(
-                EngineTestCase.initFromRequests(requests),
-                lookup,
-                indexSettings,
-                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
-            );
-            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sources), XContentType.JSON)
-        ) {
-            final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(escfBatch, lookup, indexSettings);
-            if (resolution == null) {
-                fallbackReason = "resolveMappers refused the batch";
-                return false;
-            }
-            final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
-            for (final MetadataFieldMapper metadataMapper : metadataMappers) {
-                metadataMapper.preColumnarParse(context);
-            }
-            try {
-                final FieldMapper[] columnMappers = resolution.columnMappers();
-                for (int c = 0; c < columnMappers.length; c++) {
-                    if (columnMappers[c] != null) {
-                        columnMappers[c].mapColumnBatch(context, escfBatch.column(c));
-                    }
-                }
-                for (final ColumnGroupResolver.ColumnGroupResolution group : resolution.columnGroups()) {
-                    final int[] leafIndexes = group.leafIndexes();
-                    final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
-                    for (int i = 0; i < leafIndexes.length; i++) {
-                        groupColumns[i] = escfBatch.column(leafIndexes[i]);
-                    }
-                    group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
-                }
-            } catch (Exception e) {
-                fallbackReason = e.getMessage();
-                return false;
-            }
-            for (final MetadataFieldMapper metadataMapper : metadataMappers) {
-                metadataMapper.postColumnarParse(context);
-            }
-            final MappedColumns columns = context.columns();
-            columns.fillPrimaryTerm(1L);
-            for (int i = 0; i < count; i++) {
-                columns.setSeqNo(i, firstSeqNo + i);
-                columns.setVersion(i, 1L);
-            }
-            indexWriter.addBatch(columns.toColumnBatch());
-            return true;
-        }
+        return sources;
     }
 
     private interface IndexedAssertion {
@@ -415,7 +311,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     private void forEachConfiguration(
         Scenario scenario,
-        Path path,
+        IndexingStrategy strategy,
         Predicate<Configuration> slice,
         List<List<TestDocument>> groups,
         List<Integer> shapes,
@@ -435,19 +331,17 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             ) {
                 int firstSeqNo = 0;
                 for (int g = 0; g < groups.size(); g++) {
-                    fallbackReason = null;
-                    final Executed executed = index(mapperService, indexWriter, groups.get(g), path, firstSeqNo);
-                    if (path == Path.BATCH && scenario.batchedGroups().test(configuration, shapes.get(g))) {
-                        assertEquals(
+                    final IndexingStrategy.Outcome outcome = strategy.index(mapperService, indexWriter, sources(groups.get(g)), firstSeqNo);
+                    if (strategy == IndexingStrategy.BATCH && scenario.batchedGroups().test(configuration, shapes.get(g))) {
+                        assertTrue(
                             scenario.type()
                                 + " "
                                 + configuration
                                 + " column shape "
                                 + shapes.get(g)
-                                + " is expected to take the batch path but fell back: "
-                                + fallbackReason,
-                            Executed.BATCH,
-                            executed
+                                + " is expected to execute as a batch but fell back to document indexing: "
+                                + outcome.fallbackReason(),
+                            outcome.batched()
                         );
                     }
                     indexWriter.commit();
@@ -465,15 +359,18 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         }
     }
 
-    protected final void assertExistsMatchesOnlyDocumentsWithValue(Scenario scenario, Path path) throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(scenario, path, ALL);
+    protected final void assertExistsMatchesOnlyDocumentsWithValue(Scenario scenario, IndexingStrategy strategy) throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, strategy, ALL);
     }
 
-    protected final void assertExistsMatchesOnlyDocumentsWithValue(Scenario scenario, Path path, Predicate<Configuration> slice)
-        throws IOException {
+    protected final void assertExistsMatchesOnlyDocumentsWithValue(
+        Scenario scenario,
+        IndexingStrategy strategy,
+        Predicate<Configuration> slice
+    ) throws IOException {
         forEachConfiguration(
             scenario,
-            path,
+            strategy,
             slice,
             documentGroups(scenario),
             DOCUMENT_SHAPES,
@@ -502,14 +399,15 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         );
     }
 
-    protected final void assertExistsCountAgreesWithHits(Scenario scenario, Path path) throws IOException {
-        assertExistsCountAgreesWithHits(scenario, path, ALL);
+    protected final void assertExistsCountAgreesWithHits(Scenario scenario, IndexingStrategy strategy) throws IOException {
+        assertExistsCountAgreesWithHits(scenario, strategy, ALL);
     }
 
-    protected final void assertExistsCountAgreesWithHits(Scenario scenario, Path path, Predicate<Configuration> slice) throws IOException {
+    protected final void assertExistsCountAgreesWithHits(Scenario scenario, IndexingStrategy strategy, Predicate<Configuration> slice)
+        throws IOException {
         forEachConfiguration(
             scenario,
-            path,
+            strategy,
             slice,
             documentGroups(scenario),
             DOCUMENT_SHAPES,
@@ -532,10 +430,10 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         );
     }
 
-    protected final void assertSourceDropsNullElements(Scenario scenario, Path path) throws IOException {
+    protected final void assertSourceDropsNullElements(Scenario scenario, IndexingStrategy strategy) throws IOException {
         forEachConfiguration(
             scenario,
-            path,
+            strategy,
             ALL,
             documentGroups(scenario),
             DOCUMENT_SHAPES,
@@ -545,10 +443,10 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         );
     }
 
-    protected final void assertSourceKeepsTheOrderOfTheRemainingValues(Scenario scenario, Path path) throws IOException {
+    protected final void assertSourceKeepsTheOrderOfTheRemainingValues(Scenario scenario, IndexingStrategy strategy) throws IOException {
         forEachConfiguration(
             scenario,
-            path,
+            strategy,
             ALL,
             orderedDocumentGroups(scenario.values()),
             List.of(NULL_ELEMENTS),
@@ -558,6 +456,17 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         );
     }
 
+    protected final List<String> reconstructedSources(MapperService mapperService, IndexWriter indexWriter, int count) throws IOException {
+        indexWriter.forceMerge(1);
+        try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+            final List<String> sources = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                sources.add(syntheticSource(mapperService.documentMapper(), reader, i));
+            }
+            return sources;
+        }
+    }
+
     private void assertSources(
         Scenario scenario,
         MapperService mapperService,
@@ -565,20 +474,17 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         List<TestDocument> documents,
         boolean ordered
     ) throws IOException {
-        indexWriter.forceMerge(1);
-        try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
-            final List<String> failures = new ArrayList<>();
-            for (int i = 0; i < documents.size(); i++) {
-                final String source = syntheticSource(mapperService.documentMapper(), reader, i);
-                try {
-                    assertSourceHoldsOnly(scenario, scenario.expected(documents.get(i)), source, ordered);
-                } catch (AssertionError e) {
-                    failures.add("document=" + documents.get(i) + " source=" + source + " " + e.getMessage());
-                }
+        final List<String> sources = reconstructedSources(mapperService, indexWriter, documents.size());
+        final List<String> failures = new ArrayList<>();
+        for (int i = 0; i < documents.size(); i++) {
+            try {
+                assertSourceHoldsOnly(scenario, scenario.expected(documents.get(i)), sources.get(i), ordered);
+            } catch (AssertionError e) {
+                failures.add("document=" + documents.get(i) + " source=" + sources.get(i) + " " + e.getMessage());
             }
-            if (failures.isEmpty() == false) {
-                fail(failures.size() + " of " + documents.size() + " documents failed:\n" + String.join("\n", failures));
-            }
+        }
+        if (failures.isEmpty() == false) {
+            fail(failures.size() + " of " + documents.size() + " documents failed:\n" + String.join("\n", failures));
         }
     }
 

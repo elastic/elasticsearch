@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb.patterntext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.AbstractColumnarNullContractTestCase;
+import org.elasticsearch.index.mapper.IndexingStrategy;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 
@@ -31,27 +32,27 @@ public class PatternTextColumnarNullContractTests extends AbstractColumnarNullCo
             .batchedGroups((configuration, shape) -> true);
     }
 
-    public void testExistsMatchesOnlyDocumentsWithValueRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(patternText(), Path.REGULAR);
+    public void testExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(patternText(), IndexingStrategy.DOCUMENT);
     }
 
     public void testExistsMatchesOnlyDocumentsWithValueBatch() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(patternText(), Path.BATCH);
+        assertExistsMatchesOnlyDocumentsWithValue(patternText(), IndexingStrategy.BATCH);
     }
 
-    public void testExistsCountAgreesWithHitsRegular() throws IOException {
-        assertExistsCountAgreesWithHits(patternText(), Path.REGULAR);
+    public void testExistsCountAgreesWithHitsDocument() throws IOException {
+        assertExistsCountAgreesWithHits(patternText(), IndexingStrategy.DOCUMENT);
     }
 
     public void testExistsCountAgreesWithHitsBatch() throws IOException {
-        assertExistsCountAgreesWithHits(patternText(), Path.BATCH);
+        assertExistsCountAgreesWithHits(patternText(), IndexingStrategy.BATCH);
     }
 
-    public void testSourceDropsNullElementsRegular() throws IOException {
-        assertSourceDropsNullElements(patternText(), Path.REGULAR);
+    public void testSourceDropsNullElementsDocument() throws IOException {
+        assertSourceDropsNullElements(patternText(), IndexingStrategy.DOCUMENT);
     }
 
     public void testSourceDropsNullElementsBatch() throws IOException {
-        assertSourceDropsNullElements(patternText(), Path.BATCH);
+        assertSourceDropsNullElements(patternText(), IndexingStrategy.BATCH);
     }
 }

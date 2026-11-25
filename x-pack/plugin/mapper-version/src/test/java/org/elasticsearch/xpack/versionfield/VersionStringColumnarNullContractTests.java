@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.versionfield;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.AbstractColumnarNullContractTestCase;
+import org.elasticsearch.index.mapper.IndexingStrategy;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -28,20 +29,20 @@ public class VersionStringColumnarNullContractTests extends AbstractColumnarNull
             .batchedGroups((configuration, shape) -> true);
     }
 
-    public void testVersionExistsRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(version(), Path.REGULAR);
+    public void testVersionExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(version(), IndexingStrategy.DOCUMENT);
     }
 
     public void testVersionExistsBatch() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(version(), Path.BATCH);
+        assertExistsMatchesOnlyDocumentsWithValue(version(), IndexingStrategy.BATCH);
     }
 
-    public void testVersionSourceRegular() throws IOException {
-        assertSourceDropsNullElements(version(), Path.REGULAR);
+    public void testVersionSourceDocument() throws IOException {
+        assertSourceDropsNullElements(version(), IndexingStrategy.DOCUMENT);
     }
 
     public void testVersionSourceBatch() throws IOException {
-        assertSourceDropsNullElements(version(), Path.BATCH);
+        assertSourceDropsNullElements(version(), IndexingStrategy.BATCH);
     }
 
 }

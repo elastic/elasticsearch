@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.index.mapper.AbstractColumnarNullContractTestCase;
+import org.elasticsearch.index.mapper.IndexingStrategy;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -29,22 +30,22 @@ public class UnsignedLongColumnarNullContractTests extends AbstractColumnarNullC
         return scenario("unsigned_long", () -> randomLongBetween(0, Long.MAX_VALUE));
     }
 
-    public void testUnsignedLongExistsRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(unsignedLong(), Path.REGULAR);
+    public void testUnsignedLongExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(unsignedLong(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testUnsignedLongSourceRegular() throws IOException {
-        assertSourceDropsNullElements(unsignedLong(), Path.REGULAR);
+    public void testUnsignedLongSourceDocument() throws IOException {
+        assertSourceDropsNullElements(unsignedLong(), IndexingStrategy.DOCUMENT);
     }
 
-    public void testUnsignedLongRemainingValuesKeepTheirOrderRegular() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(unsignedLong(), Path.REGULAR);
+    public void testUnsignedLongRemainingValuesKeepTheirOrderDocument() throws IOException {
+        assertSourceKeepsTheOrderOfTheRemainingValues(unsignedLong(), IndexingStrategy.DOCUMENT);
     }
 
-    public void testUnsignedLongNullValueReplacesNullRegular() throws IOException {
+    public void testUnsignedLongNullValueReplacesNullDocument() throws IOException {
         final Scenario scenario = unsignedLong().withNullValue(9);
-        assertExistsMatchesOnlyDocumentsWithValue(scenario, Path.REGULAR);
-        assertSourceDropsNullElements(scenario, Path.REGULAR);
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.DOCUMENT);
+        assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
     }
 }

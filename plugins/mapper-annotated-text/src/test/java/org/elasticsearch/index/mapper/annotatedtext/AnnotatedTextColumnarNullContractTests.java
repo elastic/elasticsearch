@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.annotatedtext;
 
 import org.elasticsearch.index.mapper.AbstractColumnarNullContractTestCase;
+import org.elasticsearch.index.mapper.IndexingStrategy;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -27,15 +28,15 @@ public class AnnotatedTextColumnarNullContractTests extends AbstractColumnarNull
         return scenario("annotated_text", () -> randomAlphaOfLengthBetween(1, 8)).withoutIndex();
     }
 
-    public void testAnnotatedTextExistsRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(annotatedText(), Path.REGULAR);
+    public void testAnnotatedTextExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(annotatedText(), IndexingStrategy.DOCUMENT);
     }
 
-    public void testAnnotatedTextSourceRegular() throws IOException {
-        assertSourceDropsNullElements(annotatedText(), Path.REGULAR);
+    public void testAnnotatedTextSourceDocument() throws IOException {
+        assertSourceDropsNullElements(annotatedText(), IndexingStrategy.DOCUMENT);
     }
 
-    public void testAnnotatedTextRemainingValuesKeepTheirOrderRegular() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(annotatedText(), Path.REGULAR);
+    public void testAnnotatedTextRemainingValuesKeepTheirOrderDocument() throws IOException {
+        assertSourceKeepsTheOrderOfTheRemainingValues(annotatedText(), IndexingStrategy.DOCUMENT);
     }
 }

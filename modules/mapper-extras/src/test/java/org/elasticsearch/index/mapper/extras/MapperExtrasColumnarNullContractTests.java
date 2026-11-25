@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.index.mapper.AbstractColumnarNullContractTestCase;
+import org.elasticsearch.index.mapper.IndexingStrategy;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -39,63 +40,63 @@ public class MapperExtrasColumnarNullContractTests extends AbstractColumnarNullC
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
-    public void testMatchOnlyTextExistsRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(matchOnlyText(), Path.REGULAR);
+    public void testMatchOnlyTextExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(matchOnlyText(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
     public void testMatchOnlyTextExistsBatch() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(matchOnlyText(), Path.BATCH);
+        assertExistsMatchesOnlyDocumentsWithValue(matchOnlyText(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = EXISTS_COUNT_DISAGREES)
-    public void testMatchOnlyTextExistsCountRegular() throws IOException {
-        assertExistsCountAgreesWithHits(matchOnlyText(), Path.REGULAR);
+    public void testMatchOnlyTextExistsCountDocument() throws IOException {
+        assertExistsCountAgreesWithHits(matchOnlyText(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = EXISTS_COUNT_DISAGREES)
     public void testMatchOnlyTextExistsCountBatch() throws IOException {
-        assertExistsCountAgreesWithHits(matchOnlyText(), Path.BATCH);
+        assertExistsCountAgreesWithHits(matchOnlyText(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testMatchOnlyTextSourceRegular() throws IOException {
-        assertSourceDropsNullElements(matchOnlyText(), Path.REGULAR);
+    public void testMatchOnlyTextSourceDocument() throws IOException {
+        assertSourceDropsNullElements(matchOnlyText(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testMatchOnlyTextSourceBatch() throws IOException {
-        assertSourceDropsNullElements(matchOnlyText(), Path.BATCH);
+        assertSourceDropsNullElements(matchOnlyText(), IndexingStrategy.BATCH);
     }
 
-    public void testMatchOnlyTextRemainingValuesKeepTheirOrderRegular() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(matchOnlyText(), Path.REGULAR);
+    public void testMatchOnlyTextRemainingValuesKeepTheirOrderDocument() throws IOException {
+        assertSourceKeepsTheOrderOfTheRemainingValues(matchOnlyText(), IndexingStrategy.DOCUMENT);
     }
 
     public void testMatchOnlyTextRemainingValuesKeepTheirOrderBatch() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(matchOnlyText(), Path.BATCH);
+        assertSourceKeepsTheOrderOfTheRemainingValues(matchOnlyText(), IndexingStrategy.BATCH);
     }
 
-    public void testScaledFloatExistsMatchesOnlyDocumentsWithValueRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(scaledFloat(), Path.REGULAR);
+    public void testScaledFloatExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(scaledFloat(), IndexingStrategy.DOCUMENT);
     }
 
-    public void testScaledFloatExistsCountAgreesWithHitsRegular() throws IOException {
-        assertExistsCountAgreesWithHits(scaledFloat(), Path.REGULAR);
+    public void testScaledFloatExistsCountAgreesWithHitsDocument() throws IOException {
+        assertExistsCountAgreesWithHits(scaledFloat(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testScaledFloatSourceRegular() throws IOException {
-        assertSourceDropsNullElements(scaledFloat(), Path.REGULAR);
+    public void testScaledFloatSourceDocument() throws IOException {
+        assertSourceDropsNullElements(scaledFloat(), IndexingStrategy.DOCUMENT);
     }
 
-    public void testScaledFloatNullValueReplacesNullRegular() throws IOException {
+    public void testScaledFloatNullValueReplacesNullDocument() throws IOException {
         final Scenario scenario = scaledFloat().withNullValue(0.5);
-        assertExistsMatchesOnlyDocumentsWithValue(scenario, Path.REGULAR);
-        assertSourceDropsNullElements(scenario, Path.REGULAR);
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.DOCUMENT);
+        assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
     }
 
-    public void testScaledFloatRemainingValuesKeepTheirOrderRegular() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(scaledFloat(), Path.REGULAR);
+    public void testScaledFloatRemainingValuesKeepTheirOrderDocument() throws IOException {
+        assertSourceKeepsTheOrderOfTheRemainingValues(scaledFloat(), IndexingStrategy.DOCUMENT);
     }
 }

@@ -49,7 +49,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         && configuration.mode() == IndexMode.VECTORDB_COLUMNAR;
 
     private static final List<String> NUMBERS = List.of("long", "integer", "short", "byte", "double", "float", "half_float");
-    // NOTE: a binary field is never resolved to the batch path, so it is tested through the regular path only.
+    // NOTE: a binary field is never resolved for batch indexing, so it is tested with document indexing only.
     private static final List<String> BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG = List.of(
         "long",
         "integer",
@@ -100,7 +100,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
 
     // NOTE: the column shapes below are the ones the mappers batch map today (doSupportsColumnarParse and doMapColumnBatch). A number
     // takes a column without a null, a date and a boolean take a column of scalars, a keyword, a text and an ip without an index take
-    // every shape, and a binary field takes none. A shape that is not listed may fall back to the regular path.
+    // every shape, and a binary field takes none. A shape that is not listed may fall back to document indexing.
     private static Scenario plain(String type) {
         final Scenario scenario = scenario(type, values(type));
         return switch (type) {
@@ -196,48 +196,48 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             .batchedGroups((configuration, shape) -> shape == SCALARS);
     }
 
-    public void testGeoPointExistsMatchesOnlyDocumentsWithValueRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(geoPoint(), Path.REGULAR);
+    public void testGeoPointExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(geoPoint(), IndexingStrategy.DOCUMENT);
     }
 
     public void testGeoPointExistsMatchesOnlyDocumentsWithValueBatch() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(geoPoint(), Path.BATCH);
+        assertExistsMatchesOnlyDocumentsWithValue(geoPoint(), IndexingStrategy.BATCH);
     }
 
-    public void testGeoPointExistsCountAgreesWithHitsRegular() throws IOException {
-        assertExistsCountAgreesWithHits(geoPoint(), Path.REGULAR);
+    public void testGeoPointExistsCountAgreesWithHitsDocument() throws IOException {
+        assertExistsCountAgreesWithHits(geoPoint(), IndexingStrategy.DOCUMENT);
     }
 
     public void testGeoPointExistsCountAgreesWithHitsBatch() throws IOException {
-        assertExistsCountAgreesWithHits(geoPoint(), Path.BATCH);
+        assertExistsCountAgreesWithHits(geoPoint(), IndexingStrategy.BATCH);
     }
 
-    public void testGeoPointSourceDropsNullElementsRegular() throws IOException {
-        assertSourceDropsNullElements(geoPoint(), Path.REGULAR);
+    public void testGeoPointSourceDropsNullElementsDocument() throws IOException {
+        assertSourceDropsNullElements(geoPoint(), IndexingStrategy.DOCUMENT);
     }
 
     public void testGeoPointSourceDropsNullElementsBatch() throws IOException {
-        assertSourceDropsNullElements(geoPoint(), Path.BATCH);
+        assertSourceDropsNullElements(geoPoint(), IndexingStrategy.BATCH);
     }
 
-    public void testGeoPointNullValueReplacesNullRegular() throws IOException {
+    public void testGeoPointNullValueReplacesNullDocument() throws IOException {
         final Scenario scenario = geoPoint().withNullValue("10.5,20.5");
-        assertExistsMatchesOnlyDocumentsWithValue(scenario, Path.REGULAR);
-        assertSourceDropsNullElements(scenario, Path.REGULAR);
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, IndexingStrategy.DOCUMENT);
+        assertSourceDropsNullElements(scenario, IndexingStrategy.DOCUMENT);
     }
 
-    private void assertNullValueSubstitution(Path path) throws IOException {
+    private void assertNullValueSubstitution(IndexingStrategy strategy) throws IOException {
         for (final String type : NULL_VALUES.keySet()) {
-            if (path == Path.BATCH && type.equals("binary")) {
+            if (strategy == IndexingStrategy.BATCH && type.equals("binary")) {
                 continue;
             }
             final Scenario scenario = withNullValue(type);
-            assertExistsMatchesOnlyDocumentsWithValue(scenario, path);
-            assertSourceDropsNullElements(scenario, path);
+            assertExistsMatchesOnlyDocumentsWithValue(scenario, strategy);
+            assertSourceDropsNullElements(scenario, strategy);
         }
     }
 
-    public void testExistsMatchesOnlyDocumentsWithValueRegular() throws IOException {
+    public void testExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
         for (final String type : List.of(
             "long",
             "integer",
@@ -252,17 +252,17 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             "ip",
             "binary"
         )) {
-            assertExistsMatchesOnlyDocumentsWithValue(plain(type), Path.REGULAR);
+            assertExistsMatchesOnlyDocumentsWithValue(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
 
     public void testExistsMatchesOnlyDocumentsWithValueBatch() throws IOException {
         for (final String type : BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG) {
-            assertExistsMatchesOnlyDocumentsWithValue(plain(type), Path.BATCH);
+            assertExistsMatchesOnlyDocumentsWithValue(plain(type), IndexingStrategy.BATCH);
         }
     }
 
-    public void testExistsCountAgreesWithHitsRegular() throws IOException {
+    public void testExistsCountAgreesWithHitsDocument() throws IOException {
         for (final String type : List.of(
             "long",
             "integer",
@@ -277,29 +277,29 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             "ip",
             "binary"
         )) {
-            assertExistsCountAgreesWithHits(plain(type), Path.REGULAR);
+            assertExistsCountAgreesWithHits(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
 
     public void testExistsCountAgreesWithHitsBatch() throws IOException {
         for (final String type : BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG) {
-            assertExistsCountAgreesWithHits(plain(type), Path.BATCH);
+            assertExistsCountAgreesWithHits(plain(type), IndexingStrategy.BATCH);
         }
     }
 
-    public void testNullValueReplacesNullRegular() throws IOException {
-        assertNullValueSubstitution(Path.REGULAR);
+    public void testNullValueReplacesNullDocument() throws IOException {
+        assertNullValueSubstitution(IndexingStrategy.DOCUMENT);
     }
 
     public void testNullValueReplacesNullBatch() throws IOException {
-        assertNullValueSubstitution(Path.BATCH);
+        assertNullValueSubstitution(IndexingStrategy.BATCH);
     }
 
-    public void testBinarySourceDropsNullElementsRegular() throws IOException {
-        assertSourceDropsNullElements(plain("binary"), Path.REGULAR);
+    public void testBinarySourceDropsNullElementsDocument() throws IOException {
+        assertSourceDropsNullElements(plain("binary"), IndexingStrategy.DOCUMENT);
     }
 
-    public void testRemainingValuesKeepTheirOrderRegular() throws IOException {
+    public void testRemainingValuesKeepTheirOrderDocument() throws IOException {
         for (final String type : List.of(
             "keyword",
             "text",
@@ -316,7 +316,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             "ip",
             "binary"
         )) {
-            assertSourceKeepsTheOrderOfTheRemainingValues(plain(type), Path.REGULAR);
+            assertSourceKeepsTheOrderOfTheRemainingValues(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
 
@@ -336,217 +336,217 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             "boolean",
             "ip"
         )) {
-            assertSourceKeepsTheOrderOfTheRemainingValues(plain(type), Path.BATCH);
+            assertSourceKeepsTheOrderOfTheRemainingValues(plain(type), IndexingStrategy.BATCH);
         }
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testKeywordIgnoreAboveSourceRegular() throws IOException {
-        assertSourceDropsNullElements(keywordIgnoreAbove(), Path.REGULAR);
+    public void testKeywordIgnoreAboveSourceDocument() throws IOException {
+        assertSourceDropsNullElements(keywordIgnoreAbove(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testKeywordIgnoreAboveSourceBatch() throws IOException {
-        assertSourceDropsNullElements(keywordIgnoreAbove(), Path.BATCH);
+        assertSourceDropsNullElements(keywordIgnoreAbove(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testLongIgnoreMalformedSourceRegular() throws IOException {
-        assertSourceDropsNullElements(longIgnoreMalformed(), Path.REGULAR);
+    public void testLongIgnoreMalformedSourceDocument() throws IOException {
+        assertSourceDropsNullElements(longIgnoreMalformed(), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testLongIgnoreMalformedSourceBatch() throws IOException {
-        assertSourceDropsNullElements(longIgnoreMalformed(), Path.BATCH);
+        assertSourceDropsNullElements(longIgnoreMalformed(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
-    public void testKeywordExistsRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(plain("keyword"), Path.REGULAR);
+    public void testKeywordExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(plain("keyword"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
     public void testKeywordExistsBatch() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(plain("keyword"), Path.BATCH);
+        assertExistsMatchesOnlyDocumentsWithValue(plain("keyword"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
-    public void testTextExistsRegular() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(plain("text"), Path.REGULAR);
+    public void testTextExistsDocument() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(plain("text"), IndexingStrategy.DOCUMENT);
     }
 
     public void testTextExistsBatchVectordbIndexed() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(plain("text"), Path.BATCH, VECTORDB_INDEXED);
+        assertExistsMatchesOnlyDocumentsWithValue(plain("text"), IndexingStrategy.BATCH, VECTORDB_INDEXED);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)
     public void testTextExistsBatchOtherConfigurations() throws IOException {
-        assertExistsMatchesOnlyDocumentsWithValue(plain("text"), Path.BATCH, VECTORDB_INDEXED.negate());
+        assertExistsMatchesOnlyDocumentsWithValue(plain("text"), IndexingStrategy.BATCH, VECTORDB_INDEXED.negate());
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = EXISTS_COUNT_DISAGREES)
-    public void testKeywordExistsCountRegularIndexed() throws IOException {
-        assertExistsCountAgreesWithHits(plain("keyword"), Path.REGULAR, INDEXED);
+    public void testKeywordExistsCountDocumentIndexed() throws IOException {
+        assertExistsCountAgreesWithHits(plain("keyword"), IndexingStrategy.DOCUMENT, INDEXED);
     }
 
-    public void testKeywordExistsCountRegularNotIndexed() throws IOException {
-        assertExistsCountAgreesWithHits(plain("keyword"), Path.REGULAR, NOT_INDEXED);
+    public void testKeywordExistsCountDocumentNotIndexed() throws IOException {
+        assertExistsCountAgreesWithHits(plain("keyword"), IndexingStrategy.DOCUMENT, NOT_INDEXED);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = EXISTS_COUNT_DISAGREES)
     public void testKeywordExistsCountBatchIndexed() throws IOException {
-        assertExistsCountAgreesWithHits(plain("keyword"), Path.BATCH, INDEXED);
+        assertExistsCountAgreesWithHits(plain("keyword"), IndexingStrategy.BATCH, INDEXED);
     }
 
     public void testKeywordExistsCountBatchNotIndexed() throws IOException {
-        assertExistsCountAgreesWithHits(plain("keyword"), Path.BATCH, NOT_INDEXED);
+        assertExistsCountAgreesWithHits(plain("keyword"), IndexingStrategy.BATCH, NOT_INDEXED);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = EXISTS_COUNT_DISAGREES)
-    public void testTextExistsCountRegularIndexedWithoutVectordb() throws IOException {
-        assertExistsCountAgreesWithHits(plain("text"), Path.REGULAR, INDEXED_WITHOUT_VECTORDB);
+    public void testTextExistsCountDocumentIndexedWithoutVectordb() throws IOException {
+        assertExistsCountAgreesWithHits(plain("text"), IndexingStrategy.DOCUMENT, INDEXED_WITHOUT_VECTORDB);
     }
 
-    public void testTextExistsCountRegularOtherConfigurations() throws IOException {
-        assertExistsCountAgreesWithHits(plain("text"), Path.REGULAR, INDEXED_WITHOUT_VECTORDB.negate());
+    public void testTextExistsCountDocumentOtherConfigurations() throws IOException {
+        assertExistsCountAgreesWithHits(plain("text"), IndexingStrategy.DOCUMENT, INDEXED_WITHOUT_VECTORDB.negate());
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = EXISTS_COUNT_DISAGREES)
     public void testTextExistsCountBatchIndexedWithoutVectordb() throws IOException {
-        assertExistsCountAgreesWithHits(plain("text"), Path.BATCH, INDEXED_WITHOUT_VECTORDB);
+        assertExistsCountAgreesWithHits(plain("text"), IndexingStrategy.BATCH, INDEXED_WITHOUT_VECTORDB);
     }
 
     public void testTextExistsCountBatchOtherConfigurations() throws IOException {
-        assertExistsCountAgreesWithHits(plain("text"), Path.BATCH, INDEXED_WITHOUT_VECTORDB.negate());
+        assertExistsCountAgreesWithHits(plain("text"), IndexingStrategy.BATCH, INDEXED_WITHOUT_VECTORDB.negate());
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testKeywordSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("keyword"), Path.REGULAR);
+    public void testKeywordSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("keyword"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testKeywordSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("keyword"), Path.BATCH);
+        assertSourceDropsNullElements(plain("keyword"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testTextSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("text"), Path.REGULAR);
+    public void testTextSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("text"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testTextSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("text"), Path.BATCH);
+        assertSourceDropsNullElements(plain("text"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testLongSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("long"), Path.REGULAR);
+    public void testLongSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("long"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testLongSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("long"), Path.BATCH);
+        assertSourceDropsNullElements(plain("long"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testIntegerSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("integer"), Path.REGULAR);
+    public void testIntegerSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("integer"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testIntegerSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("integer"), Path.BATCH);
+        assertSourceDropsNullElements(plain("integer"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testShortSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("short"), Path.REGULAR);
+    public void testShortSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("short"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testShortSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("short"), Path.BATCH);
+        assertSourceDropsNullElements(plain("short"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testByteSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("byte"), Path.REGULAR);
+    public void testByteSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("byte"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testByteSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("byte"), Path.BATCH);
+        assertSourceDropsNullElements(plain("byte"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testDoubleSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("double"), Path.REGULAR);
+    public void testDoubleSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("double"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testDoubleSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("double"), Path.BATCH);
+        assertSourceDropsNullElements(plain("double"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testFloatSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("float"), Path.REGULAR);
+    public void testFloatSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("float"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testFloatSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("float"), Path.BATCH);
+        assertSourceDropsNullElements(plain("float"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testHalfFloatSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("half_float"), Path.REGULAR);
+    public void testHalfFloatSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("half_float"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testHalfFloatSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("half_float"), Path.BATCH);
+        assertSourceDropsNullElements(plain("half_float"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testDateSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("date"), Path.REGULAR);
+    public void testDateSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("date"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testDateSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("date"), Path.BATCH);
+        assertSourceDropsNullElements(plain("date"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testDateNanosSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("date_nanos"), Path.REGULAR);
+    public void testDateNanosSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("date_nanos"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testDateNanosSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("date_nanos"), Path.BATCH);
+        assertSourceDropsNullElements(plain("date_nanos"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testBooleanSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("boolean"), Path.REGULAR);
+    public void testBooleanSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("boolean"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testBooleanSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("boolean"), Path.BATCH);
+        assertSourceDropsNullElements(plain("boolean"), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testIpSourceRegular() throws IOException {
-        assertSourceDropsNullElements(plain("ip"), Path.REGULAR);
+    public void testIpSourceDocument() throws IOException {
+        assertSourceDropsNullElements(plain("ip"), IndexingStrategy.DOCUMENT);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testIpSourceBatch() throws IOException {
-        assertSourceDropsNullElements(plain("ip"), Path.BATCH);
+        assertSourceDropsNullElements(plain("ip"), IndexingStrategy.BATCH);
     }
 }

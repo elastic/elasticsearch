@@ -44,10 +44,12 @@ import java.util.zip.Inflater;
  * {@link PlainCompressionCodecFactory.HeapDestDecompressor#decompressInto} when the codec
  * supports it. The dest's live capacity is charged to {@code breaker} until {@link #close()};
  * same-size pages do not re-charge. A grow charges the new size before dropping the old
- * charge so peak heap and breaker match while both arrays are live. Dictionary pages still
- * allocate via {@link BytesInputDecompressor#decompress(BytesInput, int)} and keep that
- * charge until close. The compressed dictionary input is defensively copied into a separately
- * breaker-accounted array at construction so it can outlive the prefetched I/O buffer safely.
+ * charge so peak heap and breaker match while both arrays are live. Dictionary pages allocate
+ * a dedicated dest (not {@code reusableDecompBuf}) and keep that charge until close. GZIP
+ * dictionaries inflate through the same reader-owned {@link Inflater}; other codecs use
+ * {@link BytesInputDecompressor#decompress(BytesInput, int)}. The compressed dictionary input
+ * is defensively copied into a separately breaker-accounted array at construction so it can
+ * outlive the prefetched I/O buffer safely.
  * Uncompressed data pages alias the prefetched I/O bytes and are not charged — those bytes are
  * already accounted by the prefetch circuit breaker. Failed decompress after a successful grow
  * keeps the charge (the array is still referenced). A trip in
@@ -59,7 +61,7 @@ import java.util.zip.Inflater;
  * that race cannot silently skew the breaker. {@link #reusableDecompBuf} is {@code volatile}
  * so a close that nulls the dest is visible to a concurrent read; the read path snapshots
  * the array into a local and does not re-read the field after {@code decompressInto}.
- * GZIP data pages reuse one {@code Inflater(true)} for the life of the reader;
+ * GZIP data and dictionary pages reuse one {@code Inflater(true)} for the life of the reader;
  * {@link Inflater#end()} runs after the {@link #closed} CAS. {@code end()} during a racing
  * {@code inflate()} is unsafe — the inflate path must not use the inflater after close,
  * the same race class as the dest-buffer close.
@@ -276,7 +278,15 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             // aliased a prefetch buffer they would outlive this reader's close at row-group
             // rollover. The compressed input is the constructor's breaker-accounted defensive
             // copy. Uncompressed dictionaries skip the decompression charge and alias that copy.
-            BytesInput decompressed = decompressor.decompress(dictionaryPage.getBytes(), uncompressedSize);
+            // Dedicated dest: reusableDecompBuf is overwritten by later data pages.
+            BytesInput decompressed;
+            if (gzipInflater != null) {
+                byte[] dest = UninitializedArrays.newByteArray(uncompressedSize);
+                inflateGzip(dictionaryPage.getBytes(), dest, uncompressedSize);
+                decompressed = BytesInput.from(dest);
+            } else {
+                decompressed = decompressor.decompress(dictionaryPage.getBytes(), uncompressedSize);
+            }
             decodedDictionaryPage = new DictionaryPage(
                 decompressed,
                 uncompressedSize,
@@ -412,12 +422,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             byte[] dest = ensureDecompCapacity(decompressedSize);
             if (gzipInflater != null) {
                 try {
-                    GzipPageInflater.inflate(gzipInflater, compressed, dest, decompressedSize);
-                } catch (IllegalStateException e) {
-                    if (closed.get()) {
-                        dropReusableDest();
-                        throw new ParquetDecodingException("PrefetchedPageReader closed", e);
-                    }
+                    inflateGzip(compressed, dest, decompressedSize);
+                } catch (ParquetDecodingException e) {
+                    dropReusableDest();
                     throw e;
                 }
             } else {
@@ -481,6 +488,17 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             throw new ParquetDecodingException("PrefetchedPageReader closed");
         }
         return next;
+    }
+
+    private void inflateGzip(BytesInput compressed, byte[] dest, int destLen) throws IOException {
+        try {
+            GzipPageInflater.inflate(gzipInflater, compressed, dest, destLen);
+        } catch (RuntimeException e) {
+            if (closed.get()) {
+                throw new ParquetDecodingException("PrefetchedPageReader closed", e);
+            }
+            throw e;
+        }
     }
 
     private void dropReusableDest() {

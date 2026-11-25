@@ -12,6 +12,7 @@ import org.apache.parquet.bytes.BytesInput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import java.util.zip.CRC32;
 import java.util.zip.DataFormatException;
 import java.util.zip.GZIPInputStream;
@@ -29,9 +30,9 @@ import java.util.zip.ZipException;
  * a complete member is ignored, matching {@link GZIPInputStream} — not the text-codec
  * trailing-zero policy.
  *
- * <p>Inputs that are not array-backed, and the shared {@code decompress(BytesInput, int)} /
- * dictionary path, use {@link GZIPInputStream} with a raw buffer of
- * {@code min(64KiB, compressedSize)}.
+ * <p>Inputs that are not array-backed, and the shared {@code decompress(BytesInput, int)}
+ * path, use {@link GZIPInputStream} with a raw buffer of {@code min(64KiB, compressedSize)}.
+ * Prefetched dictionary pages use {@link #inflate} with the reader-owned inflater.
  */
 final class GzipPageInflater {
 
@@ -63,9 +64,9 @@ final class GzipPageInflater {
     }
 
     /**
-     * {@link GZIPInputStream} copy used by dictionary pages, {@code decompress(BytesInput, int)},
-     * and the non-array fallback. Raw buffer is {@code min(64KiB, compressedSize)} instead of the
-     * JDK default of 512 bytes.
+     * {@link GZIPInputStream} copy used by {@code decompress(BytesInput, int)} and the non-array
+     * fallback. Raw buffer is {@code min(64KiB, compressedSize)} instead of the JDK default of
+     * 512 bytes.
      */
     static void decompressWithInputStream(BytesInput compressed, byte[] dest, int destLen) throws IOException {
         requireDestCapacity(dest, destLen);
@@ -93,11 +94,13 @@ final class GzipPageInflater {
     }
 
     private static void inflateArray(Inflater inflater, byte[] src, int off, int len, byte[] dest, int destLen) throws IOException {
+        Objects.checkFromIndexSize(off, len, src.length);
         inflater.reset();
         int end = off + len;
         int inPos = off;
         int written = 0;
         boolean firstMember = true;
+        boolean completedMember = false;
         CRC32 crc = new CRC32();
         byte[] probe = null;
         while (true) {
@@ -151,6 +154,10 @@ final class GzipPageInflater {
                 }
                 if (inflater.finished() == false) {
                     if (inflater.needsInput()) {
+                        if (completedMember) {
+                            // dest already filled; truncated next member is EOS.
+                            return;
+                        }
                         throw prematureEnd(destLen, written);
                     }
                     throw new IOException("GZIP inflater stalled");
@@ -170,6 +177,7 @@ final class GzipPageInflater {
                 throw new ZipException("Corrupt GZIP trailer");
             }
             inPos = trailerPos + TRAILER_BYTES;
+            completedMember = true;
             if (written < destLen) {
                 if (inPos >= end) {
                     throw prematureEnd(destLen, written);
@@ -190,37 +198,26 @@ final class GzipPageInflater {
      * @return index of the first DEFLATE byte
      */
     private static int parseGzipHeader(byte[] src, int off, int len) throws IOException {
-        if (len < 2) {
-            throw new EOFException("Unexpected end of ZLIB input stream");
-        }
+        Objects.checkFromIndexSize(off, len, src.length);
         int end = off + len;
         int i = off;
+        requireRemaining(end, i, 2);
         if ((src[i++] & 0xff) != MAGIC_1 || (src[i++] & 0xff) != MAGIC_2) {
             throw new ZipException("Not in GZIP format");
         }
-        if (i >= end) {
-            throw new EOFException("Unexpected end of ZLIB input stream");
-        }
+        requireRemaining(end, i, 1);
         if ((src[i++] & 0xff) != METHOD_DEFLATE) {
             throw new ZipException("Unsupported compression method");
         }
-        if (i >= end) {
-            throw new EOFException("Unexpected end of ZLIB input stream");
-        }
+        requireRemaining(end, i, 1);
         int flags = src[i++] & 0xff;
+        requireRemaining(end, i, 6);
         i += 6; // MTIME (4), XFL (1), OS (1)
-        if (i > end) {
-            throw new EOFException("Unexpected end of ZLIB input stream");
-        }
         if ((flags & FEXTRA) != 0) {
-            if (i + 2 > end) {
-                throw new EOFException("Unexpected end of ZLIB input stream");
-            }
+            requireRemaining(end, i, 2);
             int extraLength = (src[i] & 0xff) | ((src[i + 1] & 0xff) << 8);
             i += 2;
-            if (i + extraLength > end) {
-                throw new EOFException("Unexpected end of ZLIB input stream");
-            }
+            requireRemaining(end, i, extraLength);
             i += extraLength;
         }
         if ((flags & FNAME) != 0) {
@@ -233,9 +230,7 @@ final class GzipPageInflater {
             CRC32 headerCrc = new CRC32();
             headerCrc.update(src, off, i - off);
             int expected = (int) headerCrc.getValue() & 0xffff;
-            if (i + 2 > end) {
-                throw new EOFException("Unexpected end of ZLIB input stream");
-            }
+            requireRemaining(end, i, 2);
             int actual = (src[i] & 0xff) | ((src[i + 1] & 0xff) << 8);
             if (actual != expected) {
                 throw new ZipException("Corrupt GZIP header");
@@ -243,6 +238,13 @@ final class GzipPageInflater {
             i += 2;
         }
         return i;
+    }
+
+    /** Bounds check via remaining length so {@code i + n} cannot overflow near {@code Integer.MAX_VALUE}. */
+    private static void requireRemaining(int end, int i, int n) throws EOFException {
+        if (n < 0 || end - i < n) {
+            throw new EOFException("Unexpected end of ZLIB input stream");
+        }
     }
 
     private static int skipZeroTerminated(byte[] src, int i, int end) throws IOException {

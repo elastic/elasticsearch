@@ -101,6 +101,13 @@ public class GzipPageInflaterTests extends ESTestCase {
         assertFastMatchesInputStreamFailure(Arrays.copyOf(gz, cut), data.length);
     }
 
+    public void testHeaderOnlySuffixAfterCompleteMemberIsEos() throws IOException {
+        byte[] data = compressibleBytes(between(1, 256));
+        byte[] headerOnly = new byte[] { 0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0, 0, (byte) 0xff };
+        byte[] gz = concat(gzip(data), headerOnly);
+        assertFastMatchesInputStream(gz, data.length);
+    }
+
     public void testTrailingJunkIgnoredWhenDestLenMatches() throws IOException {
         byte[] data = compressibleBytes(between(1, 2048));
         byte[] junk = randomByteArrayOfLength(between(1, 64));

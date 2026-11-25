@@ -105,6 +105,32 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         }
     }
 
+    public void testGzipInflateAfterCloseThrowsClosed() throws IOException {
+        byte[] payload = randomBytesOfLength(64);
+        BytesInput compressed = codecFactory.getCompressor(CompressionCodecName.GZIP).compress(BytesInput.from(payload));
+        byte[] gz = compressed.toByteArray();
+        PrefetchedPageReader[] holder = new PrefetchedPageReader[1];
+        InputStream closingStream = new ByteArrayInputStream(gz) {
+            @Override
+            public synchronized int read(byte[] b, int off, int len) {
+                holder[0].close();
+                return super.read(b, off, len);
+            }
+        };
+        BytesInput closing = BytesInput.from(closingStream, gz.length);
+        DataPageV1 v1 = new DataPageV1(closing, 10, payload.length, intStats(), Encoding.RLE, Encoding.RLE, Encoding.PLAIN);
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.GZIP),
+            breaker,
+            List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
+            null,
+            10
+        );
+        holder[0] = reader;
+        ParquetDecodingException e = expectThrows(ParquetDecodingException.class, reader::readPage);
+        assertThat(e.getMessage(), equalTo("PrefetchedPageReader closed"));
+    }
+
     public void testGzipDictionaryPageStillDecompresses() throws IOException {
         byte[] payload = randomBytesOfLength(48);
         BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.GZIP);

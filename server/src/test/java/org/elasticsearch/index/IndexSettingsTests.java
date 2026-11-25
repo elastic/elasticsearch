@@ -357,6 +357,29 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(settings.isCombineDynamicMappingUpdates());
     }
 
+    public void testBloomFilterIdFieldWithDataStreamTimestampDefaultsToNodeSetting() {
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        assertFalse(settings.isBloomFilterIdFieldWithDataStreamTimestampEnabled());
+
+        Settings nodeSettings = Settings.builder()
+            .put(IndexSettings.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME, true)
+            .build();
+        settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), nodeSettings);
+        assertTrue(settings.isBloomFilterIdFieldWithDataStreamTimestampEnabled());
+    }
+
+    public void testBloomFilterIdFieldWithDataStreamTimestampIndexSettingWinsOverNodeSetting() {
+        String key = IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.getKey();
+        Settings nodeSettings = Settings.builder()
+            .put(IndexSettings.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME, true)
+            .build();
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.builder().put(key, false).build()), nodeSettings);
+        assertFalse(settings.isBloomFilterIdFieldWithDataStreamTimestampEnabled());
+
+        settings = new IndexSettings(newIndexMeta("index", Settings.builder().put(key, true).build()), Settings.EMPTY);
+        assertTrue(settings.isBloomFilterIdFieldWithDataStreamTimestampEnabled());
+    }
+
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
     }

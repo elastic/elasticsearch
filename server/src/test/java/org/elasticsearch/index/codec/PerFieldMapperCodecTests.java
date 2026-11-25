@@ -239,6 +239,32 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
     }
 
+    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode_indexSettingEnabled() throws IOException {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.getKey(), true)
+            .build();
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false, false, Settings.EMPTY, indexSettings);
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
+        assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
+    }
+
+    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode_indexSettingOverridesNodeSetting() throws IOException {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.getKey(), false)
+            .build();
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            true,
+            false,
+            false,
+            false,
+            dataStreamTimestampBloomFilterNodeSettings(),
+            indexSettings
+        );
+        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
+    }
+
     public void testUseBloomFilterLogsdbWithTimestampFieldEnabled_dataStreamTimestampSettingEnabled() throws IOException {
         Settings indexSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         MapperService mapperService = MapperTestUtils.newMapperService(
@@ -451,7 +477,18 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         boolean syntheticId,
         Settings nodeSettings
     ) throws IOException {
-        Settings.Builder settings = Settings.builder();
+        return createFormatSupplier(timestampField, timeSeries, disableBloomFilter, syntheticId, nodeSettings, Settings.EMPTY);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplier(
+        boolean timestampField,
+        boolean timeSeries,
+        boolean disableBloomFilter,
+        boolean syntheticId,
+        Settings nodeSettings,
+        Settings extraIndexSettings
+    ) throws IOException {
+        Settings.Builder settings = Settings.builder().put(extraIndexSettings);
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");

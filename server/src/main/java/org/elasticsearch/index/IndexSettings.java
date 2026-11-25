@@ -600,7 +600,7 @@ public final class IndexSettings {
     /**
      * This index setting is intentionally undocumented and should be used as an escape hatch to disable BloomFilter of the
      * _id field of non-data-stream indices, which is enabled by default. Unless
-     * {@link #BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME} is enabled, this setting doesn't affect
+     * {@link #DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING} is enabled, this setting doesn't affect
      * data-stream indices.
      */
     public static final Setting<Boolean> BLOOM_FILTER_ID_FIELD_ENABLED_SETTING = Setting.boolSetting(
@@ -616,7 +616,8 @@ public final class IndexSettings {
      * enables the data stream timestamp field, i.e. data stream backing indices and any index mapped like one. Such indices are
      * assumed to be append-only, which is not the case when clients provide explicit ids, as every write then needs a version
      * lookup in all the segments of the shard. The setting is only registered, and enabled, by the stateless plugin, so any other
-     * node rejects it as unknown; {@link #BLOOM_FILTER_ID_FIELD_ENABLED_SETTING} can still disable it per index.
+     * node rejects it as unknown. It only provides the default of {@link #DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING};
+     * {@link #BLOOM_FILTER_ID_FIELD_ENABLED_SETTING} can still disable the BloomFilter per index.
      */
     public static final String BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME =
         "node._internal.bloom_filter_for_id_field.data_stream_timestamp.enabled";
@@ -624,6 +625,17 @@ public final class IndexSettings {
     public static boolean isBloomFilterIdFieldWithDataStreamTimestampEnabled(Settings nodeSettings) {
         return nodeSettings.getAsBoolean(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME, false);
     }
+
+    /**
+     * Whether the BloomFilter of the _id field is enabled for indices whose mapping enables the data stream timestamp field.
+     * Defaults to the value of {@link #BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME} on the node.
+     */
+    public static final Setting<Boolean> DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING = Setting.boolSetting(
+        "index.data_stream.bloom_filter_for_id_field.enabled",
+        nodeSettings -> Boolean.toString(isBloomFilterIdFieldWithDataStreamTimestampEnabled(nodeSettings)),
+        Setting.Property.Final,
+        Setting.Property.IndexScope
+    );
 
     /**
      * Name of the internal node setting that makes {@code index.mapping.combine_dynamic_updates} default to {@code true} for indices
@@ -1722,6 +1734,7 @@ public final class IndexSettings {
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
     private final boolean useColumnarIdByDefault;
+    private final boolean bloomFilterIdFieldWithDataStreamTimestamp;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1919,6 +1932,7 @@ public final class IndexSettings {
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
         combineDynamicMappingUpdates = resolveCombineDynamicMappingUpdates(indexMetadata.getSettings());
+        bloomFilterIdFieldWithDataStreamTimestamp = DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING.get(this.settings);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
@@ -2709,6 +2723,10 @@ public final class IndexSettings {
 
     public boolean isCombineDynamicMappingUpdates() {
         return combineDynamicMappingUpdates;
+    }
+
+    public boolean isBloomFilterIdFieldWithDataStreamTimestampEnabled() {
+        return bloomFilterIdFieldWithDataStreamTimestamp;
     }
 
     public boolean isIgnoreDynamicFieldNamesBeyondLimit() {

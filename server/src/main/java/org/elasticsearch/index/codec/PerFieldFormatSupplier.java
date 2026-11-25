@@ -237,8 +237,7 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            return (indexSettings.getMode().isTsdb()
-                || IndexSettings.isBloomFilterIdFieldWithDataStreamTimestampEnabled(indexSettings.getNodeSettings()))
+            return (indexSettings.getMode().isTsdb() || indexSettings.isBloomFilterIdFieldWithDataStreamTimestampEnabled())
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {

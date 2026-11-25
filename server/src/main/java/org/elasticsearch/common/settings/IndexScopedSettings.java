@@ -210,6 +210,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
                 DataTier.TIER_PREFERENCE_SETTING,
                 IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+                IndexSettings.DATA_STREAM_BLOOM_FILTER_ID_FIELD_SETTING,
                 IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
                 IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
                 IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,

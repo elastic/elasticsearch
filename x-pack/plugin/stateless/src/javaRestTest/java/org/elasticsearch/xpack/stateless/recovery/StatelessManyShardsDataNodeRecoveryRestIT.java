@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.cluster.stateless.local.DefaultStatelessLocalConfigProvider.node;
@@ -137,7 +138,7 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
             }
         });
         // runInParallel has joined the indexer and searcher threads, so their results are final.
-        verifyAckedDocs(indices, acked, attempted);
+        verifyAckedDocs(indices, indexer.ackedIds, attempted);
         assertThat("background searcher did not complete any search on all shards", searcher.verifiedSearches, greaterThan(0L));
     }
 
@@ -290,26 +291,38 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
         }
     }
 
-    private void verifyAckedDocs(List<String> indices, Map<String, Long> acked, Map<String, Long> attempted) throws IOException {
+    /// Checks that every acknowledged document is searchable, by id, and that no index holds more documents than were attempted.
+    private void verifyAckedDocs(List<String> indices, Map<String, List<String>> ackedIds, Map<String, Long> attempted) throws IOException {
         final var refresh = ObjectPath.createFromResponse(
             client().performRequest(new Request("POST", "/" + String.join(",", indices) + "/_refresh"))
         );
         assertAllShardsSucceeded("refresh", refresh);
         long totalAcked = 0;
         for (final var indexName : indices) {
-            final long ackedDocs = acked.getOrDefault(indexName, 0L);
+            final List<String> indexAckedIds = ackedIds.getOrDefault(indexName, List.of());
             final long attemptedDocs = attempted.getOrDefault(indexName, 0L);
-            final var response = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/" + indexName + "/_count")));
-            assertAllShardsSucceeded("count on [" + indexName + "]", response);
-            final long count = ((Number) response.evaluate("count")).longValue();
             assertThat(
-                "unexpected doc count for [" + indexName + "]",
-                count,
-                allOf(greaterThanOrEqualTo(ackedDocs), lessThanOrEqualTo(attemptedDocs))
+                "acked documents in [" + indexName + "]",
+                countDocs(
+                    indexName,
+                    "{\"query\":{\"ids\":{\"values\":["
+                        + indexAckedIds.stream().map(id -> '"' + id + '"').collect(Collectors.joining(","))
+                        + "]}}}"
+                ),
+                equalTo((long) indexAckedIds.size())
             );
-            totalAcked += ackedDocs;
+            assertThat("doc count for [" + indexName + "]", countDocs(indexName, "{}"), lessThanOrEqualTo(attemptedDocs));
+            totalAcked += indexAckedIds.size();
         }
         assertThat("background indexer did not get any write acked", totalAcked, greaterThan(0L));
+    }
+
+    private static long countDocs(String indexName, String body) throws IOException {
+        final var request = new Request("GET", "/" + indexName + "/_count");
+        request.setJsonEntity(body);
+        final var response = ObjectPath.createFromResponse(client().performRequest(request));
+        assertAllShardsSucceeded("count on [" + indexName + "]", response);
+        return ((Number) response.evaluate("count")).longValue();
     }
 
     private static boolean allShardsSucceeded(ObjectPath response) throws IOException {
@@ -340,13 +353,14 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
     }
 
     /// Indexes small bulks of documents with unique ids into random indices, and tracks per index how many writes were
-    /// acknowledged and how many were attempted.
+    /// acknowledged and how many were attempted, as well as the ids of the acknowledged documents.
     private class Indexer {
         private final List<String> indices;
         private final Map<String, Long> acked;
         private final Map<String, Long> attempted;
         private final Random random;
 
+        private final Map<String, List<String>> ackedIds = new HashMap<>();
         private final Map<Integer, Long> failedItemsByStatus = new HashMap<>();
         private long failedBulks;
 
@@ -381,6 +395,7 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
                     for (int i = 0; i < numItems; i++) {
                         final int status = response.evaluate("items." + i + ".index.status");
                         if (status == 200 || status == 201) {
+                            ackedIds.computeIfAbsent(indexName, k -> new ArrayList<>()).add(response.evaluate("items." + i + ".index._id"));
                             acked.merge(indexName, 1L, Long::sum);
                         } else {
                             failedItemsByStatus.merge(status, 1L, Long::sum);

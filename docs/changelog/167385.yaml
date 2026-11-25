@@ -1,0 +1,5 @@
+pr: 167385
+summary: Fix a leak of REQUEST circuit-breaker charges when a request handler or request deserialization throws an Error
+area: Network
+type: bug
+issues: []

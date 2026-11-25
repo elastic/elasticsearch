@@ -21,6 +21,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -111,9 +112,13 @@ public class PointRangeExecutionEstimatorTests extends ESTestCase {
         }
     }
 
-    /** One segment in which every doc has {@code valuesPerDoc} distinct, consecutive values, so range costs are near exact. */
+    /**
+     * One segment in which every doc has {@code valuesPerDoc} distinct, consecutive values, so range costs are near exact. The codec is
+     * pinned because the builder grows by whole BKD leaf blocks: random codecs use blocks of up to 2048 points, and the two blocks
+     * crossing a small range would then push the builder past its upgrade threshold.
+     */
     private DirectoryReader indexConsecutivePoints(int valuesPerDoc) throws IOException {
-        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null).setCodec(TestUtil.getDefaultCodec()))) {
             for (int docId = 0; docId < NUM_DOCS; docId++) {
                 Document doc = new Document();
                 for (int v = 0; v < valuesPerDoc; v++) {

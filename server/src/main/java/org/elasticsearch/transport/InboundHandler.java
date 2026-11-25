@@ -28,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -187,9 +188,14 @@ public class InboundHandler {
     private void handleRejectedResponse(InboundMessage message, TransportResponseHandler<?> handler, InetSocketAddress remoteAddress) {
         message.close();
         final Exception e = message.getException();
-        assert e instanceof CircuitBreakingException : e;
-        logger.debug(() -> "Circuit breaker tripped reserving memory for response from [" + remoteAddress + "]", e);
-        handleException(handler, new RemoteTransportException("Failed to reserve memory for response to [" + handler + "]", e));
+        assert e instanceof CircuitBreakingException || e instanceof TaskCancelledException : e;
+        if (e instanceof CircuitBreakingException) {
+            logger.debug(() -> "Circuit breaker tripped reserving memory for response from [" + remoteAddress + "]", e);
+            handleException(handler, new RemoteTransportException("Failed to reserve memory for response to [" + handler + "]", e));
+        } else {
+            logger.debug(() -> "Task cancelled while response from [" + remoteAddress + "] arrived", e);
+            handleException(handler, new RemoteTransportException("Dropped response to [" + handler + "], task cancelled", e));
+        }
     }
 
     private TransportResponseHandler<?> findResponseHandler(Header header) {

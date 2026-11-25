@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -532,7 +533,7 @@ public class InboundAggregatorTests extends ESTestCase {
         }
     }
 
-    public void testHandshakeErrorAndUnknownResponsesAreNotReserved() throws IOException {
+    public void testHandshakeAndErrorResponsesAreNotReserved() throws IOException {
         final ReservingResponseHandler responseHandler = new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1))) {
             @Override
             public Releasable reserveResponseBytes(int bytes) {
@@ -545,8 +546,66 @@ public class InboundAggregatorTests extends ESTestCase {
         final byte response = TransportStatus.setResponse((byte) 0);
         assertNotReserved(requestId, TransportStatus.setHandshake(response));
         assertNotReserved(requestId, TransportStatus.setError(response));
+    }
+
+    public void testResponseWithoutHandlerIsDroppedAsItArrives() throws IOException {
+        final long requestId = randomNonNegativeLong();
+        aggregator = responseAggregator(circuitBreaker, requestId, new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1))));
+
         // No handler for this request ID, for instance because it timed out
-        assertNotReserved(randomValueOtherThan(requestId, ESTestCase::randomNonNegativeLong), response);
+        startAggregatingResponse(randomValueOtherThan(requestId, ESTestCase::randomNonNegativeLong), TransportStatus.setResponse((byte) 0));
+        for (int i = between(1, 5); i > 0; i--) {
+            final ReleasableBytesReference fragment = fragment(between(1, 100));
+            aggregator.aggregate(fragment);
+            fragment.close();
+            assertFalse(fragment.hasReferences());
+        }
+        try (InboundMessage aggregated = aggregator.finishAggregation()) {
+            assertTrue(aggregated.isShortCircuit());
+            assertThat(aggregated.getException(), instanceOf(TransportException.class));
+        }
+    }
+
+    public void testResponseHandlerCancellationCutsResponseShort() throws IOException {
+        final int fragmentLength = 40;
+        final AtomicInteger asked = new AtomicInteger();
+        final ReservingResponseHandler responseHandler = new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1))) {
+            @Override
+            public Releasable reserveResponseBytes(int bytes) {
+                if (asked.getAndIncrement() == 1) {
+                    throw new TaskCancelledException("cancelled");
+                }
+                return super.reserveResponseBytes(bytes);
+            }
+        };
+        final long requestId = randomNonNegativeLong();
+        aggregator = responseAggregator(circuitBreaker, requestId, responseHandler);
+
+        startAggregatingResponse(requestId, TransportStatus.setResponse((byte) 0));
+        final ReleasableBytesReference fragment1 = fragment(fragmentLength);
+        aggregator.aggregate(fragment1);
+        fragment1.close();
+        assertTrue(fragment1.hasReferences());
+
+        final ReleasableBytesReference fragment2 = fragment(fragmentLength);
+        aggregator.aggregate(fragment2);
+        fragment2.close();
+        assertFalse(fragment1.hasReferences());
+        assertFalse(fragment2.hasReferences());
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
+
+        final ReleasableBytesReference fragment3 = fragment(fragmentLength);
+        aggregator.aggregate(fragment3);
+        fragment3.close();
+        assertFalse(fragment3.hasReferences());
+        assertThat(asked.get(), equalTo(2));
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
+
+        try (InboundMessage aggregated = aggregator.finishAggregation()) {
+            assertTrue(aggregated.isShortCircuit());
+            assertThat(aggregated.getException(), instanceOf(TaskCancelledException.class));
+        }
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
     }
 
     private void assertNotReserved(long requestId, byte status) throws IOException {

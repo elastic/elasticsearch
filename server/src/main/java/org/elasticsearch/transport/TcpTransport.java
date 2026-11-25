@@ -213,6 +213,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
+    public CircuitBreaker inFlightRequestsBreaker() {
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    }
+
+    @Override
     public synchronized void setMessageListener(TransportMessageListener listener) {
         outboundHandler.setMessageListener(listener);
         inboundHandler.setMessageListener(listener);

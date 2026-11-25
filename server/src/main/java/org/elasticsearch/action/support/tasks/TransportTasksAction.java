@@ -11,10 +11,10 @@ package org.elasticsearch.action.support.tasks;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.search.ReservingResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -22,11 +22,15 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -43,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
@@ -60,6 +65,8 @@ public abstract class TransportTasksAction<
     protected final Writeable.Reader<TaskResponse> responseReader;
 
     protected final String transportNodeAction;
+
+    private static final String NODE_RESPONSE_BREAKER_LABEL = "<node_tasks_response>";
 
     @SuppressWarnings("this-escape") // registers a NodeTransportHandler bound to this action; the handler is only invoked after
                                      // construction.
@@ -87,6 +94,14 @@ public abstract class TransportTasksAction<
     protected void doExecute(Task task, TasksRequest request, ActionListener<TasksResponse> listener) {
         final var discoveryNodes = clusterService.state().nodes();
         final String[] nodeIds = resolveNodes(request, discoveryNodes);
+        final CircuitBreaker breaker = Objects.requireNonNullElseGet(
+            transportService.getInFlightRequestsBreaker(),
+            () -> new NoopCircuitBreaker(NODE_RESPONSE_BREAKER_LABEL)
+        );
+        final RetainedReplyBytes retainedReplyBytes = new RetainedReplyBytes(breaker);
+        if (task instanceof CancellableTask cancellableTask) {
+            cancellableTask.addListener(retainedReplyBytes::close);
+        }
 
         new CancellableFanOut<String, NodeTasksResponse, TasksResponse>() {
             final ArrayList<TaskResponse> taskResponses = new ArrayList<>();
@@ -110,7 +125,7 @@ public abstract class TransportTasksAction<
                         nodeTaskRequest,
                         task,
                         transportRequestOptions,
-                        new ActionListenerResponseHandler<>(listener, nodeResponseReader, TransportResponseHandler.TRANSPORT_WORKER)
+                        newNodeResponseHandler(listener, breaker, task)
                     );
                 } finally {
                     nodeTaskRequest.decRef();
@@ -119,6 +134,12 @@ public abstract class TransportTasksAction<
 
             @Override
             protected void onItemResponse(String nodeId, NodeTasksResponse nodeTasksResponse) {
+                try {
+                    retainedReplyBytes.charge(nodeTasksResponse.arrivedBytes);
+                } catch (CircuitBreakingException e) {
+                    onItemFailure(nodeId, e);
+                    return;
+                }
                 addAllSynchronized(taskResponses, nodeTasksResponse.results);
                 addAllSynchronized(taskOperationFailures, nodeTasksResponse.exceptions);
             }
@@ -150,7 +171,62 @@ public abstract class TransportTasksAction<
             public String toString() {
                 return actionName;
             }
-        }.run(task, Iterators.forArray(nodeIds), listener);
+        }.run(task, Iterators.forArray(nodeIds), ActionListener.runAfter(listener, retainedReplyBytes::close));
+    }
+
+    private TransportResponseHandler<NodeTasksResponse> newNodeResponseHandler(
+        ActionListener<NodeTasksResponse> listener,
+        CircuitBreaker breaker,
+        Task task
+    ) {
+        final CancellableTask cancellableTask = task instanceof CancellableTask ct ? ct : null;
+        return new ReservingResponseHandler<>(
+            listener,
+            nodeResponseReader,
+            TransportResponseHandler.TRANSPORT_WORKER,
+            breaker,
+            NODE_RESPONSE_BREAKER_LABEL
+        ) {
+            @Override
+            public Releasable reserveResponseBytes(int bytes) {
+                if (cancellableTask != null) {
+                    cancellableTask.ensureNotCancelled();
+                }
+                return super.reserveResponseBytes(bytes);
+            }
+
+            @Override
+            public void handleResponse(NodeTasksResponse response) {
+                response.arrivedBytes = reservation.reservedTotal();
+                super.handleResponse(response);
+            }
+        };
+    }
+
+    private static final class RetainedReplyBytes implements Releasable {
+        private final CircuitBreaker breaker;
+        private long retained;
+        private boolean closed;
+
+        RetainedReplyBytes(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        synchronized void charge(long bytes) {
+            if (closed) {
+                return;
+            }
+            breaker.addEstimateBytesAndMaybeBreak(bytes, NODE_RESPONSE_BREAKER_LABEL);
+            retained += bytes;
+        }
+
+        @Override
+        public synchronized void close() {
+            if (closed == false) {
+                closed = true;
+                breaker.addWithoutBreaking(-retained);
+            }
+        }
     }
 
     // not an inline method reference to avoid capturing CancellableFanOut.this.
@@ -335,6 +411,7 @@ public abstract class TransportTasksAction<
         protected String nodeId;
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
+        long arrivedBytes;
 
         NodeTasksResponse(StreamInput in) throws IOException {
             nodeId = in.readString();

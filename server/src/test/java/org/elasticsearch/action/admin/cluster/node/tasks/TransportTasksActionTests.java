@@ -8,7 +8,9 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -29,24 +31,36 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.InboundHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -62,16 +76,20 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -895,6 +913,363 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         checkLatch.countDown();
         NodesResponse responses = future.get();
         assertEquals(0, responses.failureCount());
+    }
+
+    private static final ByteSizeValue IN_FLIGHT_LIMIT = ByteSizeValue.ofKb(64);
+
+    private HierarchyCircuitBreakerService[] setupNodesWithInFlightLimit() {
+        final Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), IN_FLIGHT_LIMIT)
+            .build();
+        final HierarchyCircuitBreakerService[] breakerServices = new HierarchyCircuitBreakerService[3];
+        setupTestNodes(3, Settings.EMPTY, i -> {
+            breakerServices[i] = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
+                settings,
+                List.of(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            return breakerServices[i];
+        });
+        connectNodes(testNodes);
+        return breakerServices;
+    }
+
+    private TestTasksAction[] newTasksActions(int bigReplyNode, int smallReplyLength) {
+        return newTasksActions(bigReplyNode, Math.toIntExact(IN_FLIGHT_LIMIT.getBytes()) * 4, smallReplyLength);
+    }
+
+    private TestTasksAction[] newTasksActions(int bigReplyNode, int bigReplyLength, int smallReplyLength) {
+        final TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
+        for (int i = 0; i < testNodes.length; i++) {
+            final int node = i;
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    final int length = node == bigReplyNode ? bigReplyLength : smallReplyLength;
+                    listener.onResponse(new TestTaskResponse("x".repeat(length)));
+                }
+            };
+        }
+        return tasksActions;
+    }
+
+    public void testNodeReplyTrippingInFlightBreakerFailsOnlyThatNode() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch checkLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        final int bigReplyNode = 2;
+        final TestTasksAction[] tasksActions = newTasksActions(bigReplyNode, 16);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final long trippedBefore = breaker.getTrippedCount();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], request);
+
+        assertThat(response.tasks, hasSize(nodesCount - 1));
+        assertThat(response.getNodeFailures(), hasSize(1));
+        final FailedNodeException nodeFailure = (FailedNodeException) response.getNodeFailures().get(0);
+        assertThat(nodeFailure.nodeId(), equalTo(testNodes[bigReplyNode].getNodeId()));
+        assertNotNull(ExceptionsHelper.unwrap(nodeFailure, CircuitBreakingException.class));
+        assertThat(breaker.getTrippedCount(), equalTo(trippedBefore + 1));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+        checkLatch.countDown();
+        assertEquals(0, future.get().failureCount());
+    }
+
+    public void testNodeReplyReservationReleasedAfterSuccessfulReply() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch checkLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        final TestTasksAction[] tasksActions = newTasksActions(-1, 16);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], request);
+
+        assertThat(response.tasks, hasSize(nodesCount));
+        assertThat(response.getNodeFailures(), hasSize(0));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+        checkLatch.countDown();
+        assertEquals(0, future.get().failureCount());
+    }
+
+    public void testNodeReplyBytesStayChargedUntilResponseIsDelivered() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch checkLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        final TestTasksAction[] tasksActions = newTasksActions(-1, Math.toIntExact(IN_FLIGHT_LIMIT.getBytes()) / 8);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final PlainActionFuture<Long> usedWhileDelivering = new PlainActionFuture<>();
+        ActionTestUtils.execute(
+            tasksActions[0],
+            request,
+            ActionListener.wrap(r -> usedWhileDelivering.onResponse(breaker.getUsed()), usedWhileDelivering::onFailure)
+        );
+
+        assertThat(safeGet(usedWhileDelivering), greaterThan(usedBefore));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+        checkLatch.countDown();
+        assertEquals(0, future.get().failureCount());
+    }
+
+    private TestTasksAction[] newTasksActionsBlockingOnNode(
+        int blockedNode,
+        SubscribableListener<ActionListener<TestTaskResponse>> blockedListener,
+        int replyLength
+    ) {
+        final TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
+        for (int i = 0; i < testNodes.length; i++) {
+            final int node = i;
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    if (node == blockedNode) {
+                        blockedListener.onResponse(listener);
+                    } else {
+                        listener.onResponse(new TestTaskResponse("x".repeat(replyLength)));
+                    }
+                }
+            };
+        }
+        return tasksActions;
+    }
+
+    public void testRetainedNodeReplyBytesReleasedOnCancellation() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch blockedActionLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(blockedActionLatch);
+        final int blockedNode = 2;
+        final SubscribableListener<ActionListener<TestTaskResponse>> blockedListener = new SubscribableListener<>();
+        final int replyLength = Math.toIntExact(IN_FLIGHT_LIMIT.getBytes()) / 8;
+        final TestTasksAction[] tasksActions = newTasksActionsBlockingOnNode(blockedNode, blockedListener, replyLength);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
+        final CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute("direct", tasksActions[0], request, testNodes[0].transportService.getLocalNodeConnection(), taskFuture);
+        final ActionListener<TestTaskResponse> blocked = safeAwait(blockedListener);
+        assertBusy(() -> assertThat(breaker.getUsed(), greaterThan(usedBefore)));
+
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
+        );
+
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        assertFalse(taskFuture.isDone());
+
+        blocked.onResponse(new TestTaskResponse("x".repeat(replyLength)));
+        expectThrows(TaskCancelledException.class, taskFuture);
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+        blockedActionLatch.countDown();
+        assertEquals(0, future.get(10, TimeUnit.SECONDS).failureCount());
+    }
+
+    @TestLogging(reason = "asserts a debug message", value = "org.elasticsearch.transport.InboundHandler:DEBUG")
+    public void testNodeReplyArrivingAfterCancellationIsRejected() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch blockedActionLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(blockedActionLatch);
+        final SubscribableListener<ActionListener<TestTaskResponse>> blockedListener = new SubscribableListener<>();
+        final TestTasksAction[] tasksActions = newTasksActionsBlockingOnNode(2, blockedListener, 16);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
+        final CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute("direct", tasksActions[0], request, testNodes[0].transportService.getLocalNodeConnection(), taskFuture);
+        final ActionListener<TestTaskResponse> blocked = safeAwait(blockedListener);
+
+        // Only the coordinating task is cancelled, so the remote node does not know and still sends a successful reply
+        testNodes[0].transportService.getTaskManager().cancel(task, "test", () -> {});
+        assertTrue(task.isCancelled());
+        assertFalse(taskFuture.isDone());
+
+        MockLog.awaitLogger(
+            () -> blocked.onResponse(new TestTaskResponse("x")),
+            InboundHandler.class,
+            new MockLog.SeenEventExpectation(
+                "reply rejected as it arrives",
+                InboundHandler.class.getCanonicalName(),
+                Level.DEBUG,
+                "Task cancelled while response from * arrived"
+            )
+        );
+        expectThrows(TaskCancelledException.class, taskFuture);
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+
+        blockedActionLatch.countDown();
+        assertEquals(0, future.get(10, TimeUnit.SECONDS).failureCount());
+    }
+
+    private static final class CancellingBreakerService extends CircuitBreakerService {
+        private final CircuitBreakerService delegate;
+        private final CircuitBreaker inFlightBreaker;
+
+        CancellingBreakerService(CircuitBreakerService delegate, long cancelAfterBytes, Runnable cancel, LongAdder reservedBytes) {
+            this.delegate = delegate;
+            final CircuitBreaker breaker = delegate.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+            this.inFlightBreaker = new CircuitBreaker() {
+                private final AtomicBoolean cancelled = new AtomicBoolean();
+
+                @Override
+                public void circuitBreak(String fieldName, long bytesNeeded) {
+                    breaker.circuitBreak(fieldName, bytesNeeded);
+                }
+
+                @Override
+                public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                    breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+                    if (reservedBytes.sum() + bytes >= cancelAfterBytes && cancelled.compareAndSet(false, true)) {
+                        reservedBytes.add(bytes);
+                        cancel.run();
+                    } else {
+                        reservedBytes.add(bytes);
+                    }
+                }
+
+                @Override
+                public void addWithoutBreaking(long bytes) {
+                    breaker.addWithoutBreaking(bytes);
+                }
+
+                @Override
+                public long getUsed() {
+                    return breaker.getUsed();
+                }
+
+                @Override
+                public long getLimit() {
+                    return breaker.getLimit();
+                }
+
+                @Override
+                public double getOverhead() {
+                    return breaker.getOverhead();
+                }
+
+                @Override
+                public long getTrippedCount() {
+                    return breaker.getTrippedCount();
+                }
+
+                @Override
+                public String getName() {
+                    return breaker.getName();
+                }
+
+                @Override
+                public Durability getDurability() {
+                    return breaker.getDurability();
+                }
+
+                @Override
+                public void setLimitAndOverhead(long limit, double overhead) {
+                    breaker.setLimitAndOverhead(limit, overhead);
+                }
+            };
+        }
+
+        @Override
+        public CircuitBreaker getBreaker(String name) {
+            return CircuitBreaker.IN_FLIGHT_REQUESTS.equals(name) ? inFlightBreaker : delegate.getBreaker(name);
+        }
+
+        @Override
+        public AllCircuitBreakerStats stats() {
+            return delegate.stats();
+        }
+
+        @Override
+        public CircuitBreakerStats stats(String name) {
+            return delegate.stats(name);
+        }
+    }
+
+    public void testCancellationWhileReplyIsArrivingDropsTheRestOfIt() throws Exception {
+        final int bigReplyLength = Math.toIntExact(ByteSizeValue.ofMb(4).getBytes());
+        final long cancelAfterBytes = ByteSizeValue.ofKb(128).getBytes();
+        final Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), ByteSizeValue.ofMb(64))
+            .build();
+        final HierarchyCircuitBreakerService[] breakerServices = new HierarchyCircuitBreakerService[3];
+        final SubscribableListener<CancellableTask> taskListener = new SubscribableListener<>();
+        final LongAdder reservedBytes = new LongAdder();
+        final AtomicBoolean cancelled = new AtomicBoolean();
+        setupTestNodes(3, Settings.EMPTY, i -> {
+            breakerServices[i] = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
+                settings,
+                List.of(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            if (i != 0) {
+                return breakerServices[i];
+            }
+            return new CancellingBreakerService(
+                breakerServices[i],
+                cancelAfterBytes,
+                () -> taskListener.addListener(ActionTestUtils.assertNoFailureListener(task -> {
+                    testNodes[0].transportService.getTaskManager().cancel(task, "test", () -> {});
+                    cancelled.set(task.isCancelled());
+                })),
+                reservedBytes
+            );
+        });
+        connectNodes(testNodes);
+        final CountDownLatch blockedActionLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(blockedActionLatch);
+        final TestTasksAction[] tasksActions = newTasksActions(2, bigReplyLength, 16);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
+        final CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute("direct", tasksActions[0], request, testNodes[0].transportService.getLocalNodeConnection(), taskFuture);
+        taskListener.onResponse(task);
+
+        expectThrows(TaskCancelledException.class, taskFuture);
+        assertTrue(cancelled.get());
+        assertThat(reservedBytes.sum(), greaterThanOrEqualTo(cancelAfterBytes));
+        assertThat(reservedBytes.sum(), lessThan((long) bigReplyLength));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+
+        blockedActionLatch.countDown();
+        assertEquals(0, future.get(10, TimeUnit.SECONDS).failureCount());
     }
 
     @SuppressWarnings("unchecked")

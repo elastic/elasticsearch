@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -234,11 +235,20 @@ public class InboundAggregator implements Releasable {
     }
 
     // A handshake response has no handler in the response handlers. An error response is not reserved, so the failure always reaches its
-    // handler.
+    // handler. Any other response without a handler, for instance because it timed out, is dropped as it arrives.
     private void initializeResponseState() {
         assert currentHeader.isResponse();
         if (currentHeader.isHandshake() == false && currentHeader.isError() == false) {
             reservingResponseHandler = responseHandlerFunction.apply(currentHeader.getRequestId());
+            if (reservingResponseHandler == null) {
+                shortCircuit(
+                    new TransportException(
+                        "no response handler for request ["
+                            + currentHeader.getRequestId()
+                            + "], the request may have timed out or the connection to the node may have closed"
+                    )
+                );
+            }
         }
     }
 
@@ -283,7 +293,7 @@ public class InboundAggregator implements Releasable {
         final Releasable reservation;
         try {
             reservation = reservingResponseHandler.reserveResponseBytes(bytes);
-        } catch (CircuitBreakingException e) {
+        } catch (CircuitBreakingException | TaskCancelledException e) {
             shortCircuit(e);
             return false;
         }

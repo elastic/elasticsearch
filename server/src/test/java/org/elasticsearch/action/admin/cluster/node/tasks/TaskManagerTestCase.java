@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -80,14 +82,18 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     }
 
     public void setupTestNodes(Settings settings) {
-        nodesCount = randomIntBetween(2, 10);
+        setupTestNodes(randomIntBetween(2, 10), settings, i -> new NoneCircuitBreakerService());
+    }
+
+    public void setupTestNodes(int nodesCount, Settings settings, IntFunction<CircuitBreakerService> circuitBreakerServices) {
+        this.nodesCount = nodesCount;
         testNodes = new TestNode[nodesCount];
         final Settings reservedPortRangeSettings = Settings.builder()
             .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(settings)
             .build();
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, reservedPortRangeSettings);
+            testNodes[i] = new TestNode("node" + i, threadPool, reservedPortRangeSettings, circuitBreakerServices.apply(i));
         }
     }
 
@@ -174,6 +180,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
+            this(name, threadPool, settings, new NoneCircuitBreakerService());
+        }
+
+        public TestNode(String name, ThreadPool threadPool, Settings settings, CircuitBreakerService circuitBreakerService) {
             final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
                 discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
@@ -188,7 +198,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NoneCircuitBreakerService(),
+                    circuitBreakerService,
                     new SharedGroupFactory(settings)
                 ),
                 threadPool,

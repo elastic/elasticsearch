@@ -696,6 +696,14 @@ public class TransportService extends AbstractLifecycleComponent
         return transport.newNetworkBytesStream(circuitBreaker);
     }
 
+    /**
+     * @return the breaker that guards the memory taken by messages in flight, or {@code null} if the transport has none.
+     */
+    @Nullable
+    public CircuitBreaker getInFlightRequestsBreaker() {
+        return transport.inFlightRequestsBreaker();
+    }
+
     static class HandshakeRequest extends AbstractTransportRequest {
 
         public static final HandshakeRequest INSTANCE = new HandshakeRequest();

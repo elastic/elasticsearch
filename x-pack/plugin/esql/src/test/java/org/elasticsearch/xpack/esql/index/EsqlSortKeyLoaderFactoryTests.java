@@ -125,6 +125,13 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
                 LeafReader leaf = reader.leaves().getFirst().reader();
                 SortedSetDocValues dv = leaf.getSortedSetDocValues("f");
                 List<Integer> docs = subset(numDocs);
+                // The same chunk dictionary as sorted-set fields, rather than a range of the segment ordinals
+                try (
+                    BlockLoader.SortedSetOrdinalsBuilder arrayOrder = EsqlSortKey.LOADER_FACTORY.arrayOrderOrdinalsBuilder(dv, 1);
+                    BlockLoader.SortedSetOrdinalsBuilder sortedSet = EsqlSortKey.LOADER_FACTORY.sortedSetOrdinalsBuilder(dv, 1)
+                ) {
+                    assertThat(arrayOrder.getClass(), equalTo(sortedSet.getClass()));
+                }
                 try (BlockLoader.SortedSetOrdinalsBuilder builder = EsqlSortKey.LOADER_FACTORY.arrayOrderOrdinalsBuilder(dv, docs.size())) {
                     for (int doc : docs) {
                         List<String> values = expected.get(doc);

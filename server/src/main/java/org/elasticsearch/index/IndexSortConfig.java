@@ -309,7 +309,7 @@ public final class IndexSortConfig {
     }
 
     private static final String SORT_FIELD_NAME =
-        "(?:`(?:[^`]|``)+`|(?:[a-z][a-z0-9_]*|[_@][a-z0-9_]+)(?:\\.(?:[a-z][a-z0-9_]*|[_@][a-z0-9_]+))*)";
+        "(?:`(?:[^`]++|``)++`|(?:[a-z][a-z0-9_]*|[_@][a-z0-9_]+)(?:\\.(?:[a-z][a-z0-9_]*|[_@][a-z0-9_]+))*)";
     private static final String SORT_FIELD_KEY = "(?:" + SORT_FIELD_NAME + "|MV_M(?:IN|AX)\\s*\\(\\s*" + SORT_FIELD_NAME + "\\s*\\))";
     private static final String SORT_FIELD_ENTRY = "\\s*" + SORT_FIELD_KEY + "(?:\\s*(?:ASC|DESC|NULLS|FIRST|LAST)(?![^\\s,()`]))*\\s*";
     /** The {@link #INDEX_SORT_SETTING} syntax that nodes read before computed keys, which sorts on fields only. */

@@ -252,7 +252,14 @@ public class EsqlIndexSortParserTests extends ESTestCase {
 
     public void testOlderIndicesKeepTheFieldSortSyntax() {
         IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORT_COMPUTED_KEYS);
-        for (String sort : List.of("host.name", "MV_MAX(`a b`) DESC NULLS LAST, @timestamp desc", "mv_min( `x``y` ) asc,_a NULLS first")) {
+        // A long quoted name doesn't need a deep stack to check
+        String longName = "`" + "a".repeat(100_000) + "`";
+        for (String sort : List.of(
+            "host.name",
+            "MV_MAX(`a b`) DESC NULLS LAST, @timestamp desc",
+            "mv_min( `x``y` ) asc,_a NULLS first",
+            longName + " DESC"
+        )) {
             Settings settings = Settings.builder().put("index.sort", sort).put(IndexMetadata.SETTING_VERSION_CREATED, previous).build();
             IndexSettingsModule.newIndexSettings("test", settings).getIndexSortConfig();
         }

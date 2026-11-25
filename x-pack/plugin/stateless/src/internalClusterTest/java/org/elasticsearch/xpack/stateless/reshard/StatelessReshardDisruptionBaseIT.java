@@ -172,7 +172,7 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
                     } catch (Exception e) {
                         // Since we don't always wait for relocations to complete it's possible that this shard is already being relocated
                         // from the node.
-                        assertTrue(e.getMessage().contains("failed to find it on node"));
+                        assertTrue(e.getMessage(), e.getMessage().contains("failed to find it on node"));
                     }
                 }
             }

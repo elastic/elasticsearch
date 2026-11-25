@@ -104,6 +104,7 @@ To use this connector as a **self-managed connector**, see [*Self-managed connec
 The following are compatible with Elastic connector frameworks:
 
 * Microsoft SQL Server versions 2017, 2019
+* Microsoft SQL Server versions 2022, 2025 {applies_to}`stack: preview 9.7`
 * Azure SQL
 * Amazon RDS for SQL Server
 
@@ -255,6 +256,8 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 ### Documents and syncs [es-connectors-ms-sql-client-documents-syncs]
 
 * Tables with no primary key defined are skipped.
+* The document `_id` is derived from the table's primary key, so re-syncing a changed row updates the existing document instead of creating a duplicate.
+* A full sync deletes documents whose rows no longer exist in the table.
 * If the `last_user_update` of `sys.dm_db_index_usage_stats` table is not available for a specific table and database then all data in that table will be synced.
 
 ::::{note}

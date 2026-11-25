@@ -1632,6 +1632,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
      * on, as Prometheus does; with bool it keeps every series with 0 or 1.
      */
     public void testPromqlComparisonWithComputedScalarKeepsTheVectorValue() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-comparison-with-computed-scalar-keeps-the-vector-value";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0);
@@ -1649,6 +1650,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
      * keeps it with its value, under an aggregation too.
      */
     public void testPromqlComparisonWithNaN() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-comparison-with-nan";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0);

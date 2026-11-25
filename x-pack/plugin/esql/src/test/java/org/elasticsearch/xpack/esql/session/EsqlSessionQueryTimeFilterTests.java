@@ -459,6 +459,7 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             1,
             () -> false,
+            NoopCircuitBreaker.INSTANCE,
             future
         );
         future.actionGet(TEST_REQUEST_TIMEOUT);

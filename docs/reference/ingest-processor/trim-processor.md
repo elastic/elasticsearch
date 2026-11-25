@@ -20,6 +20,7 @@ $$$trim-options$$$
 | --- | --- | --- | --- |
 | `field` | yes | - | The string-valued field to trim whitespace from |
 | `target_field` | no | `field` | The field to assign the trimmed value to, by default `field` is updated in-place |
+| `trim_mode` | no | `both` | Which side(s) to trim whitespace from. Supported values are `both`, `leading`, and `trailing`. |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
 | `if` | no | - | Conditionally execute the processor. See [Conditionally run a processor](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#conditionally-run-processor). |

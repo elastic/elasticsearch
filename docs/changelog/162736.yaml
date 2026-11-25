@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 162736
+summary: Add trim_mode option to TrimProcessor for directional trimming
+type: enhancement

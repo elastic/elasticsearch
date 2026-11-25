@@ -353,7 +353,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return ((LFUCache) cache).epoch.get();
     }
 
-    private interface Cache<K, T> extends Releasable {
+    private interface Cache<K extends KeyBase, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region, long timestampMillis);
 
         /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized
@@ -370,6 +370,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
 
         int forceEvict(ShardId shard, BiPredicate<K, Integer> regionPredicate);
+
+        CacheManifest<K> captureManifest(Predicate<K> cacheKeyPredicate);
+
+        int evictNotCoveredBy(CacheManifest<K> manifest);
 
         void backfillRegionTimestamps(ShardId shard, Function<K, Long> timestampForKey);
 
@@ -965,6 +969,28 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     public int forceEvict(ShardId shard, BiPredicate<KeyType, Integer> regionPredicate) {
         return cache.forceEvict(shard, regionPredicate);
+    }
+
+    /**
+     * Records the populated ranges of every cached region whose key matches the predicate. Ranges that are still being downloaded are
+     * not recorded, so callers that need an exact record must stop reads and fills first. The result is a copy: later changes to the
+     * cache do not alter it.
+     *
+     * @return the manifest, which holds metadata only
+     */
+    public CacheManifest<KeyType> captureManifest(Predicate<KeyType> cacheKeyPredicate) {
+        return cache.captureManifest(cacheKeyPredicate);
+    }
+
+    /**
+     * Evicts every region that holds data the manifest does not describe: regions that are missing from the manifest, and regions that
+     * hold populated ranges beyond the manifest's ranges. Regions that hold the same or less than the manifest are kept, so the caller
+     * only has to fetch what is missing. Like the other forced evictions it bypasses the {@link EvictionPolicy}.
+     *
+     * @return the number of regions evicted
+     */
+    public int evictNotCoveredBy(CacheManifest<KeyType> manifest) {
+        return cache.evictNotCoveredBy(manifest);
     }
 
     /**
@@ -2568,6 +2594,30 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     entry.chunk.backfillTimestampFromBackfillInProgress(timestampMillis);
                 }
             });
+        }
+
+        @Override
+        public CacheManifest<KeyType> captureManifest(Predicate<KeyType> cacheKeyPredicate) {
+            final CacheManifest.Builder<KeyType> builder = CacheManifest.builder();
+            keyMapping.forEach((regionKey, entry) -> {
+                final CacheFileRegion<KeyType> region = entry.chunk;
+                if (cacheKeyPredicate.test(regionKey.file) && region.isEvicted() == false && region.volatileIO() != null) {
+                    builder.add(regionKey.file, regionKey.region, region.timestampMillis(), region.tracker.getCompletedRanges());
+                }
+            });
+            return builder.build();
+        }
+
+        @Override
+        public int evictNotCoveredBy(CacheManifest<KeyType> manifest) {
+            final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
+            keyMapping.forEach((regionKey, entry) -> {
+                final CacheManifest.Region wanted = manifest.get(regionKey.file, regionKey.region);
+                if (wanted == null || wanted.covers(entry.chunk.tracker.getCompletedRanges()) == false) {
+                    matchingEntries.add(entry);
+                }
+            });
+            return forceEvictEntries(null, matchingEntries);
         }
 
         private int forceEvictEntries(@Nullable final ShardId shardId, final List<LFUCacheEntry> matchingEntries) {

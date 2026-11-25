@@ -219,6 +219,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -1332,6 +1333,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * A stream of {@code streamSize} random longs from min..max (inclusive), as drawn by {@link #randomLongBetween}.
+     */
+    public static LongStream randomLongsBetween(long streamSize, long min, long max) {
+        return LongStream.generate(() -> randomLongBetween(min, max)).limit(streamSize);
+    }
+
+    /**
      * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
      * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
      * Modify this random generator if a wider range for BigIntegers is necessary.
@@ -1803,6 +1811,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             randomValue = randomSupplier.get();
         } while (input.test(randomValue));
         return randomValue;
+    }
+
+    /**
+     * Keeps the current thread running for at least {@code nanos}, so the time charged for it is never zero.
+     */
+    public static void spin(long nanos) {
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < nanos) {
+            Thread.onSpinWait();
+        }
     }
 
     /**
@@ -3143,6 +3161,30 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeJoin: interrupted waiting for Thread to die");
+        }
+    }
+
+    /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to {@link #SAFE_AWAIT_TIMEOUT} for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue) {
+        return safePoll(queue, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to the given timeout for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue, TimeValue timeout) {
+        try {
+            final var element = queue.poll(timeout.millis(), TimeUnit.MILLISECONDS);
+            assertNotNull("safePoll: no element available within the timeout", element);
+            return element;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safePoll: interrupted waiting for an element of the queue");
+            return null;
         }
     }
 

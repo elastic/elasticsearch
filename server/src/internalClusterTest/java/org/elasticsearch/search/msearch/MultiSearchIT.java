@@ -129,9 +129,9 @@ public class MultiSearchIT extends ESIntegTestCase {
         ensureGreen(index);
 
         assertBusy(
-            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+            () -> assertThat("request breaker should be at baseline before msearch", getRequestBreakerUsed(coordinatorNode), equalTo(0L))
         );
-        long baseline = requestBreakerEstimated(coordinatorNode);
+        long baseline = getRequestBreakerUsed(coordinatorNode);
 
         // Polls every 1 ms; with maxConcurrentSearchRequests(1) and many sub-searches the reservation
         // stays elevated long enough to observe. A sub-millisecond msearch could theoretically complete
@@ -143,7 +143,7 @@ public class MultiSearchIT extends ESIntegTestCase {
             return t;
         });
         monitor.scheduleWithFixedDelay(() -> {
-            long used = requestBreakerEstimated(coordinatorNode);
+            long used = getRequestBreakerUsed(coordinatorNode);
             peakUsage.updateAndGet(current -> Math.max(current, used));
         }, 0, 1, TimeUnit.MILLISECONDS);
 
@@ -173,7 +173,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertBusy(
             () -> assertThat(
                 "request breaker should return to baseline after msearch completes",
-                requestBreakerEstimated(coordinatorNode),
+                getRequestBreakerUsed(coordinatorNode),
                 equalTo(baseline)
             )
         );
@@ -186,9 +186,9 @@ public class MultiSearchIT extends ESIntegTestCase {
         int numSearches = 10;
 
         assertBusy(
-            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+            () -> assertThat("request breaker should be at baseline before msearch", getRequestBreakerUsed(coordinatorNode), equalTo(0L))
         );
-        long baseline = requestBreakerEstimated(coordinatorNode);
+        long baseline = getRequestBreakerUsed(coordinatorNode);
 
         MultiSearchRequest request = new MultiSearchRequest();
         var coordinatorClient = internalCluster().client(coordinatorNode);
@@ -205,7 +205,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertBusy(
             () -> assertThat(
                 "request breaker should return to baseline after an all-failure msearch completes",
-                requestBreakerEstimated(coordinatorNode),
+                getRequestBreakerUsed(coordinatorNode),
                 equalTo(baseline)
             )
         );
@@ -226,9 +226,9 @@ public class MultiSearchIT extends ESIntegTestCase {
         ensureGreen(index);
 
         assertBusy(
-            () -> assertThat("request breaker should be at baseline before msearch", requestBreakerEstimated(coordinatorNode), equalTo(0L))
+            () -> assertThat("request breaker should be at baseline before msearch", getRequestBreakerUsed(coordinatorNode), equalTo(0L))
         );
-        long baseline = requestBreakerEstimated(coordinatorNode);
+        long baseline = getRequestBreakerUsed(coordinatorNode);
 
         var coordinatorClient = internalCluster().client(coordinatorNode);
         updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b"));
@@ -252,7 +252,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertBusy(
             () -> assertThat(
                 "request breaker should return to baseline after an aborted msearch completes",
-                requestBreakerEstimated(coordinatorNode),
+                getRequestBreakerUsed(coordinatorNode),
                 equalTo(baseline)
             )
         );
@@ -300,7 +300,7 @@ public class MultiSearchIT extends ESIntegTestCase {
                 Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
             );
         }
-        assertBusy(() -> assertThat(requestBreakerEstimated(coordinatorNode), equalTo(0L)));
+        assertBusy(() -> assertThat(getRequestBreakerUsed(coordinatorNode), equalTo(0L)));
     }
 
     public void testBufferedCollapseInnerHitsAreCharged() throws Exception {
@@ -426,7 +426,7 @@ public class MultiSearchIT extends ESIntegTestCase {
                 assertThat("node [" + trips.getKey() + "] should not trip", newTrips, equalTo(0L));
             }
         }
-        assertBusy(() -> assertThat(requestBreakerEstimated(coordinatorNode), equalTo(0L)));
+        assertBusy(() -> assertThat(getRequestBreakerUsed(coordinatorNode), equalTo(0L)));
     }
 
     private static long hitsBytes(SearchRequestBuilder search) {
@@ -735,18 +735,6 @@ public class MultiSearchIT extends ESIntegTestCase {
             }
         }
         return false;
-    }
-
-    private long requestBreakerEstimated(String nodeName) {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
-        long estimated = 0;
-        for (NodeStats nodeStats : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST);
-            if (breakerStats != null) {
-                estimated += breakerStats.getEstimated();
-            }
-        }
-        return estimated;
     }
 
     private Map<String, Long> requestBreakerTrips() {

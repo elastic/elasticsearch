@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -162,6 +163,85 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         s.response().close();
         assertTrue("releasing the response cancels the subscription, which stops the query", s.publisher().isClosed());
         return new Drained(Map.of(), rows, footer);
+    }
+
+    public void testStoreFailureReplacesTheFooter() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        s.listener().onStoreFailure(new IllegalStateException("store failed"));
+
+        Drained drained = drainStream(s, List.of(buildSimplePage(1, "a")), 100L, List.of());
+
+        assertThat(drained.rows(), equalTo(List.of(List.of(1, "a"))));
+        assertThat(drained.footer().get("complete"), equalTo(false));
+        assertThat(drained.footer(), hasKey("error"));
+    }
+
+    public void testStoreFailureReplacesTheLimitFooter() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT));
+        s.listener().onStoreFailure(new IllegalStateException("store failed"));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(5, 1));
+        assertThat(decodeRows(pagePart).size(), equalTo(3));
+
+        Map<String, Object> footer = decodeLine(nextPart(pagePart, () -> {}));
+
+        assertThat(footer.get("complete"), equalTo(false));
+        assertThat(footer, hasKey("error"));
+        s.response().close();
+    }
+
+    public void testStoreFailureWithMaxRowsZeroStillSendsTheResponse() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 0, StreamOptions.NO_LIMIT));
+
+        s.listener().onStoreFailure(new IllegalStateException("store failed"));
+
+        RestResponse response = s.response();
+        assertNotNull("the response must be sent even though the query was stopped", response);
+        ChunkedRestResponseBodyPart columnsPart = response.chunkedContent();
+        assertThat(decodeLine(columnsPart), hasKey("columns"));
+        ChunkedRestResponseBodyPart footerPart = nextPart(columnsPart, () -> {});
+        assertTrue(footerPart.isLastPart());
+        Map<String, Object> footer = decodeLine(footerPart);
+        assertThat(footer.get("complete"), equalTo(false));
+        assertThat(footer, hasKey("error"));
+        response.close();
+        assertTrue(s.publisher().isClosed());
+    }
+
+    public void testStoreFailureWhenAPageFillsTheLimitExactlyStillSendsTheLastLine() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 2, StreamOptions.NO_LIMIT));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(2, 1));
+        assertThat(decodeRows(pagePart).size(), equalTo(2));
+
+        s.listener().onStoreFailure(new IllegalStateException("store failed"));
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(pagePart, () -> {});
+        assertTrue(footerPart.isLastPart());
+        Map<String, Object> footer = decodeLine(footerPart);
+        assertThat(footer.get("complete"), equalTo(false));
+        assertThat(footer, hasKey("error"));
+        s.response().close();
+        assertTrue(s.publisher().isClosed());
+    }
+
+    public void testStoreFailureAfterTheLimitStopsTheQuery() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT));
+        decodeRows(sendFirstPage(s, buildLargePage(5, 1)));
+        assertFalse(s.publisher().isClosed());
+
+        s.listener().onStoreFailure(new RuntimeException("store failed"));
+
+        assertTrue(s.publisher().isClosed());
+        s.response().close();
+    }
+
+    public void testStoreFailureBeforeTheLimitKeepsTheQueryRunning() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 100, StreamOptions.NO_LIMIT));
+        decodeRows(sendFirstPage(s, buildLargePage(5, 1)));
+
+        s.listener().onStoreFailure(new RuntimeException("store failed"));
+
+        assertFalse(s.publisher().isClosed());
+        s.response().close();
     }
 
     private static void assertLimitFooter(Map<String, Object> footer, int nextOffset) {
@@ -555,7 +635,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testOnFailureRuntimeException() throws IOException {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        EsqlStreamResponseListener listener = newResponseListener(channel);
         listener.onFailure(new RuntimeException("exception"));
 
         RestResponse restResponse = channel.capturedResponse();
@@ -568,7 +648,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testOnFailureElasticsearchStatusException() throws IOException {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        EsqlStreamResponseListener listener = newResponseListener(channel);
         listener.onFailure(new ElasticsearchStatusException("not allowed", RestStatus.FORBIDDEN));
 
         RestResponse restResponse = channel.capturedResponse();
@@ -582,7 +662,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         RemoteTransportException wrapper = new RemoteTransportException("node/action", cause);
 
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        EsqlStreamResponseListener listener = newResponseListener(channel);
         listener.onFailure(wrapper);
 
         RestResponse restResponse = channel.capturedResponse();
@@ -726,10 +806,10 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         EarlyGetNextPartChannel channel = new EarlyGetNextPartChannel();
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        EsqlStreamResponseListener listener = newResponseListener(channel);
 
         listener.resultStreamListener()
-            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC, () -> false));
+            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC, null, () -> false));
         assertThat("no response before the first page", channel.okResponses, equalTo(0));
         assertThat(channel.errorResponses, equalTo(0));
         assertTrue("publisher should be unblocked after early demand", publisher.waitForWriting().listener().isDone());
@@ -748,10 +828,10 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         ThrowingOkChannel channel = new ThrowingOkChannel();
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        EsqlStreamResponseListener listener = newResponseListener(channel);
 
         listener.resultStreamListener()
-            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC, () -> false));
+            .onResponse(new EsqlStreamQueryAction.ResultStream(simpleColumns(), publisher, null, ZoneOffset.UTC, null, () -> false));
         assertThat("no 200 OK before the first page", channel.okAttempts, equalTo(0));
 
         producer.addPage(buildSimplePage(1, "first"));
@@ -851,6 +931,14 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         return subscribe(columns, nullColumns, zoneId, options, isPartial, new ThreadContext(Settings.EMPTY));
     }
 
+    private static EsqlStreamResponseListener newResponseListener(RestChannel channel) {
+        return newResponseListener(channel, new ThreadContext(Settings.EMPTY));
+    }
+
+    private static EsqlStreamResponseListener newResponseListener(RestChannel channel, ThreadContext threadContext) {
+        return new EsqlStreamResponseListener(channel, threadContext, null, null, null, null, StreamOptions.NONE);
+    }
+
     private Subscribed subscribe(StreamOptions options, ThreadContext threadContext) {
         return subscribe(simpleColumns(), null, ZoneOffset.UTC, options, () -> false, threadContext);
     }
@@ -866,9 +954,9 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, threadContext, options);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, threadContext, null, null, null, null, options);
         listener.resultStreamListener()
-            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, isPartial));
+            .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, null, isPartial));
         return new Subscribed(publisher, producer, channel, listener);
     }
 
@@ -1130,7 +1218,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testOnFailureUsesPreHeaderFooterWhenProvided() throws IOException {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        EsqlStreamResponseListener listener = newResponseListener(channel);
 
         RuntimeException cause = new RuntimeException("injected");
         PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
@@ -1167,7 +1255,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("limit added"));
 
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, threadContext);
+        EsqlStreamResponseListener listener = newResponseListener(channel, threadContext);
         listener.onFailure(new RuntimeException("boom"));
 
         RestResponse restResponse = channel.capturedResponse();
@@ -1187,9 +1275,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testErrorTraceAddsStackTrace() throws IOException {
         FakeRestChannel channel = new FakeRestChannel(requestWithParams(Map.of("error_trace", "true")), true);
-        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(
-            new ElasticsearchStatusException("bad", RestStatus.BAD_REQUEST)
-        );
+        newResponseListener(channel).onFailure(new ElasticsearchStatusException("bad", RestStatus.BAD_REQUEST));
         Map<String, Object> error = (Map<String, Object>) decodeLine(channel.capturedResponse().chunkedContent()).get("error");
         assertThat(error, hasKey("stack_trace"));
     }
@@ -1199,7 +1285,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         FakeRestChannel channel = new FakeRestChannel(requestWithParams(Map.of("error_trace", "true")), true);
         ElasticsearchSecurityException e = new ElasticsearchSecurityException("no", RestStatus.UNAUTHORIZED);
         e.addBodyHeader("WWW-Authenticate", "Basic realm=\"security\"");
-        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(e);
+        newResponseListener(channel).onFailure(e);
 
         RestResponse response = channel.capturedResponse();
         assertThat(response.status(), equalTo(RestStatus.UNAUTHORIZED));
@@ -1211,9 +1297,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testNonDetailedErrorsRenderTypeAndReasonOnly() throws IOException {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), false);
-        new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY)).onFailure(
-            new ElasticsearchException("wrapper", new ElasticsearchException("root"))
-        );
+        newResponseListener(channel).onFailure(new ElasticsearchException("wrapper", new ElasticsearchException("root")));
         Map<String, Object> error = (Map<String, Object>) decodeLine(channel.capturedResponse().chunkedContent()).get("error");
         assertThat(error.keySet(), equalTo(Set.of("type", "reason")));
     }
@@ -1224,7 +1308,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         ElasticsearchException wrapper = new ElasticsearchException("wrapper message", root);
 
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
+        EsqlStreamResponseListener listener = newResponseListener(channel);
         listener.onFailure(wrapper);
 
         RestResponse restResponse = channel.capturedResponse();

@@ -30,8 +30,8 @@ public class SearchLoadConstraintSettingsTests extends ESTestCase {
         assertThat(cpuThreshold("0.0001"), equalTo(0.0001));
     }
 
-    public void testCpuThresholdMustBeAboveZeroAndAtMostOne() {
-        for (String invalid : new String[] { "0", "0.0", "-0.0", "-0.1", "1.01", "75%", "not-a-number" }) {
+    public void testSearchLoadCpuThresholdSettingRejectsInvalidValues() {
+        for (String invalid : new String[] { "0", "0.0", "-0.0", "-0.1", "1.01", "NaN", "-NaN", "Infinity", "75%", "not-a-number" }) {
             expectThrows(IllegalArgumentException.class, () -> cpuThreshold(invalid));
         }
     }

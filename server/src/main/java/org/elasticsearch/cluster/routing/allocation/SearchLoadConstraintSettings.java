@@ -19,19 +19,30 @@ public class SearchLoadConstraintSettings {
 
     private static final String SETTING_PREFIX = "cluster.routing.allocation.search_load.";
 
+    private static final String CPU_THRESHOLD_KEY = SETTING_PREFIX + "cpu_threshold";
+
     /**
      * The CPU threshold for search load (T_cpu): the share of a node's requested CPU that the search load of the shard copies on it
      * may use. The search load decider and the search tier autoscaler both read it, so they plan against the same value.
      * It must be above 0 and at most 1.
      */
-    public static final Setting<Double> SEARCH_LOAD_CPU_THRESHOLD_SETTING = Setting.doubleSetting(
-        SETTING_PREFIX + "cpu_threshold",
-        0.9,
-        Double.MIN_VALUE, // exclusive lower bound of 0
-        1.0,
+    public static final Setting<Double> SEARCH_LOAD_CPU_THRESHOLD_SETTING = new Setting<>(
+        CPU_THRESHOLD_KEY,
+        "0.9",
+        SearchLoadConstraintSettings::parseCpuThreshold,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
+
+    private static double parseCpuThreshold(String value) {
+        final double threshold = Double.parseDouble(value);
+        if (Double.isNaN(threshold) || threshold <= 0.0 || threshold > 1.0) {
+            throw new IllegalArgumentException(
+                "Failed to parse value [" + value + "] for setting [" + CPU_THRESHOLD_KEY + "] must be > 0 and <= 1"
+            );
+        }
+        return threshold;
+    }
 
     private volatile double cpuThreshold;
 

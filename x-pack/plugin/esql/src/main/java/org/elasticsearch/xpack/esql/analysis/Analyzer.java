@@ -4797,6 +4797,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
          * </ol>
          *
+         * <p>The per-type conversions of the first two cases drop the other arguments of the conversion, like the options of
+         * {@code TO_IP(x, {...})}, so {@link #withInvalidOtherArguments} validates them first. The third case replaces only the input,
+         * keeping them.
+         *
          * @return The resolved expression
          */
         private static Expression resolveConvertFunction(

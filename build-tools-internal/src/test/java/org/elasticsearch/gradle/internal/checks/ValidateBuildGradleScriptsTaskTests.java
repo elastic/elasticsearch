@@ -621,6 +621,82 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
+    public void testFailsForLegacyRestIntegTestTaskUsageInAnyGradleScript() throws Exception {
+        Project project = createProject();
+        File buildScript = writeFile(
+            project,
+            "qa/example/build.gradle",
+            List.of(
+                "import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask",
+                "tasks.register('a', StandaloneRestIntegTestTask) {}",
+                "tasks.register('b', org.elasticsearch.gradle.internal.test.RestIntegTestTask) {}"
+            )
+        );
+        File scriptPlugin = writeFile(
+            project,
+            "build-tools-internal/src/main/groovy/elasticsearch.example.gradle",
+            List.of("tasks.withType(StandaloneRestIntegTestTask).configureEach {}")
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, buildScript, scriptPlugin);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            String message = e.getMessage();
+            assertTrue(message.contains("[legacy-rest-integ-test-task] qa/example/build.gradle:1"));
+            assertTrue(message.contains("[legacy-rest-integ-test-task] qa/example/build.gradle:2"));
+            assertTrue(message.contains("[legacy-rest-integ-test-task] qa/example/build.gradle:3"));
+            assertTrue(message.contains("[legacy-rest-integ-test-task] build-tools-internal/src/main/groovy/elasticsearch.example.gradle:1"));
+            assertEquals(4, message.lines().filter(l -> l.startsWith("- [legacy-rest-integ-test-task]")).count());
+        }
+    }
+
+    @Test
+    public void testLegacyRestIntegTestTaskRuleIgnoresCommentsStringsAndLookalikes() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "qa/example/build.gradle",
+            List.of(
+                "// replaces the former StandaloneRestIntegTestTask",
+                "tasks.register('x') { description = 'was a RestIntegTestTask' }",
+                "restTests.register('y') {}",
+                "def ext = project.extensions.getByType(RestIntegTestsExtension)",
+                "class MyRestIntegTestTaskHelper {}"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testLegacyRestIntegTestTaskBaselineFailsOnNewUsageInBaselinedFile() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "qa/example/build.gradle",
+            List.of(
+                "import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask",
+                "tasks.register('a', StandaloneRestIntegTestTask) {}",
+                "tasks.register('b', StandaloneRestIntegTestTask) {}"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+        task.getIgnore().set(java.util.Map.of("legacy-rest-integ-test-task", List.of("qa/example/build.gradle::2")));
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            assertTrue(e.getMessage().contains("[legacy-rest-integ-test-task] qa/example/build.gradle:3"));
+        }
+    }
+
+    @Test
     public void testBuildScriptOnlyRulesSkipOtherGradleScripts() throws Exception {
         Project project = createProject();
         // cross-project access and execution-time project references are only validated in build.gradle files

@@ -11,6 +11,8 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -141,6 +143,27 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
         indexBatch(docs);
 
         assertAscSortTimestamps(5, List.of(Long.MIN_VALUE, 1000L, 1001L, 1002L, 1003L));
+    }
+
+    /** A columnar index can store a {@code long} with binary doc values, which are not {@code SORTED_NUMERIC} doc values. */
+    public void testBinaryDocValues() {
+        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
+        createIndex(
+            Settings.builder()
+                .put(descendingTimestampSort())
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), true)
+                .build(),
+            "type=long"
+        );
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (long i = 0; i < 50; i++) {
+            docs.add(Map.of("@timestamp", 1000 + i));
+        }
+        indexBatch(docs);
+        assertNoFailures(indicesAdmin().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
+
+        assertAscSortTimestamps(5, List.of(1000L, 1001L, 1002L, 1003L, 1004L));
     }
 
     private static Settings descendingTimestampSort() {

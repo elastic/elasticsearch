@@ -323,9 +323,6 @@ public class Driver implements Releasable, Describable {
                 );
                 return isBlocked.listener();
             }
-            if (isBlocked.listener().isFailed()) {
-                return isBlocked.listener();
-            }
             if (isFinished()) {
                 finishNanos = now;
                 if (pendingFinalStatus.isEmpty()) {
@@ -475,18 +472,8 @@ public class Driver implements Releasable, Describable {
 
         if (movedPage == false) {
             blockedResults.clear();
-            IsBlockedResult failed = null;
-            for (Operator op : activeOperators) {
-                IsBlockedResult blocked = op.isBlocked();
-                if (blocked.listener().isFailed()) {
-                    failed = blocked;
-                    break;
-                }
-                if (blocked.listener().isSuccess() == false) {
-                    blockedResults.add(blocked);
-                }
-            }
-            IsBlockedResult result = failed != null ? failed : oneOf(blockedResults);
+            activeOperators.stream().map(Operator::isBlocked).filter(laf -> laf.listener().isDone() == false).forEach(blockedResults::add);
+            IsBlockedResult result = oneOf(blockedResults);
             onNoPagesMoved();
             return result;
         }
@@ -720,7 +707,7 @@ public class Driver implements Releasable, Describable {
                     onComplete(listener);
                     return;
                 }
-                if (fut.isSuccess()) {
+                if (fut.isDone()) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier, false);
                 } else {
                     ActionListener<Void> readyListener = ActionListener.wrap(

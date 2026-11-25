@@ -74,6 +74,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.both;
@@ -1450,13 +1451,18 @@ public class DriverTests extends ESTestCase {
         }
     }
 
-    /** A driver whose blocked future fails ends while asleep: the sleep must be closed, not reported as still going. */
+    /** A driver that fails right after waking from a blocked operator must close its sleep, not report it as still going. */
     public void testDriverFailingWhileBlockedClosesItsSleep() {
         DriverContext driverContext = driverContext();
         SubscribableListener<Void> blocked = new SubscribableListener<>();
+        AtomicReference<RuntimeException> operatorFailure = new AtomicReference<>();
         UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
             @Override
             public Page getOutput() {
+                RuntimeException failure = operatorFailure.get();
+                if (failure != null) {
+                    throw failure;
+                }
                 return null;
             }
 
@@ -1481,7 +1487,8 @@ public class DriverTests extends ESTestCase {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
             assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
-            blocked.onFailure(new IllegalStateException("blocked failed"));
+            operatorFailure.set(new IllegalStateException("blocked failed"));
+            blocked.onResponse(null);
             IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
             assertThat(failure.getMessage(), equalTo("blocked failed"));
             assertFinishedWithUsage(driver, 3, 0, 0);
@@ -1493,131 +1500,6 @@ public class DriverTests extends ESTestCase {
         } finally {
             driver.close();
             terminate(threadPool);
-        }
-    }
-
-    /** A blocked future that has already failed when the driver reads it fails the driver instead of being treated as ready. */
-    public void testDriverFailsWhenBlockedFutureAlreadyFailed() {
-        DriverContext driverContext = driverContext();
-        SubscribableListener<Void> blocked = SubscribableListener.newFailed(new IllegalStateException("blocked failed"));
-        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
-            @Override
-            public Page getOutput() {
-                return null;
-            }
-
-            @Override
-            public boolean isFinished() {
-                return false;
-            }
-
-            @Override
-            public IsBlockedResult isBlocked() {
-                return new IsBlockedResult(blocked, "test blocked");
-            }
-        };
-        Driver driver = TestDriverFactory.create(
-            driverContext,
-            source,
-            List.of(),
-            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
-        );
-        ThreadPool threadPool = threadPool();
-        try {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
-            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            assertThat(failure.getMessage(), equalTo("blocked failed"));
-            assertFinishedWithUsage(driver, 3, 0, 0);
-        } finally {
-            driver.cancel("test finished");
-            terminate(threadPool);
-            driver.close();
-        }
-    }
-
-    /** A failed blocked future fails the driver even when another operator is still blocked on a pending future. */
-    public void testDriverFailsWhenOneBlockedFutureFailedAndAnotherPending() {
-        assertDriverFailsWithFailedAndPendingFutures(true);
-        assertDriverFailsWithFailedAndPendingFutures(false);
-    }
-
-    private void assertDriverFailsWithFailedAndPendingFutures(boolean sourceFails) {
-        DriverContext driverContext = driverContext();
-        SubscribableListener<Void> failed = SubscribableListener.newFailed(new IllegalStateException("blocked failed"));
-        SubscribableListener<Void> pending = new SubscribableListener<>();
-        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
-            @Override
-            public Page getOutput() {
-                return null;
-            }
-
-            @Override
-            public boolean isFinished() {
-                return false;
-            }
-
-            @Override
-            public IsBlockedResult isBlocked() {
-                return new IsBlockedResult(sourceFails ? failed : pending, "source blocked");
-            }
-        };
-        Operator middle = new PassThroughOperator() {
-            @Override
-            public IsBlockedResult isBlocked() {
-                return new IsBlockedResult(sourceFails ? pending : failed, "middle blocked");
-            }
-        };
-        Driver driver = TestDriverFactory.create(
-            driverContext,
-            source,
-            List.of(middle),
-            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
-        );
-        ThreadPool threadPool = threadPool();
-        try {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
-            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            assertThat(failure.getMessage(), equalTo("blocked failed"));
-        } finally {
-            driver.cancel("test finished");
-            terminate(threadPool);
-            driver.close();
-        }
-    }
-
-    /** The sink is one of the driver's operators too: a failed blocked future on it fails the driver. */
-    public void testDriverFailsWhenSinkBlockedFutureAlreadyFailed() {
-        DriverContext driverContext = driverContext();
-        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
-            @Override
-            public Page getOutput() {
-                return null;
-            }
-
-            @Override
-            public boolean isFinished() {
-                return false;
-            }
-        };
-        Operator sink = new TestResultPageSinkOperator(page -> fail("sink should not receive output")) {
-            @Override
-            public IsBlockedResult isBlocked() {
-                return new IsBlockedResult(SubscribableListener.newFailed(new IllegalStateException("sink failed")), "sink blocked");
-            }
-        };
-        Driver driver = TestDriverFactory.create(driverContext, source, List.of(), (SinkOperator) sink);
-        ThreadPool threadPool = threadPool();
-        try {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
-            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            assertThat(failure.getMessage(), equalTo("sink failed"));
-        } finally {
-            driver.cancel("test finished");
-            terminate(threadPool);
-            driver.close();
         }
     }
 

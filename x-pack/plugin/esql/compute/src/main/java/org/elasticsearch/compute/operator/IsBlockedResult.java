@@ -14,14 +14,20 @@ import java.util.Map;
 /**
  * Is this {@link Operator} blocked?
  * <p>
- *     If the {@link #listener}'s {@link SubscribableListener#isSuccess()} method
+ *     If the {@link #listener}'s {@link SubscribableListener#isDone()} method
  *     returns {@code true} then the {@linkplain Operator} is not blocked.
- *     If the {@link #listener} is done but failed, the driver fails with that failure.
  * </p>
  * <p>
  *     If the {@linkplain Operator} is blocked then you can
  *     {@link SubscribableListener#addListener} to the {@link #listener} to be
  *     notified when the {@linkplain Operator} is unblocked.
+ * </p>
+ * <p>
+ *     The {@link #listener} only signals when the driver can resume. A pending
+ *     listener tells the driver to yield, and it must complete successfully to
+ *     wake the driver. An {@linkplain Operator} must never fail it. It records
+ *     any failure itself and throws it from the next call the driver makes,
+ *     such as {@link Operator#getOutput} or {@link Operator#addInput}.
  * </p>
  * @param listener a listener to check for blocked-ness
  * @param reason the reason that the {@linkplain Operator} is blocked.

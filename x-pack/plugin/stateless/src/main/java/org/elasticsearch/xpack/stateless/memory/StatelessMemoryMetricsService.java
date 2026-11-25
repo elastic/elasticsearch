@@ -364,7 +364,13 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;
         }
-        return readHeapSizeComputedLocallyOnOtherIndexingNodes(relativeTimeInNanos());
+        var indexingHeapMemoryRequirements = indexingOperationsHeapMemoryRequirementsRef.get();
+        if (indexingHeapMemoryRequirements == null || indexingHeapMemoryRequirements.validUntil() < relativeTimeInNanos()) {
+            // Try to clear the memory once the results are stale
+            indexingOperationsHeapMemoryRequirementsRef.compareAndSet(indexingHeapMemoryRequirements, null);
+            return 0L;
+        }
+        return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
     }
 
     /**
@@ -398,16 +404,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         // Heap required so that this operation is that percent of the heap. E.g a 4MB operation that cannot use more than 10% of the heap
         // has 40MB returned to the autoscaler
         return (long) Math.ceil(operationSizeInBytes * 100.0d / percent);
-    }
-
-    private long readHeapSizeComputedLocallyOnOtherIndexingNodes(long now) {
-        var indexingHeapMemoryRequirements = indexingOperationsHeapMemoryRequirementsRef.get();
-        if (indexingHeapMemoryRequirements == null || indexingHeapMemoryRequirements.validUntil() < now) {
-            // Try to clear the memory once the results are stale
-            indexingOperationsHeapMemoryRequirementsRef.compareAndSet(indexingHeapMemoryRequirements, null);
-            return 0L;
-        }
-        return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
     }
 
     private Long largestOperationSize(long now) {

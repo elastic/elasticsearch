@@ -39,7 +39,8 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
 
     private final AnalysisPredicateScript.Factory factory;
     private final List<String> filterNames;
-    // Older indices keep treating the wrapped filters as usable at index time, so their mappings still validate.
+    // Older indices keep the old behavior: wrapped filters count as usable at index time (so their mappings still validate) and
+    // are applied when later synonym rules are parsed.
     private final boolean inheritAnalysisMode;
 
     ScriptedConditionTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, ScriptService scriptService) {
@@ -99,12 +100,14 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             filters.add(tff);
             existingChain.add(tff);
             degraded |= tff.isDegraded();
-            mode = mode.merge(tff.getAnalysisMode());
-            resourceNames.addAll(tff.getResourceNames());
+            if (inheritAnalysisMode) {
+                mode = mode.merge(tff.getAnalysisMode());
+                resourceNames.addAll(tff.getResourceNames());
+            }
         }
         final boolean anyDegraded = degraded;
-        final AnalysisMode analysisMode = inheritAnalysisMode ? mode : AnalysisMode.ALL;
-        final Set<String> resources = inheritAnalysisMode ? Set.copyOf(resourceNames) : Set.of();
+        final AnalysisMode analysisMode = mode;
+        final Set<String> resources = Set.copyOf(resourceNames);
 
         return new TokenFilterFactory() {
             @Override
@@ -114,13 +117,29 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                Function<TokenStream, TokenStream> filter = in -> {
-                    for (TokenFilterFactory tff : filters) {
-                        in = tff.create(in);
+                return conditional(tokenStream, filters);
+            }
+
+            @Override
+            public TokenFilterFactory getSynonymFilter() {
+                if (inheritAnalysisMode == false) {
+                    return this;
+                }
+                // Parse later synonym rules through the wrapped filters' own parsing variants, so wrapped synonyms are not applied.
+                List<TokenFilterFactory> forParsing = filters.stream()
+                    .map(ScriptedConditionTokenFilterFactory::synonymFilterOrSelf)
+                    .toList();
+                return new TokenFilterFactory() {
+                    @Override
+                    public String name() {
+                        return ScriptedConditionTokenFilterFactory.this.name();
                     }
-                    return in;
+
+                    @Override
+                    public TokenStream create(TokenStream tokenStream) {
+                        return conditional(tokenStream, forParsing);
+                    }
                 };
-                return new ScriptedConditionTokenFilter(tokenStream, filter, factory.newInstance());
             }
 
             @Override
@@ -138,6 +157,28 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
                 return resources;
             }
         };
+    }
+
+    /**
+     * The filter's synonym-parsing variant, or the filter itself if it refuses to provide one (as a multiplexer does), which is
+     * how a condition treated every wrapped filter before, so such chains keep building.
+     */
+    private static TokenFilterFactory synonymFilterOrSelf(TokenFilterFactory filter) {
+        try {
+            return filter.getSynonymFilter();
+        } catch (IllegalArgumentException e) {
+            return filter;
+        }
+    }
+
+    private TokenStream conditional(TokenStream tokenStream, List<TokenFilterFactory> filters) {
+        Function<TokenStream, TokenStream> filter = in -> {
+            for (TokenFilterFactory tff : filters) {
+                in = tff.create(in);
+            }
+            return in;
+        };
+        return new ScriptedConditionTokenFilter(tokenStream, filter, factory.newInstance());
     }
 
     private static class ScriptedConditionTokenFilter extends ConditionalTokenFilter {

@@ -1,5 +1,5 @@
 area: Analysis
 issues: []
 pr: 167504
-summary: Inherit analysis mode and resources in the condition token filter
+summary: "Conditional token filter now inherits the analysis mode of the filters it wraps: wrapped updateable filters are reloaded, and are rejected in index-time analyzers for new indices"
 type: bug

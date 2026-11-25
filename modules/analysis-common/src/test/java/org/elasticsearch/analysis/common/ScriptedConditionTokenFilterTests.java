@@ -9,6 +9,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
@@ -36,6 +38,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 import static org.hamcrest.Matchers.containsString;
@@ -131,14 +134,27 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
 
     /** Builds an index's analyzers with every condition script always true. */
     private IndexAnalyzers buildAnalyzers(Settings indexSettings) throws IOException {
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(alwaysTrueScripts(indexSettings))
+            .build();
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        AnalysisModule module = new AnalysisModule(
+            TestEnvironment.newEnvironment(nodeSettings),
+            List.of(plugin),
+            new StablePluginsRegistry()
+        );
+        return module.getAnalysisRegistry()
+            .build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", indexSettings));
+    }
+
+    private static ScriptService alwaysTrueScripts(Settings settings) {
         AnalysisPredicateScript.Factory alwaysTrue = () -> new AnalysisPredicateScript() {
             @Override
             public boolean execute(Token token) {
                 return true;
             }
         };
-        ScriptService scriptService = new ScriptService(
-            indexSettings,
+        return new ScriptService(
+            settings,
             Collections.emptyMap(),
             Collections.emptyMap(),
             () -> 1L,
@@ -150,15 +166,107 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
                 return (FactoryType) alwaysTrue;
             }
         };
-        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(scriptService).build();
-        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        AnalysisModule module = new AnalysisModule(
-            TestEnvironment.newEnvironment(nodeSettings),
-            List.of(plugin),
-            new StablePluginsRegistry()
-        );
-        return module.getAnalysisRegistry()
-            .build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", indexSettings));
+    }
+
+    /** Later synonym rules are parsed without applying synonyms wrapped in an earlier condition; older indices keep applying them. */
+    public void testLaterSynonymRulesIgnoreSynonymsWrappedInCondition() throws Exception {
+        IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.CONDITION_FILTER_INHERITS_ANALYSIS_MODE);
+        for (IndexVersion version : List.of(IndexVersion.current(), before)) {
+            Settings indexSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                .put("index.analysis.filter.s1.type", "synonym")
+                .putList("index.analysis.filter.s1.synonyms", "foo => bar")
+                .put("index.analysis.filter.s2.type", "synonym")
+                .putList("index.analysis.filter.s2.synonyms", "qux => foo")
+                .put("index.analysis.filter.c1.type", "condition")
+                .put("index.analysis.filter.c1.script.source", "true")
+                .putList("index.analysis.filter.c1.filter", "s1")
+                .put("index.analysis.filter.c2.type", "condition")
+                .put("index.analysis.filter.c2.script.source", "true")
+                .putList("index.analysis.filter.c2.filter", "s2")
+                .put("index.analysis.analyzer.a.tokenizer", "standard")
+                .putList("index.analysis.analyzer.a.filter", "c1", "c2")
+                .build();
+            try (IndexAnalyzers analyzers = buildAnalyzers(indexSettings)) {
+                assertAnalyzesTo(analyzers.get("a"), "qux", new String[] { version == before ? "bar" : "foo" });
+            }
+        }
+    }
+
+    /** A condition wrapping a filter that cannot parse synonyms, such as a multiplexer, still builds ahead of a synonym filter. */
+    public void testConditionOverMultiplexerBeforeSynonymFilterBuilds() throws Exception {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.mux.type", "multiplexer")
+            .putList("index.analysis.filter.mux.filters", "lowercase")
+            .put("index.analysis.filter.c.type", "condition")
+            .put("index.analysis.filter.c.script.source", "true")
+            .putList("index.analysis.filter.c.filter", "mux")
+            .put("index.analysis.filter.syn.type", "synonym")
+            .putList("index.analysis.filter.syn.synonyms", "foo => bar")
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "c", "syn")
+            .build();
+        try (IndexAnalyzers analyzers = buildAnalyzers(indexSettings)) {
+            assertAnalyzesTo(analyzers.get("a"), "Foo", new String[] { "Foo", "bar" });
+        }
+    }
+
+    /** Older indices still build a condition wrapping index-only and search-only filters; newer ones reject it like a plain chain. */
+    public void testMixedModesAreOnlyMergedForNewIndices() throws Exception {
+        TokenFilterFactory indexOnly = modeFilter("i", AnalysisMode.INDEX_TIME);
+        TokenFilterFactory searchOnly = modeFilter("s", AnalysisMode.SEARCH_TIME);
+        Settings filterSettings = Settings.builder().put("script.source", "true").putList("filter", "i", "s").build();
+        IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.CONDITION_FILTER_INHERITS_ANALYSIS_MODE);
+        for (IndexVersion version : List.of(IndexVersion.current(), before)) {
+            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+            ScriptedConditionTokenFilterFactory condition = new ScriptedConditionTokenFilterFactory(
+                IndexSettingsModule.newIndexSettings("index", indexSettings),
+                "c",
+                filterSettings,
+                alwaysTrueScripts(indexSettings)
+            );
+            if (version == before) {
+                TokenFilterFactory built = condition.getChainAwareTokenFilterFactory(
+                    IndexCreationContext.CREATE_INDEX,
+                    null,
+                    List.of(),
+                    List.of(),
+                    Map.of("i", indexOnly, "s", searchOnly)::get
+                );
+                assertEquals(AnalysisMode.ALL, built.getAnalysisMode());
+            } else {
+                expectThrows(
+                    IllegalStateException.class,
+                    () -> condition.getChainAwareTokenFilterFactory(
+                        IndexCreationContext.CREATE_INDEX,
+                        null,
+                        List.of(),
+                        List.of(),
+                        Map.of("i", indexOnly, "s", searchOnly)::get
+                    )
+                );
+            }
+        }
+    }
+
+    private static TokenFilterFactory modeFilter(String name, AnalysisMode mode) {
+        return new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return mode;
+            }
+        };
     }
 
     public void testSelfReferentialConditionIsRejected() throws Exception {

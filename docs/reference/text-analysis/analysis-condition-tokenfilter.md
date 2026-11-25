@@ -46,6 +46,8 @@ The filter produces the following tokens:
 
 These filters can include custom token filters defined in the index mapping.
 
+{applies_to}`stack: ga 9.7` If these filters include an updateable filter, such as a synonym filter with `updateable: true`, the conditional filter can only be used in a search analyzer, and the wrapped filter is reloaded like any other updateable filter. Indices created before 9.7 keep the earlier behavior.
+
 
 `script`
 :   (Required, [script object](docs-content://explore-analyze/scripting/modules-scripting-using.md)) Predicate script used to apply token filters. If a token matches this script, the filters in the `filter` parameter are applied to the token.

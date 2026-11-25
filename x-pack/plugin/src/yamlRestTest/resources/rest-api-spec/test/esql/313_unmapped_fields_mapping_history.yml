@@ -17,11 +17,12 @@ setup:
   #
   # A copy built by recovery replays the translog with the current mapping, so replaying the first document would try a dynamic
   # mapping update for "extra", which is not allowed during recovery and fails the shard in a retry loop that never converges.
-  # Three things keep such a copy from being built: the replica is awaited before the first document, so that it is replicated
-  # live; the document is flushed before the mapping is tightened, so a copy built from scratch later takes it from the committed
-  # segments instead of replaying it; and rebalancing is disabled for the index. The flush does not cover an operations-only
-  # recovery of a copy that missed the document, so it does not replace the other two. The replicas are left as they are,
-  # since Serverless needs a copy to search. A workaround for
+  # Three things keep such a copy from being built. A replica that is already initializing is allowed to finish before the first
+  # document is indexed, so that it receives the document live; this does not wait for an unassigned replica to be allocated,
+  # which can still start recovering later. The document is flushed before the mapping is tightened, so a copy built from
+  # scratch later takes it from the committed segments instead of replaying it. Rebalancing is disabled for the index. The flush
+  # does not cover an operations-only recovery of a copy that missed the document, so it does not replace the other two. The
+  # replicas are left as they are, since Serverless needs a copy to search. A workaround for
   # https://github.com/elastic/elasticsearch/issues/167063, to be removed when that is fixed.
   - do:
       indices.create:
@@ -34,8 +35,9 @@ setup:
             properties:
               id:
                 type: keyword
-  # Wait for any replica to be initialized and started before the first document, so that none is built by recovery after the
-  # mapping is tightened. Not waiting for green: on a single node the replica stays unassigned.
+  # Let a replica that is already initializing finish before the first document, so that it receives the document live and is not
+  # built by recovery after the mapping is tightened. An unassigned replica is not waited for, so this is not a guarantee: the
+  # flush below covers a copy built later. Not waiting for green: on a single node the replica stays unassigned.
   - do:
       cluster.health:
         index: unmapped-history
@@ -111,11 +113,12 @@ setup:
   # "note" is a runtime field while the document is indexed, so no field holds its value once it is removed.
   #
   # A copy built by recovery replays the translog with the current mapping, and replaying the first document then hits "note" as
-  # an unknown field under dynamic:strict, which fails the shard in a retry loop that never converges. As for unmapped-history,
-  # the replica is awaited before the first document, the document is flushed before "note" is removed, so a copy built from
-  # scratch later takes it from the committed segments, and rebalancing is disabled for the index. The flush does not replace
-  # the other guards: it does not cover an operations-only recovery of a copy that missed the document. The replicas are left
-  # as they are. A workaround for https://github.com/elastic/elasticsearch/issues/167063, to be removed when that is fixed.
+  # an unknown field under dynamic:strict, which fails the shard in a retry loop that never converges. As for unmapped-history, a
+  # replica that is already initializing is allowed to finish before the first document is indexed, the document is flushed before
+  # "note" is removed, so a copy built from scratch later takes it from the committed segments, and rebalancing is disabled for
+  # the index. The wait does not cover an unassigned replica, and the flush does not cover an operations-only recovery of a copy
+  # that missed the document, so neither replaces the other guards. The replicas are left as they are. A workaround for
+  # https://github.com/elastic/elasticsearch/issues/167063, to be removed when that is fixed.
   - do:
       indices.create:
         index: unmapped-runtime

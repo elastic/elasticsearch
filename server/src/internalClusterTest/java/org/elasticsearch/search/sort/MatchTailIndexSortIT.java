@@ -102,6 +102,27 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
         assertAscSortTimestamps(2, List.of(1000L, 1001L));
     }
 
+    /**
+     * The index sort orders a multi-valued document by its largest value, but the ascending sort uses its smallest value. So the
+     * first hit can be before the end of the segment.
+     */
+    public void testMultiValuedTimestamp() {
+        createIndex(descendingTimestampSort());
+        List<Map<String, Object>> docs = new ArrayList<>();
+        docs.add(Map.of("@timestamp", List.of(1000L, 90_000L)));
+        for (long i = 0; i < 50; i++) {
+            docs.add(Map.of("@timestamp", 2000 + i));
+        }
+        // These documents have larger values, so they come before the multi-valued document and fill the first hits
+        for (long i = 0; i < 20; i++) {
+            docs.add(Map.of("@timestamp", 100_000 + i));
+        }
+        indexBatch(docs);
+        assertNoFailures(indicesAdmin().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
+
+        assertAscSortTimestamps(5, List.of(1000L, 2000L, 2001L, 2002L, 2003L));
+    }
+
     private static Settings descendingTimestampSort() {
         return Settings.builder().put("index.sort.field", "@timestamp").put("index.sort.order", "desc").build();
     }

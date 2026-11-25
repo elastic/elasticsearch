@@ -83,6 +83,12 @@ import java.util.List;
  */
 public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOperator {
     /**
+     * The warning for a multivalued key on either side of a repeated-key join, which matches nothing. It names no join
+     * command, because the warning's first line already quotes the join's own text.
+     */
+    private static final String MULTIVALUED_KEY_WARNING = "JOIN encountered multi-value";
+
+    /**
      * A single key column of the lookup table: its field name and the block
      * of values (one value per table row).
      */
@@ -115,6 +121,15 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private final boolean repeatedKeys;
         private final WarningSourceLocation warningSource;
         /**
+         * Whether a repeated-key table has a multivalued build key. The table skips such rows, and every operator warns
+         * once, even if no probe key would have matched them. This deliberately differs from {@code LOOKUP JOIN}, which
+         * warns only on a match because its Lucene index can find one. Finding one here would need an index of those rows'
+         * values: hashing them adds an entry per combination of values, exponential in the multivalued key columns, and
+         * indexing each column on its own still copies every value. Either costs the most when most rows are multivalued,
+         * only to warn.
+         */
+        private final boolean multivaluedBuildKeys;
+        /**
          * The table shared by the operators this factory created, or {@code null} when no operator holds one.
          * Guarded by {@code this}.
          */
@@ -125,7 +140,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         }
 
         /**
-         * Opt in to returning all build-side matches and reporting invalid probe keys at the join's source.
+         * Opt in to returning all build-side matches and reporting multivalued keys, on either side, at the join's source.
          */
         public Factory(Key[] keys, int[] blockMapping, boolean repeatedKeys, @Nullable WarningSourceLocation warningSource) {
             if (keys.length < 1) {
@@ -138,11 +153,15 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
             this.blockMapping = blockMapping;
             this.repeatedKeys = repeatedKeys;
             this.warningSource = warningSource;
+            this.multivaluedBuildKeys = repeatedKeys && Arrays.stream(keys).anyMatch(key -> key.block.doesHaveMultivaluedFields());
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
             Warnings warnings = repeatedKeys ? driverContext.createWarnings(warningSource) : Warnings.NOOP_WARNINGS;
+            if (multivaluedBuildKeys) {
+                warnings.registerException(IllegalArgumentException.class, MULTIVALUED_KEY_WARNING);
+            }
             /*
              * Build with the node-wide parent factory, which charges the request breaker, rather than this driver's:
              * the table outlives any single driver and is released from whichever driver closes last, so it must not
@@ -270,7 +289,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         }
         for (int k = 0; k < keys.getBlockCount(); k++) {
             if (keys.getBlock(k).doesHaveMultivaluedFields()) {
-                warnings.registerException(IllegalArgumentException.class, "LOOKUP JOIN encountered multi-value");
+                warnings.registerException(IllegalArgumentException.class, MULTIVALUED_KEY_WARNING);
                 return;
             }
         }

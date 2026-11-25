@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitC
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -1224,18 +1223,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         if (bccUploadSlowLogThresholdMillis <= 0 || uploadResult.totalUploadTimeMs() < bccUploadSlowLogThresholdMillis) {
             return;
         }
+        // the total time spans every attempt and the delays between them, the other fields describe the successful attempt
+        final var timing = uploadResult.timing();
         final var message = new ESLogMessage(
             "{} batched compound commit [{}] upload took [{}]ms over [{}] attempt(s): {}",
             virtualBcc.getShardId(),
             virtualBcc.getPrimaryTermAndGeneration().generation(),
             uploadResult.totalUploadTimeMs(),
-            uploadResult.uploadAttempts(),
-            uploadResult.attemptsToLogString()
+            timing.attempt(),
+            timing.toLogString()
         ).field("elasticsearch.primary.bcc_upload_time", uploadResult.totalUploadTimeMs())
-            .field("elasticsearch.primary.bcc_upload_attempts", uploadResult.uploadAttempts())
-            .field("elasticsearch.primary.bcc_generation_queue_time", uploadResult.totalGenerationQueueWaitMs())
-            .field("elasticsearch.primary.bcc_object_store_queue_time", uploadResult.totalObjectStoreQueueWaitMs())
-            .field("elasticsearch.primary.bcc_upload_throughput_mib_per_sec", uploadResult.uploadThroughputMiBPerSec());
+            .field("elasticsearch.primary.bcc_upload_attempts", timing.attempt())
+            .field("elasticsearch.primary.bcc_generation_queue_time", timing.generationQueueWaitMs())
+            .field("elasticsearch.primary.bcc_object_store_queue_time", timing.objectStoreQueueWaitMs())
+            .field("elasticsearch.primary.bcc_upload_throughput_mib_per_sec", timing.uploadThroughputMiBPerSec());
         logger.info(message);
     }
 

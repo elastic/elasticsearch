@@ -232,12 +232,7 @@ public class DriverTests extends ESTestCase {
         List<WeakReference<Operator>> operators = new ArrayList<>();
         Driver driver = labelledDriver(operators, false);
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
-        List<OperatorStatus> completed = driver.status().completedOperators();
-        assertThat(completed.stream().map(OperatorStatus::planNodeId).toList(), equalTo(List.of("source", "intermediate", "sink")));
-        assertThat(
-            completed.stream().map(OperatorStatus::exchangeId).toList(),
-            equalTo(Arrays.asList("source exchange", null, "sink exchange"))
-        );
+        assertLabelled(driver.status().completedOperators());
         assertUnreachable(operators);
         Reference.reachabilityFence(driver);
     }
@@ -249,8 +244,18 @@ public class DriverTests extends ESTestCase {
         List<WeakReference<Operator>> operators = new ArrayList<>();
         Driver driver = labelledDriver(operators, true);
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertLabelled(driver.status().completedOperators());
         assertUnreachable(operators);
         Reference.reachabilityFence(driver);
+    }
+
+    /** The operators of {@link #labelledDriver} report their labels however the driver closed them. */
+    private static void assertLabelled(List<OperatorStatus> completed) {
+        assertThat(completed.stream().map(OperatorStatus::planNodeId).toList(), equalTo(List.of("source", "intermediate", "sink")));
+        assertThat(
+            completed.stream().map(OperatorStatus::exchangeId).toList(),
+            equalTo(Arrays.asList("source exchange", null, "sink exchange"))
+        );
     }
 
     private static void assertUnreachable(List<WeakReference<Operator>> operators) throws Exception {
@@ -1569,6 +1574,10 @@ public class DriverTests extends ESTestCase {
             List.of(failing),
             new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
         );
+        Map<Operator, String> labels = new IdentityHashMap<>();
+        labels.put(brokenStatus, "broken");
+        driver.setPlanNodeIds(labels);
+        driver.setExchangeIds(labels);
         ThreadPool threadPool = threadPool();
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -1580,6 +1589,8 @@ public class DriverTests extends ESTestCase {
             assertFinishedWithUsage(driver, 0, 0, 0);
             assertThat(driver.status().completedOperators().size(), equalTo(3));
             assertNull(driver.status().completedOperators().get(0).status());
+            assertThat(driver.status().completedOperators().get(0).planNodeId(), equalTo("broken"));
+            assertThat(driver.status().completedOperators().get(0).exchangeId(), equalTo("broken"));
         } finally {
             driver.close();
             terminate(threadPool);

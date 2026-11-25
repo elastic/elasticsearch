@@ -905,3 +905,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluateBlockWithNulls {TestCase=<long, 19 longs> null in 8}
   issue: https://github.com/elastic/elasticsearch/issues/167399
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFold {TestCase=<date, 15 fixed-interval dates, 300000 ms> null in 12}
+  issue: https://github.com/elastic/elasticsearch/issues/167401

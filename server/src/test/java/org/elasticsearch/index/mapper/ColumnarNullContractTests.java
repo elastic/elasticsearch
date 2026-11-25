@@ -121,8 +121,9 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         return plain(type).withNullValue(NULL_VALUES.get(type));
     }
 
-    // NOTE: valid and malformed values alternate so that every column mixes them. A column of only valid numbers would reach the
-    // batch path, and which one a test reaches must not depend on the random values.
+    // NOTE: valid and malformed values alternate so that every column mixes them. Batch indexing refuses such a column and falls back to
+    // document indexing, so this scenario is only tested with document indexing. A column of only valid numbers would execute as a batch,
+    // and which one a test reaches must not depend on the random values.
     private static Scenario longIgnoreMalformed() {
         final int[] calls = new int[1];
         return plain("long").withParameters(Map.of("ignore_malformed", true))
@@ -353,11 +354,6 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testLongIgnoreMalformedSourceDocument() throws IOException {
         assertSourceDropsNullElements(longIgnoreMalformed(), IndexingStrategy.DOCUMENT);
-    }
-
-    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
-    public void testLongIgnoreMalformedSourceBatch() throws IOException {
-        assertSourceDropsNullElements(longIgnoreMalformed(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)

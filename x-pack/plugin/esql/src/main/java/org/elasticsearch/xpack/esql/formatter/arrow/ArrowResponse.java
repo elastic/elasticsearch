@@ -446,8 +446,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // TODO: support also CBOR and SMILE with an additional formatting parameter
             case SOURCE -> new BlockArrowFormatter.AsJson(type);
 
-            case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
-            case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
+            case DATE_RANGE -> BlockArrowFormatter.AsRange.dateRange(type);
+            case DOUBLE_RANGE -> BlockArrowFormatter.AsRange.doubleRange(type);
 
             case TSID_DATA_TYPE -> new BlockArrowFormatter.BytesReFormatter(type, MinorType.VARBINARY);
             case DENSE_VECTOR -> new BlockArrowFormatter.AsDenseVector(type);

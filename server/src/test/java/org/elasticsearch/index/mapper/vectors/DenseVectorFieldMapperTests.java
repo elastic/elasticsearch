@@ -3277,39 +3277,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     /**
-     * Indices created before {@link IndexVersions#EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE} keep the text of a vector in
-     * {@code _ignored_source} even with {@code index.mapping.exclude_source_vectors}, which is on by default from
-     * {@link IndexVersions#EXCLUDE_SOURCE_VECTORS_DEFAULT}.
-     */
-    public void testSyntheticSourceKeepAllBeforeExcludingVectorsFromIgnoredSource() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE)
-        );
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
-            .build();
-        DocumentMapper mapper = createMapperService(
-            version,
-            settings,
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("synthetic_source_keep", "all"))
-        ).documentMapper();
-        assertThat(
-            syntheticSource(mapper, b -> b.field("field", List.of(1, 3.14159265358979, -2))),
-            equalTo("{\"field\":[1,3.14159265358979,-2]}")
-        );
-    }
-
-    /**
      * With {@code index.mapping.exclude_source_vectors}, on by default, {@code synthetic_source_keep} on a vector field itself is
      * ignored, as the vector is rebuilt from the index. A vector inside a kept object, nested object, or array of objects kept by the
-     * index-level {@code arrays} setting stays in {@code _ignored_source} with it, as indexed and in place.
+     * index-level {@code arrays} setting stays in {@code _ignored_source} with it, as indexed and in place. This holds for existing
+     * indices too, as the keep mode is only read when indexing.
      */
     public void testSyntheticSourceKeepOnExcludedVectorField() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE,
-            IndexVersion.current()
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT, IndexVersion.current());
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays")

@@ -4730,9 +4730,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
      */
     @Override
     public Optional<SourceKeepMode> sourceKeepMode() {
-        if (excludeSourceVectorsSetting
-            && fieldType().isSyntheticSource
-            && indexCreatedVersion.onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE)) {
+        if (excludeSourceVectorsSetting && fieldType().isSyntheticSource) {
             return Optional.of(SourceKeepMode.NONE);
         }
         return super.sourceKeepMode();

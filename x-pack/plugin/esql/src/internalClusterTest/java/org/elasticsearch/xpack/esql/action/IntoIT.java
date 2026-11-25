@@ -455,15 +455,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 });
         }
         try {
-            // The query is expected to fail. A response, if one ever comes, is closed as soon as it does, so that it never leaks.
+            // The query is expected to fail. The listener only borrows a response, which the action releases afterwards.
             PlainActionFuture<Exception> outcome = new PlainActionFuture<>();
             client().execute(
                 EsqlQueryAction.INSTANCE,
                 syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION).pragmas(getPragmas()),
-                ActionListener.wrap(response -> {
-                    response.close();
-                    outcome.onResponse(null);
-                }, outcome::onResponse)
+                ActionListener.wrap(response -> outcome.onResponse(null), outcome::onResponse)
             );
             try {
                 safeAwait(requestArrived);

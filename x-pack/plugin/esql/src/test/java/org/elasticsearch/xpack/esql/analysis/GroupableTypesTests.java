@@ -22,8 +22,11 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -197,7 +201,8 @@ public class GroupableTypesTests extends AnalyzerTestCase {
 
     /**
      * Every groupable type has an {@code ==} evaluator, except the documented ones, and every type that has
-     * {@code ==} but is not groupable is one of the pinned exceptions.
+     * {@code ==} but is not groupable is one of the pinned exceptions. Type resolution is not enough:
+     * {@code NULL} resolves and still has no evaluator.
      */
     public void testGroupableTypesSupportEquality() {
         for (DataType type : DataType.values()) {
@@ -208,11 +213,14 @@ public class GroupableTypesTests extends AnalyzerTestCase {
                     // null == null folds to null.
                     assertTrue(type.typeName(), equalsSupports(type));
                     assertNull(type.typeName(), foldEquals(type, null, null));
+                    expectThrows(EsqlIllegalArgumentException.class, () -> equalsEvaluator(type));
                     continue;
                 }
                 assertFalse(type.typeName() + " " + equalsResolution(type).message(), equalsSupports(type));
+                expectThrows(EsqlIllegalArgumentException.class, () -> equalsEvaluator(type));
             } else if (type.isGroupable()) {
                 assertTrue(type.typeName() + " " + equalsResolution(type).message(), equalsSupports(type));
+                assertNotNull(type.typeName(), equalsEvaluator(type));
             } else if (equalsSupports(type)) {
                 assertTrue(
                     type.typeName() + " supports == and is not groupable; pin it in EQUALS_WITHOUT_GROUPING or make it groupable",
@@ -223,6 +231,7 @@ public class GroupableTypesTests extends AnalyzerTestCase {
         for (DataType type : EQUALS_WITHOUT_GROUPING) {
             assertFalse(type.typeName(), type.isGroupable());
             assertTrue(type.typeName() + " " + equalsResolution(type).message(), equalsSupports(type));
+            assertNotNull(type.typeName(), equalsEvaluator(type));
         }
     }
 
@@ -238,7 +247,25 @@ public class GroupableTypesTests extends AnalyzerTestCase {
             Object right = scalar(type, true);
             assertGroupingAgrees(type, left, left);
             assertGroupingAgrees(type, left, right);
+            for (int i = 0; i < 16; i++) {
+                assertGroupingAgrees(type, randomScalar(type), randomScalar(type));
+            }
         }
+    }
+
+    /**
+     * {@code null == null} and {@code null == v} fold to null. A multivalue is not a boolean result either:
+     * {@code ==} returns null, and the evaluator warns that it saw more than one value.
+     */
+    public void testNullAndMultivalueEquality() {
+        for (DataType type : EQUALS_ORACLE_TYPES) {
+            assertNull(type.typeName(), foldEquals(type, null, null));
+            assertNull(type.typeName(), foldEquals(type, scalar(type, false), null));
+        }
+        assertNull(foldEquals(DataType.INTEGER, List.of(1, 2), 1));
+        assertWarnings(MULTIVALUE_EQUALS_WARNINGS);
+        assertNull(foldEquals(DataType.INTEGER, List.of(1, 2), List.of(2, 1)));
+        assertWarnings(MULTIVALUE_EQUALS_WARNINGS);
     }
 
     /**
@@ -267,8 +294,8 @@ public class GroupableTypesTests extends AnalyzerTestCase {
     }
 
     /**
-     * The {@code INLINE STATS} join looks the grouped keys back up in a {@link RowInTableLookup}
-     * ({@code PackedValuesBlockHash}). For every type that join accepts, the input row is found again.
+     * The {@code INLINE STATS} join looks keys up in a {@link RowInTableLookup} built from the grouped output
+     * ({@code PackedValuesBlockHash}). Probing that output finds each grouped row again.
      */
     public void testInlineStatsLookupFindsItsInputRow() {
         BlockFactory blockFactory = blockFactory();
@@ -277,23 +304,17 @@ public class GroupableTypesTests extends AnalyzerTestCase {
                 continue;
             }
             ElementType elementType = PlannerUtils.toElementType(type);
-            try (Block keys = distinctKeyBlock(elementType, blockFactory)) {
-                keys.incRef();
-                Page probe = new Page(keys);
-                try (RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { keys })) {
-                    try (
-                        ReleasableIterator<IntBlock> rows = lookup.lookup(probe, blockFactory, ByteSizeValue.ofMb(1));
-                        IntBlock matches = rows.next()
-                    ) {
-                        assertThat(type.typeName(), matches.getPositionCount(), equalTo(keys.getPositionCount()));
-                        for (int p = 0; p < matches.getPositionCount(); p++) {
-                            assertFalse(type.typeName() + " position " + p, matches.isNull(p));
-                            assertThat(type.typeName(), matches.getValueCount(p), equalTo(1));
-                            assertThat(type.typeName(), matches.getInt(matches.getFirstValueIndex(p)), equalTo(p));
-                        }
-                        assertFalse(rows.hasNext());
+            try (
+                Block input = distinctKeyBlock(elementType, blockFactory);
+                BlockHash hash = BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 1024)
+            ) {
+                hash.add(new Page(input), ignoringGroups());
+                try (IntVector nonEmpty = hash.nonEmpty()) {
+                    Block[] grouped = hash.getKeys(nonEmpty);
+                    try {
+                        assertLookupFindsItsRows(type, blockFactory, grouped);
                     } finally {
-                        probe.releaseBlocks();
+                        Releasables.close(grouped);
                     }
                 }
             }
@@ -450,10 +471,45 @@ public class GroupableTypesTests extends AnalyzerTestCase {
         return result;
     }
 
+    private static final String[] MULTIVALUE_EQUALS_WARNINGS = new String[] {
+        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+        "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value" };
+
+    /** Builds the {@code ==} evaluator. Fails when the type has none, which type resolution does not always report. */
+    private static ExpressionEvaluator.Factory equalsEvaluator(DataType type) {
+        Equals equals = new Equals(Source.EMPTY, new Literal(Source.EMPTY, null, type), new Literal(Source.EMPTY, null, type));
+        return equals.toEvaluator(new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                return ((EvaluatorMapper) expression).toEvaluator(this);
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
+        });
+    }
+
     private static Object foldEquals(DataType type, Object left, Object right) {
         return new Equals(Source.EMPTY, new Literal(Source.EMPTY, left, type), new Literal(Source.EMPTY, right, type)).fold(
             FoldContext.small()
         );
+    }
+
+    /** A scalar that is not {@code NaN} or {@code -0.0}. Those two are pinned separately. */
+    private Object randomScalar(DataType type) {
+        return switch (type) {
+            case BOOLEAN -> randomBoolean();
+            case INTEGER -> randomInt();
+            case LONG -> randomLong();
+            case DOUBLE -> {
+                double value = randomBoolean() ? randomDouble() : -randomDouble();
+                yield value == 0.0d ? 0.0d : value;
+            }
+            case KEYWORD -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 8));
+            default -> throw new AssertionError(type);
+        };
     }
 
     private static void assertGroupingAgrees(DataType type, Object left, Object right) {
@@ -550,6 +606,44 @@ public class GroupableTypesTests extends AnalyzerTestCase {
             case DOUBLE -> factory.newDoubleBlockBuilder(2).appendDouble((Double) left).appendDouble((Double) right).build();
             case KEYWORD -> factory.newBytesRefBlockBuilder(2).appendBytesRef((BytesRef) left).appendBytesRef((BytesRef) right).build();
             default -> throw new AssertionError(type);
+        };
+    }
+
+    private static void assertLookupFindsItsRows(DataType type, BlockFactory blockFactory, Block[] grouped) {
+        Block keys = grouped[0];
+        keys.incRef();
+        Page probe = new Page(keys);
+        try (RowInTableLookup lookup = RowInTableLookup.build(blockFactory, grouped)) {
+            try (
+                ReleasableIterator<IntBlock> rows = lookup.lookup(probe, blockFactory, ByteSizeValue.ofMb(1));
+                IntBlock matches = rows.next()
+            ) {
+                assertThat(type.typeName(), matches.getPositionCount(), equalTo(keys.getPositionCount()));
+                for (int p = 0; p < matches.getPositionCount(); p++) {
+                    assertFalse(type.typeName() + " position " + p, matches.isNull(p));
+                    assertThat(type.typeName(), matches.getValueCount(p), equalTo(1));
+                    assertThat(type.typeName(), matches.getInt(matches.getFirstValueIndex(p)), equalTo(p));
+                }
+                assertFalse(rows.hasNext());
+            } finally {
+                probe.releaseBlocks();
+            }
+        }
+    }
+
+    private static GroupingAggregatorFunction.AddInput ignoringGroups() {
+        return new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+            @Override
+            public void add(int positionOffset, IntVector groupIds) {}
+
+            @Override
+            public void close() {}
         };
     }
 

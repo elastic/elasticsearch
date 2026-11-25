@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +22,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -65,7 +71,13 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     public void testManyDocsWithManyDistinctFields() throws IOException {
         String index = "load_all_many_docs";
         int docs = 5_000;
-        int fieldsPerDoc = 1_000;
+        indexManyDocsWithManyDistinctFields(index, docs, 1_000);
+
+        assertLoadAllSingleColumn(index, docs);
+    }
+
+    /** {@code docs} documents with {@code fieldsPerDoc} unmapped leaves each, every name distinct across the index. */
+    private void indexManyDocsWithManyDistinctFields(String index, int docs, int fieldsPerDoc) throws IOException {
         createMostlyUnmappedIndex(index);
         StringBuilder bulk = new StringBuilder();
         int docsPerBulk = 500;
@@ -82,8 +94,6 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         }
         // Sends whatever is left over (nothing, if docs is a multiple of docsPerBulk), then force-merges and refreshes.
         initIndex(index, bulk.toString());
-
-        assertLoadAllSingleColumn(index, docs);
     }
 
     /**
@@ -367,6 +377,70 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
             query.append("FROM ").append(index).append("\n| MV_EXPAND tags\n| DEDUP\n| SORT tags DESC\n| LIMIT 1\"}");
             return responseAsMap(query(query.toString(), "columns"));
         });
+    }
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>The 5,000 documents with 1,000 unmapped leaves each of {@link #testManyDocsWithManyDistinctFields}: a query over all of
+     *     them passes alone</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>24 clients at once, each {@code LOAD_ALL} over every document, for up to three rounds</li>
+     * </ul>
+     * Expected: every query either succeeds or circuit breaks, some break, and a query afterwards succeeds
+     * <p>
+     * The request breaker is shared by the queries of a node, and each of them reads and builds a response of about a hundred MB, so
+     * together they ask for several times the limit. The breaker has to reject some of them, with a 429, and nothing else may go wrong:
+     * no other status, no failed connection, and the cluster still answers once they are done. With 8 clients, nothing broke.
+     */
+    public void testConcurrentWideQueriesCircuitBreakAndTheClusterStillAnswers() throws Exception {
+        String index = "load_all_concurrent";
+        int docs = 5_000;
+        int clients = 24;
+        indexManyDocsWithManyDistinctFields(index, docs, 1_000);
+        assertLoadAllSingleColumn(index, docs);
+
+        boolean broke = false;
+        for (int round = 0; round < 3 && broke == false; round++) {
+            ExecutorService clientsPool = Executors.newFixedThreadPool(clients);
+            try {
+                CountDownLatch go = new CountDownLatch(1);
+                List<Future<Boolean>> outcomes = new ArrayList<>(clients);
+                for (int c = 0; c < clients; c++) {
+                    outcomes.add(clientsPool.submit(() -> {
+                        go.await();
+                        return loadAllBrokeTheCircuit(index, docs);
+                    }));
+                }
+                go.countDown();
+                for (Future<Boolean> outcome : outcomes) {
+                    broke |= outcome.get();
+                }
+            } finally {
+                clientsPool.shutdownNow();
+            }
+        }
+        assertTrue("no query circuit broke, with 24 of them at once", broke);
+        assertLoadAllSingleColumn(index, docs);
+    }
+
+    /** Runs {@code LOAD_ALL} over {@code index}: whether it circuit broke, or false if it succeeded. Fails on any other outcome. */
+    private boolean loadAllBrokeTheCircuit(String index, int limit) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+        query.append("FROM ").append(index).append("\n| LIMIT ").append(limit).append("\"}");
+        try {
+            query(query.toString(), "columns");
+            return false;
+        } catch (ResponseException e) {
+            assertMap(
+                responseAsMap(e.getResponse()),
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
+            return true;
+        }
     }
 
     /** One document with the array {@code a} of {@code elements} one-character strings, or two arrays that are the field {@code a.b}. */

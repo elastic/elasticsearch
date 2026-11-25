@@ -391,7 +391,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             // Failing through the trip rather than a plain phase failure keeps the deferral that lets in-flight requests send
             // cancel_child.
             assertTrue(mockSearchPhaseContext.failedOnCoordinatorTrip());
-            assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+            assertThat(mockSearchPhaseContext.phaseFailureCount.get(), equalTo(1));
             assertThat(mockSearchPhaseContext.phaseFailure.get(), sameInstance(rejection));
             assertNull(mockSearchPhaseContext.searchResponse.get());
             // The rejected hits were charged, and the failure gives them back with the collection.
@@ -458,7 +458,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 IllegalArgumentException rejection = new IllegalArgumentException("too large to store");
                 fetchDone.get().onFailure(rejection);
                 assertFalse(mockSearchPhaseContext.failedOnCoordinatorTrip());
-                assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+                assertThat(mockSearchPhaseContext.phaseFailureCount.get(), equalTo(1));
                 assertThat(mockSearchPhaseContext.phaseFailure.get(), sameInstance(rejection));
                 assertNull(mockSearchPhaseContext.searchResponse.get());
                 assertThat(breaker.getUsed(), equalTo(0L));
@@ -510,7 +510,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
 
             assertFalse(mockSearchPhaseContext.failedOnCoordinatorTrip());
-            assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+            assertThat(mockSearchPhaseContext.phaseFailureCount.get(), equalTo(1));
             assertThat(mockSearchPhaseContext.phaseFailure.get(), sameInstance(bug));
             assertNull(mockSearchPhaseContext.searchResponse.get());
             assertThat(breaker.getUsed(), equalTo(0L));

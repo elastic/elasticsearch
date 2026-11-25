@@ -1899,7 +1899,13 @@ public final class PartitionSpec {
                 case RANGE -> {
                     List<InstantRange> converted = convertBoundRanges(hint.values(), unit);
                     if (converted != null) {
-                        disjuncts.addAll(converted);
+                        if (disjuncts.isEmpty()) {
+                            disjuncts.addAll(converted);
+                        } else {
+                            List<InstantRange> intersected = intersectDisjuncts(disjuncts, converted);
+                            disjuncts.clear();
+                            disjuncts.addAll(intersected.isEmpty() ? List.of(InstantRange.EMPTY) : intersected);
+                        }
                     }
                 }
             }
@@ -1926,6 +1932,23 @@ public final class PartitionSpec {
             }
         }
         return converted.isEmpty() ? null : converted;
+    }
+
+    /**
+     * AND of two ORs: every pair of intervals, dropping empty clips. Unioning would keep
+     * folders each conjunct already excludes and can trip {@code max_discovered_files}.
+     */
+    private static List<InstantRange> intersectDisjuncts(List<InstantRange> left, List<InstantRange> right) {
+        List<InstantRange> out = new ArrayList<>();
+        for (InstantRange a : left) {
+            for (InstantRange b : right) {
+                InstantRange clipped = a.intersect(b);
+                if (clipped.isEmpty() == false) {
+                    out.add(clipped);
+                }
+            }
+        }
+        return out;
     }
 
     @Nullable
@@ -2404,7 +2427,34 @@ public final class PartitionSpec {
     }
 
     private static boolean hasSubMilliNanos(Object raw) {
-        return raw instanceof Instant instant && instant.getNano() % 1_000_000 != 0;
+        Instant instant = instantOf(raw);
+        return instant != null && instant.getNano() % 1_000_000 != 0;
+    }
+
+    @Nullable
+    private static Instant instantOf(Object raw) {
+        return switch (raw) {
+            case Instant instant -> instant;
+            case OffsetDateTime odt -> odt.toInstant();
+            case ZonedDateTime zdt -> zdt.toInstant();
+            case String s -> parseInstant(s);
+            case BytesRef bytesRef -> parseInstant(bytesRef.utf8ToString());
+            case null, default -> null;
+        };
+    }
+
+    @Nullable
+    private static Instant parseInstant(String text) {
+        try {
+            return Instant.parse(text);
+        } catch (DateTimeParseException ignored) {
+            // try offset form below
+        }
+        try {
+            return OffsetDateTime.parse(text).toInstant();
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
     }
 
     private static long increment(long millis) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
@@ -47,6 +48,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -557,16 +562,35 @@ public final class PartitionFilterHintExtractor {
 
     /**
      * Closed hull of {@code ranges} as {@code >=} min and {@code <=} max, omitted when any range is
-     * one-sided or the bounds are not comparable. Inclusive vs exclusive follows the winning bound.
+     * one-sided, temporal, mixed integral/float, or not comparable. Inclusive vs exclusive follows
+     * the winning bound. Temporal bounds stay on {@link Operator#RANGE}: a string-ordered hull of
+     * quoted timestamps can invert once {@link PartitionSpec} reads it as UTC and clip every window.
      */
     private static void emitHull(List<PartitionFilterHint> hints, String column, List<BoundRange> ranges) {
         Object minLower = null;
         boolean includeLower = true;
         Object maxUpper = null;
         boolean includeUpper = true;
+        Boolean integral = null;
         for (BoundRange range : ranges) {
-            if (range.isBounded() == false) {
+            if (range.isBounded() == false || isTemporalBound(range.lower()) || isTemporalBound(range.upper())) {
                 return;
+            }
+            Boolean lowerIntegral = integralKind(range.lower());
+            Boolean upperIntegral = integralKind(range.upper());
+            if (lowerIntegral != null) {
+                if (integral == null) {
+                    integral = lowerIntegral;
+                } else if (integral.equals(lowerIntegral) == false) {
+                    return;
+                }
+            }
+            if (upperIntegral != null) {
+                if (integral == null) {
+                    integral = upperIntegral;
+                } else if (integral.equals(upperIntegral) == false) {
+                    return;
+                }
             }
             Integer lowerCmp = compareValues(range.lower(), minLower);
             if (minLower == null || (lowerCmp != null && lowerCmp < 0)) {
@@ -628,6 +652,45 @@ public final class PartitionFilterHintExtractor {
             return ia.compareTo(ib);
         }
         return PartitionValueMatcher.orderedCompare(a, b);
+    }
+
+    /**
+     * {@link Instant} or a quoted ISO date/time. Keyword folders such as {@code eu} are not.
+     */
+    private static boolean isTemporalBound(Object value) {
+        if (value instanceof Instant || value instanceof OffsetDateTime || value instanceof ZonedDateTime) {
+            return true;
+        }
+        String text = value instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : value instanceof String s ? s : null;
+        if (text == null) {
+            return false;
+        }
+        try {
+            Instant.parse(text);
+            return true;
+        } catch (DateTimeParseException ignored) {
+            // try offset / date-only below
+        }
+        try {
+            OffsetDateTime.parse(text);
+            return true;
+        } catch (DateTimeParseException ignored) {
+            // try date-only below
+        }
+        try {
+            LocalDate.parse(text);
+            return true;
+        } catch (DateTimeParseException ignored) {
+            return false;
+        }
+    }
+
+    @Nullable
+    private static Boolean integralKind(Object value) {
+        if (value instanceof Number number) {
+            return number instanceof Long || number instanceof Integer || number instanceof Short || number instanceof Byte;
+        }
+        return null;
     }
 
     private static final class MutableBound {

@@ -361,6 +361,26 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
+    /**
+     * Empty spec never calls a non-empty {@code projectListingHints}, so RANGE must still
+     * drop here: otherwise listing-cache identity includes BoundRange.toString() while
+     * {@code EsqlSession} (through EMPTY.projectListingHints) does not.
+     */
+    public void testListingHintsForQueryEmptySpecDropsRange() {
+        Expression filter = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, fieldAttr("year"), intLiteral(2024)),
+            new LessThanOrEqual(SRC, fieldAttr("year"), intLiteral(2020))
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(
+            List.of(filter),
+            Set.of(),
+            Set.of("year"),
+            PartitionSpec.EMPTY
+        );
+        assertTrue(hints.stream().noneMatch(h -> h.operator() == PartitionFilterHintExtractor.Operator.RANGE));
+    }
+
     public void testListingHintsForQueryIdentityRemapKeepsHiveKey() {
         Expression filter = new Equals(SRC, keywordField("region"), Literal.keyword(SRC, "eu"));
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = FileSplitProvider.listingHintsForQuery(

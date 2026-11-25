@@ -387,6 +387,29 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
     }
 
     /**
+     * Closed mixed integral/float is still RANGE-only: a hull that kept the double exclusive
+     * bound at 2^53 would drop the matching long {@code 2^53+1} folder.
+     */
+    public void testOrClosedMixedNumericSpellingsOmitsHull() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("id"), new Literal(SRC, 9007199254740992L, DataType.LONG)),
+                new LessThan(SRC, unresolved("id"), new Literal(SRC, 9007199254740994L, DataType.LONG))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("id"), new Literal(SRC, 9007199254740992.0, DataType.DOUBLE)),
+                new LessThan(SRC, unresolved("id"), new Literal(SRC, 9007199254740994.0, DataType.DOUBLE))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        assertEquals(1, hints.size());
+    }
+
+    /**
      * An {@code OR} nested under {@code AND} is extracted as {@code RANGE} first; the outer {@code OR}
      * copies those {@code BoundRange}s rather than dropping the column.
      */
@@ -1463,10 +1486,7 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals("ts", hints.get(0).columnName());
         assertEquals(Operator.RANGE, hints.get(0).operator());
         assertEquals(List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false)), hints.get(0).values());
-        assertEquals(Operator.GREATER_THAN_OR_EQUAL, hints.get(1).operator());
-        assertEquals(List.of(start1), hints.get(1).values());
-        assertEquals(Operator.LESS_THAN, hints.get(2).operator());
-        assertEquals(List.of(end2), hints.get(2).values());
+        assertEquals("temporal hull stays off extract so PartitionSpec cannot clip UTC windows with it", 1, hints.size());
     }
 
     public void testResolvedOrOfTwoPrefixesEmitsNothing() {

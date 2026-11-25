@@ -871,6 +871,57 @@ public class PartitionSpecProjectorTests extends ESTestCase {
     }
 
     /**
+     * Two AND'd RANGE hints (each one OR) intersect. Union would keep Nov 17 22:00 even though
+     * the second conjunct excludes it.
+     */
+    public void testAndOfTwoRangeHintsIntersectsDisjuncts() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant start2 = Instant.parse("2026-11-19T04:00:00Z");
+        Instant end2 = Instant.parse("2026-11-19T06:00:00Z");
+        Instant start3 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant end3 = Instant.parse("2026-11-18T02:00:00Z");
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint(
+                "ts",
+                Operator.RANGE,
+                List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false))
+            ),
+            new PartitionFilterHint(
+                "ts",
+                Operator.RANGE,
+                List.of(new BoundRange(start3, true, end3, false), new BoundRange(start2, true, end2, false))
+            )
+        );
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertEquals(
+            List.of(
+                Map.of("year", "2026", "month", "11", "day", "19", "hour", "4"),
+                Map.of("year", "2026", "month", "11", "day", "19", "hour", "5")
+            ),
+            hourFoldersIn(2026, 11, 17, 19, predicate)
+        );
+    }
+
+    /**
+     * Quoted DATE_NANOS exclusive upper inside a millisecond must keep the 22:00 folder.
+     */
+    public void testQuotedNanosExclusiveUpperKeepsBoundaryHour() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start = Instant.parse("2026-11-17T22:00:00Z");
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(start, true, "2026-11-17T22:00:00.000000001Z", false)))
+        );
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(hourBinding(2026, 11, 17, 22)));
+        assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 21)));
+        assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 23)));
+    }
+
+    /**
      * One value that is not a {@link BoundRange} discards the whole {@code RANGE} hint. Keeping only
      * the convertible branch would hide folders the omitted interval still matches.
      */

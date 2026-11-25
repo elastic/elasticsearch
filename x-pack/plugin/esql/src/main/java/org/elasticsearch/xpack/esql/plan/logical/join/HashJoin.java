@@ -44,7 +44,8 @@ public class HashJoin extends Join implements SortPreserving {
      */
     public enum Kind {
         /**
-         * A PromQL one-to-one vector match: a probe row matches at most one build row, and a repeated build key fails.
+         * A PromQL one-to-one vector match: the build keys are unique, and a build row may match only one probe row. A repeated
+         * build key or a second match of a build row fails.
          */
         PROMQL_ONE_TO_ONE(JoinTypes.INNER),
         /**
@@ -115,7 +116,7 @@ public class HashJoin extends Join implements SortPreserving {
     }
 
     /**
-     * Whether a probe row matches at most one build row, which fails on a repeated build key at runtime.
+     * Whether a build row may match only one probe row, which fails on a second match at runtime.
      */
     public boolean unique() {
         return switch (kind) {
@@ -144,6 +145,13 @@ public class HashJoin extends Join implements SortPreserving {
             case ESQL_LEFT_OUTER_JOIN -> "LEFT OUTER JOIN";
             case ESQL_INNER_JOIN -> "INNER JOIN";
         };
+    }
+
+    /**
+     * Whether {@code plan} is a hash join that runs an ES|QL command.
+     */
+    public static boolean isEsqlJoin(LogicalPlan plan) {
+        return plan instanceof HashJoin hashJoin && hashJoin.esqlCommand() != null;
     }
 
     @Override

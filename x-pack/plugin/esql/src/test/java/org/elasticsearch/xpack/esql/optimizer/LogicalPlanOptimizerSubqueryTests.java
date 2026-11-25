@@ -333,6 +333,28 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         assertThat(e.getMessage(), containsString("query resolved to 2 nested union levels, exceeding the limit of 1"));
     }
 
+    /**
+     * The subquery of a JOIN runs on its own, like an IN subquery, so its branches count against the limits apart from the main
+     * query's, which has two here and the subquery three.
+     */
+    public void testNestedSubqueryLimitsForJoinSubqueryAreIndependent() {
+        assumeTrue("LEFT OUTER JOIN requires snapshot builds", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        String query = """
+            FROM test, (FROM test | WHERE languages > 1)
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (
+                FROM languages, (FROM languages | WHERE language_code > 1), (FROM languages | WHERE language_code > 2)
+              ) ON language_code
+            """;
+        Settings atLimit = Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build();
+        Settings beyondLimit = Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build();
+
+        planSubquery(query, atLimit);
+        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery(query, beyondLimit));
+        assertThat(e.getMessage(), containsString("Found 1 problem"));
+        assertThat(e.getMessage(), containsString("query resolved to 3 branches in total, exceeding the limit of 2"));
+    }
+
     public void testNestedLimitsAgainstClusterSettings() {
         assertNestedLimitsWithClusterSettings(4, 3, (pragmas, flags) -> planSubquery(FOUR_LEAF_THREE_LEVEL, pragmas, flags));
         assertNestedLimitsWithClusterSettings(

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -152,7 +153,8 @@ public class UnionAll extends MergePlan {
     }
 
     /**
-     * Checks max_branch_count and max_branch_level for the main query and every {@code IN} subquery independently.
+     * Checks max_branch_count and max_branch_level for the main query and every subquery that runs on its own, of an {@code IN} or
+     * of a {@code JOIN}, independently.
      */
     public static void checkNestedSubqueryLimits(
         LogicalPlan optimizedPlan,
@@ -176,9 +178,10 @@ public class UnionAll extends MergePlan {
         String branchLevelSource,
         Failures failures
     ) {
-        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
-            checkNestedSubqueryLimits(subqueryJoin.right(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
-            checkInSubqueryLimits(subqueryJoin.left(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
+        // The optimizer replaces a JOIN on a subquery with a hash join, whose right side still runs on its own.
+        if (plan instanceof BinaryPlan join && (join instanceof IndependentSubqueryJoin || HashJoin.isEsqlJoin(join))) {
+            checkNestedSubqueryLimits(join.right(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
+            checkInSubqueryLimits(join.left(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
             return;
         }
         for (LogicalPlan child : plan.children()) {

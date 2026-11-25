@@ -282,9 +282,62 @@ not BM25:
 These scores are added to `_score` like any other search's, so in a query that also searches indexed fields they add
 to BM25 scores, which are on a different scale.
 
-A runtime search after `FORK` or a subquery `FROM` adds to `_score` when the branches carry the metadata `_score`.
-If any branch computes its own `_score`, for example with `EVAL _score = ...`, the merged column is user-defined
-and gets no score added. Rows from a branch that dropped `_score` stay `null`.
+#### Scoring after FORK and subqueries [esql-runtime-search-scoring-fork]
+
+A [`FORK`](/reference/query-languages/esql/commands/fork.md) or a `FROM` with
+[subqueries](/reference/query-languages/esql/esql-subquery.md) merges the `_score` columns of its branches into one
+column. A runtime search after the merge adds to that column only if it still holds the metadata `_score`. What each
+branch does with `_score` decides that:
+
+* A branch that requests `METADATA _score` and keeps it unchanged contributes its live score. The runtime search adds
+  its score to these rows.
+* A branch that doesn't produce `_score`, for example because it dropped it or never requested it, has its rows filled
+  with `null`. These rows stay `null`, and the other branches' rows are still scored.
+* A branch that computes its own `_score` value other than `null`, for example with `EVAL _score = 100.0`, makes the
+  merged column user-defined. The runtime search filters rows but adds no score to any of them, including rows from
+  the other branches.
+
+In this example, each branch ends with `LIMIT`, so the `MATCH` runs after the merge. It adds 1.0 for each query term
+that a row matches:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| FORK (WHERE year >= 2005 | LIMIT 1000) (WHERE year < 2005 | LIMIT 1000)
+| WHERE MATCH(content, "Karenina Tolstoy")
+| KEEP book_no, _score, _fork
+| SORT book_no
+```
+
+| book_no:keyword | _score:double | _fork:keyword |
+| --- | --- | --- |
+| 2776 | 1.0 | fork2 |
+| 6818 | 1.0 | fork1 |
+| 7400 | 2.0 | fork1 |
+
+If the first branch sets its own `_score` instead, the same `MATCH` returns the same rows but adds no score. The rows
+from the first branch keep the computed value and the rows from the second branch keep their score from before the
+search:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| FORK (WHERE year >= 2005 | EVAL _score = 100.0 | LIMIT 1000) (WHERE year < 2005 | LIMIT 1000)
+| WHERE MATCH(content, "Karenina Tolstoy")
+| KEEP book_no, _score, _fork
+| SORT book_no
+```
+
+| book_no:keyword | _score:double | _fork:keyword |
+| --- | --- | --- |
+| 2776 | 0.0 | fork2 |
+| 6818 | 100.0 | fork1 |
+| 7400 | 100.0 | fork1 |
+
+:::{note}
+A `WHERE MATCH(...)` written after `FORK` can be pushed into the branches, where it can still add to a branch's live
+`_score` even if a sibling's custom `_score` makes the merged column user-defined.
+:::
 
 #### When a runtime search score is visible [esql-runtime-search-scoring-visibility]
 

@@ -650,8 +650,8 @@ public class EqlPageConverterTests extends ESTestCase {
         return new EqlSearchResponse(hits, 1, false, noFailures());
     }
 
-    private static ShardSearchFailure[] noFailures() {
-        return new ShardSearchFailure[0];
+    private static List<ShardSearchFailure> noFailures() {
+        return List.of();
     }
 
     private static void assertBytesRefColumn(Page page, int blockIndex, String... expected) {

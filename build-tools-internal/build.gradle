@@ -430,6 +430,17 @@ tasks.register("integTest", Test) {
   jvmArgumentProviders.add({
     ["-Djava.io.tmpdir=${tempDir}", "-Dorg.gradle.testkit.dir=${testKitDir}"] as List<String>
   } as CommandLineArgumentProvider)
+
+  // Func tests of plugins that work on test tasks run their fixture projects with the real runner of the Elasticsearch tests. This
+  // build is built before the :test:vintage-randomized-runner project that holds it, so the project cannot be a dependency here. The runner only
+  // needs the randomized runner and JUnit 4, which the fixtures have anyway, so they compile a copy of its source.
+  // The source is a task input, so that the tests run again when the runner changes, and the path is not, for cache relocatability.
+  def esRandomizedRunnerSource =
+    layout.projectDirectory.file("../test/vintage-randomized-runner/src/main/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java")
+  inputs.file(esRandomizedRunnerSource).withPropertyName("esRandomizedRunnerSource").withPathSensitivity(PathSensitivity.NONE)
+  jvmArgumentProviders.add({
+    ["-Des.randomized.runner.source=${esRandomizedRunnerSource.asFile}".toString()]
+  } as CommandLineArgumentProvider)
 }
 
 tasks.named("check").configure { dependsOn("integTest", "archunitTest") }

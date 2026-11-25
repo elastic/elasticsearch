@@ -67,7 +67,7 @@ public sealed interface Blob extends Writeable permits BccBlob, MergeBlob {
     /// Creates a [Blob] from its name and primary term. The implementation type is recognized by the prefix of the blob name.
     ///
     /// @throws IllegalArgumentException if the blob name is not recognized
-    public static Blob of(String blobName, long primaryTerm) {
+    static Blob of(String blobName, long primaryTerm) {
         if (BccBlob.startsWithBlobPrefix(blobName)) {
             return new BccBlob(blobName, primaryTerm);
         } else if (MergeBlob.startsWithPrefix(blobName)) {

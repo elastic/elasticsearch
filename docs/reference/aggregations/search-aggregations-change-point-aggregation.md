@@ -11,7 +11,7 @@ applies_to:
 
 A sibling pipeline that detects, spikes, dips, and change points in a metric. Given a distribution of values provided by the sibling multi-bucket aggregation, this aggregation indicates the bucket of any spike or dip and/or the bucket at which the largest change in the distribution of values, if they are statistically significant.
 
-In {{stack}}, this aggregation requires at least a Platinum subscription. It is unavailable in Observability Logs Essentials projects.
+In {{stack}}, this aggregation is available with a Platinum or Enterprise license. It is unavailable in Observability Logs Essentials projects.
 
 ::::{tip}
 It is recommended to use the change point aggregation to detect changes in time-based data, however, you can use any metric to create buckets.

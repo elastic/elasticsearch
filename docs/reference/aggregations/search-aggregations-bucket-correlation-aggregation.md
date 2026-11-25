@@ -12,7 +12,7 @@ applies_to:
 
 A sibling pipeline aggregation which executes a correlation function on the configured sibling multi-bucket aggregation.
 
-In {{stack}}, this aggregation requires at least a Platinum subscription.
+In {{stack}}, this aggregation is available with a Platinum or Enterprise license.
 
 ## Parameters [bucket-correlation-agg-syntax]
 

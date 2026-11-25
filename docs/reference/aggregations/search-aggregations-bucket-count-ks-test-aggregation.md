@@ -12,7 +12,7 @@ applies_to:
 
 A sibling pipeline aggregation which executes a two sample Kolmogorov–Smirnov test (referred to as a "K-S test" from now on) against a provided distribution, and the distribution implied by the documents counts in the configured sibling aggregation. Specifically, for some metric, assuming that the percentile intervals of the metric are known beforehand or have been computed by an aggregation, then one would use range aggregation for the sibling to compute the p-value of the distribution difference between the metric and the restriction of that metric to a subset of the documents. A natural use case is if the sibling aggregation range aggregation nested in a terms aggregation, in which case one compares the overall distribution of metric to its restriction to each term.
 
-In {{stack}}, this aggregation requires at least a Platinum subscription.
+In {{stack}}, this aggregation is available with a Platinum or Enterprise license.
 
 ## Parameters [bucket-count-ks-test-agg-syntax]
 

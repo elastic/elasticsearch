@@ -12,7 +12,7 @@ applies_to:
 
 A multi-bucket aggregation that groups semi-structured text into buckets. Each `text` field is re-analyzed using a custom analyzer. The resulting tokens are then categorized creating buckets of similarly formatted text values. This aggregation works best with machine generated text like system logs. Only the first 100 analyzed tokens are used to categorize the text.
 
-In {{stack}}, this aggregation requires at least a Platinum subscription. It is unavailable in Observability Logs Essentials projects.
+In {{stack}}, this aggregation is available with a Platinum or Enterprise license. It is unavailable in Observability Logs Essentials projects.
 
 ::::{note}
 If you have considerable memory allocated to your JVM but are receiving circuit breaker exceptions from this aggregation, you may be attempting to categorize text that is poorly formatted for categorization. Consider adding `categorization_filters` or running under [sampler](/reference/aggregations/search-aggregations-bucket-sampler-aggregation.md), [diversified sampler](/reference/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md), or [random sampler](/reference/aggregations/search-aggregations-random-sampler-aggregation.md) to explore the created categories.

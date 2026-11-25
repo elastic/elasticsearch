@@ -144,10 +144,11 @@ public final class ListingWalkHarness implements StorageProvider {
         * RETENTION_HIVE_DENSE_FILES;
     public static final String RETENTION_HIVE_PREFIX = "s3://bucket/ret";
     /**
-     * Globstar so grain-IN cannot splice {@code day=01} and skip the walk. Listing hints still prune
-     * month/day by folder value; folder-range on a directory path drops the leaf name.
+     * Globstar so grain-IN cannot splice a day folder and skip the walk. Listing hints still prune
+     * month/day by folder value; folder-range on a directory path drops the leaf name. The globstar
+     * is concatenated so checkstyle does not read it as an empty javadoc.
      */
-    public static final String RETENTION_HIVE_GLOB = RETENTION_HIVE_PREFIX + "/**/*.parquet";
+    public static final String RETENTION_HIVE_GLOB = RETENTION_HIVE_PREFIX + "/" + "**/*.parquet";
     /** Matching day of {@link #retentionHiveTree()}: 1 January 2026 UTC. */
     public static final Instant RETENTION_HIVE_DAY_START = Instant.parse("2026-01-01T00:00:00Z");
     public static final Instant RETENTION_HIVE_DAY_END = Instant.parse("2026-01-02T00:00:00Z");
@@ -343,8 +344,16 @@ public final class ListingWalkHarness implements StorageProvider {
         }
     }
 
-    /** See {@link #RETENTION_HIVE_ACCOUNTS}. */
+    /** Quiet first matching day, dense siblings. See {@link #RETENTION_HIVE_ACCOUNTS}. */
     public static List<StorageEntry> retentionHiveTree() {
+        return retentionHiveTree(RETENTION_HIVE_QUIET_FILES, RETENTION_HIVE_DENSE_FILES);
+    }
+
+    /**
+     * Same 10-prefix × 90-day layout as {@link #retentionHiveTree()} with {@code firstMatchingFiles} under
+     * account a00's 1 Jan folder and {@code otherMatchingFiles} under the other accounts' 1 Jan folders.
+     */
+    public static List<StorageEntry> retentionHiveTree(int firstMatchingFiles, int otherMatchingFiles) {
         LocalDate start = LocalDate.of(2026, 1, 1);
         LocalDate end = LocalDate.of(2026, 3, 31);
         List<StorageEntry> entries = new ArrayList<>();
@@ -356,7 +365,7 @@ public final class ListingWalkHarness implements StorageProvider {
                 String prefix = RETENTION_HIVE_PREFIX + "/account=" + account;
                 int files;
                 if (day.equals(start)) {
-                    files = a == 0 ? RETENTION_HIVE_QUIET_FILES : RETENTION_HIVE_DENSE_FILES;
+                    files = a == 0 ? firstMatchingFiles : otherMatchingFiles;
                 } else {
                     files = 1;
                 }

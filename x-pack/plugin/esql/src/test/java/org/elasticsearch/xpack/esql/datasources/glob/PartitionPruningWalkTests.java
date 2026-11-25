@@ -186,6 +186,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
         // Quiet-folder flatten of those prefixes is accepted; 12 is the 90-day layout, not a min-sample.
         assertFalse("14-day L of the same 154 prefixes still flattens", cheaperToFinish(154, 4, 154 * 14));
         assertFalse("30-day L of the same 154 prefixes still flattens", cheaperToFinish(154, 4, 154 * 30));
+        // Uniformly sparse: no floor, 153 remaining > ceil(13860*4/1000)=56.
+        assertFalse(cheaperToFinish(154, 4, 154 * 90, LIST_PAGE_SIZE, false));
     }
 
     public void testFinishCostUsesMeasuredKNotThePrefixFloor() {

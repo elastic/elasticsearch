@@ -67,10 +67,12 @@ import java.util.function.Predicate;
  * Limit errors ({@link DiscoveredFilesLimitException}) likewise propagate. Survivors are finished with one recursive
  * listing each, but only when something was pruned and {@link #cheaperToFinish} says the remaining listings cost no
  * more LIST pages than one flat listing of the prefix (the first survivor is already listed). An undersized first
- * sample does not shrink that prefix estimate: the flat side uses {@code k' = max(k, MIN_FINISH_SAMPLE)} so one
- * quiet folder cannot make a 90-day 154-prefix 1-day listing look cheaper than finishing. A 14-day or 30-day
- * prefix of that same 1-day {@code S} still flattens. Otherwise the walk returns {@code null} and the caller
- * flat-lists.
+ * sample does not shrink that prefix estimate when a later shaped survivor is at least {@link #MIN_FINISH_SAMPLE}:
+ * the flat side then uses {@code k' = max(k, MIN_FINISH_SAMPLE)} so one quiet folder cannot make a 90-day
+ * 154-prefix 1-day listing look cheaper than finishing. A uniformly sparse bucket uses measured {@code k} and
+ * can still flatten. A 14-day or 30-day prefix of that same 1-day {@code S} still flattens. Finish applies
+ * the folder-range predicate per file so grain-IN extras do not count toward {@code max_discovered_files}.
+ * Otherwise the walk returns {@code null} and the caller flat-lists.
  *
  * <p><b>Trust boundary.</b> Pruning on {@code year} is sound only if {@code year} really is a partition column, and
  * the walk cannot see inside pruned folders. The caller must therefore verify that every {@link
@@ -118,14 +120,14 @@ final class PartitionPruningWalk {
 
     /**
      * Floor on the first-survivor object count used as {@code k'} when sizing the prefix in
-     * {@link #cheaperToFinish}. Not a min-sample of folders and not a page-size law: 154 remaining-1 of a
-     * 90-day 154-prefix tree ({@code L = 154 * 90}) need {@code k' >= 11} so {@code 153 <= ceil(L * k' / P)}
-     * at {@link #LIST_PAGE_SIZE} 1000. 12 is that break-even plus slack if {@code estimatedPrefixWidth}
-     * lands a little under {@code 154 * 90}. Same {@code S}, 14-day {@code L = 2156}: need {@code k' >= 71};
-     * floor 12 still flattens. 30-day same. Finish cost still uses measured {@code k}. Sampling more folders
-     * is later work. {@code if (k < MIN) finish} would also finish those shorter prefixes, and would
-     * over-finish a uniformly sparse bucket; walk files skip the glob expander's folder-range filter, so
-     * that path can return grain-IN supersets.
+     * {@link #cheaperToFinish}, but only when a later shaped survivor has at least this many objects
+     * (the first folder is unusually quiet). Not a min-sample of folders and not a page-size law: 154
+     * remaining-1 of a 90-day 154-prefix tree ({@code L = 154 * 90}) need {@code k' >= 11} so
+     * {@code 153 <= ceil(L * k' / P)} at {@link #LIST_PAGE_SIZE} 1000. 12 is that break-even plus slack
+     * if {@code estimatedPrefixWidth} lands a little under {@code 154 * 90}. Same {@code S}, 14-day
+     * {@code L = 2156}: need {@code k' >= 71}; floor 12 still flattens. 30-day same. Finish cost still
+     * uses measured {@code k}. A uniformly sparse bucket (second sample also below this) uses measured
+     * {@code k} and can still flatten.
      */
     static final int MIN_FINISH_SAMPLE = 12;
 
@@ -177,13 +179,22 @@ final class PartitionPruningWalk {
      *
      * <p>{@code k'} sizes the prefix; finish cost still uses measured {@code k}. {@link #MIN_FINISH_SAMPLE}
      * is the 90-day × 154-prefix 1-day break-even plus slack, not the measured count and not a page-size
-     * law. A 14-day or 30-day prefix of that same 1-day {@code S} still flattens.
+     * law. A 14-day or 30-day prefix of that same 1-day {@code S} still flattens. {@code finishSurvivors}
+     * applies the floor only when a later shaped survivor is at least {@link #MIN_FINISH_SAMPLE}.
      */
     static boolean cheaperToFinish(int survivors, long objectsUnderFirst, double estimatedPrefixWidth) {
-        return cheaperToFinish(survivors, objectsUnderFirst, estimatedPrefixWidth, LIST_PAGE_SIZE);
+        return cheaperToFinish(survivors, objectsUnderFirst, estimatedPrefixWidth, LIST_PAGE_SIZE, true);
     }
 
     static boolean cheaperToFinish(int survivors, long objectsUnderFirst, double estimatedPrefixWidth, int pageSize) {
+        return cheaperToFinish(survivors, objectsUnderFirst, estimatedPrefixWidth, pageSize, true);
+    }
+
+    /**
+     * @param floorPrefix when false, the prefix product uses measured {@code k} (uniformly sparse). When
+     *                    true, {@code k' = max(k, MIN_FINISH_SAMPLE)}.
+     */
+    static boolean cheaperToFinish(int survivors, long objectsUnderFirst, double estimatedPrefixWidth, int pageSize, boolean floorPrefix) {
         if (survivors <= 0) {
             return true;
         }
@@ -192,9 +203,9 @@ final class PartitionPruningWalk {
         }
         // An empty LIST still costs one page. Billing k=0 as 1 keeps an empty first survivor from
         // making every remaining listing look free. The prefix estimate floors k at MIN_FINISH_SAMPLE
-        // so a quiet folder cannot shrink the bucket.
+        // only when the caller saw a later folder that is not also tiny.
         long k = Math.max(1L, objectsUnderFirst);
-        long kForPrefix = Math.max(k, MIN_FINISH_SAMPLE);
+        long kForPrefix = floorPrefix ? Math.max(k, MIN_FINISH_SAMPLE) : k;
         long pagesPerDir = ceilDiv(k, pageSize);
         double remainingFinishPages = (double) (survivors - 1) * pagesPerDir;
         double flatPages = Math.ceil(estimatedPrefixWidth * kForPrefix / pageSize);
@@ -644,9 +655,11 @@ final class PartitionPruningWalk {
      * one flat listing of the prefix — otherwise {@code null} to signal a flat fallback.
      *
      * <p>The first partition-shaped survivor is listed before the decision so {@code k} is measured rather than
-     * guessed. Junk dirs ({@code _temporary}) sort first in {@code dirs} and would understate {@code k}. A sample
-     * smaller than {@link #MIN_FINISH_SAMPLE} does not shrink the prefix estimate. If the rule then flattens, that
-     * one LIST is wasted; the collector is discarded with the {@code null} return.
+     * guessed. Junk dirs ({@code _temporary}) sort first in {@code dirs} and would understate {@code k}. A first
+     * sample smaller than {@link #MIN_FINISH_SAMPLE} lists one later shaped survivor only when the floor would
+     * change flatten vs finish. The floor then applies only if that later sample is at least
+     * {@link #MIN_FINISH_SAMPLE}. If the rule then flattens, those probe LISTs are wasted; the collector is
+     * discarded with the {@code null} return.
      */
     @Nullable
     private static WalkResult finishSurvivors(
@@ -685,14 +698,35 @@ final class PartitionPruningWalk {
         }
         int measure = templateFrontier ? 0 : indexOfFirstShapedDir(dirs);
         List<StorageEntry> firstBatch = listDir(provider, dirs.get(measure));
-        if (mode == FinishMode.RULE && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth) == false) {
+        int second = -1;
+        List<StorageEntry> secondBatch = null;
+        boolean floorPrefix = true;
+        if (mode == FinishMode.RULE && firstBatch.size() < MIN_FINISH_SAMPLE) {
+            boolean unfloored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, false);
+            boolean floored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, true);
+            if (unfloored == false && floored) {
+                floorPrefix = false;
+                second = templateFrontier ? (dirs.size() > 1 ? 1 : -1) : indexOfNextShapedDir(dirs, measure);
+                if (second >= 0) {
+                    secondBatch = listDir(provider, dirs.get(second));
+                    floorPrefix = secondBatch.size() >= MIN_FINISH_SAMPLE;
+                }
+            }
+        }
+        if (mode == FinishMode.RULE
+            && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, floorPrefix) == false) {
             return null;
         }
         for (StorageEntry entry : firstBatch) {
             collector.add(entry);
         }
+        if (secondBatch != null) {
+            for (StorageEntry entry : secondBatch) {
+                collector.add(entry);
+            }
+        }
         for (int i = 0; i < dirs.size(); i++) {
-            if (i != measure) {
+            if (i != measure && i != second) {
                 collector.addRecursively(provider, dirs.get(i));
             }
         }
@@ -710,6 +744,16 @@ final class PartitionPruningWalk {
             }
         }
         return 0;
+    }
+
+    /** Index of the next {@code key=value} folder after {@code after}, else {@code -1}. */
+    private static int indexOfNextShapedDir(List<StoragePath> dirs, int after) {
+        for (int i = after + 1; i < dirs.size(); i++) {
+            if (PartitionValueMatcher.folderKey(dirs.get(i).objectName()) != null) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static List<StorageEntry> listDir(StorageProvider provider, StoragePath dir) throws IOException {
@@ -1077,7 +1121,15 @@ final class PartitionPruningWalk {
             this.maxDirectoryListings = maxDirectoryListings;
             this.cancelled = cancelled;
             this.finishMode = FINISH_MODE.get();
-            this.collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles, fileKeep, maxListedObjects);
+            this.collector = new Collector(
+                prefix.toString(),
+                matcher,
+                nameFilter,
+                maxDiscoveredFiles,
+                fileKeep,
+                maxListedObjects,
+                folderRange
+            );
             WalkLayout layout = pathTemplate == null ? null : TemplatePartitionDetector.walkLayout(prefix, glob, pathTemplate);
             this.declineWalk = pathTemplate != null && layout == null;
             this.templateLayout = layout;
@@ -1635,8 +1687,9 @@ final class PartitionPruningWalk {
     /**
      * Accumulates the files the walk keeps, applying exactly the flat listing's per-object rules: relative path,
      * placeholder skipping, glob matcher, exclusion filter (with the warning's count-and-example tally),
-     * {@code _file.*} keep (including {@code LIKE}), then the discovery cap. Visited objects count toward
-     * {@code max_listed_objects} before a LIKE miss, matching the flat listing.
+     * {@code _file.*} keep (including {@code LIKE}), folder-range, then the discovery cap. Visited objects count
+     * toward {@code max_listed_objects} before a LIKE miss, matching the flat listing. Folder-range runs on the
+     * file path so a finish of grain-IN survivors does not retain out-of-range objects.
      */
     private static final class Collector {
         private final String prefixStr;
@@ -1646,6 +1699,8 @@ final class PartitionPruningWalk {
         @Nullable
         private final Predicate<StorageEntry> fileKeep;
         private final int maxListedObjects;
+        @Nullable
+        private final FolderRangePredicate folderRange;
         private final List<StorageEntry> matched = new ArrayList<>();
         @Nullable
         private StorageEntry fileKeepStash;
@@ -1661,7 +1716,8 @@ final class PartitionPruningWalk {
             ExclusionConfig.NameFilter nameFilter,
             int maxDiscoveredFiles,
             @Nullable Predicate<StorageEntry> fileKeep,
-            int maxListedObjects
+            int maxListedObjects,
+            @Nullable FolderRangePredicate folderRange
         ) {
             this.prefixStr = prefixStr;
             this.matcher = matcher;
@@ -1669,6 +1725,7 @@ final class PartitionPruningWalk {
             this.maxDiscoveredFiles = maxDiscoveredFiles;
             this.fileKeep = fileKeep;
             this.maxListedObjects = maxListedObjects;
+            this.folderRange = folderRange;
         }
 
         void add(StorageEntry entry) {
@@ -1696,6 +1753,9 @@ final class PartitionPruningWalk {
                 if (fileKeepStash == null) {
                     fileKeepStash = entry;
                 }
+                return;
+            }
+            if (folderRange != null && folderRange.mayContain(PartitionValueMatcher.pathBindings(entry.path().path())) == false) {
                 return;
             }
             matched.add(entry);

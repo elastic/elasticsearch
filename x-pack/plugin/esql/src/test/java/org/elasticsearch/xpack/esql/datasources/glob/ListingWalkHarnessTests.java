@@ -637,6 +637,40 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertEquals("finish lists each matching day dir", RETENTION_HIVE_ACCOUNTS, dayListings);
     }
 
+    /**
+     * Same 90-day layout, one object in every matching day folder. Second sample is also tiny, so RULE
+     * does not floor k' and prefix-lists after the probe.
+     */
+    public void testUniformlySparseNinetyDayTreeStillFlattensUnderRule() throws IOException {
+        List<StorageEntry> tree = retentionHiveTree(1, 1);
+        List<Expression> filters = List.of(window(RETENTION_HIVE_DAY_START, RETENTION_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, RETENTION_HIVE_GLOB, hints, MAX, pred);
+        assertEquals(RETENTION_HIVE_ACCOUNTS, walked.fileCount());
+        assertTrue("uniformly sparse RULE must prefix-list the dataset", walk.listedPrefixes().contains(RETENTION_HIVE_PREFIX + "/"));
+    }
+
+    /**
+     * ALWAYS_FINISH of a one-sided window lists grain-IN extras; Collector folder-range drops them so
+     * the lowered cap still holds.
+     */
+    public void testAlwaysFinishOneSidedTimestampStaysUnderLoweredCap() throws IOException {
+        List<StorageEntry> tree = fieldShapedTree();
+        List<Expression> filters = List.of(gte(LAST_DAY));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, LOGS_GLOB, List.of(), DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+        assertEquals(18 * FILES_PER_DAY, ref.paths().size());
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(walk, LOGS_GLOB, List.of(), LOWERED_CAP, pred)
+        );
+        assertObserved(walked, ref);
+        assertFalse(walk.listedPrefixes.contains(LOGS_LIST_PREFIX));
+    }
+
     /** RULE flattens 7-day (k=8); ALWAYS_FINISH lists the 7 days; ALWAYS_FLAT prefix-lists without measuring. */
     private static void assertFinishModeChangesListShape() throws IOException {
         List<StorageEntry> tree = fieldShapedTree();

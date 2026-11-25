@@ -189,24 +189,56 @@ public final class Utf8Sanitizer {
     }
 
     /**
-     * {@code true} when {@code [off, off+len)} is shorter than a 64-byte block, or the first 64
-     * bytes are all ASCII. The PLAIN page path uses this to avoid a region scan of Cyrillic/CJK
-     * pages, where length prefixes sitting between multi-byte chars are slower than per-value.
+     * {@code true} when every byte in {@code [off, off+len)} is ASCII (high bit clear). Empty
+     * ranges are ASCII. Used as the fast accept for packed KEYWORD destinations.
      */
-    public static boolean startsWithAsciiBlock(byte[] bytes, int off, int len) {
-        if (len < ASCII_BLOCK_BYTES) {
+    public static boolean isAllAscii(byte[] bytes, int off, int len) {
+        int i = off;
+        int end = off + len;
+        if (len >= ASCII_BLOCK_BYTES) {
+            i = skipAsciiBlocks(bytes, i, end);
+            if (i + ASCII_BLOCK_BYTES <= end) {
+                return false;
+            }
+        }
+        int wordEnd = end - Long.BYTES + 1;
+        i = skipAsciiWords(bytes, i, wordEnd);
+        while (i < end) {
+            if ((bytes[i] & 0x80) != 0) {
+                return false;
+            }
+            i++;
+        }
+        return true;
+    }
+
+    /**
+     * Destination-only UTF-8 accept for packed KEYWORD payloads (no length prefixes).
+     * All-ASCII dest is accepted. Otherwise the concatenation must be well-formed UTF-8
+     * and no value may start with a continuation byte ({@code 0x80..0xBF}). Together these
+     * prove every value is well-formed: concatenation of well-formed UTF-8 is well-formed,
+     * and a continuation at a value start is the only way two ill-formed values concatenate
+     * to a well-formed sequence.
+     */
+    public static boolean isPackedWellFormed(byte[] packed, int off, int len, int[] exclusiveEnds, int count) {
+        if (len == 0) {
             return true;
         }
-        // Fail fast on the first dirty word (Cyrillic/CJK pages). The kernel's skipAsciiBlocks
-        // still ORs all eight loads: that shape is for all-ASCII skip, not this reject gate.
-        if ((((long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off)) & ASCII_MASK) != 0) {
+        if (isAllAscii(packed, off, len)) {
+            return true;
+        }
+        if (isWellFormed(packed, off, len) == false) {
             return false;
         }
-        long acc = (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 8) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 16)
-            | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 24) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 32)
-            | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 40) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 48)
-            | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 56);
-        return (acc & ASCII_MASK) == 0;
+        int start = off;
+        for (int i = 0; i < count; i++) {
+            int end = off + exclusiveEnds[i];
+            if (end > start && isCont(packed[start])) {
+                return false;
+            }
+            start = end;
+        }
+        return true;
     }
 
     /**

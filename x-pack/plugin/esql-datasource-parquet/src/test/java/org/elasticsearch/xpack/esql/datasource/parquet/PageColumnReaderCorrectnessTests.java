@@ -44,7 +44,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
-import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -883,114 +882,24 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         }
     }
 
-    public void testTryAcceptPlainUtf8RegionSanitizesOnlyBadValue() {
-        byte[] aa = "aa".getBytes(StandardCharsets.UTF_8);
-        byte[] bb = "bb".getBytes(StandardCharsets.UTF_8);
-        byte[] cc = "cc".getBytes(StandardCharsets.UTF_8);
-        byte[] bad = { (byte) 0xFF };
-        for (int badAt : new int[] { 0, 1, 2 }) {
-            byte[][] payloads = { aa, bb, cc };
-            payloads[badAt] = bad;
-            byte[] packed = packPlain(payloads);
-            BytesRef[] vals = unpackPlain(packed, payloads);
-            assertTrue("badAt=" + badAt, PageColumnReader.tryAcceptPlainUtf8Region(vals, 3));
-            for (int i = 0; i < 3; i++) {
-                BytesRef expected = i == badAt ? FFFD : new BytesRef(payloads[i]);
-                assertEquals("badAt=" + badAt + " i=" + i, expected, vals[i]);
-            }
-        }
-        byte[] shortOk = bytesOf('x', 127);
-        byte[] longOk = bytesOf('y', 128);
-        byte[][] mixed = { shortOk, longOk };
-        byte[] packed = packPlain(mixed);
-        BytesRef[] vals = unpackPlain(packed, mixed);
-        assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, 2));
-        assertEquals(new BytesRef(shortOk), vals[0]);
-        assertEquals(new BytesRef(longOk), vals[1]);
+    public void testPlainUtf8SplitSequenceAcrossValuesIsRepaired() throws IOException {
+        // Concatenation of C3 + A9 is well-formed "é", but each value is ill-formed. Dest
+        // validation must reject continuation-at-start and repair both to U+FFFD.
+        byte[] lead = { (byte) 0xC3 };
+        byte[] cont = { (byte) 0xA9 };
+        byte[] data = writePlainKeywordFile(false, row -> row == 0 ? lead : cont, 2);
+        assertPlainKeywordBlock(data, 2, false, row -> FFFD, "split-seq");
     }
 
-    public void testTryAcceptPlainUtf8RegionBadValueAfterFirstAsciiBlock() {
-        // Eight 4-byte ASCII values fill exactly 64 bytes (prefix+payload). A 0xFF after that
-        // must still be repaired when isWellFormed runs only on the tail past the ASCII probe.
-        byte[] four = { 'a', 'a', 'a', 'a' };
-        byte[][] payloads = new byte[9][];
-        for (int i = 0; i < 8; i++) {
-            payloads[i] = four;
-        }
-        payloads[8] = new byte[] { (byte) 0xFF };
-        byte[] packed = packPlain(payloads);
-        assertEquals(64 + Integer.BYTES + 1, packed.length);
-        assertTrue(Utf8Sanitizer.startsWithAsciiBlock(packed, 0, packed.length));
-        BytesRef[] vals = unpackPlain(packed, payloads);
-        assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, payloads.length));
-        for (int i = 0; i < 8; i++) {
-            assertEquals(new BytesRef(four), vals[i]);
-        }
-        assertEquals(FFFD, vals[8]);
-    }
-
-    public void testTryAcceptPlainUtf8RegionCyrillicStillRegionScans() {
-        // First 64 bytes of a Cyrillic PLAIN region are not ASCII. Whole-run per-value fallback
-        // is not used: mixed/URL pages must still region-scan.
+    public void testPlainUtf8CyrillicAndMixedAccepted() throws IOException {
         byte[] cyr = "Привет".getBytes(StandardCharsets.UTF_8);
-        byte[][] payloads = new byte[8][];
-        Arrays.fill(payloads, cyr);
-        byte[] packed = packPlain(payloads);
-        assertFalse(Utf8Sanitizer.startsWithAsciiBlock(packed, 0, packed.length));
-        BytesRef[] vals = unpackPlain(packed, payloads);
-        assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, payloads.length));
-        for (int i = 0; i < payloads.length; i++) {
-            assertEquals(new BytesRef(cyr), vals[i]);
-        }
-    }
+        byte[] data = writePlainKeywordFile(false, row -> cyr, 8);
+        assertPlainKeywordBlock(data, 8, false, row -> new BytesRef(cyr), "cyrillic");
 
-    public void testTryAcceptPlainUtf8RegionMixedUtf8ThenUrl() {
         byte[] cafe = "café".getBytes(StandardCharsets.UTF_8);
         byte[] url = "https://example.com/path/to/resource?q=abcdefghijklmnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8);
-        byte[][] payloads = new byte[6][];
-        payloads[0] = cafe;
-        for (int i = 1; i < payloads.length; i++) {
-            payloads[i] = url;
-        }
-        byte[] packed = packPlain(payloads);
-        assertFalse(Utf8Sanitizer.startsWithAsciiBlock(packed, 0, packed.length));
-        BytesRef[] vals = unpackPlain(packed, payloads);
-        assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, payloads.length));
-        assertEquals(new BytesRef(cafe), vals[0]);
-        for (int i = 1; i < payloads.length; i++) {
-            assertEquals(new BytesRef(url), vals[i]);
-        }
-    }
-
-    private static byte[] packPlain(byte[][] payloads) {
-        int len = 0;
-        for (byte[] p : payloads) {
-            len += Integer.BYTES + p.length;
-        }
-        byte[] packed = new byte[len];
-        int pos = 0;
-        for (byte[] p : payloads) {
-            int n = p.length;
-            packed[pos] = (byte) n;
-            packed[pos + 1] = (byte) (n >>> 8);
-            packed[pos + 2] = (byte) (n >>> 16);
-            packed[pos + 3] = (byte) (n >>> 24);
-            pos += Integer.BYTES;
-            System.arraycopy(p, 0, packed, pos, p.length);
-            pos += p.length;
-        }
-        return packed;
-    }
-
-    private static BytesRef[] unpackPlain(byte[] packed, byte[][] payloads) {
-        BytesRef[] vals = new BytesRef[payloads.length];
-        int pos = 0;
-        for (int i = 0; i < payloads.length; i++) {
-            pos += Integer.BYTES;
-            vals[i] = new BytesRef(packed, pos, payloads[i].length);
-            pos += payloads[i].length;
-        }
-        return vals;
+        byte[] mixed = writePlainKeywordFile(false, row -> row == 0 ? cafe : url, 6);
+        assertPlainKeywordBlock(mixed, 6, false, row -> new BytesRef(row == 0 ? cafe : url), "mixed");
     }
 
     public void testPlainUtf8RegionWithNulls() throws IOException {

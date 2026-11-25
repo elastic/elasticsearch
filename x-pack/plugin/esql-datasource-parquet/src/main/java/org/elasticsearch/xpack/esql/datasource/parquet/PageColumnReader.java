@@ -94,9 +94,10 @@ import java.util.function.IntConsumer;
  * batch is resolved through the dictionary and the remainder is read via the materialized
  * binary path.
  *
- * <p>PLAIN BINARY values alias {@code PrefetchedPageReader}'s reused decompress dest, so
- * KEYWORD/TEXT/UUID copy into the ESQL block via {@code appendBytesRef} before the next
- * {@code ensurePage()}.
+ * <p>Required non-UUID PLAIN KEYWORD pages bulk-copy payloads into a {@link BytesRefArray}
+ * (offsets, then {@code System.arraycopy}) and validate UTF-8 on that prefix-free dest.
+ * Optional, UUID, dictionary, and fallback pages still materialize {@link BytesRef}s and
+ * copy before the next {@code ensurePage()} reuses the decompress dest.
  */
 final class PageColumnReader implements Releasable {
 
@@ -149,6 +150,10 @@ final class PageColumnReader implements Releasable {
     private boolean useFallbackReader;
 
     private final DecodeBuffers buffers;
+
+    /** Scratch dest for bulk PLAIN KEYWORD payloads (no length prefixes). */
+    private byte[] plainPackedScratch;
+    private int[] plainExclusiveEnds;
 
     private ByteBuffer currentDefLevelBytes;
     private ByteBuffer currentValueBytes;
@@ -773,18 +778,14 @@ final class PageColumnReader implements Releasable {
 
     private void readBinariesDispatch(BytesRef[] values, int offset, int count) {
         if (currentEncoding.usesDictionary()) {
-            // Stale layout from a previous PLAIN heap page would be wrong on the reused decompress dest.
-            plainDecoder.invalidateBinaryLayout();
             dictDecoder.readBinaries(values, offset, count, dictionary);
         } else if (useFallbackReader) {
-            plainDecoder.invalidateBinaryLayout();
             for (int i = 0; i < count; i++) {
                 org.apache.parquet.io.api.Binary bin = fallbackReader.readBytes();
                 byte[] bytes = bin.getBytes();
                 values[offset + i] = new BytesRef(bytes, 0, bytes.length);
             }
         } else if (descriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY) {
-            plainDecoder.invalidateBinaryLayout();
             plainDecoder.readFixedBinaries(values, offset, count, descriptor.getPrimitiveType().getTypeLength());
         } else {
             plainDecoder.readBinaries(values, offset, count);
@@ -1309,6 +1310,103 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readRequiredBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
+        if (isUuid) {
+            return readRequiredBytesBatchViaValues(maxRows, blockFactory, true);
+        }
+        BytesRefArray array = null;
+        BytesRef constant = null;
+        int produced = 0;
+        int remaining = maxRows;
+        try {
+            while (remaining > 0 && ensurePage()) {
+                int fromPage = Math.min(remaining, availableInPage());
+                if (canBulkAppendPlain()) {
+                    if (fromPage > 0) {
+                        int hint = plainDecoder.plainPayloadCapacityHint(fromPage);
+                        byte[] packed = ensurePlainPackedScratch(hint);
+                        int[] ends = ensurePlainExclusiveEnds(fromPage);
+                        int packedLen = plainDecoder.copyPlainPayloads(packed, 0, ends, fromPage);
+                        if (Utf8Sanitizer.isPackedWellFormed(packed, 0, packedLen, ends, fromPage)) {
+                            if (array != null) {
+                                array.appendPacked(packed, 0, packedLen, ends, fromPage);
+                            } else if (constant == null) {
+                                if (packedAllEqual(packed, ends, fromPage)) {
+                                    constant = BytesRef.deepCopyOf(new BytesRef(packed, 0, ends[0]));
+                                } else {
+                                    array = new BytesRefArray(
+                                        maxRows,
+                                        blockFactory.bigArrays(),
+                                        extrapolateByteHint(packedLen, fromPage, maxRows)
+                                    );
+                                    array.appendPacked(packed, 0, packedLen, ends, fromPage);
+                                }
+                            } else if (packedEqualsConstant(packed, ends, fromPage, constant) == false) {
+                                array = new BytesRefArray(maxRows, blockFactory.bigArrays(), (long) produced * constant.length + packedLen);
+                                appendConstantCopies(array, constant, produced);
+                                array.appendPacked(packed, 0, packedLen, ends, fromPage);
+                                constant = null;
+                            }
+                        } else {
+                            if (array == null) {
+                                array = new BytesRefArray(
+                                    maxRows,
+                                    blockFactory.bigArrays(),
+                                    extrapolateByteHint(Math.max(packedLen, fromPage * 3L), fromPage, maxRows)
+                                );
+                                if (constant != null) {
+                                    appendConstantCopies(array, constant, produced);
+                                    constant = null;
+                                }
+                            }
+                            appendSanitizedPacked(array, packed, ends, fromPage);
+                        }
+                    }
+                } else {
+                    BytesRef[] vals = readBinaryValues(fromPage);
+                    materializeBinaries(vals, fromPage, false);
+                    if (array != null) {
+                        appendAll(array, vals, fromPage);
+                    } else if (fromPage > 0) {
+                        if (constant == null) {
+                            if (allEqualTo(vals, fromPage, vals[0])) {
+                                constant = BytesRef.deepCopyOf(vals[0]);
+                            } else {
+                                array = new BytesRefArray(
+                                    maxRows,
+                                    blockFactory.bigArrays(),
+                                    extrapolateByteHint(totalBytes(vals, fromPage), fromPage, maxRows)
+                                );
+                                appendAll(array, vals, fromPage);
+                            }
+                        } else if (allEqualTo(vals, fromPage, constant) == false) {
+                            array = new BytesRefArray(
+                                maxRows,
+                                blockFactory.bigArrays(),
+                                (long) produced * constant.length + totalBytes(vals, fromPage)
+                            );
+                            appendConstantCopies(array, constant, produced);
+                            appendAll(array, vals, fromPage);
+                            constant = null;
+                        }
+                    }
+                }
+                advancePosition(fromPage);
+                produced += fromPage;
+                remaining -= fromPage;
+            }
+            if (array != null) {
+                Block result = blockFactory.newBytesRefArrayVector(array, produced).asBlock();
+                array = null;
+                return result;
+            }
+            return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, array);
+            throw e;
+        }
+    }
+
+    private Block readRequiredBytesBatchViaValues(int maxRows, BlockFactory blockFactory, boolean isUuid) {
         BytesRefBlock.Builder builder = null;
         BytesRef constant = null;
         int produced = 0;
@@ -1416,74 +1514,87 @@ final class PageColumnReader implements Releasable {
             }
             return;
         }
-        if (count > 0 && isPlainLengthPrefixedBinary() && tryAcceptPlainUtf8Region(plainDecoder.binaryLayout(), vals, count)) {
-            return;
-        }
         for (int i = 0; i < count; i++) {
             vals[i] = Utf8Sanitizer.sanitize(vals[i]);
         }
     }
 
-    /**
-     * PLAIN BINARY pages store {@code [int32 LE length][bytes]…} in one backing array. ASCII
-     * length prefixes can sit inside a single {@link Utf8Sanitizer#isWellFormed} scan. A prefix
-     * with a high bit splits the run at that value. The first-64-ASCII probe only skips
-     * re-scanning an already-proven ASCII prefix of a run; a mixed/Cyrillic first block still
-     * region-scans the whole run (per-value fallback on first-block miss undid mixed/URL wins).
-     * Dest-only validation in a follow-up replaces this path.
-     */
-    private boolean isPlainLengthPrefixedBinary() {
-        return currentEncoding == Encoding.PLAIN
+    private boolean canBulkAppendPlain() {
+        return useFallbackReader == false
+            && currentEncoding == Encoding.PLAIN
             && descriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY;
     }
 
-    /**
-     * Test helper: reconstruct layout from sliced {@code vals} (one walk). Production uses
-     * {@link #tryAcceptPlainUtf8Region(PlainValueDecoder.HeapBinaryLayout, BytesRef[], int)}
-     * with the decoder-recorded layout.
-     */
-    static boolean tryAcceptPlainUtf8Region(BytesRef[] vals, int count) {
-        return tryAcceptPlainUtf8Region(PlainValueDecoder.HeapBinaryLayout.fromValues(vals, count), vals, count);
+    private byte[] ensurePlainPackedScratch(int minLen) {
+        if (plainPackedScratch == null || plainPackedScratch.length < minLen) {
+            plainPackedScratch = UninitializedArrays.newByteArray(Math.max(minLen, 64));
+        }
+        return plainPackedScratch;
     }
 
-    /**
-     * @return {@code true} when this batch was handled (left untouched or sanitized per run).
-     *         {@code false} means the caller must per-value {@code sanitize} everything.
-     */
-    static boolean tryAcceptPlainUtf8Region(PlainValueDecoder.HeapBinaryLayout layout, BytesRef[] vals, int count) {
-        if (layout == null || layout.valid == false || layout.valueCount != count) {
-            return false;
+    private int[] ensurePlainExclusiveEnds(int count) {
+        if (plainExclusiveEnds == null || plainExclusiveEnds.length < count) {
+            plainExclusiveEnds = new int[count];
         }
-        // Direct (non-heap) PLAIN pages copy each value to a fresh byte[] at offset 0, so the
-        // decoder leaves the layout invalid and the caller falls back to per-value sanitize.
-        if (vals[0].bytes != layout.backing) {
-            return false;
+        return plainExclusiveEnds;
+    }
+
+    private static boolean packedAllEqual(byte[] packed, int[] exclusiveEnds, int count) {
+        if (count <= 1) {
+            return true;
         }
-        for (int r = 0; r < layout.runCount; r++) {
-            acceptOrSanitizePlainRun(vals, layout.runFrom[r], layout.runTo[r], layout.backing, layout.runOff[r], layout.runEnd[r]);
+        int firstLen = exclusiveEnds[0];
+        for (int i = 1; i < count; i++) {
+            int start = exclusiveEnds[i - 1];
+            int len = exclusiveEnds[i] - start;
+            if (len != firstLen) {
+                return false;
+            }
+            if (firstLen > 0 && Arrays.equals(packed, 0, firstLen, packed, start, start + len) == false) {
+                return false;
+            }
         }
         return true;
     }
 
-    private static void acceptOrSanitizePlainRun(BytesRef[] vals, int from, int to, byte[] backing, int off, int end) {
-        if (from >= to) {
-            return;
-        }
-        int len = end - off;
-        // Short runs keep prefixes in the scan so 4-byte values can fill a 64-byte block.
-        // A successful 64-byte ASCII probe already validated [off, off+64); isWellFormed
-        // only the tail. Mixed/Cyrillic first blocks still region-scan the whole run.
-        if (len >= 0 && end <= backing.length) {
-            if (len >= 64 && Utf8Sanitizer.startsWithAsciiBlock(backing, off, len)) {
-                if (len == 64 || Utf8Sanitizer.isWellFormed(backing, off + 64, len - 64)) {
-                    return;
-                }
-            } else if (Utf8Sanitizer.isWellFormed(backing, off, len)) {
-                return;
+    private static boolean packedEqualsConstant(byte[] packed, int[] exclusiveEnds, int count, BytesRef constant) {
+        int start = 0;
+        for (int i = 0; i < count; i++) {
+            int end = exclusiveEnds[i];
+            int len = end - start;
+            if (len != constant.length) {
+                return false;
             }
+            if (len > 0 && Arrays.equals(packed, start, end, constant.bytes, constant.offset, constant.offset + len) == false) {
+                return false;
+            }
+            start = end;
         }
-        for (int i = from; i < to; i++) {
-            vals[i] = Utf8Sanitizer.sanitize(vals[i]);
+        return true;
+    }
+
+    private static void appendSanitizedPacked(BytesRefArray array, byte[] packed, int[] exclusiveEnds, int count) {
+        BytesRef scratch = new BytesRef();
+        int start = 0;
+        for (int i = 0; i < count; i++) {
+            int end = exclusiveEnds[i];
+            scratch.bytes = packed;
+            scratch.offset = start;
+            scratch.length = end - start;
+            array.append(Utf8Sanitizer.sanitize(scratch));
+            start = end;
+        }
+    }
+
+    private static void appendConstantCopies(BytesRefArray array, BytesRef constant, int times) {
+        for (int i = 0; i < times; i++) {
+            array.append(constant);
+        }
+    }
+
+    private static void appendAll(BytesRefArray array, BytesRef[] vals, int count) {
+        for (int i = 0; i < count; i++) {
+            array.append(vals[i]);
         }
     }
 

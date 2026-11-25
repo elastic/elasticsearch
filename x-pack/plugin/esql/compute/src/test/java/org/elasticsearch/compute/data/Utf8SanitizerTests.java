@@ -190,19 +190,36 @@ public class Utf8SanitizerTests extends ESTestCase {
         }
     }
 
-    public void testStartsWithAsciiBlock() {
-        assertTrue(Utf8Sanitizer.startsWithAsciiBlock(new byte[0], 0, 0));
+    public void testIsAllAscii() {
+        assertTrue(Utf8Sanitizer.isAllAscii(new byte[0], 0, 0));
         byte[] shortAscii = new byte[63];
         Arrays.fill(shortAscii, (byte) 'a');
-        assertTrue(Utf8Sanitizer.startsWithAsciiBlock(shortAscii, 0, 63));
+        assertTrue(Utf8Sanitizer.isAllAscii(shortAscii, 0, 63));
         byte[] block = new byte[64];
         Arrays.fill(block, (byte) 'a');
-        assertTrue(Utf8Sanitizer.startsWithAsciiBlock(block, 0, 64));
+        assertTrue(Utf8Sanitizer.isAllAscii(block, 0, 64));
         block[0] = (byte) 0xFF;
-        assertFalse(Utf8Sanitizer.startsWithAsciiBlock(block, 0, 64));
+        assertFalse(Utf8Sanitizer.isAllAscii(block, 0, 64));
         block[0] = (byte) 'a';
         block[63] = (byte) 0xFF;
-        assertFalse(Utf8Sanitizer.startsWithAsciiBlock(block, 0, 64));
+        assertFalse(Utf8Sanitizer.isAllAscii(block, 0, 64));
+        byte[] cafe = "café".getBytes(StandardCharsets.UTF_8);
+        assertFalse(Utf8Sanitizer.isAllAscii(cafe, 0, cafe.length));
+    }
+
+    public void testIsPackedWellFormed() {
+        byte[] ascii = "ab".getBytes(StandardCharsets.UTF_8);
+        assertTrue(Utf8Sanitizer.isPackedWellFormed(ascii, 0, ascii.length, new int[] { 1, 2 }, 2));
+        byte[] cafe = "café".getBytes(StandardCharsets.UTF_8);
+        assertTrue(Utf8Sanitizer.isPackedWellFormed(cafe, 0, cafe.length, new int[] { cafe.length }, 1));
+        byte[] emoji = "\uD83D\uDE00".getBytes(StandardCharsets.UTF_8);
+        assertTrue(Utf8Sanitizer.isPackedWellFormed(emoji, 0, emoji.length, new int[] { emoji.length }, 1));
+        byte[] split = { (byte) 0xC3, (byte) 0xA9 };
+        assertTrue(Utf8Sanitizer.isWellFormed(split, 0, 2));
+        assertFalse(Utf8Sanitizer.isPackedWellFormed(split, 0, 2, new int[] { 1, 2 }, 2));
+        byte[] bad = { (byte) 0xFF, 'a' };
+        assertFalse(Utf8Sanitizer.isPackedWellFormed(bad, 0, 2, new int[] { 1, 2 }, 2));
+        assertTrue(Utf8Sanitizer.isPackedWellFormed(new byte[0], 0, 0, new int[] { 0, 0 }, 2));
     }
 
     public void testAsciiBlockThenTwoByteRunThenAscii() {

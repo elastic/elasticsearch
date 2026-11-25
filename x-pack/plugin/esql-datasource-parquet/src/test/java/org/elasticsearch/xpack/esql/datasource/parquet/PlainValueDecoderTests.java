@@ -132,111 +132,82 @@ public class PlainValueDecoderTests extends ESTestCase {
         assertTrue("bit 16 should be true", result[0]);
     }
 
-    public void testReadBinariesRecordsHeapLayoutAndAsciiPrefixRuns() {
+    public void testCopyPlainPayloadsStripsPrefixes() {
         byte[] shortOk = new byte[3];
         Arrays.fill(shortOk, (byte) 'a');
         byte[] longOk = new byte[128];
         Arrays.fill(longOk, (byte) 'b');
-        byte[] packed = packPlain(new byte[][] { shortOk, longOk, shortOk });
+        byte[][] payloads = { shortOk, longOk, shortOk };
+        byte[] packed = packPlain(payloads);
 
         PlainValueDecoder decoder = new PlainValueDecoder();
         decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
-        BytesRef[] vals = new BytesRef[3];
-        decoder.readBinaries(vals, 0, 3);
-
-        PlainValueDecoder.HeapBinaryLayout layout = decoder.binaryLayout();
-        assertTrue(layout.valid);
-        assertSame(packed, layout.backing);
-        assertEquals(3, layout.valueCount);
-        assertEquals(2, layout.runCount);
-        // First run: ASCII-prefix short value including its prefix.
-        assertEquals(0, layout.runFrom[0]);
-        assertEquals(1, layout.runTo[0]);
-        assertEquals(0, layout.runOff[0]);
-        assertEquals(Integer.BYTES + shortOk.length, layout.runEnd[0]);
-        // Second run starts at the 128-byte payload (prefix skipped) and includes the trailing short.
-        assertEquals(1, layout.runFrom[1]);
-        assertEquals(3, layout.runTo[1]);
-        assertEquals(Integer.BYTES + shortOk.length + Integer.BYTES, layout.runOff[1]);
-        assertEquals(packed.length, layout.runEnd[1]);
-
-        PlainValueDecoder.HeapBinaryLayout fromVals = PlainValueDecoder.HeapBinaryLayout.fromValues(vals, 3);
-        assertTrue(fromVals.valid);
-        assertEquals(layout.runCount, fromVals.runCount);
-        for (int r = 0; r < layout.runCount; r++) {
-            assertEquals(layout.runFrom[r], fromVals.runFrom[r]);
-            assertEquals(layout.runTo[r], fromVals.runTo[r]);
-            assertEquals(layout.runOff[r], fromVals.runOff[r]);
-            assertEquals(layout.runEnd[r], fromVals.runEnd[r]);
-        }
+        byte[] dest = new byte[decoder.plainPayloadCapacityHint(3)];
+        int[] ends = new int[3];
+        int destLen = decoder.copyPlainPayloads(dest, 0, ends, 3);
+        assertEquals(shortOk.length + longOk.length + shortOk.length, destLen);
+        assertEquals(shortOk.length, ends[0]);
+        assertEquals(shortOk.length + longOk.length, ends[1]);
+        assertEquals(destLen, ends[2]);
+        assertArrayEquals(shortOk, Arrays.copyOfRange(dest, 0, ends[0]));
+        assertArrayEquals(longOk, Arrays.copyOfRange(dest, ends[0], ends[1]));
+        assertArrayEquals(shortOk, Arrays.copyOfRange(dest, ends[1], ends[2]));
     }
 
-    public void testReadBinariesDirectBufferLeavesLayoutInvalid() {
-        byte[] packed = packPlain(new byte[][] { new byte[] { 'a', 'b' } });
+    public void testCopyPlainPayloadsDirectBuffer() {
+        byte[] payload = { 'a', 'b' };
+        byte[] packed = packPlain(new byte[][] { payload });
         ByteBuffer direct = ByteBuffer.allocateDirect(packed.length).order(ByteOrder.LITTLE_ENDIAN);
         direct.put(packed).flip();
 
         PlainValueDecoder decoder = new PlainValueDecoder();
         decoder.init(direct);
-        BytesRef[] vals = new BytesRef[1];
-        decoder.readBinaries(vals, 0, 1);
-        assertFalse(decoder.binaryLayout().valid);
-        assertEquals(new BytesRef(new byte[] { 'a', 'b' }), vals[0]);
-        assertEquals(0, vals[0].offset);
+        byte[] dest = new byte[decoder.plainPayloadCapacityHint(1)];
+        int[] ends = new int[1];
+        int destLen = decoder.copyPlainPayloads(dest, 0, ends, 1);
+        assertEquals(2, destLen);
+        assertEquals(2, ends[0]);
+        assertArrayEquals(payload, Arrays.copyOf(dest, destLen));
     }
 
-    public void testReadBinariesNonZeroOffsetSkipsLayout() {
-        byte[] packed = packPlain(new byte[][] { new byte[] { 'x' }, new byte[] { 'y' } });
-        PlainValueDecoder decoder = new PlainValueDecoder();
-        decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
-        BytesRef[] vals = new BytesRef[4];
-        decoder.readBinaries(vals, 1, 2);
-        assertFalse(decoder.binaryLayout().valid);
-        assertEquals(new BytesRef(new byte[] { 'x' }), vals[1]);
-        assertEquals(new BytesRef(new byte[] { 'y' }), vals[2]);
-    }
-
-    public void testReadBinariesLayoutMatchesFromValuesRandom() {
+    public void testCopyPlainPayloadsRandomLengthsIncludingEmpty() {
         int n = randomIntBetween(1, 32);
         byte[][] payloads = new byte[n][];
+        int expectedLen = 0;
         for (int i = 0; i < n; i++) {
             int len = switch (randomIntBetween(0, 4)) {
                 case 0 -> randomIntBetween(0, 127);
                 case 1 -> randomIntBetween(128, 255);
                 case 2 -> randomIntBetween(256, 383);
                 case 3 -> randomIntBetween(384, 512);
-                default -> randomIntBetween(0, 64);
+                default -> 0;
             };
             payloads[i] = randomByteArrayOfLength(len);
+            expectedLen += len;
         }
         byte[] packed = packPlain(payloads);
         PlainValueDecoder decoder = new PlainValueDecoder();
         decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
-        BytesRef[] vals = new BytesRef[n];
-        decoder.readBinaries(vals, 0, n);
-
-        PlainValueDecoder.HeapBinaryLayout recorded = decoder.binaryLayout();
-        PlainValueDecoder.HeapBinaryLayout fromVals = PlainValueDecoder.HeapBinaryLayout.fromValues(vals, n);
-        assertTrue(recorded.valid);
-        assertTrue(fromVals.valid);
-        assertEquals(n, recorded.valueCount);
-        assertEquals(fromVals.runCount, recorded.runCount);
-        for (int r = 0; r < recorded.runCount; r++) {
-            assertEquals(fromVals.runFrom[r], recorded.runFrom[r]);
-            assertEquals(fromVals.runTo[r], recorded.runTo[r]);
-            assertEquals(fromVals.runOff[r], recorded.runOff[r]);
-            assertEquals(fromVals.runEnd[r], recorded.runEnd[r]);
+        byte[] dest = new byte[Math.max(decoder.plainPayloadCapacityHint(n), 1)];
+        int[] ends = new int[n];
+        int destLen = decoder.copyPlainPayloads(dest, 0, ends, n);
+        assertEquals(expectedLen, destLen);
+        int start = 0;
+        for (int i = 0; i < n; i++) {
+            assertEquals(start + payloads[i].length, ends[i]);
+            assertArrayEquals(payloads[i], Arrays.copyOfRange(dest, start, ends[i]));
+            start = ends[i];
         }
     }
 
-    public void testInitResetsLayout() {
-        byte[] packed = packPlain(new byte[][] { new byte[] { 'z' } });
+    public void testReadBinariesNonZeroOffset() {
+        byte[] packed = packPlain(new byte[][] { new byte[] { 'x' }, new byte[] { 'y' } });
         PlainValueDecoder decoder = new PlainValueDecoder();
         decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
-        decoder.readBinaries(new BytesRef[1], 0, 1);
-        assertTrue(decoder.binaryLayout().valid);
-        decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
-        assertFalse(decoder.binaryLayout().valid);
+        BytesRef[] vals = new BytesRef[4];
+        decoder.readBinaries(vals, 1, 2);
+        assertEquals(new BytesRef(new byte[] { 'x' }), vals[1]);
+        assertEquals(new BytesRef(new byte[] { 'y' }), vals[2]);
     }
 
     private static byte[] packPlain(byte[][] payloads) {

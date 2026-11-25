@@ -136,14 +136,13 @@ public class Decay extends EsqlScalarFunction
     @FunctionInfo(
         returnType = "double",
         signatures = {
-            @Signature(params = { "integer", "integer", "integer", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "long", "long", "long", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "unsigned_long", "unsigned_long", "unsigned_long", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "double", "double", "double", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "NUMERIC", "NUMERIC", "NUMERIC", "named_parameters" }, returnType = "double"),
             @Signature(params = { "geo_point", "geo_point", "STRING", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "cartesian_point", "cartesian_point", "double", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "date", "date", "date_period|time_duration", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "date_nanos", "date_nanos", "date_period|time_duration", "named_parameters" }, returnType = "double") },
+            @Signature(params = { "cartesian_point", "cartesian_point", "NUMERIC", "named_parameters" }, returnType = "double"),
+            @Signature(
+                params = { "date|date_nanos", "date|date_nanos", "date_period|time_duration", "named_parameters" },
+                returnType = "double"
+            ) },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3-9.6"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7+") },

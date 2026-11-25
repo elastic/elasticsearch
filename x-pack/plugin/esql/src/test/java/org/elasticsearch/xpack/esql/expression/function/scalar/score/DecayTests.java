@@ -650,6 +650,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
 
         testCaseSuppliers.addAll(distanceEqualToScaleTestCases());
+        testCaseSuppliers.addAll(mixedTypesAtScaleTestCases());
 
         return parameterSuppliersFromTypedData(testCaseSuppliers);
     }
@@ -1465,6 +1466,70 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return suppliers;
     }
 
+    /**
+     * Numeric values, origins and scales mix freely, a cartesian scale can be any numeric type, and dates mix with date_nanos.
+     */
+    private static List<TestCaseSupplier> mixedTypesAtScaleTestCases() {
+        List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType valueType : numericTypes) {
+            for (DataType originType : numericTypes) {
+                for (DataType scaleType : numericTypes) {
+                    suppliers.add(
+                        atScale(
+                            "linear",
+                            valueType,
+                            numeric(valueType, 20),
+                            originType,
+                            numeric(originType, 10),
+                            scaleType,
+                            numeric(scaleType, 10)
+                        )
+                    );
+                }
+            }
+        }
+        BytesRef cartesianValue = CARTESIAN.wktToWkb("POINT (20 0)");
+        BytesRef cartesianOrigin = CARTESIAN.wktToWkb("POINT (10 0)");
+        for (DataType scaleType : numericTypes) {
+            suppliers.add(
+                atScale(
+                    "linear",
+                    DataType.CARTESIAN_POINT,
+                    cartesianValue,
+                    DataType.CARTESIAN_POINT,
+                    cartesianOrigin,
+                    scaleType,
+                    numeric(scaleType, 10)
+                )
+            );
+        }
+        long origin = LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+        long value = origin + Duration.ofDays(1).toMillis();
+        List<DataType> dateTypes = List.of(DataType.DATETIME, DataType.DATE_NANOS);
+        for (DataType valueType : dateTypes) {
+            for (DataType originType : dateTypes) {
+                Object typedValue = valueType == DataType.DATE_NANOS ? value * 1_000_000L : value;
+                Object typedOrigin = originType == DataType.DATE_NANOS ? origin * 1_000_000L : origin;
+                suppliers.add(
+                    atScale("linear", valueType, typedValue, originType, typedOrigin, DataType.TIME_DURATION, Duration.ofDays(1))
+                );
+                suppliers.add(atScale("linear", valueType, typedValue, originType, typedOrigin, DataType.DATE_PERIOD, Period.ofDays(1)));
+            }
+        }
+        return suppliers;
+    }
+
+    private static Object numeric(DataType type, int value) {
+        return switch (type) {
+            case INTEGER -> value;
+            case LONG -> (long) value;
+            case UNSIGNED_LONG -> ul(value);
+            case DOUBLE -> (double) value;
+            default -> throw new IllegalArgumentException("unexpected numeric type [" + type + "]");
+        };
+    }
+
     private static TestCaseSupplier atScale(
         String type,
         DataType valueType,
@@ -1473,14 +1538,26 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         DataType scaleType,
         Object scale
     ) {
+        return atScale(type, valueType, value, valueType, origin, scaleType, scale);
+    }
+
+    private static TestCaseSupplier atScale(
+        String type,
+        DataType valueType,
+        Object value,
+        DataType originType,
+        Object origin,
+        DataType scaleType,
+        Object scale
+    ) {
         double decay = 0.3;
         return new TestCaseSupplier(
-            type + " at scale for " + valueType.typeName(),
-            List.of(valueType, valueType, scaleType, DataType.SOURCE),
+            type + " at scale for " + valueType.typeName() + ", " + originType.typeName() + ", " + scaleType.typeName(),
+            List.of(valueType, originType, scaleType, DataType.SOURCE),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(value, valueType, "value"),
-                    new TestCaseSupplier.TypedData(origin, valueType, "origin").forceLiteral(),
+                    new TestCaseSupplier.TypedData(origin, originType, "origin").forceLiteral(),
                     new TestCaseSupplier.TypedData(scale, scaleType, "scale").forceLiteral(),
                     new TestCaseSupplier.TypedData(createOptionsMap(null, decay, type), DataType.SOURCE, "options").forceLiteral()
                 ),

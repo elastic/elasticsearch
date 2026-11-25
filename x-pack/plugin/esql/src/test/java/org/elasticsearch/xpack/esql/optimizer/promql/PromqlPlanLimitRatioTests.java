@@ -275,12 +275,9 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
         assertThat(plan.collect(MvExpand.class).isEmpty(), equalTo(false));
     }
 
-    public void testLimitRatioWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("limit_ratio"));
+    /** {@code limit_ratio} samples series, not partitions, so a {@code without} plans at every version. */
+    public void testLimitRatioWithoutGrouping() {
+        planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) without (pod))");
     }
 
     /**

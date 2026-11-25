@@ -7,31 +7,77 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
+/**
+ * The ES|QL request behind a Prometheus endpoint. Its plan is built from the PromQL query only in {@link #parse}, which the
+ * query action calls where it parses a query string: once the request is authorized. Parsing a query can be costly, so a
+ * caller that may not run ES|QL mustn't be able to make the node do it.
+ */
 public class PromqlQueryRequest extends PreparedEsqlQueryRequest {
     private final String index;
     public static final String PROMQL_TYPE = "promql";
     private final QueryParams params;
+    private final CachedSupplier<PromqlStatementResult> result;
 
-    public PromqlQueryRequest(String index, EsqlStatement statement, String queryDescription, Object... params) {
-        super(false, statement, queryDescription, false);
+    /**
+     * @param result builds the statement and the Prometheus result type of its response, once, when the request is parsed
+     */
+    PromqlQueryRequest(String index, Supplier<PromqlStatementResult> result, String queryDescription, Object... params) {
+        super(false, null, queryDescription, false);
         this.index = index;
+        this.result = CachedSupplier.wrap(result);
         if (params != null && params.length > 0) {
             this.params = new QueryParams(getParams(params));
         } else {
             this.params = null;
         }
+    }
+
+    /**
+     * The statement and the Prometheus result type of its response, built when the request is parsed. A response listener
+     * reads it once the query has run.
+     */
+    PromqlStatementResult result() {
+        return result.get();
+    }
+
+    @Override
+    public EsqlStatement statement() {
+        return result().esqlStatement();
+    }
+
+    /**
+     * Builds the statement, which is where the PromQL query is parsed, and validates its settings as the prepared one is.
+     */
+    @Override
+    public EsqlStatement parse(
+        EsqlParser parser,
+        SettingsValidationContext settingsValidationCtx,
+        InferenceSettings inferenceSettings,
+        EsqlFlags flags
+    ) {
+        EsqlStatement statement = statement();
+        QuerySettings.validate(statement, settingsValidationCtx);
+        return statement;
     }
 
     private static List<QueryParam> getParams(Object[] params) {

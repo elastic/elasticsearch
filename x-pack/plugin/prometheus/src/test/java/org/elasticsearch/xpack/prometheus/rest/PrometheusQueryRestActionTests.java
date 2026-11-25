@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.junit.After;
 import org.junit.Before;
@@ -92,6 +93,18 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
 
         assertThat(capturedIndexPattern(), equalTo(DEFAULT_PROMQL_INDEX_PATTERN));
         request.getHttpChannel().close();
+    }
+
+    /**
+     * The query is parsed where ES|QL parses a query string, once the query action has authorized the request, not before the
+     * action runs: an invalid one reaches the action, which is what refuses it.
+     */
+    public void testInstantQueryIsParsedByTheQueryAction() throws Exception {
+        assertParsedByTheQueryAction(new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT), instantQueryRequest(Map.of("query", "up{")));
+    }
+
+    public void testQueryRangeIsParsedByTheQueryAction() throws Exception {
+        assertParsedByTheQueryAction(new PrometheusQueryRangeRestAction(() -> NO_TIMEOUT), rangeQueryRequest(Map.of("query", "up{")));
     }
 
     public void testInstantQueryTimesOut() throws Exception {
@@ -194,6 +207,14 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
         assertThat(body.evaluate("status"), equalTo("error"));
         assertThat(body.evaluate("errorType"), equalTo("bad_data"));
         assertThat(body.evaluate("error"), equalTo(expectedError));
+    }
+
+    private void assertParsedByTheQueryAction(BaseRestHandler action, RestRequest request) throws Exception {
+        FakeRestChannel channel = handle(action, request);
+        assertNotNull("the request reaches the query action", client.capturedRequest);
+        assertThat(sentResponses(channel), equalTo(0));
+        expectThrows(ParsingException.class, client.capturedRequest::statement);
+        request.getHttpChannel().close();
     }
 
     private void assertQueryTimesOut(BaseRestHandler action, RestRequest request) throws Exception {

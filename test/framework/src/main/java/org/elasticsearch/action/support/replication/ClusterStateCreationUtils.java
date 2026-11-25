@@ -1010,7 +1010,9 @@ public class ClusterStateCreationUtils {
         return ClusterState.builder(state)
             .metadata(
                 Metadata.builder(state.metadata())
-                    .coordinationMetadata(CoordinationMetadata.builder().term(state.term() + between(1, 100)).build())
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder(state.coordinationMetadata()).term(state.term() + between(1, 100)).build()
+                    )
             )
             .build();
     }

@@ -189,9 +189,13 @@ public class BitmapTermsQuery extends Query implements Accountable, ExecutionCha
     }
 
     /**
-     * Only the collecting path allocates, a {@link DocIdSetBuilder} grown by the {@code docFreq} of every matching term. Which terms
-     * match takes the merge scan to tell, so the bound is the postings of every term, which on most segments reserves a full bit set,
-     * held until the leaf is done.
+     * Only the collecting path allocates in proportion to the segment, a {@link DocIdSetBuilder} grown by the {@code docFreq} of every
+     * matching term. Which terms match takes the merge scan to tell, so the bound is the postings of every term, which on most segments
+     * reserves a full bit set, held until the leaf is done.
+     * <p>
+     * The streaming path is charged nothing, although its scorer keeps one terms enum and one reused postings enum for its whole life.
+     * That is the per-clause state a term query keeps too, which no query charges to the breaker: the clause limit bounds it instead
+     * ({@code SearchUtils#calculateMaxClauseValue}).
      */
     private long collectedBytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException {
         LeafReader reader = ctx.reader();

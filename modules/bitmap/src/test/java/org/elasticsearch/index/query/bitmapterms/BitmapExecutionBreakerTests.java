@@ -18,6 +18,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -31,6 +33,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.ExecutionCharge;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -50,6 +53,7 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
     private static final String POINT_FIELD = "p";
     private static final String TERM_FIELD = "t";
     private static final int NUM_DOCS = 4096;
+    private static final int SEGMENTS = 4;
 
     private static final FieldType INDEX_TERMS_TYPE;
 
@@ -94,13 +98,26 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         }
     }
 
+    /**
+     * Every segment collects, so each leaf charges its own reservation. The searcher scores the leaves one after another, so if each
+     * leaf releases its charge once it is scored, the peak is the largest single reservation rather than their sum, and nothing is
+     * left for {@link ContextIndexSearcher#close} to release.
+     */
     private void assertChargesThenReleases(String sortField, Query query) throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, sortField)) {
-            assertThat(count(reader, query, breaker), equalTo(NUM_DOCS / 2));
+            assertThat("the peak tells leaves apart only if there are several", reader.leaves().size(), equalTo(SEGMENTS));
+            long largestLeafCharge = 0;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                largestLeafCharge = Math.max(largestLeafCharge, reservation(query, leaf));
+            }
+            assertThat("the collecting path must charge the set it builds: " + query, largestLeafCharge, greaterThan(0L));
+            try (ContextIndexSearcher searcher = newSearcher(reader, breaker)) {
+                assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(NUM_DOCS / 2));
+                assertThat("each leaf must release its charge once it is scored, not on close", breaker.getUsed(), equalTo(0L));
+            }
+            assertThat("a leaf must release its charge before the next leaf charges", breaker.peak(), equalTo(largestLeafCharge));
         }
-        assertThat("the collecting path must charge the set it builds: " + query, breaker.peak(), greaterThan(0L));
-        assertThat("the per-leaf execution charge must be released once the leaf is scored", breaker.getUsed(), equalTo(0L));
     }
 
     private void assertChargesNothing(String sortField, Query query) throws IOException {
@@ -109,6 +126,11 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
             assertThat(count(reader, query, breaker), equalTo(NUM_DOCS / 2));
         }
         assertFalse("the streaming path builds no doc id set: " + query, breaker.wasCalled());
+    }
+
+    /** What the query's estimator reserves on {@code leaf}, which is what the leaf is charged. */
+    private static long reservation(Query query, LeafReaderContext leaf) throws IOException {
+        return ((ExecutionCharge.Accountable) query).executionCharge().estimator().bytesForLeaf(leaf, null, Long.MAX_VALUE);
     }
 
     /** Matches the documents with value 0, half of them, so the collecting path builds a bit set. */
@@ -120,9 +142,14 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         return new BitmapTermsQuery(TERM_FIELD, IntBitmap.bitmapOf(0));
     }
 
-    /** One segment in which half the documents have the value 0 and half 1 in both fields, sorted on {@code sortField} if not null. */
+    /**
+     * {@link #SEGMENTS} equal segments, unmerged, in which half the documents have the value 0 and half 1 in both fields, each
+     * sorted on {@code sortField} if not null.
+     */
     private DirectoryReader index(Directory directory, String sortField) throws IOException {
-        IndexWriterConfig config = newIndexWriterConfig();
+        IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(NUM_DOCS)
+            .setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
         if (sortField != null) {
             config.setIndexSort(new Sort(new SortedNumericSortField(sortField, SortField.Type.INT)));
         }
@@ -137,8 +164,10 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
                 doc.add(new Field(TERM_FIELD, new BytesRef(term), INDEX_TERMS_TYPE));
                 doc.add(new SortedNumericDocValuesField(TERM_FIELD, value));
                 writer.addDocument(doc);
+                if ((docId + 1) % (NUM_DOCS / SEGMENTS) == 0) {
+                    writer.flush();
+                }
             }
-            writer.forceMerge(1);
         }
         return DirectoryReader.open(directory);
     }

@@ -187,9 +187,16 @@ public class BitmapBKDQuery extends Query implements Accountable, ExecutionCharg
     }
 
     /**
-     * Only the collecting path allocates, a {@link DocIdSetBuilder} that the tree walk grows by every cell it visits whole and every
-     * leaf it crosses, regardless of whether the leaf's points match. So {@link #estimateCost} bounds nothing here, and the bound is all of
-     * the field's points instead. On most segments that reserves a full bit set, held until the leaf is done.
+     * Only the collecting path allocates in proportion to the segment, a {@link DocIdSetBuilder} that the tree walk grows by every cell
+     * it visits whole and every leaf it crosses, regardless of whether the leaf's points match. So {@link #estimateCost} bounds nothing
+     * here, and the bound is all of the field's points instead. On most segments that reserves a full bit set, held until the leaf is
+     * done.
+     * <p>
+     * The streaming path is charged nothing, although its scorer keeps a fixed amount for its whole life: one BKD leaf block of doc ids
+     * and the point tree cursor's scratch, about 7 KB at the default 512 points per leaf. That is per-clause scorer state, like a term
+     * query's postings buffers, which no query charges to the breaker: the clause limit bounds it instead, budgeting 16 KB per clause
+     * ({@code SearchUtils#calculateMaxClauseValue}). {@link PointValues} does not expose the leaf size either, so a safe reservation
+     * would have to assume the largest leaf the codec writes, several times what the scorer keeps.
      */
     private long collectedBytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException {
         LeafReader reader = ctx.reader();

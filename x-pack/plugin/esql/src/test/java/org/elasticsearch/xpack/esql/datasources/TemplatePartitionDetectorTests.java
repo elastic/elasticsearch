@@ -529,6 +529,17 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
     }
 
     /**
+     * Empty glob dirs keep a slot that {@link TemplatePartitionDetector#nonEmptySegments} drops.
+     * Binding that empty string as a placeholder literal would apply {@code x} filters to the
+     * folder that actually binds {@code y}. Fail closed — no walk.
+     */
+    public void testWalkLayoutRejectsEmptyGlobDirectory() {
+        assertFalse(TemplatePartitionDetector.walkableGlob("*/*//*.parquet"));
+        assertNull(TemplatePartitionDetector.walkLayout(StoragePath.of("s3://bucket/data/"), "*/*//*.parquet", "{x}/{y}"));
+        assertTrue(TemplatePartitionDetector.walkableGlob("*/*/*.parquet"));
+    }
+
+    /**
      * Numeric account stays {@code *}; string region splices mid-glob. That literal is a pre-bound
      * placeholder, not a layout reject — otherwise the walk never starts and listing goes flat.
      */

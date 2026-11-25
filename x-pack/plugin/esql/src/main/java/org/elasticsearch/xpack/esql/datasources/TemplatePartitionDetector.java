@@ -296,8 +296,10 @@ public final class TemplatePartitionDetector implements PartitionDetector {
 
     /**
      * Whether {@code globPart} is a fixed-depth TEMPLATE walk shape: no {@code **}, every directory
-     * slot is either {@code *} or a glob-free literal, and at least one directory {@code *} remains.
-     * Alignment against the prefix is {@link #walkLayout}; this is only the glob-side gate.
+     * slot is either {@code *} or a non-empty glob-free literal, and at least one directory {@code *}
+     * remains. An empty slot (a double slash in the glob) is not a literal: detection skips empty
+     * path segments, so treating it as a placeholder binding misaligns later filters. Alignment
+     * against the prefix is {@link #walkLayout}; this is only the glob-side gate.
      */
     public static boolean walkableGlob(String glob) {
         if (glob == null || glob.isEmpty() || glob.contains("**")) {
@@ -430,6 +432,9 @@ public final class TemplatePartitionDetector implements PartitionDetector {
     }
 
     private static boolean isSimpleDirSegment(String segment) {
+        if (segment.isEmpty()) {
+            return false;
+        }
         if ("*".equals(segment)) {
             return true;
         }

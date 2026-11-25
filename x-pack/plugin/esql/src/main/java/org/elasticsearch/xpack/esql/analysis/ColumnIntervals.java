@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -49,11 +48,11 @@ public final class ColumnIntervals {
 
     /**
      * Returns the interval of every column of {@code plan} that buckets dates with a constant interval, keyed by
-     * attribute id. Renames keep it, and so do merges whose branches bucket the same way. Bucket arguments are
-     * folded with {@code foldContext}.
+     * attribute id. Renames keep it, and so do merges whose branches bucket the same way. Only bucket arguments are
+     * folded, with {@code foldContext}, since other constants, such as inference functions, may not fold yet.
      */
     public static Map<NameId, Interval> collect(LogicalPlan plan, FoldContext foldContext) {
-        Map<NameId, Literal> constants = new HashMap<>();
+        Map<NameId, Expression> constants = new HashMap<>();
         Map<NameId, Bucketing> buckets = new HashMap<>();
         plan.forEachUp(node -> {
             node.forEachExpression(Alias.class, alias -> {
@@ -62,18 +61,15 @@ public final class ColumnIntervals {
                     if (bucketing != null) {
                         buckets.put(alias.id(), bucketing);
                     }
-                    Literal constant = constants.get(source.id());
+                    Expression constant = constants.get(source.id());
                     if (constant != null) {
                         constants.put(alias.id(), constant);
                     }
                     return;
                 }
-                Expression child = alias.child().transformUp(ReferenceAttribute.class, r -> {
-                    Literal constant = constants.get(r.id());
-                    return constant != null ? constant : r;
-                });
+                Expression child = alias.child().transformUp(ReferenceAttribute.class, r -> constants.getOrDefault(r.id(), r));
                 if (child.foldable()) {
-                    constants.put(alias.id(), Literal.of(foldContext, child));
+                    constants.put(alias.id(), child);
                 }
                 Bucketing bucketing = of(child, foldContext);
                 if (bucketing != null) {

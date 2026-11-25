@@ -9,6 +9,19 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -18,5 +31,21 @@ public class ColumnIntervalsTests extends ESTestCase {
         assertThat(ColumnIntervals.format(new Rounding.Interval(1, "hour")), equalTo("1 hour"));
         assertThat(ColumnIntervals.format(new Rounding.Interval(90, "minute")), equalTo("90 minutes"));
         assertThat(ColumnIntervals.format(new Rounding.Interval(3, "month")), equalTo("3 months"));
+    }
+
+    public void testDoesNotFoldConstantsThatAreNotBucketArguments() {
+        Expression embedding = new TextEmbedding(
+            Source.EMPTY,
+            Literal.keyword(Source.EMPTY, "hi"),
+            Literal.keyword(Source.EMPTY, "id"),
+            null
+        );
+        assertTrue(embedding.foldable());
+        LogicalPlan plan = new Eval(
+            Source.EMPTY,
+            new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY),
+            List.of(new Alias(Source.EMPTY, "e", embedding))
+        );
+        assertThat(ColumnIntervals.collect(plan, FoldContext.small()), equalTo(Map.of()));
     }
 }

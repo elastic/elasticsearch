@@ -8,7 +8,7 @@
     "visibility": "public",
     "headers": {
       "accept": [
-        "application/json"
+        "text/plain"
       ],
       "content_type": [
         "application/x-protobuf"

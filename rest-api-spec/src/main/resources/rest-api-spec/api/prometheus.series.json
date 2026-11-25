@@ -40,8 +40,8 @@
     },
     "params": {
       "match[]": {
-        "type": "list",
-        "description": "Repeated series selectors, for example `up{job=\"prometheus\"}`; at least one is required",
+        "type": "string",
+        "description": "A series selector, for example `up{job=\"prometheus\"}`. Repeat the parameter to pass several selectors. At least one is required",
         "required": true
       },
       "start": {
@@ -56,6 +56,10 @@
         "type": "int",
         "description": "The maximum number of series to return. `0` means no limit from the request"
       }
+    },
+    "body": {
+      "description": "For POST, the query parameters can be sent instead as a form-encoded body",
+      "required": false
     }
   }
 }

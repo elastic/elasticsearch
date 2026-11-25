@@ -40,8 +40,8 @@
     },
     "params": {
       "match[]": {
-        "type": "list",
-        "description": "Repeated series selectors, for example `up{job=\"prometheus\"}`"
+        "type": "string",
+        "description": "A series selector, for example `up{job=\"prometheus\"}`. Repeat the parameter to pass several selectors"
       },
       "start": {
         "type": "string",
@@ -55,6 +55,10 @@
         "type": "int",
         "description": "The maximum number of label names to return. `0` means no limit from the request"
       }
+    },
+    "body": {
+      "description": "For POST, the query parameters can be sent instead as a form-encoded body",
+      "required": false
     }
   }
 }

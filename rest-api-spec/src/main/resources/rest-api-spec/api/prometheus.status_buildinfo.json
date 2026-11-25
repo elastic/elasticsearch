@@ -27,7 +27,7 @@
           "parts": {
             "index": {
               "type": "string",
-              "description": "An index expression that restricts which indices are considered. Defaults to `metrics-*`"
+              "description": "Accepted for consistency with the other endpoints. The response does not depend on it"
             }
           }
         }

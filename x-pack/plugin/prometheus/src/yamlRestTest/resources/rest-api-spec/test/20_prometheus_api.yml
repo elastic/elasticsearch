@@ -2,6 +2,10 @@
 # Calls the Prometheus-compatible HTTP API through its rest-api-spec definitions.
 # Remote write is not covered: its body is a binary protobuf message, which YAML tests can't send.
 setup:
+  # The plugin installs its index templates asynchronously
+  - do:
+      cluster.health:
+        wait_for_events: languid
   - do:
       cluster.put_component_template:
         name: metrics-prometheus@custom
@@ -165,7 +169,7 @@ setup:
       prometheus.metadata:
         metric: up
   - match: { status: success }
-  - is_true: data
+  - match: { data: {} }
 
 ---
 "Exemplars":

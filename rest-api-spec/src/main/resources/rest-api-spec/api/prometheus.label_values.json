@@ -47,8 +47,8 @@
     },
     "params": {
       "match[]": {
-        "type": "list",
-        "description": "Repeated series selectors, for example `up{job=\"prometheus\"}`"
+        "type": "string",
+        "description": "A series selector, for example `up{job=\"prometheus\"}`. Repeat the parameter to pass several selectors"
       },
       "start": {
         "type": "string",

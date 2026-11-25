@@ -15,10 +15,11 @@ setup:
 
   # Indexed under dynamic:false, so "extra" stays in _source only. The mapping is tightened afterwards.
   #
-  # A copy built by recovery after the mapping is tightened fails the shard, a workaround for
-  # https://github.com/elastic/elasticsearch/issues/167063 (to be removed when that is fixed). The steps below keep such a
-  # copy from being built: the health wait, the flush before the mapping is tightened, and disabling rebalancing. The
-  # replicas are left as they are, since Serverless needs a copy to search.
+  # Replaying the first document against the tightened mapping fails the shard, a workaround for
+  # https://github.com/elastic/elasticsearch/issues/167063 (to be removed when that is fixed). The steps below avoid that
+  # replay: the health wait lets an already-initializing copy finish, the flush lets a file-based recovery read the
+  # committed document rather than replay it (an operations-only recovery could still replay), and rebalancing is
+  # disabled. The replicas are left as they are, since Serverless needs a copy to search.
   - do:
       indices.create:
         index: unmapped-history
@@ -107,10 +108,11 @@ setup:
 
   # "note" is a runtime field while the document is indexed, so no field holds its value once it is removed.
   #
-  # A copy built by recovery after "note" is removed fails the shard, a workaround for
+  # Replaying the first document after "note" is removed fails the shard, a workaround for
   # https://github.com/elastic/elasticsearch/issues/167063 (to be removed when that is fixed). As for unmapped-history, the
-  # health wait, the flush before "note" is removed, and disabling rebalancing keep such a copy from being built. The
-  # replicas are left as they are.
+  # health wait lets an already-initializing copy finish, the flush lets a file-based recovery read the committed document
+  # rather than replay it (an operations-only recovery could still replay), and rebalancing is disabled. The replicas are
+  # left as they are.
   - do:
       indices.create:
         index: unmapped-runtime

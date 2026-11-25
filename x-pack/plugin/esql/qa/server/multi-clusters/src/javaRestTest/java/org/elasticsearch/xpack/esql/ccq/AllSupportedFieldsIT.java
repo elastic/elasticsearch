@@ -160,6 +160,18 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     }
 
     @Override
+    protected boolean limitByGroupingSupported() throws IOException {
+        return super.limitByGroupingSupported()
+            && clusterHasCapability(
+                remoteClient(),
+                "GET",
+                "/_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.ESQL_LIMIT_BY.capabilityName())
+            ).orElse(false);
+    }
+
+    @Override
     protected boolean dedupGroupingSupported() throws IOException {
         return super.dedupGroupingSupported()
             && clusterHasCapability(

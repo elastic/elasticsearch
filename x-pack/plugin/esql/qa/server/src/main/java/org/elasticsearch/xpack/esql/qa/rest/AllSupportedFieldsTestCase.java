@@ -751,9 +751,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         );
         boolean inlineStats = inlineStatsGroupingSupported();
         boolean dedup = dedupGroupingSupported();
+        boolean limitBy = limitByGroupingSupported();
         TransportVersion minimumVersion = minVersion();
         for (DataType type : DataType.values()) {
             if (supportedInIndex(type, minimumVersion) == false || excludedInColumnar(type, indexMode)) {
+                continue;
+            }
+            // Until the type's release version, an older node can map the field as something else. Field caps then
+            // rejects the name, so there is no grouping result to assert. Same gate as the column type matcher.
+            if (type.supportedVersion().supportedOn(minimumVersion, false) == false) {
                 continue;
             }
             String field = fieldName(type);
@@ -762,7 +768,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             boolean limitAccepted = statsAccepted || type == DataType.DENSE_VECTOR;
             // An explicit LIMIT keeps the default-limit warning from failing the client.
             assertGrouping(fromAllQuery(" | STATS c = count(*) BY " + field + " | LIMIT 10"), statsAccepted, "cannot group by on");
-            assertGrouping(fromAllQuery(" | LIMIT 1 BY " + field + " | LIMIT 10"), limitAccepted, "cannot group by on");
+            // An old node that does not know the LimitBy logical plan dies on the unknown named writeable.
+            if (limitBy) {
+                assertGrouping(fromAllQuery(" | LIMIT 1 BY " + field + " | LIMIT 10"), limitAccepted, "cannot group by on");
+            }
             if (inlineStats) {
                 assertGrouping(
                     fromAllQuery(" | INLINE STATS c = count(*) BY " + field + " | LIMIT 10"),
@@ -782,6 +791,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
      */
     protected boolean inlineStatsGroupingSupported() throws IOException {
         return clusterHasCapability("GET", "/_query", List.of(), List.of(EsqlCapabilities.Cap.INLINE_STATS.capabilityName())).orElse(false);
+    }
+
+    /**
+     * {@code true} when every cluster this query reads can run {@code LIMIT BY}. Cross-cluster subclasses must also
+     * check the remote cluster. Sending the plan to a node that does not have the {@code LimitBy} named writeable
+     * kills that node.
+     */
+    protected boolean limitByGroupingSupported() throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of(EsqlCapabilities.Cap.ESQL_LIMIT_BY.capabilityName())).orElse(
+            false
+        );
     }
 
     /**

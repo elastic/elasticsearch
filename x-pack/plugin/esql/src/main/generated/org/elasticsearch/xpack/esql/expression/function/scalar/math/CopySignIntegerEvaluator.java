@@ -106,7 +106,7 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector magnitudeVector, DoubleVector signVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int magnitude = magnitudeVector.getInt(p);
         double sign = signVector.getDouble(p);

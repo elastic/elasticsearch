@@ -72,7 +72,7 @@ public final class MvAvgLongEvaluator extends AbstractMultivalueFunction.Abstrac
   public Block evalNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -127,7 +127,7 @@ public final class MvAvgLongEvaluator extends AbstractMultivalueFunction.Abstrac
   public Block evalSingleValuedNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);

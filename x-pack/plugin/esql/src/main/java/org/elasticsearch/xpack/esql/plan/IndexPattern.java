@@ -21,6 +21,8 @@ public class IndexPattern implements NodeStringRenderable {
     private final Source source;
     private final String indexPattern;
     private final ViewScope viewScope;
+    // Part of the identity: an EQL source resolves its pattern unfiltered, apart from a FROM on the same pattern that a filter narrows.
+    private final boolean eqlSource;
 
     /**
      * How a pattern relates to view bodies, as far as unmapped-field resolution is concerned. Part of the pattern's
@@ -36,13 +38,14 @@ public class IndexPattern implements NodeStringRenderable {
     }
 
     public IndexPattern(Source source, String indexPattern) {
-        this(source, indexPattern, ViewScope.QUERY);
+        this(source, indexPattern, ViewScope.QUERY, false);
     }
 
-    private IndexPattern(Source source, String indexPattern, ViewScope viewScope) {
+    private IndexPattern(Source source, String indexPattern, ViewScope viewScope, boolean eqlSource) {
         this.source = source;
         this.indexPattern = indexPattern;
         this.viewScope = viewScope;
+        this.eqlSource = eqlSource;
     }
 
     /**
@@ -56,7 +59,19 @@ public class IndexPattern implements NodeStringRenderable {
      */
     public IndexPattern insideView(boolean loadsUnmappedFields) {
         ViewScope scope = loadsUnmappedFields ? ViewScope.VIEW_LOADS_UNMAPPED : ViewScope.VIEW;
-        return viewScope == scope ? this : new IndexPattern(source, indexPattern, scope);
+        return viewScope == scope ? this : new IndexPattern(source, indexPattern, scope, eqlSource);
+    }
+
+    public IndexPattern forEqlSource() {
+        return eqlSource ? this : new IndexPattern(source, indexPattern, viewScope, true);
+    }
+
+    public IndexPattern withoutEqlSource() {
+        return eqlSource ? new IndexPattern(source, indexPattern, viewScope, false) : this;
+    }
+
+    public boolean isEqlSource() {
+        return eqlSource;
     }
 
     /** Whether this pattern belongs to a relation inside a view body. See {@link #insideView(boolean)}. */
@@ -79,7 +94,7 @@ public class IndexPattern implements NodeStringRenderable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, viewScope);
+        return Objects.hash(indexPattern, viewScope, eqlSource);
     }
 
     @Override
@@ -93,7 +108,7 @@ public class IndexPattern implements NodeStringRenderable {
         }
 
         IndexPattern other = (IndexPattern) obj;
-        return Objects.equals(indexPattern, other.indexPattern) && viewScope == other.viewScope;
+        return Objects.equals(indexPattern, other.indexPattern) && viewScope == other.viewScope && eqlSource == other.eqlSource;
     }
 
     /**

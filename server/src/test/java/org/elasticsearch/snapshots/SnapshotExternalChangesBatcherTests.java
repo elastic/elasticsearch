@@ -205,7 +205,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
     private static SnapshotsService.RepositoryDataWriteTaskRunner repositoryWriteTaskRunner(Set<ProjectRepo> triggeredRepositories) {
         return (projectId, repository, repositoryData) -> {
             assertNull(repositoryData);
-            triggeredRepositories.add(new ProjectRepo(projectId, repository));
+            assertTrue(triggeredRepositories.add(new ProjectRepo(projectId, repository))); // asserts no duplicate triggers
         };
     }
 
@@ -586,8 +586,44 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
     public void testRepositoryWriteTriggersForSameRepositoryInDifferentProjects() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = randomRepoName();
-        final var projectWithDelete = randomUniqueProjectId();
-        final var projectWithoutDelete = randomUniqueProjectId();
+        final var expectedRepositories = new HashSet<ProjectRepo>();
+        while (expectedRepositories.size() < 2) {
+            expectedRepositories.add(new ProjectRepo(randomUniqueProjectId(), repo));
+        }
+        var snapshotsInProgress = SnapshotsInProgress.EMPTY;
+        final var deletions = new ArrayList<SnapshotDeletionsInProgress.Entry>();
+        for (final var projectRepo : expectedRepositories) {
+            final var hasFinalization = randomBoolean();
+            if (hasFinalization) {
+                final var indexName = randomIndexName();
+                final var completedSnapshot = snapshotEntry(
+                    new Snapshot(projectRepo.projectId(), repo, new SnapshotId("completed-snapshot", uuid())),
+                    Map.of(indexName, new IndexId(indexName, uuid())),
+                    Map.of(
+                        new ShardId(new Index(indexName, uuid()), 0),
+                        SnapshotsInProgress.ShardSnapshotStatus.success(
+                            MASTER_NODE.getId(),
+                            new ShardSnapshotResult(ShardGeneration.newGeneration(random()), ByteSizeValue.ZERO, 0)
+                        )
+                    )
+                );
+                assertTrue(completedSnapshot.state().completed());
+                snapshotsInProgress = snapshotsInProgress.withAddedEntry(completedSnapshot);
+            }
+            if (hasFinalization == false || randomBoolean()) {
+                deletions.add(
+                    new SnapshotDeletionsInProgress.Entry(
+                        projectRepo.projectId(),
+                        repo,
+                        List.of(new SnapshotId("snap-to-delete", uuid())),
+                        System.currentTimeMillis(),
+                        1L,
+                        SnapshotDeletionsInProgress.State.STARTED
+                    )
+                );
+            }
+        }
+        final var expectedSnapshotsInProgress = snapshotsInProgress;
 
         final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
@@ -600,54 +636,12 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 repositoryWriteTaskRunner(triggeredRepositories)
             );
 
-            // A completed snapshot and a running deletion both trigger work in this project.
-            final var indexNameWithDelete = randomIndexName();
-            final var completedInProjectWithDelete = snapshotEntry(
-                new Snapshot(projectWithDelete, repo, new SnapshotId("completed-with-delete", uuid())),
-                Map.of(indexNameWithDelete, new IndexId(indexNameWithDelete, uuid())),
-                Map.of(
-                    new ShardId(new Index(indexNameWithDelete, uuid()), 0),
-                    SnapshotsInProgress.ShardSnapshotStatus.success(
-                        MASTER_NODE.getId(),
-                        new ShardSnapshotResult(ShardGeneration.newGeneration(random()), ByteSizeValue.ZERO, 0)
-                    )
-                )
-            );
-            assertThat(completedInProjectWithDelete.state().completed(), is(true));
-
-            // A completed snapshot in another project must independently trigger work, even with the same repository name.
-            final var indexNameWithoutDelete = randomIndexName();
-            final var completedInOtherProject = snapshotEntry(
-                new Snapshot(projectWithoutDelete, repo, new SnapshotId("completed-other-project", uuid())),
-                Map.of(indexNameWithoutDelete, new IndexId(indexNameWithoutDelete, uuid())),
-                Map.of(
-                    new ShardId(new Index(indexNameWithoutDelete, uuid()), 0),
-                    SnapshotsInProgress.ShardSnapshotStatus.success(
-                        MASTER_NODE.getId(),
-                        new ShardSnapshotResult(ShardGeneration.newGeneration(random()), ByteSizeValue.ZERO, 0)
-                    )
-                )
-            );
-            assertThat(completedInOtherProject.state().completed(), is(true));
-
-            final var deletionEntry = new SnapshotDeletionsInProgress.Entry(
-                projectWithDelete,
-                repo,
-                List.of(new SnapshotId("snap-to-delete", uuid())),
-                System.currentTimeMillis(),
-                1L,
-                SnapshotDeletionsInProgress.State.STARTED
-            );
-
             updateClusterState(
                 clusterService,
                 deterministicTaskQueue,
                 currentState -> ClusterState.builder(currentState)
-                    .putCustom(
-                        SnapshotsInProgress.TYPE,
-                        SnapshotsInProgress.EMPTY.withAddedEntry(completedInProjectWithDelete).withAddedEntry(completedInOtherProject)
-                    )
-                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(List.of(deletionEntry)))
+                    .putCustom(SnapshotsInProgress.TYPE, expectedSnapshotsInProgress)
+                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(deletions))
                     .build()
             );
 
@@ -656,20 +650,14 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
             final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
 
-            assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
-            assertThat(
-                "both projects should trigger work for their repositories",
-                triggeredRepositories,
-                equalTo(Set.of(new ProjectRepo(projectWithDelete, repo), new ProjectRepo(projectWithoutDelete, repo)))
-            );
-            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), equalTo(List.of(deletionEntry)));
-
-            final var updatedInProjectWithDelete = updatedSnapshotsInProgress.forRepo(projectWithDelete, repo);
-            assertThat("snapshot in the project with the delete should be retained", updatedInProjectWithDelete, hasSize(1));
-            assertThat(updatedInProjectWithDelete.getFirst(), sameInstance(completedInProjectWithDelete));
-            final var updatedInOtherProject = updatedSnapshotsInProgress.forRepo(projectWithoutDelete, repo);
-            assertThat("snapshot in the other project should be retained", updatedInOtherProject, hasSize(1));
-            assertThat(updatedInOtherProject.getFirst(), sameInstance(completedInOtherProject));
+            assertThat(cloned.get(), equalTo(updatedSnapshotsInProgress));
+            assertThat(triggeredRepositories, equalTo(expectedRepositories));
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), equalTo(deletions));
+            assertThat(updatedSnapshotsInProgress, equalTo(expectedSnapshotsInProgress));
+            for (var entries : expectedSnapshotsInProgress.entriesByRepo()) {
+                final var entry = entries.getFirst();
+                assertThat(updatedSnapshotsInProgress.forRepo(entry.projectId(), repo).getFirst(), sameInstance(entry));
+            }
         }
     }
 

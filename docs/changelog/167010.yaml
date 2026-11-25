@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167010
+summary: Answer ungrouped MIN/MAX from segment metadata
+type: enhancement

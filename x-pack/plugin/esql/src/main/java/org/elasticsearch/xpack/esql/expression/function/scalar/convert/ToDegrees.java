@@ -47,7 +47,11 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         "ToDegrees",
         ToDegrees::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDegrees.class).unary(ToDegrees::new).name("to_degrees");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDegrees.class)
+        .unary(ToDegrees::new)
+        // Fix the optimizer dropping the conversion of a double field as a no-op.
+        .capabilities("fix_double_field")
+        .name("to_degrees");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         // Non-double inputs are cast to double by the factories below, so no ToDouble wrap is needed here; only the
         // non-finite-preserving flag is set so that NaN/±Inf follow IEEE-754 instead of being dropped.

@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 166544
+summary: Skip index verification for datafeeds with no local indices
+type: bug

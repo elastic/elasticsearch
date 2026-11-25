@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -22,8 +23,6 @@ import java.util.List;
  * Base class for all broadcast operation based responses.
  */
 public class BaseBroadcastResponse extends ActionResponse {
-
-    public static final DefaultShardOperationFailedException[] EMPTY = new DefaultShardOperationFailedException[0];
 
     private final int totalShards;
     private final int successfulShards;
@@ -41,7 +40,7 @@ public class BaseBroadcastResponse extends ActionResponse {
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<DefaultShardOperationFailedException> shardFailures
+        @Nullable List<DefaultShardOperationFailedException> shardFailures
     ) {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
@@ -91,15 +90,8 @@ public class BaseBroadcastResponse extends ActionResponse {
     /**
      * The list of shard failures exception.
      */
-    public List<DefaultShardOperationFailedException> shardFailuresList() {
+    public List<DefaultShardOperationFailedException> getShardFailures() {
         return shardFailures;
-    }
-
-    /**
-     * The list of shard failures exception.
-     */
-    public DefaultShardOperationFailedException[] getShardFailures() {
-        return shardFailures.toArray(EMPTY);
     }
 
     @Override

@@ -150,6 +150,18 @@ public interface PromqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIdentifier(PromqlBaseParser.IdentifierContext ctx);
   /**
+   * Visit a parse tree produced by {@link PromqlBaseParser#metricName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetricName(PromqlBaseParser.MetricNameContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PromqlBaseParser#groupingLabel}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx);
+  /**
    * Visit a parse tree produced by {@link PromqlBaseParser#evaluation}.
    * @param ctx the parse tree
    * @return the visitor result

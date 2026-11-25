@@ -1014,6 +1014,11 @@ public class EsqlDataExtractorTests extends ESTestCase {
         }
 
         @Override
+        public EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> executionMetadata(ExecutionMetadata mode) {
+            return this;
+        }
+
+        @Override
         public EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> params(List<EsqlQueryParam> params) {
             return this;
         }

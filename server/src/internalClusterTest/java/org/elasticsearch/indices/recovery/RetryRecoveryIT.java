@@ -1,0 +1,794 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.indices.recovery;
+
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.cluster.action.shard.ShardStateAction.SHARD_FAILED_ACTION_NAME;
+import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.AFTER_INDEX_SHARD_RECOVERY;
+import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.BEFORE_INDEX_SHARD_RECOVERY;
+import static org.elasticsearch.test.ClusterServiceUtils.awaitNoPendingTasks;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
+
+    private final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>();
+    private final AtomicInteger remainingFailures = new AtomicInteger();
+    private final AtomicReference<CyclicBarrier> recoveryBarrier = new AtomicReference<>();
+
+    private final IndexEventListener recoveryListener = new IndexEventListener() {
+        @Override
+        public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+            final var barrier = recoveryBarrier.getAndSet(null);
+            if (barrier != null) {
+                safeAwait(barrier);
+                safeAwait(barrier);
+            }
+            maybeThrow(BEFORE_INDEX_SHARD_RECOVERY);
+            listener.onResponse(null);
+        }
+
+        @Override
+        public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+            maybeThrow(AFTER_INDEX_SHARD_RECOVERY);
+            listener.onResponse(null);
+        }
+
+        private void maybeThrow(FailureTarget target) {
+            if (failureTarget.compareAndSet(target, null)) {
+                if (remainingFailures.decrementAndGet() > 0) {
+                    failureTarget.set(randomFrom(FailureTarget.values()));
+                }
+                throw new RuntimeException("RETRY_CAUSE");
+            }
+        }
+
+    };
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockIndexEventListener.TestPlugin.class);
+        plugins.add(RetryRecoveryTestPlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(IndicesClusterStateService.INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), true)
+            .build();
+    }
+
+    @After
+    public void resetRetryRecoveryTestPlugin() {
+        RetryRecoveryTestPlugin.reset();
+    }
+
+    public void testRetryOnFailureOnRecoveryFromEmptyStore() {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            final int failures = randomIntBetween(2, 5);
+            armRandomFailures(failures);
+
+            // Recover from empty store
+            createIndex(indexName, indexSettings(1, 0).build());
+
+            ensureGreen(indexName);
+            assertLocalRetries(indexName, failures);
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromExistingStore() {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            final int failures = randomIntBetween(2, 5);
+            armRandomFailures(failures);
+
+            // Recover from existing store
+            assertAcked(indicesAdmin().prepareOpen(indexName).execute());
+
+            ensureGreen(indexName);
+            assertLocalRetries(indexName, failures);
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromLocalShard() {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            final int failures = randomIntBetween(2, 5);
+            armRandomFailures(failures);
+
+            // Recover from local shard
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+
+            ensureGreen(sourceIndexName);
+            ensureGreen(targetIndexName);
+            assertLocalRetries(targetIndexName, failures);
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromSnapshot() {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            final int failures = randomIntBetween(2, 5);
+            armRandomFailures(failures);
+
+            // Recover from snapshot
+            RestoreSnapshotResponse restore = safeGet(
+                clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute()
+            );
+
+            ensureGreen(indexName);
+            assertLocalRetries(indexName, failures);
+            assertEquals(RestStatus.OK, restore.status());
+            assertNotNull(restore.getRestoreInfo());
+            assertEquals(1, restore.getRestoreInfo().successfulShards());
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    @TestLogging(
+        reason = "waiting for the recovery-aborted log line to confirm termination",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
+    public void testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore() {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            final var barrier = armRecoveryPause();
+
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(indexName))
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+
+            // Recovery must ABORT on CLOSED shard, without retrying
+            ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+            final var indicesClusterStateService = internalCluster().getInstance(IndicesClusterStateService.class, node);
+            MockLog.awaitLogger(() -> {
+                safeAwait(barrier);
+                safeGet(closed);
+                try {
+                    assertBusy(() -> assertFalse(indicesClusterStateService.hasPendingAllocationState(shardId)));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            },
+                IndicesClusterStateService.class,
+                new MockLog.SeenEventExpectation(
+                    "recovery aborted",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "recovery aborted"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "no retry after abort",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*retrying * recovery locally after failure*"
+                )
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    @TestLogging(
+        reason = "waiting for the recovery-aborted log line to confirm termination",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
+    public void testDontRetryAfterShardClosedDuringRecoveryFromExistingStore() {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            final var barrier = armRecoveryPause();
+
+            indicesAdmin().prepareOpen(indexName).execute();
+            safeAwait(barrier);
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(indexName))
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+
+            // Recovery must ABORT on CLOSED shard, without retrying
+            ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+            final var indicesClusterStateService = internalCluster().getInstance(IndicesClusterStateService.class, node);
+            MockLog.awaitLogger(() -> {
+                safeAwait(barrier);
+                safeGet(closed);
+                try {
+                    assertBusy(() -> assertFalse(indicesClusterStateService.hasPendingAllocationState(shardId)));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            },
+                IndicesClusterStateService.class,
+                new MockLog.SeenEventExpectation(
+                    "recovery aborted",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "recovery aborted"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "no retry after abort",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*retrying * recovery locally after failure*"
+                )
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    @TestLogging(
+        reason = "waiting for the recovery-aborted log line to confirm termination",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
+    public void testDontRetryAfterShardClosedDuringRecoveryFromLocalShard() {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            final var barrier = armRecoveryPause();
+
+            // Recover from local shard
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+            safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(targetIndexName))
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+
+            // Recovery must ABORT on CLOSED shard, without retrying
+            ShardId shardId = new ShardId(resolveIndex(targetIndexName), 0);
+            final var indicesClusterStateService = internalCluster().getInstance(IndicesClusterStateService.class, node);
+            MockLog.awaitLogger(() -> {
+                safeAwait(barrier);
+                safeGet(closed);
+                try {
+                    assertBusy(() -> assertFalse(indicesClusterStateService.hasPendingAllocationState(shardId)));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            },
+                IndicesClusterStateService.class,
+                new MockLog.SeenEventExpectation(
+                    "recovery aborted",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "recovery aborted"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "no retry after abort",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*retrying * recovery locally after failure*"
+                )
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    @TestLogging(
+        reason = "waiting for the recovery-aborted log line to confirm the race has settled",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
+    public void testDontRetryAfterShardClosedDuringRecoveryFromSnapshot() {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            final var barrier = armRecoveryPause();
+
+            // Recover from snapshot
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
+            safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
+
+            PlainActionFuture<Void> closed = new PlainActionFuture<>();
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(indexName))
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+
+            // Recovery must ABORT on CLOSED shard, without retrying
+            ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+            final var indicesClusterStateService = internalCluster().getInstance(IndicesClusterStateService.class, node);
+            MockLog.awaitLogger(() -> {
+                safeAwait(barrier);
+                safeGet(closed);
+                try {
+                    assertBusy(() -> assertFalse(indicesClusterStateService.hasPendingAllocationState(shardId)));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            },
+                IndicesClusterStateService.class,
+                new MockLog.SeenEventExpectation(
+                    "recovery aborted",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "recovery aborted"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "no retry after abort",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*retrying * recovery locally after failure*"
+                )
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnExceptionFromTempWriterDuringCreateEmptyFromEmptyStore() {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.armDirectoryException();
+
+            // Recover from empty store; Store.createEmpty hits a one-shot exception
+            createIndex(indexName, indexSettings(1, 0).build());
+
+            ensureGreen(indexName);
+            assertLocalRetries(indexName, 1);
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnExceptionFromTempWriterDuringAddIndicesFromLocalShards() {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.armDirectoryException();
+
+            // Recover from local shards; addIndices' temporary IndexWriter hits exception once
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+
+            ensureGreen(sourceIndexName);
+            ensureGreen(targetIndexName);
+            assertLocalRetries(targetIndexName, 1);
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnExceptionFromTempWriterDuringBootstrapNewHistoryFromExistingStore() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String node1 = internalCluster().startNode();
+        final var indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 1).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        String node2 = internalCluster().startNode();
+        ensureGreen(indexName);
+
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(node1);
+        internalCluster().stopNode(node1);
+
+        // Index on node2 so node1's copy becomes stale in the master's in-sync set
+        indexDoc(indexName, "2", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        internalCluster().stopNode(node2);
+
+        node1 = internalCluster().startNode(node1DataPathSettings);
+        // Only one data node remains; drop replicas so allocate_stale_primary can go green
+        updateIndexSettings(Settings.builder().put("index.number_of_replicas", 0), indexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(master);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.armDirectoryException();
+
+            // Force stale primary → bootstrapNewHistory temporary IndexWriter hits exception once
+            ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
+
+            ensureGreen(indexName);
+            assertLocalRetries(indexName, 1);
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithIndexDeletion() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            armRandomFailure();
+            final var barrier = armRecoveryPause();
+
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
+            final var deleted = indicesAdmin().prepareDelete(indexName).execute();
+
+            // Release will make recovery failure race with index deletion
+            safeAwait(barrier);
+
+            assertAcked(deleted);
+            waitNoPendingTasksOnAll();
+            assertThat(indexExists(indexName), equalTo(false));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromExistingStoreRaceWithIndexDeletion() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            armRandomFailure();
+            final var barrier = armRecoveryPause();
+
+            // Recover from existing store
+            indicesAdmin().prepareOpen(indexName).execute();
+            safeAwait(barrier);
+            final var deleted = indicesAdmin().prepareDelete(indexName).execute();
+
+            // Release will make recovery failure race with index deletion
+            safeAwait(barrier);
+
+            assertAcked(deleted);
+            waitNoPendingTasksOnAll();
+            assertThat(indexExists(indexName), equalTo(false));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromLocalShardRaceWithIndexDeletion() throws Exception {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            armRandomFailure();
+            final var barrier = armRecoveryPause();
+
+            // Recover from local shard async
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+            safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
+            final var deleted = indicesAdmin().prepareDelete(targetIndexName).execute();
+
+            // Release will make recovery failure race with index deletion
+            safeAwait(barrier);
+
+            assertAcked(deleted);
+            waitNoPendingTasksOnAll();
+            assertThat(indexExists(targetIndexName), equalTo(false));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testRetryOnFailureOnRecoveryFromSnapshotRaceWithIndexDeletion() throws Exception {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            armRandomFailure();
+            final var barrier = armRecoveryPause();
+
+            // Recover from snapshot async
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
+            safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
+            final var deleted = indicesAdmin().prepareDelete(indexName).execute();
+
+            // Release will make recovery failure race with index deletion
+            safeAwait(barrier);
+
+            assertAcked(deleted);
+            waitNoPendingTasksOnAll();
+            assertThat(indexExists(indexName), equalTo(false));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    private void assertLocalRetries(String indexName, int expected) {
+        final var recoveryInfos = indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName);
+        assertThat(recoveryInfos, hasSize(1));
+        assertThat(recoveryInfos.get(0).recoveryState().getLocalRetries(), equalTo(expected));
+    }
+
+    /// Local recovery retries is about preventing the round trip to master on a failed recovery
+    /// (we retry directly on the data node instead).
+    /// Since master would also retry, that could mask potential bugs in the local retry functionality.
+    /// This utility method prevents that by failing the test if master receives a "shard failed" message.
+    private static void failTestIfReceiveShardFailure(MockTransportService mockTransportService) {
+        mockTransportService.addRequestHandlingBehavior(
+            SHARD_FAILED_ACTION_NAME,
+            (handler, request, channel, task) -> fail("should not send shard failure")
+        );
+    }
+
+    /// One-shot pause in [IndexEventListener#beforeIndexShardRecovery]. Recovery takes the barrier
+    /// with {@code getAndSet(null)} so a later retry does not pause again.
+    private CyclicBarrier armRecoveryPause() {
+        final var barrier = new CyclicBarrier(2);
+        assertNull(recoveryBarrier.getAndSet(barrier));
+        installRecoveryListener();
+        return barrier;
+    }
+
+    /// Arm the recovery listener with a random failure target.
+    /// This will cause the next recovery to fail when it reaches that [FailureTarget].
+    private void armRandomFailure() {
+        armRandomFailures(1);
+    }
+
+    /// Arm the recovery listener to fail {@code count} times, each at a random [FailureTarget],
+    /// before letting recovery proceed.
+    private void armRandomFailures(int count) {
+        remainingFailures.set(count);
+        failureTarget.set(randomFrom(FailureTarget.values()));
+        installRecoveryListener();
+    }
+
+    private void installRecoveryListener() {
+        for (var listener : internalCluster().getInstances(MockIndexEventListener.TestEventListener.class)) {
+            listener.setNewDelegate(recoveryListener);
+        }
+    }
+
+    /// Inject a one-shot [AlreadyClosedException]/[IOException] from the Lucene Directory during temporary IndexWriter use.
+    public static class RetryRecoveryTestPlugin extends Plugin {
+        private static final AtomicBoolean throwOnCreateOutput = new AtomicBoolean();
+
+        public static void reset() {
+            throwOnCreateOutput.set(false);
+        }
+
+        /// Arm the Directory wrapper so the next [IndexOutput] create throws [AlreadyClosedException]/[IOException].
+        /// Used to fail temporary IndexWriters used in StoreRecovery once, then allow retry to succeed.
+        public static void armDirectoryException() {
+            throwOnCreateOutput.set(true);
+        }
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.setDirectoryWrapper((directory, shardRouting) -> new FilterDirectory(directory) {
+                @Override
+                public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                    if (throwOnCreateOutput.compareAndSet(true, false)) {
+                        if (randomBoolean()) {
+                            throw new AlreadyClosedException("test exception on temp writer");
+                        } else {
+                            throw new IOException("test exception on temp writer");
+                        }
+                    }
+                    return super.createOutput(name, context);
+                }
+            });
+        }
+    }
+
+    /// Failure target describe different possible failure points during recovery.
+    /// Typically on different calls to [IndexEventListener].
+    enum FailureTarget {
+        BEFORE_INDEX_SHARD_RECOVERY,
+        AFTER_INDEX_SHARD_RECOVERY
+    }
+}

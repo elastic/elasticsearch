@@ -65,7 +65,7 @@ public final class MvAvgDoubleEvaluator extends AbstractMultivalueFunction.Abstr
   public Block evalNotNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);

@@ -19,7 +19,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExchangeResponseTests extends ComputeTestCase {
 
-    public void testReverseBytesWhenSerializing() throws Exception {
+    /**
+     * The channel that sends the response charges the bytes it writes, so writing reserves nothing of its own.
+     */
+    public void testSerializingReservesNothing() throws Exception {
         BlockFactory factory = blockFactory();
         int numBlocks = between(1, 10);
         Block[] blocks = new Block[numBlocks];
@@ -38,14 +41,13 @@ public class ExchangeResponseTests extends ComputeTestCase {
             blocks[b] = block.block();
         }
         Page page = new Page(blocks);
-        ExchangeResponse response = new ExchangeResponse(factory, page, randomBoolean());
+        ExchangeResponse response = new ExchangeResponse(page, randomBoolean());
         long beforeUsage = factory.breaker().getUsed();
         assertThat(page.ramBytesUsedByBlocks(), equalTo(beforeUsage));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
         }
-        long afterUsage = factory.breaker().getUsed();
-        assertThat(afterUsage, equalTo(beforeUsage * 2L));
+        assertThat(factory.breaker().getUsed(), equalTo(beforeUsage));
         response.close();
         assertThat(factory.breaker().getUsed(), equalTo(0L));
     }

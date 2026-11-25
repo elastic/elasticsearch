@@ -1,0 +1,222 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
+      reason: "Support for columnar index modes required"
+
+  - do:
+      indices.put_index_template:
+        name: columnar-skip-index
+        body:
+          index_patterns: [ "columnar-skip-index" ]
+          data_stream: {}
+          priority: 500
+          template:
+            settings:
+              index:
+                mode: columnar
+                compound_format: false
+                number_of_shards: 1
+                sort.field: [ "trace_id" ]
+                sort.order: [ "desc" ]
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                trace_id:
+                  type: keyword
+                  index: false
+
+---
+"Rollover a columnar data stream sorted on a keyword":
+  - do:
+      indices.create_data_stream:
+        name: columnar-skip-index
+
+  - do:
+      bulk:
+        index: columnar-skip-index
+        refresh: true
+        body:
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:00Z", "trace_id": "trace-000" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:01Z", "trace_id": "trace-003" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:02Z", "trace_id": "trace-006" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:03Z", "trace_id": "trace-009" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:04Z", "trace_id": "trace-012" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:05Z", "trace_id": "trace-015" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:06Z", "trace_id": "trace-018" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:07Z", "trace_id": "trace-021" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:08Z", "trace_id": "trace-024" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:09Z", "trace_id": "trace-027" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:10Z", "trace_id": "trace-030" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:11Z", "trace_id": "trace-033" }
+
+  - match: { errors: false }
+
+  - do:
+      indices.rollover:
+        alias: columnar-skip-index
+
+  - match: { rolled_over: true }
+
+  - do:
+      bulk:
+        index: columnar-skip-index
+        refresh: true
+        body:
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:12Z", "trace_id": "trace-036" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:13Z", "trace_id": "trace-039" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:14Z", "trace_id": "trace-042" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:15Z", "trace_id": "trace-045" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:16Z", "trace_id": "trace-048" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:17Z", "trace_id": "trace-051" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:18Z", "trace_id": "trace-054" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:19Z", "trace_id": "trace-057" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:20Z", "trace_id": "trace-060" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:21Z", "trace_id": "trace-063" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:22Z", "trace_id": "trace-066" }
+          - create: {}
+          - { "@timestamp": "2024-01-01T00:00:23Z", "trace_id": "trace-069" }
+
+  - match: { errors: false }
+
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+
+  - do:
+      indices.get_data_stream:
+        name: columnar-skip-index
+
+  - length: { data_streams.0.indices: 2 }
+  - set: { data_streams.0.indices.0.index_name: first_backing_index }
+  - set: { data_streams.0.indices.1.index_name: second_backing_index }
+
+  - do:
+      indices.forcemerge:
+        index: columnar-skip-index
+        max_num_segments: 1
+
+  - match: { _shards.failed: 0 }
+
+  - do:
+      search:
+        index: columnar-skip-index
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 24 }
+
+  - do:
+      search:
+        index: $first_backing_index
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 12 }
+
+  - do:
+      search:
+        index: $second_backing_index
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 12 }
+
+  - do:
+      search:
+        index: columnar-skip-index
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            term:
+              trace_id: "trace-033"
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: columnar-skip-index
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            term:
+              trace_id: "trace-034"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: columnar-skip-index
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            range:
+              trace_id:
+                gte: "trace-009"
+                lt: "trace-030"
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: columnar-skip-index
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            prefix:
+              trace_id: "trace-06"
+
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: columnar-skip-index
+        body:
+          size: 1
+          sort: [ { trace_id: desc } ]
+
+  - match: { hits.hits.0._source.trace_id: "trace-069" }
+
+  - do:
+      indices.stats:
+        index: $second_backing_index
+        metric: segments
+        include_segment_file_sizes: true
+
+  - is_true: _all.primaries.segments.file_sizes.cnd

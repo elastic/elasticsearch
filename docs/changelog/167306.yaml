@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167306
+summary: Pin ES|QL S3 clients to each bucket's region instead of the SDK cross-region decorator
+type: enhancement

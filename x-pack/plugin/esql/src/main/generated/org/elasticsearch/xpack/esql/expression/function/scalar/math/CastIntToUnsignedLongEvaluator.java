@@ -83,7 +83,7 @@ public final class CastIntToUnsignedLongEvaluator implements ExpressionEvaluator
   }
 
   public LongVector eval(int positionCount, IntVector vVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int v = vVector.getInt(p);
         result.appendLong(p, Cast.castIntToUnsignedLong(v));

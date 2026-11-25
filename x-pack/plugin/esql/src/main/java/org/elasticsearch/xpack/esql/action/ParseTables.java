@@ -123,6 +123,9 @@ public class ParseTables {
             result.close();
             throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.END_OBJECT);
         }
+        // Concurrently planned branches on this node can share a table and build hash join tables from it, which changes
+        // its ref counts.
+        result.values().allowPassingToDifferentDriver();
         return result;
     }
 

@@ -112,7 +112,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 }
             }
         }
-        when(indicesStatsResponse.shardFailuresList()).thenReturn(List.of());
+        when(indicesStatsResponse.getShardFailures()).thenReturn(List.of());
 
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
         when(projectMetadata.getConcreteAllIndices()).thenReturn(indexNames);
@@ -185,7 +185,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
-        when(indicesStatsResponse.shardFailuresList()).thenReturn(
+        when(indicesStatsResponse.getShardFailures()).thenReturn(
             List.of(
                 new DefaultShardOperationFailedException(
                     "test",

@@ -84,7 +84,7 @@ public final class RoundToDoubleBinarySearchEvaluator implements ExpressionEvalu
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double field = fieldVector.getDouble(p);
         result.appendDouble(p, RoundToDouble.process(field, this.points));

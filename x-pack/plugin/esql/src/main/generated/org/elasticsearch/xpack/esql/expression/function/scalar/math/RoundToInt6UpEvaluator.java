@@ -99,7 +99,7 @@ public final class RoundToInt6UpEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int field = fieldVector.getInt(p);
         result.appendInt(p, RoundToInt.processUp(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5));

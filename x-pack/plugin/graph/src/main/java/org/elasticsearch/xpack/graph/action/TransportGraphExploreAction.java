@@ -330,7 +330,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             client.search(searchRequest, new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    addShardFailures(searchResponse.shardFailuresList());
+                    addShardFailures(searchResponse.getShardFailures());
 
                     ArrayList<Connection> newConnections = new ArrayList<Connection>();
                     ArrayList<Vertex> newVertices = new ArrayList<Vertex>();
@@ -682,7 +682,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 client.search(searchRequest, new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
-                        addShardFailures(searchResponse.shardFailuresList());
+                        addShardFailures(searchResponse.getShardFailures());
                         SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
 
                         // Determine the total scores for all interesting terms

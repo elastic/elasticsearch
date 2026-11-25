@@ -324,16 +324,12 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         }
 
         String getClientName() {
-            return "content_integrity_client_"
+            return "cic_"
                 + (https ? "https" : "http")
-                + "_chunked_encoding_"
-                + chunkedEncoding
-                + "_always_sign_requests_"
-                + alwaysSignRequests
-                + "_legacy_content_md5_"
-                + legacyContentMd5
-                + "_unsafely_omit_request_body_checksums_"
-                + unsafelyOmitRequestBodyChecksums;
+                + (chunkedEncoding ? "_chunked" : "")
+                + (alwaysSignRequests ? "_sign" : "")
+                + (legacyContentMd5 ? "_md5" : "")
+                + (unsafelyOmitRequestBodyChecksums ? "_nochecksum" : "");
         }
 
         String getRepositoryBasePath() {

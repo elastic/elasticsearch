@@ -15,7 +15,7 @@ public class BlobLocationTestUtils {
 
     public static BlobLocation createBlobLocation(long primaryTerm, long generation, long offset, long fileLength) {
         return new BlobLocation(
-            new BlobFile(BatchedCompoundCommit.PREFIX + generation, new PrimaryTermAndGeneration(primaryTerm, generation)),
+            new BccBlob(BccBlob.PREFIX + generation, new PrimaryTermAndGeneration(primaryTerm, generation)),
             offset,
             fileLength
         );
@@ -30,7 +30,7 @@ public class BlobLocationTestUtils {
         long generation,
         long offset,
         long fileLength,
-        StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+        TimestampFieldValueRange timestampRange
     ) {
         return new BlobFileRanges(createBlobLocation(primaryTerm, generation, offset, fileLength), timestampRange);
     }

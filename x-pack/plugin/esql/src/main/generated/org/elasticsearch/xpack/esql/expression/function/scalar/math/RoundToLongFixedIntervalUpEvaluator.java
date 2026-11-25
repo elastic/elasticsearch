@@ -90,7 +90,7 @@ public final class RoundToLongFixedIntervalUpEvaluator implements ExpressionEval
   }
 
   public LongVector eval(int positionCount, LongVector fieldVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long field = fieldVector.getLong(p);
         result.appendLong(p, RoundToLong.processFixedUp(field, this.first, this.last, this.interval));

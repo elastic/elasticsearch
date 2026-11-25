@@ -1,0 +1,5 @@
+FROM employees
+| EVAL language_code = languages
+| RENAME first_name AS name
+| LEFT OUTER JOIN (FROM languages | EVAL first_name = language_name | KEEP language_code, first_name) ON language_code
+| KEEP emp_no, name, first_name

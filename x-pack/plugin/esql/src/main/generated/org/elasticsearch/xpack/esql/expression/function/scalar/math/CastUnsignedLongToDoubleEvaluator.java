@@ -83,7 +83,7 @@ public final class CastUnsignedLongToDoubleEvaluator implements ExpressionEvalua
   }
 
   public DoubleVector eval(int positionCount, LongVector vVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long v = vVector.getLong(p);
         result.appendDouble(p, Cast.castUnsignedLongToDouble(v));

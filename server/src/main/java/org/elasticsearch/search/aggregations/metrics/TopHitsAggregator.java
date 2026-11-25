@@ -35,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -379,6 +380,8 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
+        // The hit memory is charged before the fetch, so the fetch does not run if the breaker trips.
+        addRequestCircuitBreakerBytes(docIdsToLoad.length * SearchHitRamUsageEstimator.BASE_BYTES);
         SearchHits hits;
         try (SubSearchContext fetchContext = newFetchContext()) {
             fetchContext.fetchPhase().execute(fetchContext, docIdsToLoad, null, this::addRequestCircuitBreakerBytes);

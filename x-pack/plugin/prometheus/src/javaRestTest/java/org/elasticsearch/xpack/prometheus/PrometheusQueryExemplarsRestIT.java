@@ -16,7 +16,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -40,11 +39,6 @@ public class PrometheusQueryExemplarsRestIT extends AbstractPrometheusRestIT {
 
     private String exemplarsReadApiKey;
     private long now;
-
-    @BeforeClass
-    public static void checkFeatureFlag() {
-        assumeTrue("requires the query_exemplars feature flag", PrometheusPlugin.QUERY_EXEMPLARS_FEATURE_FLAG.isEnabled());
-    }
 
     @Before
     public void createExemplarsReadApiKey() throws IOException {

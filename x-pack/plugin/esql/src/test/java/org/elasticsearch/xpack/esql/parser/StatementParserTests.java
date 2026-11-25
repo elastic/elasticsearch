@@ -6235,17 +6235,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A list with one value is the same as that value, so a single property can be given as a list or as a string.
+     * A list with one value is still a list: it is accepted, and a plain string is not.
      */
     public void testUserAgentCommandWithSingleProperty() {
         assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
-        for (String properties : List.of("[\"name\"]", "\"name\"")) {
-            LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"properties\": " + properties + " }");
-            UserAgent ua = as(cmd, UserAgent.class);
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"properties\": [\"name\"] }");
+        UserAgent ua = as(cmd, UserAgent.class);
 
-            List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
-            assertEquals(List.of("ua.name"), actualFieldNames);
-        }
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(List.of("ua.name"), actualFieldNames);
+
+        expectError(
+            "row a = \"test\" | user_agent ua = a WITH { \"properties\": \"name\" }",
+            "Option [properties] must be a list of string literals"
+        );
     }
 
     public void testUserAgentCommandInvalidOption() {
@@ -6294,15 +6297,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A list with one value is the same as that value, so a single property can be given as a list or as a string.
+     * A list with one value is still a list: it is accepted, and a plain string is not.
      */
     public void testIpLocationCommandWithSingleProperty() {
         assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
-        for (String properties : List.of("[\"city_name\"]", "\"city_name\"")) {
-            LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": " + properties + " }");
-            UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
-            assertEquals(List.of("city_name"), ip.properties());
-        }
+        LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [\"city_name\"] }");
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEquals(List.of("city_name"), ip.properties());
+
+        expectError(
+            "row a = \"test\" | ip_location g = a WITH { \"properties\": \"city_name\" }",
+            "Option [properties] must be a list of string literals"
+        );
     }
 
     public void testIpLocationCommandUnknownOption() {

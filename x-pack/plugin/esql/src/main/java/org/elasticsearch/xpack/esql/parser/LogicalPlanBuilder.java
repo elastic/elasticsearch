@@ -1280,23 +1280,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /**
      * Reads the {@code properties} option of {@code USER_AGENT} and {@code IP_LOCATION}: a list of string literals.
-     * A list with one string is the same as that string, so {@code "name"} and {@code ["name"]} are both accepted.
+     * The raw value is used on purpose: a list with a single value is still a list, and a plain string is not accepted.
      */
     private static List<String> propertiesOption(Expression propertiesExpr) {
-        if (propertiesExpr instanceof Literal propLit) {
-            Object value = propLit.value();
-            List<?> items = value instanceof List<?> list ? list : value instanceof BytesRef ? List.of(value) : null;
-            if (items != null) {
-                List<String> properties = new ArrayList<>(items.size());
-                for (Object item : items) {
-                    if (item instanceof BytesRef) {
-                        properties.add(BytesRefs.toString(item));
-                    } else {
-                        throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
-                    }
+        if (propertiesExpr instanceof Literal propLit && propLit.rawValue() instanceof List<?> items) {
+            List<String> properties = new ArrayList<>(items.size());
+            for (Object item : items) {
+                if (item instanceof BytesRef) {
+                    properties.add(BytesRefs.toString(item));
+                } else {
+                    throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
                 }
-                return properties;
             }
+            return properties;
         }
         throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
     }

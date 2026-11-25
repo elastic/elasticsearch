@@ -65,7 +65,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -438,11 +437,9 @@ public class KnnSearcher {
                 logger.debug("Segment layout: {}", segmentInfo);
                 finalResults.numSegments = segCount;
                 finalResults.totalIndexVectors = totalIndexVectors;
-                IndexSearcher searcher = newSearcher(
-                    reader,
-                    searchParameters.searchThreads() > 1 ? executorService : null,
-                    searchParameters.searchThreads()
-                );
+                IndexSearcher searcher = searchParameters.searchThreads() > 1
+                    ? new IndexSearcher(reader, executorService)
+                    : new IndexSearcher(reader);
 
                 boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced && !searchParameters.exact();
 
@@ -567,8 +564,6 @@ public class KnnSearcher {
         finalResults.overSamplingFactor = searchParameters.overSamplingFactor();
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
-        finalResults.searchThreads = searchParameters.searchThreads();
-        finalResults.numSearchers = searchParameters.numSearchers();
         finalResults.topK = searchParameters.topK();
         finalResults.earlyTermination = searchParameters.earlyTermination();
         finalResults.postFilter = searchParameters.postFilter();
@@ -773,37 +768,6 @@ public class KnnSearcher {
             }
         }
         return true;
-    }
-
-    /**
-     * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_parallel_scan} is set, the {@link ContextIndexSearcher}
-     * Elasticsearch searches with, with the parallel scan on or off and at most {@code -Dbench.max_tasks} tasks at a time.
-     */
-    private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor, int searchThreads) throws IOException {
-        String parallelScan = System.getProperty("bench.ivf_parallel_scan");
-        if (parallelScan == null) {
-            return executor == null ? new IndexSearcher(reader) : new IndexSearcher(reader, executor);
-        }
-        IndexSearcher plain = new IndexSearcher(reader);
-        ContextIndexSearcher searcher = executor == null
-            ? new ContextIndexSearcher(reader, plain.getSimilarity(), plain.getQueryCache(), plain.getQueryCachingPolicy(), false)
-            : new ContextIndexSearcher(
-                reader,
-                plain.getSimilarity(),
-                plain.getQueryCache(),
-                plain.getQueryCachingPolicy(),
-                false,
-                executor,
-                Integer.getInteger("bench.max_tasks", searchThreads),
-                1
-            );
-        searcher.setIvfParallelScanEnabled(Boolean.parseBoolean(parallelScan));
-        logger.info(
-            "searching with ContextIndexSearcher, ivf parallel scan: {}, max parallel tasks: {}",
-            Boolean.parseBoolean(parallelScan),
-            ContextIndexSearcher.maximumParallelTasks(searcher)
-        );
-        return searcher;
     }
 
     TopDocs doVectorQuery(

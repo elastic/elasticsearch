@@ -123,7 +123,6 @@ public final class PartitionDataGenerator extends DataGenerator {
     @Override
     public Sort getIndexSort() {
         final String sortField = sliced ? SliceIndexing.SLICE_KEY_FIELD_NAME : KnnIndexer.PARTITION_ID_FIELD;
-        // missing values last: the sliced format accepts no other sort on its slice field
-        return new Sort(new SortField(sortField, SortField.Type.STRING, false, SortField.STRING_LAST));
+        return new Sort(new SortField(sortField, SortField.Type.STRING, false));
     }
 }

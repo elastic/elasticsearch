@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 public class MMRResultDiversificationTests extends ESTestCase {
@@ -77,9 +78,18 @@ public class MMRResultDiversificationTests extends ESTestCase {
         }
     }
 
+    /**
+     * Cancellation is polled once after scoring the candidates against the query and once per selection round. With size 3
+     * there are two selection rounds, so cancelling on the third poll checks that MMR stops after selection has started.
+     */
     public void testMMRDiversificationStopsWhenCancelled() {
         MMRResultDiversificationContext diversificationContext = getFloatContext(new ArrayList<>());
-        diversificationContext.setCancellationCheck(() -> { throw new TaskCancelledException("cancelled"); });
+        AtomicInteger polls = new AtomicInteger();
+        diversificationContext.setCancellationCheck(() -> {
+            if (polls.incrementAndGet() == 3) {
+                throw new TaskCancelledException("cancelled");
+            }
+        });
 
         RankDoc[] docs = new RankDoc[] {
             new RankDoc(1, 2.0f, 1),
@@ -93,6 +103,26 @@ public class MMRResultDiversificationTests extends ESTestCase {
         for (RankDoc doc : docs) {
             doc.rank = rankIndex++;
         }
+
+        MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
+        expectThrows(TaskCancelledException.class, () -> resultDiversification.diversify(docs));
+        assertEquals(3, polls.get());
+    }
+
+    /**
+     * With size 1 the selection loop never runs, so cancellation must still be noticed once the candidates have been scored.
+     */
+    public void testMMRDiversificationWithSizeOneStopsWhenCancelled() {
+        Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
+        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 1, queryVectorData);
+        diversificationContext.setFieldVectors(
+            Map.of(1, new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }), 2, new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }))
+        );
+        diversificationContext.setCancellationCheck(() -> { throw new TaskCancelledException("cancelled"); });
+
+        RankDoc[] docs = new RankDoc[] { new RankDoc(1, 2.0f, 1), new RankDoc(2, 1.8f, 1) };
+        docs[0].rank = 1;
+        docs[1].rank = 2;
 
         MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
         expectThrows(TaskCancelledException.class, () -> resultDiversification.diversify(docs));

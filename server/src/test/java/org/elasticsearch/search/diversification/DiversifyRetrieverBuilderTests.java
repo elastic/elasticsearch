@@ -10,6 +10,7 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
@@ -22,6 +23,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -46,6 +48,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -56,6 +59,7 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -72,9 +76,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
@@ -328,21 +334,24 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
     /**
      * The sub-search response may be delivered on a transport thread, so diversification must not run inline on it but be
-     * forked to the search coordination pool instead.
+     * forked to the search coordination pool instead. The response carries hits with vectors so that MMR really runs, and the
+     * cancellation check, which MMR polls on every round, records the thread it is called on.
      */
     public void testCombinesResultsOnSearchCoordinationThread() {
+        int dims = 256;
         var retriever = new DiversifyRetrieverBuilder(
             new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(new MatchAllQueryBuilder()), null),
             ResultDiversificationType.MMR,
             "dense_vector_field",
             10,
             3,
-            new VectorData(getRandomFloatQueryVector(256)),
+            new VectorData(getRandomFloatQueryVector(dims)),
             null,
             0.3f
         );
 
         SetOnce<String> completingThread = new SetOnce<>();
+        List<String> checkingThreads = new CopyOnWriteArrayList<>();
         try (var threadPool = createThreadPool()) {
             // respond inline on the calling thread, which stands in for the transport thread delivering the response
             var client = new NoOpClient(threadPool) {
@@ -354,17 +363,36 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
                     ActionListener<Response> listener
                 ) {
                     assertEquals(TransportMultiSearchAction.TYPE, action);
+                    int numHits = 5;
+                    SearchHit[] hits = new SearchHit[numHits];
+                    for (int i = 0; i < numHits; i++) {
+                        hits[i] = new SearchHit(i);
+                        hits[i].score(numHits - i);
+                        hits[i].setDocumentField(new DocumentField("dense_vector_field", List.of(getRandomFloatQueryVector(dims))));
+                        hits[i].sortValues(
+                            new Object[] { ShardDocSortField.encodeShardAndDoc(0, i) },
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    }
+                    var searchHits = new SearchHits(hits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), numHits);
+                    SearchResponse searchResponse;
+                    try {
+                        searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+                    } finally {
+                        searchHits.decRef();
+                    }
                     var response = new MultiSearchResponse(
-                        new MultiSearchResponse.Item[] {
-                            new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS), null) },
+                        new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(searchResponse, null) },
                         1L
                     );
                     ActionListener.respondAndRelease((ActionListener<MultiSearchResponse>) listener, response);
                 }
             };
 
+            var ctx = getQueryRewriteContext(client);
+            ctx.setCancellationCheck(() -> checkingThreads.add(Thread.currentThread().getName()));
             PlainActionFuture<RetrieverBuilder> future = new PlainActionFuture<>();
-            Rewriteable.rewriteAndFetch(retriever, getQueryRewriteContext(client), future.delegateFailure((l, rewritten) -> {
+            Rewriteable.rewriteAndFetch(retriever, ctx, future.delegateFailure((l, rewritten) -> {
                 completingThread.set(Thread.currentThread().getName());
                 l.onResponse(rewritten);
             }));
@@ -372,6 +400,11 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         }
 
         assertThat(completingThread.get(), containsString(ThreadPool.Names.SEARCH_COORDINATION));
+        // two checks come from the compound retriever itself, the rest from MMR, which proves diversification ran
+        assertThat(checkingThreads.size(), greaterThan(3));
+        for (String thread : checkingThreads) {
+            assertThat(thread, containsString(ThreadPool.Names.SEARCH_COORDINATION));
+        }
     }
 
     /**

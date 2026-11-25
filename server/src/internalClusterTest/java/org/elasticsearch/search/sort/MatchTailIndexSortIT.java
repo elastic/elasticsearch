@@ -123,11 +123,35 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
         assertAscSortTimestamps(5, List.of(1000L, 2000L, 2001L, 2002L, 2003L));
     }
 
+    /**
+     * The descending index sort gives documents without a timestamp the key {@code Long.MIN_VALUE}. A document with that real
+     * value ties with them, so it can be the last document, after the documents without a value.
+     */
+    public void testMinValueTimestamp() {
+        createIndex(descendingTimestampSort(), "type=long");
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (long i = 0; i < 30; i++) {
+            docs.add(Map.of("@timestamp", 1000 + i));
+        }
+        for (int i = 0; i < 30; i++) {
+            docs.add(Map.of());
+        }
+        // Indexed last, so it is after the documents without a value
+        docs.add(Map.of("@timestamp", Long.MIN_VALUE));
+        indexBatch(docs);
+
+        assertAscSortTimestamps(5, List.of(Long.MIN_VALUE, 1000L, 1001L, 1002L, 1003L));
+    }
+
     private static Settings descendingTimestampSort() {
         return Settings.builder().put("index.sort.field", "@timestamp").put("index.sort.order", "desc").build();
     }
 
     private void createIndex(Settings sortSettings) {
+        createIndex(sortSettings, "type=date,format=epoch_millis");
+    }
+
+    private void createIndex(Settings sortSettings, String timestampMapping) {
         assertAcked(
             indicesAdmin().prepareCreate(INDEX)
                 .setSettings(
@@ -137,7 +161,7 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
                         .put("index.refresh_interval", "-1")
                         .put(sortSettings)
                 )
-                .setMapping("@timestamp", "type=date,format=epoch_millis", "host.name", "type=keyword")
+                .setMapping("@timestamp", timestampMapping, "host.name", "type=keyword")
         );
     }
 

@@ -2177,7 +2177,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final long finalValue = randomLong();
             leader.submitValue(finalValue);
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-            cluster.deterministicTaskQueue.runAllRunnableTasks(); // lets the asynchronous writes complete
 
             assertThat(
                 "data node is not in the voting configuration",
@@ -2214,7 +2213,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.runRandomly();
             cluster.stabilise();
             final ClusterNode dataNode = cluster.getNodeById(originalDataNode.getId()); // random reboots may have replaced it
-            cluster.deterministicTaskQueue.runAllRunnableTasks(); // lets any pending asynchronous writes complete
 
             final long versionBefore = dataNode.persistedState.getLastAcceptedState().version();
             cluster.getAnyLeader().submitValue(randomLong());

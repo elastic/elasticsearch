@@ -1587,6 +1587,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
      * so a comparison no series passes fails too; copying a label the series agree on keeps them apart.
      */
     public void testPromqlGroupLeftLabelCollisionFails() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-group-left-collision";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "optional", "east", "tx", 1.0);
@@ -1616,6 +1617,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
      * is only ever added.
      */
     public void testPromqlRelabelOverwritingLabelFailsOnRepeatedLabelSets() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-relabel-overwrite";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
@@ -1657,6 +1659,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** A relabel over an aggregated result keeps its series, whether or not the regex matches, and composes under operators. */
     public void testPromqlLabelReplaceOverAggregatesKeepsSeries() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-relabel-aggregates";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
@@ -1731,6 +1734,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** Empty right of or (disjoint label_replace/and) must keep left fingerprints. */
     public void testPromqlOrWithLabelReplaceRightKeepsTierWhenDisjoint() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-or-with-label-replace-right-keeps-tier-when-disjoint";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
@@ -1771,6 +1775,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** or with name-dropping label_replace right keeps both limbs; listener finds _timeseries. */
     public void testPromqlOrWithLabelReplaceIncreaseKeepsBothLimbs() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-or-with-label-replace-increase-keeps-both-limbs";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSampleAt(index, "2024-05-10T00:00:00Z", "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
@@ -2068,6 +2073,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     /** A label named {@code a$b} leaves out a different view than labels {@code a} and {@code b}. */
     public void testPromqlDistinctLabelContainerViewsDoNotCollideOnLabelSeparator() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-label-views";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0, "rx", 2.0);

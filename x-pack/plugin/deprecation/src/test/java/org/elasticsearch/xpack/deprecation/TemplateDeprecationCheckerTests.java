@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -172,6 +173,8 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
                         .build()
                 )
             )
+            .put(IndexTemplateMetadata.builder("big-legacy").patterns(List.of(randomAlphaOfLength(10))).settings(big.settings()))
+            .put(IndexTemplateMetadata.builder("small-legacy").patterns(List.of(randomAlphaOfLength(10))).settings(small.settings()))
             .build();
 
         Function<String, DeprecationIssue> expectedIssue = templateKind -> new DeprecationIssue(
@@ -197,6 +200,8 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
         assertThat(issues.containsKey("small-index"), is(false));
         // The index template's own settings are within the bounds, but it inherits the violation from its component template.
         assertThat(issues.get("inherits-index"), contains(expectedIssue.apply("index template")));
+        assertThat(issues.get("big-legacy"), contains(expectedIssue.apply("legacy index template")));
+        assertThat(issues.containsKey("small-legacy"), is(false));
     }
 
     public void testComponentAndComposableTemplateWithSameName() {

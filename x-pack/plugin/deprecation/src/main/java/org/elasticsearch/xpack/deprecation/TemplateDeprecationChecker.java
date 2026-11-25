@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -45,6 +46,9 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
         this::checkLegacyTiersInComponentTemplates,
         this::checkMinHashParamBoundsInComponentTemplate
     );
+    private final List<Function<IndexTemplateMetadata, DeprecationIssue>> legacyTemplateChecks = List.of(
+        this::checkMinHashParamBoundsInLegacyTemplate
+    );
 
     /**
      * @param project The project metadata provided for the checker
@@ -68,9 +72,11 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
     Map<String, List<DeprecationIssue>> check(ProjectMetadata project) {
         var indexTemplates = project.templatesV2().entrySet();
         var componentTemplates = project.componentTemplates().entrySet();
-        if (indexTemplates.isEmpty() && componentTemplates.isEmpty()) {
+        var legacyTemplates = project.templates().entrySet();
+        if (indexTemplates.isEmpty() && componentTemplates.isEmpty() && legacyTemplates.isEmpty()) {
             return Map.of();
         }
+
         Map<String, List<DeprecationIssue>> issues = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : indexTemplates) {
             String name = entry.getKey();
@@ -96,6 +102,19 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
                 issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
             }
         }
+        for (Map.Entry<String, IndexTemplateMetadata> entry : legacyTemplates) {
+            String name = entry.getKey();
+            IndexTemplateMetadata template = entry.getValue();
+
+            List<DeprecationIssue> issuesForSingleLegacyTemplate = legacyTemplateChecks.stream()
+                .map(c -> c.apply(template))
+                .filter(Objects::nonNull)
+                .toList();
+            if (issuesForSingleLegacyTemplate.isEmpty() == false) {
+                issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleLegacyTemplate);
+            }
+        }
+
         return issues.isEmpty() ? Map.of() : issues;
     }
 
@@ -166,6 +185,10 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
 
     private DeprecationIssue checkMinHashParamBoundsInComponentTemplate(ComponentTemplate componentTemplate) {
         return minHashParamBoundsIssue(componentTemplate.template().settings(), "component template");
+    }
+
+    private DeprecationIssue checkMinHashParamBoundsInLegacyTemplate(IndexTemplateMetadata template) {
+        return minHashParamBoundsIssue(template.settings(), "legacy index template");
     }
 
     private DeprecationIssue minHashParamBoundsIssue(Settings settings, String templateKind) {

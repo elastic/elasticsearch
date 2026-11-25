@@ -197,6 +197,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         );
 
         assertTrue(throwableOrItsCause(e, IllegalArgumentException.class, "data stream timestamp field [@timestamp] does not exist"));
+        internalCluster().assertNoLeakedAnalyzerReferences();
     }
 
     public void testMigrationWithoutWriteIndex() throws Exception {

@@ -126,6 +126,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1473,7 +1474,7 @@ public final class InternalTestCluster extends TestCluster {
     public void assertNoLeakedAnalyzerReferences() throws Exception {
         assertBusy(() -> {
             for (IndicesService indicesService : getInstances(IndicesService.class)) {
-                assertEquals(0L, indicesService.leakedAnalyzerReferences());
+                assertEquals(OptionalLong.of(0), indicesService.leakedAnalyzerReferences());
             }
         });
     }

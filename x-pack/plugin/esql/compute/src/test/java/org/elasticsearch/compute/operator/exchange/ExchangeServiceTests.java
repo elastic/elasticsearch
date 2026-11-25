@@ -1163,9 +1163,11 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     /**
-     * Failing the sink of a cancelled fetch runs its completion listeners, and a compute's listener unregisters the sink. A
-     * compute request that looks the sink up right then must already see the cancellation marker: a missing exchange would
-     * replace the query's own error.
+     * A compute request can look the sink up on another thread while a cancelled fetch fails and unregisters it. From the
+     * moment the cancel starts, that lookup must fail as cancelled: claiming the failed sink would keep it for a compute that
+     * may answer empty, and a missing exchange would replace the query's own error. A completion listener stands in for the
+     * lookup, since {@code onFailure} runs it in the middle of the cancel, before or after an owner's listener unregistered
+     * the sink.
      */
     public void testCancelledFetchMarksSinkBeforeCompletionListeners() throws Exception {
         MockTransportService node0 = newTransportService();
@@ -1190,8 +1192,11 @@ public class ExchangeServiceTests extends ESTestCase {
             opened.actionGet(10, TimeUnit.SECONDS);
             ExchangeSinkHandler sink = exchange1.getSinkHandler(exchangeId);
             PlainActionFuture<Exception> lookupFromListener = new PlainActionFuture<>();
+            boolean unregisteredFirst = randomBoolean();
             sink.addCompletionListener(ActionListener.running(() -> {
-                exchange1.finishSinkHandler(exchangeId, null);
+                if (unregisteredFirst) {
+                    exchange1.finishSinkHandler(exchangeId, null);
+                }
                 try {
                     ExchangeSinkHandler found = exchange1.getSinkHandlerIfOpen(exchangeId);
                     lookupFromListener.onFailure(new IllegalStateException("expected the lookup to fail, got " + found));
@@ -1212,6 +1217,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 cancelled.actionGet(10, TimeUnit.SECONDS);
                 assertTrue("the cancelled fetch is answered as finished", fetchedFinished.actionGet(10, TimeUnit.SECONDS));
                 assertThat(lookupFromListener.actionGet(10, TimeUnit.SECONDS), instanceOf(TaskCancelledException.class));
+                assertBusy(() -> assertTrue("the lookup must not keep the cancelled sink registered", exchange1.isEmpty()));
             } finally {
                 node0.getTaskManager().unregister(queryTask);
             }
@@ -1219,10 +1225,10 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     /**
-     * A cancelled fetch, and a close that arrives after it, must leave a sink that something on the node owns to its owner. A
-     * batch exchange keeps pages that carry batch metadata after its sink is finished, and only its own
-     * {@link ExchangeService#finishSinkHandler}, on the failed completion, discards them. A compute that took the sink the
-     * coordinator opened owns it the same way.
+     * A cancelled fetch, and a close that arrives after it, must leave a sink that something on the node owns to its owner:
+     * a batch exchange, which keeps pages that carry batch metadata after its sink is finished and discards them with its
+     * own {@link ExchangeService#finishSinkHandler} on the failed completion, or a compute that took the sink the
+     * coordinator opened.
      */
     public void testCancelledFetchLeavesOwnedSinkToItsOwner() throws Exception {
         BlockFactory blockFactory = blockFactory();
@@ -1236,8 +1242,9 @@ public class ExchangeServiceTests extends ESTestCase {
             AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
             String exchangeId = "exchange-" + randomAlphaOfLength(8);
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            final boolean batchExchange = randomBoolean();
             final ExchangeSinkHandler sinkHandler;
-            if (randomBoolean()) {
+            if (batchExchange) {
                 // As BidirectionalBatchExchangeServer#initialize does.
                 sinkHandler = exchange1.getOrCreateSinkHandler(exchangeId, randomExchangeBuffer());
             } else {
@@ -1272,16 +1279,25 @@ public class ExchangeServiceTests extends ESTestCase {
                 closed.actionGet(10, TimeUnit.SECONDS);
                 assertFalse("the close leaves a failed sink to its owner", exchange1.isEmpty());
 
-                // PageToBatchPageOperator#flushBatch writes without checking needsInput; the finished buffer keeps batch pages.
-                IntBlock block = blockFactory.newConstantIntBlockWith(1, 1);
-                sink.addPage(new Page(new BatchMetadata(1, 0, true), block));
-                assertFalse(block.isReleased());
-                // As BidirectionalBatchExchangeServer#close does.
-                sinkHandler.addCompletionListener(
-                    ActionListener.wrap(v -> exchange1.finishSinkHandler(exchangeId, null), e -> exchange1.finishSinkHandler(exchangeId, e))
-                );
-                sink.finish();
-                assertTrue("batch page written after the cancel must be released by the owner's cleanup", block.isReleased());
+                if (batchExchange) {
+                    // PageToBatchPageOperator#flushBatch writes without checking needsInput; the finished buffer keeps batch pages.
+                    IntBlock block = blockFactory.newConstantIntBlockWith(1, 1);
+                    sink.addPage(new Page(new BatchMetadata(1, 0, true), block));
+                    assertFalse(block.isReleased());
+                    // As BidirectionalBatchExchangeServer#close does.
+                    sinkHandler.addCompletionListener(
+                        ActionListener.wrap(
+                            v -> exchange1.finishSinkHandler(exchangeId, null),
+                            e -> exchange1.finishSinkHandler(exchangeId, e)
+                        )
+                    );
+                    sink.finish();
+                    assertTrue("batch page written after the cancel must be released by the owner's cleanup", block.isReleased());
+                } else {
+                    // As a compute does once its drivers are done.
+                    sinkHandler.addCompletionListener(ActionListener.running(() -> exchange1.finishSinkHandler(exchangeId, null)));
+                    sink.finish();
+                }
                 assertTrue(exchange1.isEmpty());
             } finally {
                 node0.getTaskManager().unregister(queryTask);

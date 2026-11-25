@@ -132,9 +132,10 @@ public final class ExchangeSinkHandler {
     }
 
     /**
-     * Marks that something on this node took the sink to write into, and unregisters it itself when it is done.
-     * {@link ExchangeService} only unregisters a sink nobody owns when a fetch on it is cancelled: the owner may still
-     * write pages afterwards, and only its own unregistering discards them.
+     * Marks that something on this node, such as a compute or a batch exchange, took the sink to write into. Ownership only
+     * changes what a cancelled fetch does: {@link ExchangeService} leaves an owned sink registered, because the owner may
+     * still write pages afterwards, and those are discarded only while the sink is registered, by the owner unregistering it
+     * with a failure or by a later close. A successful close and the inactive-sinks reaper unregister an owned sink too.
      */
     void markOwned() {
         owned = true;

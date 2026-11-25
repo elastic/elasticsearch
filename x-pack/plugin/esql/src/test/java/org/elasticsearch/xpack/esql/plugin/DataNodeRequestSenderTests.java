@@ -119,6 +119,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -902,6 +903,63 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.failedShards, equalTo(0));
         assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
         assertThat(recorded.routingWaitTimeouts(), equalTo(0L));
+    }
+
+    /**
+     * A finished query skips the shards that were about to be resolved again, and only those. A shard that failed for good keeps its
+     * failure: it can be a failure after data was received, which a skip would hide.
+     */
+    public void testFinishedQueryKeepsFatalFailure() {
+        for (boolean allowPartialResults : List.of(false, true)) {
+            SubscribableListener<Void> queryFinished = new SubscribableListener<>();
+            var future = setup(List.of(targetShard(shard1, node1), targetShard(shard2, node2)), (node, shards, aliasFilters, listener) -> {
+                if (node.equals(node1)) {
+                    runWithDelay(() -> {
+                        queryFinished.onResponse(null);
+                        listener.onFailure(new IOException("failed after data was received"), true);
+                    });
+                } else {
+                    runWithDelay(() -> listener.onResponse(ok()));
+                }
+            }).allowPartialResults(allowPartialResults)
+                .resolver(shardIds -> { throw new AssertionError("no shard resolution is expected here"); })
+                .queryFinished(queryFinished)
+                .start();
+            if (allowPartialResults) {
+                ComputeResponse response = safeGet(future);
+                assertThat(response.totalShards, equalTo(2));
+                assertThat(response.successfulShards, equalTo(1));
+                assertThat("the failed shard is not counted as skipped", response.skippedShards, equalTo(0));
+                assertThat(response.failedShards, equalTo(1));
+                assertThat(response.failures, hasSize(1));
+                assertThat(response.failures.get(0).shard().getShardId(), equalTo(shard1.shardId()));
+                assertThat(response.failures.get(0).getCause(), instanceOf(IOException.class));
+            } else {
+                Exception e = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+                Throwable failure = ExceptionsHelper.unwrap(e, IOException.class);
+                assertNotNull(e.toString(), failure);
+                assertThat(failure.getMessage(), equalTo("failed after data was received"));
+            }
+        }
+    }
+
+    /**
+     * The task is cancelled before the shard-not-available answer of the only copy is handled. The shard would stall under this
+     * routing, but a cancelled query does not wait: the shard ends with the cancellation, at once, and not with its earlier failure.
+     */
+    public void testCancelledCandidateIsNotParked() {
+        RecordedMetrics recorded = new RecordedMetrics();
+        AtomicReference<CancellableTask> task = new AtomicReference<>();
+        SenderSetup setup = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> runWithDelay(() -> {
+            TaskCancelHelper.cancel(task.get(), "test cancellation");
+            listener.onResponse(shardNotFound(shard1));
+        })).resolver(shardIds -> Map.of(shard1.shardId(), List.of(node1))).metrics(recorded);
+        task.set(setup.task());
+        PlainActionFuture<ComputeResponse> future = setup.start();
+
+        TaskCancelledException failure = expectThrows(TaskCancelledException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(failure.getMessage(), containsString("test cancellation"));
+        assertThat(recorded.routingWaits(), equalTo(0L));
     }
 
     private static DataNodeComputeResponse ok() {

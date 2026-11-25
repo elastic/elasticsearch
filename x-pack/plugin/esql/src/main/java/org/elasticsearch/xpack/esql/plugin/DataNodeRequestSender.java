@@ -282,6 +282,9 @@ abstract class DataNodeRequestSender {
                             // skip here.
                             for (ShardId shardId : pendingRetries) {
                                 if (cancelled) {
+                                    // The shard ends as cancelled, as a parked one does in applyEndedWaits. Its entry is removed
+                                    // first: tracking a cancellation on top of it would keep the earlier exception.
+                                    shardFailures.remove(shardId);
                                     trackShardLevelFailure(
                                         shardId,
                                         true,

@@ -70,13 +70,16 @@ public enum IndexingStrategy {
     public record Outcome(boolean batched, String fallbackReason) {}
 
     /**
-     * Indexes the sources as documents {@code d<firstSeqNo>} onwards, with sequence numbers starting at {@code firstSeqNo}.
+     * Indexes the sources as documents {@code d<firstSeqNo>} onwards, with sequence numbers starting at {@code firstSeqNo}, primary term 1
+     * and version 1. {@code BATCH} lets any exception other than a refusal to batch propagate.
      */
     public abstract Outcome index(MapperService mapperService, IndexWriter indexWriter, List<String> sources, int firstSeqNo)
         throws IOException;
 
-    // NOTE: mirrors ShardBatchMapper#mapColumnBatch. A refused resolution or any exception from a mapper is the production signal to
-    // index the chunk with document indexing instead. Returns why the batch was refused, or null when it was indexed.
+    // NOTE: mirrors ShardBatchMapper#mapColumnBatch, which falls back to document indexing on any Exception and logs it. Only a refused
+    // resolution and the UnsupportedOperationException that mappers throw to ask for the fallback do so here, so that any other exception,
+    // which is a mapper bug, fails the test instead of being hidden by document indexing. The metadata mappers run outside the try for the
+    // same reason. Returns why the batch was refused, or null when it was indexed.
     private static String indexAsBatch(MapperService mapperService, IndexWriter indexWriter, List<String> sources, int firstSeqNo)
         throws IOException {
         final int count = sources.size();
@@ -120,7 +123,7 @@ public enum IndexingStrategy {
                     }
                     group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
                 }
-            } catch (Exception e) {
+            } catch (UnsupportedOperationException e) {
                 return String.valueOf(e.getMessage());
             }
             for (final MetadataFieldMapper metadataMapper : metadataMappers) {

@@ -910,3 +910,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testSerializationOfSimple {TestCase=<int, 6 doubles> null in 2}
   issue: https://github.com/elastic/elasticsearch/issues/167403
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyEvaluateBlockWithNulls {TestCase=<long, 20 fixed-interval longs> null in 12}
+  issue: https://github.com/elastic/elasticsearch/issues/167407

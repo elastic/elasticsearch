@@ -16,7 +16,6 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.awscore.defaultsmode.DefaultsMode;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
@@ -32,7 +31,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
@@ -57,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -78,7 +77,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
-import java.util.function.Function;
 
 /**
  * StorageProvider implementation for S3 using AWS SDK v2.
@@ -140,21 +138,20 @@ public class S3StorageProvider implements StorageProvider {
     // Used by buildRetryClient() to rebuild the S3 client at a discovered region.
     @Nullable
     private final IdentityProvider<? extends AwsCredentialsIdentity> credentials;
-    // The max-connections value for the async client, stored so buildRetryAsyncClient can rebuild it
-    // at a discovered region.
+    // The max-connections value for the async client, stored so pair-for-region can rebuild it.
     private final int maxConnections;
-    // Clients rebuilt at the region discovered via HeadBucket. Set at most once per provider instance.
-    // Stored as a single volatile record so both fields are always read and written atomically: a reader
-    // can never observe a sync/async pair from two different discovery events.
+    /**
+     * Test-only endpoint applied after the no-endpoint configureCommon branch so unit tests can
+     * hit an in-process fake without taking the custom-endpoint path. Null in production.
+     */
     @Nullable
-    private volatile DiscoveredClients discoveredClients;
-    // True once resolveClientsForBucket has attempted a HeadBucket probe (regardless of outcome).
-    // Prevents N redundant round-trips when the bucket responds 200 with no x-amz-bucket-region
-    // header (e.g. us-east-1 buckets where HeadBucket always succeeds). Writes are performed
-    // inside the synchronized(this) block shared with cacheDiscoveredClients and close().
-    private volatile boolean discoveryAttempted;
-
-    private record DiscoveredClients(S3Client sync, S3AsyncClient async) {}
+    private final URI testEndpoint;
+    /**
+     * Per-bucket region cache and per-region client pairs. Null in {@link #forTesting} constructors
+     * that inject pre-built clients and have no configuration.
+     */
+    @Nullable
+    private final BucketRegionResolver resolver;
 
     // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
@@ -190,9 +187,20 @@ public class S3StorageProvider implements StorageProvider {
         EsqlContainerCredentialsProvider containerCredentialsProvider,
         int maxConnections
     ) {
+        this(config, webIdentityTokenCredentialsProvider, containerCredentialsProvider, maxConnections, null);
+    }
+
+    S3StorageProvider(
+        S3Configuration config,
+        CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider,
+        EsqlContainerCredentialsProvider containerCredentialsProvider,
+        int maxConnections,
+        @Nullable URI testEndpoint
+    ) {
         this.config = config;
         this.storageIdentity = identityOf(config);
         this.maxConnections = maxConnections;
+        this.testEndpoint = testEndpoint;
         // Set first so that managedIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
         // the MANAGED_IDENTITY path) can read them.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
@@ -223,10 +231,19 @@ public class S3StorageProvider implements StorageProvider {
                 case MANAGED_IDENTITY -> buildManagedIdentityCredentialsProvider();
             };
             this.credentials = resolvedCredentials;
-            s3 = buildS3Client(config, resolvedCredentials, maxConnections);
+            s3 = buildS3Client(config, resolvedCredentials, maxConnections, testEndpoint);
             this.stsAsyncClient = sts;
             this.s3Client = s3;
-            this.s3AsyncClient = buildS3AsyncClient(config, resolvedCredentials, maxConnections);
+            this.s3AsyncClient = buildS3AsyncClient(config, resolvedCredentials, maxConnections, testEndpoint);
+            String seedRegion = config.region() != null ? config.region() : Region.US_EAST_1.id();
+            this.resolver = new BucketRegionResolver(
+                seedRegion,
+                config.region(),
+                this.s3Client,
+                this.s3AsyncClient,
+                CONNECTION_ACQUISITION_TIMEOUT.toNanos(),
+                this::pairForRegion
+            );
             success = true;
         } finally {
             if (success == false) {
@@ -282,11 +299,21 @@ public class S3StorageProvider implements StorageProvider {
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
         this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
+        this.testEndpoint = null;
+        this.resolver = null;
     }
 
     /** Test-only sugar: a 2-arg form with no IRSA provider. */
     static S3StorageProvider forTesting(S3Client s3Client, S3AsyncClient s3AsyncClient) {
         return new S3StorageProvider(s3Client, s3AsyncClient, null);
+    }
+
+    /**
+     * Test-only: production no-endpoint/no-region branch with an endpoint override applied after
+     * branch selection, so an in-process fake can exercise the AWS path.
+     */
+    static S3StorageProvider forTestEndpoint(S3Configuration config, URI testEndpoint) {
+        return new S3StorageProvider(config, null, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY), testEndpoint);
     }
 
     /**
@@ -304,99 +331,77 @@ public class S3StorageProvider implements StorageProvider {
         this.s3Client = s3Client;
         this.s3AsyncClient = null;
         this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
+        this.testEndpoint = null;
+        this.resolver = null;
     }
 
-    /**
-     * Returns true when the provider should attempt a one-shot HeadBucket region-discovery retry
-     * on {@code AuthorizationHeaderMalformed}. Fires only on the custom-endpoint path with no
-     * explicit region — the scenario where stores like Scaleway reject wrong-region signing.
-     * Package-private for subclass override in tests.
-     */
-    boolean shouldAttemptRegionRetry() {
-        return credentials != null && config != null && config.region() == null && config.endpoint() != null;
+    private BucketRegionResolver.ClientPair pairForRegion(String region) {
+        S3Client sync = buildRetryClient(region);
+        try {
+            return new BucketRegionResolver.ClientPair(sync, buildRetryAsyncClient(region));
+        } catch (RuntimeException e) {
+            IOUtils.closeWhileHandlingException(asCloseable(sync));
+            throw e;
+        }
     }
 
     /**
      * Builds a new sync {@link S3Client} signed for {@code region}, reusing all other settings
      * (endpoint, credentials, profile suppression, retry strategy) from this provider's config.
-     * Only called when {@link #shouldAttemptRegionRetry()} is true, so {@code config} and
-     * {@code credentials} are guaranteed non-null.
-     * Package-private for subclass override in tests.
      */
     S3Client buildRetryClient(String region) {
         S3ClientBuilder builder = S3Client.builder();
-        configureCommon(builder, config, credentials, standardRetryStrategy(), region);
+        configureCommon(builder, config, credentials, standardRetryStrategy(), region, List.of(), testEndpoint);
         return builder.httpClientBuilder(apacheHttpClientBuilder(maxConnections)).build();
     }
 
     /**
      * Builds a new async {@link S3AsyncClient} signed for {@code region}, reusing all other settings
      * from this provider's config. Mirrors {@link #buildRetryClient(String)} for the async path.
-     * Only called when {@link #shouldAttemptRegionRetry()} is true, so {@code config} and
-     * {@code credentials} are guaranteed non-null.
      */
     S3AsyncClient buildRetryAsyncClient(String region) {
-        return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), region).httpClientBuilder(
-            nettyHttpClientBuilder(maxConnections)
-        ).build();
+        return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), region, List.of(), testEndpoint)
+            .httpClientBuilder(nettyHttpClientBuilder(maxConnections))
+            .build();
     }
 
-    /**
-     * Caches a sync+async client pair built for the discovered region, set-once, and returns the cached pair.
-     * After the first discovery all subsequent callers see the same region, so clients are shared across
-     * list/exists/newObject without rebuilding each time. Callers must use the returned pair rather than
-     * calling {@link #buildRetryClient} again to avoid building a throwaway third client.
-     */
-    private synchronized DiscoveredClients cacheDiscoveredClients(String region) {
-        if (discoveredClients == null) {
-            discoveredClients = new DiscoveredClients(buildRetryClient(region), buildRetryAsyncClient(region));
+    BucketRegionResolver.ClientPair clientsFor(String bucket) throws IOException {
+        if (resolver == null) {
+            return new BucketRegionResolver.ClientPair(s3Client, s3AsyncClient);
         }
-        return discoveredClients;
+        return resolver.clientsFor(bucket);
     }
 
-    /**
-     * Returns the discovered-region client pair for {@code bucket}, triggering a HeadBucket region probe
-     * if discovery has not run yet and {@link #shouldAttemptRegionRetry()} is true. Called by
-     * {@link #newObject} so exact-path datasets (which never go through {@link #listObjects} or
-     * {@link #exists}) also benefit from region discovery without an extra round-trip per call.
-     * <p>
-     * At most one HeadBucket probe fires from this path per provider instance: {@code discoveryAttempted}
-     * is set inside the synchronized lock before the I/O runs, so concurrent callers skip the probe.
-     * This prevents N redundant round-trips when a query reads N files from a bucket whose HeadBucket
-     * response carries no {@code x-amz-bucket-region} header (e.g. a bucket that is already in
-     * {@code us-east-1}).
-     */
-    @Nullable
-    private DiscoveredClients resolveClientsForBucket(String bucket) {
-        DiscoveredClients dc = discoveredClients;
-        if (dc != null) {
-            return dc;
+    void invalidateBucketRegion(String bucket, @Nullable String observedRegion) {
+        if (resolver != null) {
+            resolver.invalidate(bucket, observedRegion);
         }
-        if (shouldAttemptRegionRetry() == false || discoveryAttempted) {
-            return null;
+    }
+
+    void rememberBucketRegion(String bucket, String region) {
+        if (resolver != null) {
+            resolver.rememberRegion(bucket, region);
         }
-        synchronized (this) {
-            dc = discoveredClients;
-            if (dc != null) {
-                return dc;
-            }
-            if (discoveryAttempted) {
-                return null;
-            }
-            // Mark before the probe so concurrent calls skip it — at most one probe fires from this path.
-            // A concurrent newObject call that arrives while the probe is in-flight will see
-            // discoveryAttempted=true, return null, and proceed with the wrong-region client. Unlike the
-            // reactive listObjects/exists paths, there is no per-request retry from newObject, so such a
-            // call may fail with AuthorizationHeaderMalformed. In practice, exact-path datasets are read
-            // sequentially per file, making the concurrent window narrow. A future fix could use a
-            // CompletableFuture to let concurrent callers wait for the in-flight result.
-            discoveryAttempted = true;
+    }
+
+    boolean discoversRegion() {
+        return resolver != null && config != null && config.region() == null;
+    }
+
+    boolean hasResolvedRegion(String bucket) {
+        return resolver != null && resolver.hasResolvedRegion(bucket);
+    }
+
+    boolean healWrongRegion(String bucket, Throwable cause) {
+        if (discoversRegion() == false || BucketRegionResolver.isWrongRegion(cause) == false) {
+            return false;
         }
-        String region = discoverRegionViaHeadBucket(s3Client, bucket);
-        if (region != null) {
-            return cacheDiscoveredClients(region);
+        String observed = BucketRegionResolver.observedRegion(cause);
+        invalidateBucketRegion(bucket, observed);
+        if (observed != null && observed.isEmpty() == false) {
+            rememberBucketRegion(bucket, observed);
         }
-        return null;
+        return true;
     }
 
     /**
@@ -409,31 +414,6 @@ public class S3StorageProvider implements StorageProvider {
         return e instanceof S3Exception s3e
             && s3e.awsErrorDetails() != null
             && "AuthorizationHeaderMalformed".equals(s3e.awsErrorDetails().errorCode());
-    }
-
-    /**
-     * Issues a {@code HeadBucket} against {@code bucket} using the given client (which may be
-     * signed for the wrong region) and reads the {@code x-amz-bucket-region} header from the
-     * resulting error response. Returns the discovered region string, or {@code null} if the
-     * response carries no such header or any unexpected exception is thrown.
-     */
-    @Nullable
-    private static String discoverRegionViaHeadBucket(S3Client client, String bucket) {
-        try {
-            client.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
-            return null; // unexpected success — no region hint available
-        } catch (S3Exception e) {
-            // Read x-amz-bucket-region from the HTTP response headers.
-            // HEAD responses carry no body, so awsErrorDetails().errorCode() may be null,
-            // but awsErrorDetails().sdkHttpResponse() still carries the response headers.
-            if (e.awsErrorDetails() != null && e.awsErrorDetails().sdkHttpResponse() != null) {
-                return e.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("x-amz-bucket-region").orElse(null);
-            }
-            return null;
-        } catch (Exception e) {
-            LOGGER.debug("HeadBucket for region discovery failed unexpectedly on bucket [{}]", bucket, e);
-            return null;
-        }
     }
 
     /**
@@ -456,17 +436,19 @@ public class S3StorageProvider implements StorageProvider {
     private static S3Client buildS3Client(
         S3Configuration config,
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
-        int maxConnections
+        int maxConnections,
+        @Nullable URI testEndpoint
     ) {
         S3ClientBuilder builder = S3Client.builder();
-        configureCommon(builder, config, credentials, standardRetryStrategy(), null);
+        configureCommon(builder, config, credentials, standardRetryStrategy(), null, List.of(), testEndpoint);
         return builder.httpClientBuilder(apacheHttpClientBuilder(maxConnections)).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(
         S3Configuration config,
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
-        int maxConnections
+        int maxConnections,
+        @Nullable URI testEndpoint
     ) {
         // Install a pooled receive-buffer allocator so that socket reads on Netty channels reuse
         // pooled memory instead of allocating a fresh zero-filled byte[] per read. The AWS SDK's
@@ -495,9 +477,9 @@ public class S3StorageProvider implements StorageProvider {
         // attempt — it could spuriously fail a healthy retry and free its buffer.
         // See KnownLengthAsyncResponseTransformer's javadoc; do not re-enable retries here without
         // removing the single-use contract there.
-        return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), null).httpClientBuilder(
-            nettyHttpClientBuilder(maxConnections)
-        ).build();
+        return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), null, List.of(), testEndpoint)
+            .httpClientBuilder(nettyHttpClientBuilder(maxConnections))
+            .build();
     }
 
     /**
@@ -507,16 +489,6 @@ public class S3StorageProvider implements StorageProvider {
      * When {@code overrideRegion} is non-null it is used directly (the retry path after HeadBucket region
      * discovery); when null the region is resolved from {@code config} as usual.
      */
-    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
-        B builder,
-        S3Configuration config,
-        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
-        RetryStrategy retryStrategy,
-        @Nullable String overrideRegion
-    ) {
-        return configureCommon(builder, config, credentials, retryStrategy, overrideRegion, List.of());
-    }
-
     /**
      * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
      * Pass an empty list for {@code interceptors} in production.
@@ -527,7 +499,7 @@ public class S3StorageProvider implements StorageProvider {
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
         List<ExecutionInterceptor> interceptors
     ) {
-        return configureCommon(builder, config, credentials, standardRetryStrategy(), null, interceptors);
+        return configureCommon(builder, config, credentials, standardRetryStrategy(), null, interceptors, null);
     }
 
     private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
@@ -536,7 +508,8 @@ public class S3StorageProvider implements StorageProvider {
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
         RetryStrategy retryStrategy,
         @Nullable String overrideRegion,
-        List<ExecutionInterceptor> interceptors
+        List<ExecutionInterceptor> interceptors,
+        @Nullable URI testEndpoint
     ) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
@@ -561,29 +534,14 @@ public class S3StorageProvider implements StorageProvider {
 
         // Diverges from repository-s3 deliberately: datasets name individual buckets, and region
         // is now a dataset-level key rather than a data-source-level one.
-        boolean hasEndpoint = config != null && config.endpoint() != null;
-        // overrideRegion is non-null on the HeadBucket retry path (discovered from the 400 response header).
+        // overrideRegion is non-null when building a pair for a discovered region.
         String region = overrideRegion != null ? overrideRegion : (config == null ? null : config.region());
 
         if (region != null) {
             // Explicit region wins; a wrong value stays an error (no silent cross-region redirect).
             builder.region(Region.of(region));
-        } else if (hasEndpoint == false) {
-            // Standard S3: seed with us-east-1 and let the SDK's cross-region decorator redirect.
-            // STANDARD defaults mode pins the us-east-1 *regional* endpoint (s3.us-east-1.amazonaws.com)
-            // instead of the legacy global one (s3.amazonaws.com). The decorator's HeadBucket fallback
-            // only reads x-amz-bucket-region from error responses; the global endpoint returns 200 for
-            // a publicly readable foreign-region bucket, so a concurrent first-read race can cache a
-            // null region and leak a 301. The regional endpoint returns 301 with that header, so the
-            // same race recovers. Retry strategy is already pinned above; STANDARD does not change it.
-            builder.region(Region.US_EAST_1);
-            builder.crossRegionAccessEnabled(true);
-            builder.defaultsMode(DefaultsMode.STANDARD);
         } else {
-            // Custom endpoint (MinIO, Scaleway, …): cross-region flag is a no-op for non-AWS stores.
-            // Seed with us-east-1; if the store validates the signing region it will respond with
-            // AuthorizationHeaderMalformed and the provider will discover the correct region via HeadBucket
-            // and retry once.
+            // Seed us-east-1. Bucket region is resolved by BucketRegionResolver, not the SDK decorator.
             builder.region(Region.US_EAST_1);
         }
 
@@ -605,6 +563,12 @@ public class S3StorageProvider implements StorageProvider {
                     builder.forcePathStyle(true);
                 }
             }
+        }
+
+        // Test seam: applied after branch selection so a fake can hit the no-endpoint AWS path.
+        if (testEndpoint != null) {
+            builder.endpointOverride(testEndpoint);
+            builder.forcePathStyle(true);
         }
 
         return builder;
@@ -790,58 +754,55 @@ public class S3StorageProvider implements StorageProvider {
     @Override
     public StorageEntry objectMetadata(StoragePath path) throws IOException {
         Target t = resolve(path);
-        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path).headObjectMetadata();
+        BucketRegionResolver.ClientPair pair = clientsFor(t.bucket);
+        return owned(new S3StorageObject(pair.sync(), pair.async(), asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path))
+            .headObjectMetadata();
     }
 
     @Override
     public StorageObject newObject(StoragePath path) {
         Target t = resolve(path);
-        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path);
+        return owned(new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path));
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
         Target t = resolve(path);
-        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length);
+        return owned(new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length));
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         Target t = resolve(path);
-        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length, lastModified);
+        return owned(
+            new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length, lastModified)
+        );
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
         Target t = resolve(path);
-        S3StorageObject object = new S3StorageObject(
-            t.sync,
-            t.async,
-            asyncReadRetryStrategy,
-            storageIdentity,
-            t.bucket,
-            t.key,
-            path,
-            length,
-            lastModified
+        S3StorageObject object = owned(
+            new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length, lastModified)
         );
         object.seedVersion(version);
         return object;
     }
 
-    /** The bucket, the key and the clients that serve them, which the four single-path entry points all need. */
+    private S3StorageObject owned(S3StorageObject object) {
+        object.ownedBy(this);
+        return object;
+    }
+
+    /** The bucket, the key and the seed clients. Region-pinned clients are resolved on first throwing I/O. */
     private record Target(S3Client sync, S3AsyncClient async, String bucket, String key) {}
 
     /**
-     * Checks the scheme, splits the path, and resolves the clients for that bucket — which may differ from the
-     * configured pair when the bucket lives in another region.
+     * Checks the scheme and splits the path. Does not HeadBucket: {@code newObject} must not throw.
      */
     private Target resolve(StoragePath path) {
         validateS3Scheme(path);
-        String bucket = path.host();
-        String key = extractKey(path);
-        DiscoveredClients dc = resolveClientsForBucket(bucket);
-        return new Target(dc != null ? dc.sync() : s3Client, dc != null ? dc.async() : s3AsyncClient, bucket, key);
+        return new Target(s3Client, s3AsyncClient, path.host(), extractKey(path));
     }
 
     @Override
@@ -865,22 +826,18 @@ public class S3StorageProvider implements StorageProvider {
         }
         keyPrefix += namePrefix;
 
-        // Prefer the already-discovered client when available; fall back to s3Client for the first call.
-        DiscoveredClients dcNow = discoveredClients;
-        S3Client initialClient = dcNow != null ? dcNow.sync() : s3Client;
-        // When retry is applicable, provide a factory so the iterator can rebuild the client on
-        // AuthorizationHeaderMalformed. Returns the cached client (cacheDiscoveredClients is set-once),
-        // so the iterator does not close it — ownership stays with the provider.
-        Function<String, S3Client> retryClientFactory = shouldAttemptRegionRetry()
-            ? discoveredRegion -> cacheDiscoveredClients(discoveredRegion).sync()
-            : null;
+        S3Client listingClient = clientsFor(bucket).sync();
         // S3 is a flat namespace — ListObjectsV2 is inherently prefix-based and recursive.
         // The recursive flag is effectively ignored.
-        return new S3StorageIterator(initialClient, bucket, keyPrefix, prefix, regionHint(), retryClientFactory);
+        return new S3StorageIterator(this, listingClient, bucket, keyPrefix, prefix, regionHint());
     }
 
     @Override
     public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        return listChildren(prefix, limit, true);
+    }
+
+    private StorageChildren listChildren(StoragePath prefix, int limit, boolean allowHeal) throws IOException {
         validateS3Scheme(prefix);
         String bucket = prefix.host();
         String keyPrefix = extractKey(prefix);
@@ -893,6 +850,7 @@ public class S3StorageProvider implements StorageProvider {
         String pathPrefix = bucketPathPrefix(prefix.scheme(), bucket);
         String continuationToken = null;
         try {
+            S3Client listingClient = clientsFor(bucket).sync();
             do {
                 ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
                     .bucket(bucket)
@@ -901,7 +859,7 @@ public class S3StorageProvider implements StorageProvider {
                 if (continuationToken != null) {
                     requestBuilder.continuationToken(continuationToken);
                 }
-                ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                ListObjectsV2Response response = listingClient.listObjectsV2(requestBuilder.build());
                 ExternalPlanningIo.addMetadataGet(0);
                 for (S3Object s3Object : response.contents()) {
                     if (s3Object.key().endsWith(StoragePath.PATH_SEPARATOR)) {
@@ -928,6 +886,12 @@ public class S3StorageProvider implements StorageProvider {
             throw new IOException("Failed to list children in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE);
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
+            if (allowHeal && healWrongRegion(bucket, e)) {
+                return listChildren(prefix, limit, false);
+            }
+            if (e instanceof ExternalException runtime) {
+                throw runtime;
+            }
             // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
             // retry layer re-attempts it and the adaptive backoff hears about it.
             ExternalUnavailableException unavailable = mapResolveFailure(prefix, e);
@@ -965,13 +929,26 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        DiscoveredClients dc = discoveredClients;
-        S3Client initialClient = dc != null ? dc.sync() : s3Client;
-        return existsWithClient(initialClient, bucket, key, path, true);
+        try {
+            return existsWithClient(clientsFor(bucket).sync(), bucket, key, path);
+        } catch (Exception e) {
+            if (healWrongRegion(bucket, e)) {
+                return existsWithClient(clientsFor(bucket).sync(), bucket, key, path);
+            }
+            if (e instanceof IOException ioe) {
+                throw ioe;
+            }
+            if (e instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IOException(
+                "Failed to check existence of external object: " + S3FailureDetail.of(e) + credentialHint() + regionHint(),
+                e
+            );
+        }
     }
 
-    private boolean existsWithClient(S3Client client, String bucket, String key, StoragePath path, boolean allowRegionRetry)
-        throws IOException {
+    private boolean existsWithClient(S3Client client, String bucket, String key, StoragePath path) throws IOException {
         try {
             HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             client.headObject(request);
@@ -982,12 +959,6 @@ public class S3StorageProvider implements StorageProvider {
             ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking object existence");
             if (expired != null) {
                 throw expired;
-            }
-            if (allowRegionRetry && shouldAttemptRegionRetry() && isAuthorizationHeaderMalformed(e)) {
-                String discoveredRegion = discoverRegionViaHeadBucket(client, bucket);
-                if (discoveredRegion != null) {
-                    return existsWithClient(cacheDiscoveredClients(discoveredRegion).sync(), bucket, key, path, false);
-                }
             }
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 return existsViaRangeGet(client, bucket, key, path);
@@ -1035,7 +1006,7 @@ public class S3StorageProvider implements StorageProvider {
      * code can erase them inside an {@link IOException}. The returned exception is both the HTTP 503
      * surfaced to the caller and the marker consumed by the storage retry policy.
      */
-    private static ExternalUnavailableException mapResolveFailure(StoragePath path, Exception cause) {
+    static ExternalUnavailableException mapResolveFailure(StoragePath path, Exception cause) {
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
             long retryAfterMs = 0L;
@@ -1060,20 +1031,13 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        // Snapshot under the same lock used by cacheDiscoveredClients so we cannot miss a pair that
-        // is written concurrently: without the lock a racing cacheDiscoveredClients() call could
-        // write a new DiscoveredClients after our volatile read but before IOUtils.close() finishes,
-        // leaking the connection pool and Netty thread group.
-        final DiscoveredClients dc;
-        synchronized (this) {
-            dc = discoveredClients;
+        if (resolver != null) {
+            resolver.close();
         }
-        List<Closeable> closeables = new ArrayList<>(5 + ownedManagedIdentityProviders.size());
+        List<Closeable> closeables = new ArrayList<>(3 + ownedManagedIdentityProviders.size());
         closeables.add(asCloseable(s3Client));
         closeables.add(asCloseable(s3AsyncClient));
         closeables.add(asCloseable(stsAsyncClient));
-        closeables.add(dc != null ? asCloseable(dc.sync()) : null);
-        closeables.add(dc != null ? asCloseable(dc.async()) : null);
         for (SdkAutoCloseable provider : ownedManagedIdentityProviders) {
             closeables.add(asCloseable(provider));
         }
@@ -1122,10 +1086,10 @@ public class S3StorageProvider implements StorageProvider {
      * directed to create a dataset to verify access at the bucket level.
      *
      * <p>An {@code AuthorizationHeaderMalformed} error (HTTP 400) means the request was signed for
-     * the wrong region. Queries avoid this via a one-shot HeadBucket region-discovery retry
-     * ({@link #shouldAttemptRegionRetry}), but {@code ListBuckets} has no bucket to discover the
-     * region from, so the probe cannot perform the same recovery. Because the data source works fine
-     * for queries, this is also reported as {@code untestable} rather than {@code failure}.
+     * the wrong region. Queries recover via {@link BucketRegionResolver}, but {@code ListBuckets}
+     * has no bucket to discover the region from, so this probe cannot perform the same recovery.
+     * Because the data source works fine for queries, this is also reported as {@code untestable}
+     * rather than {@code failure}.
      *
      * <p>Invalid credentials ({@code InvalidClientTokenId}, {@code SignatureDoesNotMatch}) are re-thrown as failures.
      * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
@@ -1178,37 +1142,32 @@ public class S3StorageProvider implements StorageProvider {
      * Iterator for S3 object listing with pagination support.
      */
     private static final class S3StorageIterator implements StorageIterator {
+        private final S3StorageProvider provider;
         private S3Client s3Client;
         private final String bucket;
         private final String prefix;
         private final StoragePath baseDirectory;
         private final String regionHint;
+        private boolean healed;
 
         private Iterator<S3Object> currentBatch;
         private String continuationToken;
         private boolean firstPageFetched;
 
-        /**
-         * Non-null on the custom-endpoint, no-explicit-region path; consumed (set to null) after the
-         * first successful region discovery so that subsequent pages do not retry again.
-         */
-        @Nullable
-        private Function<String, S3Client> retryClientFactory;
-
         S3StorageIterator(
+            S3StorageProvider provider,
             S3Client s3Client,
             String bucket,
             String prefix,
             StoragePath baseDirectory,
-            String regionHint,
-            @Nullable Function<String, S3Client> retryClientFactory
+            String regionHint
         ) {
+            this.provider = provider;
             this.s3Client = s3Client;
             this.bucket = bucket;
             this.prefix = prefix;
             this.baseDirectory = baseDirectory;
             this.regionHint = regionHint;
-            this.retryClientFactory = retryClientFactory;
         }
 
         @Override
@@ -1238,43 +1197,28 @@ public class S3StorageProvider implements StorageProvider {
         }
 
         private void fetchNextBatch() {
+            ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix);
+            if (continuationToken != null) {
+                requestBuilder.continuationToken(continuationToken);
+            }
             ListObjectsV2Response response;
             try {
-                ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix);
-
-                if (continuationToken != null) {
-                    requestBuilder.continuationToken(continuationToken);
-                }
-
                 response = s3Client.listObjectsV2(requestBuilder.build());
                 ExternalPlanningIo.addMetadataGet(0);
             } catch (Exception e) {
-                ExternalPlanningIo.addMetadataGet(0);
-                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
-                if (expired != null) {
-                    throw expired;
-                }
-                if (retryClientFactory != null && isAuthorizationHeaderMalformed(e)) {
-                    // Discover the correct region via HeadBucket and retry once.
-                    Function<String, S3Client> factory = retryClientFactory;
-                    retryClientFactory = null; // consume — no second retry
-                    String discoveredRegion = discoverRegionViaHeadBucket(s3Client, bucket);
-                    if (discoveredRegion != null) {
-                        s3Client = factory.apply(discoveredRegion);
-                        fetchNextBatch();
-                        return;
+                if (healed == false && provider.healWrongRegion(bucket, e)) {
+                    ExternalPlanningIo.addMetadataGet(0);
+                    healed = true;
+                    try {
+                        s3Client = provider.clientsFor(bucket).sync();
+                        response = s3Client.listObjectsV2(requestBuilder.build());
+                        ExternalPlanningIo.addMetadataGet(0);
+                    } catch (Exception retry) {
+                        throw listingFailure(retry);
                     }
+                } else {
+                    throw listingFailure(e);
                 }
-                ExternalUnavailableException unavailable = mapResolveFailure(baseDirectory, e);
-                if (unavailable != null) {
-                    throw unavailable;
-                }
-                String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
-                    ? "Access denied listing objects in the configured path. "
-                        + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
-                        + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in the configured path";
-                throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
             if (truncatedWithoutToken(response)) {
                 throw new UncheckedIOException(
@@ -1284,6 +1228,27 @@ public class S3StorageProvider implements StorageProvider {
             currentBatch = response.contents().iterator();
             continuationToken = continuationTokenOf(response);
             firstPageFetched = true;
+        }
+
+        private RuntimeException listingFailure(Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
+            if (e instanceof ExternalException runtime) {
+                return runtime;
+            }
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
+            if (expired != null) {
+                return expired;
+            }
+            ExternalUnavailableException unavailable = mapResolveFailure(baseDirectory, e);
+            if (unavailable != null) {
+                return unavailable;
+            }
+            String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
+                ? "Access denied listing objects in the configured path. "
+                    + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
+                    + "or use exact file paths instead of glob patterns."
+                : "Failed to list objects in the configured path";
+            return new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
         }
     }
 

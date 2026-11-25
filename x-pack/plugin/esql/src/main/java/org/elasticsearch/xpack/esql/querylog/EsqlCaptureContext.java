@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
@@ -100,6 +103,11 @@ public class EsqlCaptureContext extends QueryCaptureContext {
         return Optional.ofNullable(request.resolvedSettings());
     }
 
+    /** The {@code @timestamp} range the request filter asks for; available on failures too, once the query has started planning. */
+    Optional<TimestampBounds> getRequestedTimeRange() {
+        return Optional.ofNullable(request.requestedTimeRange()).map(RequestedTimeRange::bounds);
+    }
+
     /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views. */
     Map<String, ViewQuerySettings> getViewSettings() {
         return request.viewSettings();
@@ -128,7 +136,8 @@ public class EsqlCaptureContext extends QueryCaptureContext {
                 response.readNanos(),
                 response.readCpuNanos(),
                 response.cpuNanos(),
-                response.driverNanos()
+                response.driverNanos(),
+                response.searchLoad()
             )
         );
     }
@@ -142,7 +151,8 @@ public class EsqlCaptureContext extends QueryCaptureContext {
         long readNanos,
         long readCpuNanos,
         long cpuNanos,
-        long driverNanos
+        long driverNanos,
+        SearchLoadMetrics searchLoad
     ) {}
 
     @Override

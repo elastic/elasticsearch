@@ -75,7 +75,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
 
         /**
          * Seek the slice-free search term {@code encodeId(id + "#")} for each value. This is derived only from the
-         * id, so {@code ids}/{@code term} search needs no slice context and works across slices (incl. {@code slice=_all}).
+         * id, so {@code ids}/{@code term} search needs no slice context and works across slices (including a search that names no slice).
          */
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {

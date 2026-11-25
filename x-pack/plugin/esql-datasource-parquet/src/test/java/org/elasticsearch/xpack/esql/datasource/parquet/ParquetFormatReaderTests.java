@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
@@ -148,6 +149,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
@@ -10781,6 +10783,24 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * the shape pyarrow produces when a value exceeds the statistics size threshold.
      */
     private static byte[] stripBoundsFromColumn(byte[] parquetBytes, int rowGroupIndex, String columnName) throws IOException {
+        return rewriteColumnStats(parquetBytes, rowGroupIndex, columnName, stats -> {
+            stats.unsetMin();
+            stats.unsetMax();
+            stats.unsetMin_value();
+            stats.unsetMax_value();
+        });
+    }
+
+    /**
+     * Rewrites the Parquet footer of {@code parquetBytes}, handing the Thrift statistics of column {@code columnName}
+     * in row group {@code rowGroupIndex} to {@code patch}. Fails if that column chunk records no statistics.
+     */
+    private static byte[] rewriteColumnStats(
+        byte[] parquetBytes,
+        int rowGroupIndex,
+        String columnName,
+        Consumer<org.apache.parquet.format.Statistics> patch
+    ) throws IOException {
         int len = parquetBytes.length;
         int footerLen = ByteBuffer.wrap(parquetBytes, len - 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
         int footerStart = len - 8 - footerLen;
@@ -10790,20 +10810,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
             thriftMeta = Util.readFileMetaData(in);
         }
 
+        boolean patched = false;
         for (ColumnChunk cc : thriftMeta.getRow_groups().get(rowGroupIndex).getColumns()) {
-            if (cc.getMeta_data() != null) {
-                String dotPath = String.join(".", cc.getMeta_data().getPath_in_schema());
-                if (dotPath.equals(columnName)) {
-                    org.apache.parquet.format.Statistics stats = cc.getMeta_data().getStatistics();
-                    if (stats != null) {
-                        stats.unsetMin();
-                        stats.unsetMax();
-                        stats.unsetMin_value();
-                        stats.unsetMax_value();
-                    }
+            if (cc.getMeta_data() != null && String.join(".", cc.getMeta_data().getPath_in_schema()).equals(columnName)) {
+                org.apache.parquet.format.Statistics stats = cc.getMeta_data().getStatistics();
+                if (stats != null) {
+                    patch.accept(stats);
+                    patched = true;
                 }
             }
         }
+        assertTrue("no statistics for column [" + columnName + "] in row group [" + rowGroupIndex + "]", patched);
 
         ByteArrayOutputStream newFooterBuf = new ByteArrayOutputStream();
         Util.writeFileMetaData(thriftMeta, newFooterBuf);
@@ -11715,6 +11732,151 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 page.releaseBlocks();
             }
             assertFalse(iterator.hasNext());
+        }
+    }
+
+    /**
+     * A FIXED_LEN_BYTE_ARRAY DECIMAL value always has the declared width, and parquet-java never truncates such bounds,
+     * so a footer statistic of any other length is corrupt. Unlike the empty BINARY case above it must not be decoded:
+     * a short (or empty) DECIMAL reads as a value the column never holds, which could prune a split or answer MIN/MAX
+     * from stats. The file has two row groups and only one carries the corrupt bound, so the test also catches a bound
+     * refilled from the intact sibling: the corrupt row group's min and max are withheld from its split statistics,
+     * and the file-level and merged min and max are withheld too. Null counts and an intact sibling column are kept.
+     * No writer produces this shape, so the footer is rewritten by hand.
+     */
+    public void testFixedLenDecimalStatOfWrongWidthIsWithheld() throws Exception {
+        int scale = 2;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(4)
+            .as(LogicalTypeAnnotation.decimalType(scale, 9))
+            .named("dec")
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(4)
+            .as(LogicalTypeAnnotation.decimalType(scale, 9))
+            .named("ok")
+            .named("test_schema");
+        int[] unscaled = { -678, 12345 }; // -6.78, 123.45
+        double[] decimals = { -6.78, 123.45 };
+        // One single-row row group per value, so the corrupt row group has an intact sibling that could refill its bounds.
+        Path[] rowGroupFiles = new Path[2];
+        for (int rg = 0; rg < 2; rg++) {
+            byte[] decimal = ByteBuffer.allocate(4).putInt(unscaled[rg]).array();
+            rowGroupFiles[rg] = createTempFile();
+            Files.write(rowGroupFiles[rg], createParquetFile(schema, factory -> {
+                Group g = factory.newGroup();
+                g.add("dec", Binary.fromConstantByteArray(decimal));
+                g.add("ok", Binary.fromConstantByteArray(decimal));
+                return List.of(g);
+            }));
+        }
+        int corruptRowGroup = randomIntBetween(0, 1);
+        boolean corruptMin = randomBoolean();
+        byte[] corruptBound = randomByteArrayOfLength(randomIntBetween(0, 3));
+        byte[] data = rewriteColumnStats(
+            mergeRowGroups(schema, rowGroupFiles),
+            corruptRowGroup,
+            "dec",
+            stats -> setStatBound(stats, corruptMin, corruptBound)
+        );
+        StorageObject storageObject = createStorageObject(data);
+
+        // The fixture must really carry the corrupt stat, as parquet-java reads it back.
+        List<BlockMetaData> rowGroups = footerOf(storageObject).getBlocks();
+        assertEquals(2, rowGroups.size());
+        Statistics<?> decColStats = rowGroups.get(corruptRowGroup).getColumns().get(0).getStatistics();
+        assertTrue(decColStats.hasNonNullValue());
+        assertEquals(corruptBound.length, ((Binary) (corruptMin ? decColStats.genericGetMin() : decColStats.genericGetMax())).length());
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata), which MIN/MAX pushdown reads: nothing is refilled from the sibling ---
+        var colStats = reader.metadata(storageObject).statistics().get().columnStatistics().get();
+        assertEquals("dec min withheld", Optional.empty(), colStats.get("dec").minValue());
+        assertEquals("dec max withheld", Optional.empty(), colStats.get("dec").maxValue());
+        assertEquals("dec null count kept", OptionalLong.of(0L), colStats.get("dec").nullCount());
+        assertEquals(Optional.of(decimals[0]), colStats.get("ok").minValue());
+        assertEquals(Optional.of(decimals[1]), colStats.get("ok").maxValue());
+
+        // --- buildRowGroupStats path (discoverSplitRanges), which split pruning reads ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertEquals("one split range per row group", 2, ranges.size());
+        for (int rg = 0; rg < 2; rg++) {
+            Map<String, Object> stats = ranges.get(rg).statistics();
+            Object expectedBound = rg == corruptRowGroup ? null : decimals[rg];
+            assertEquals("dec min in row group " + rg, expectedBound, stats.get("_stats.columns.dec.min"));
+            assertEquals("dec max in row group " + rg, expectedBound, stats.get("_stats.columns.dec.max"));
+            assertEquals("dec null count kept", 0L, stats.get("_stats.columns.dec.null_count"));
+            assertEquals(decimals[rg], stats.get("_stats.columns.ok.min"));
+            assertEquals(decimals[rg], stats.get("_stats.columns.ok.max"));
+        }
+        // Folding the splits must not refill the corrupt row group's bounds from its sibling either.
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(
+            ranges.stream().map(RangeAwareFormatReader.SplitRange::statistics).toList()
+        );
+        assertNull("dec merged min withheld", merged.get("_stats.columns.dec.min"));
+        assertNull("dec merged max withheld", merged.get("_stats.columns.dec.max"));
+        assertEquals(decimals[0], merged.get("_stats.columns.ok.min"));
+        assertEquals(decimals[1], merged.get("_stats.columns.ok.max"));
+
+        // The scan is unaffected: it reads the declared width, never the footer.
+        List<Double> scanned = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    DoubleBlock block = page.getBlock(0);
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        scanned.add(block.getDouble(p));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(List.of(decimals[0], decimals[1]), scanned);
+    }
+
+    /**
+     * A FLOAT16 footer statistic shorter than its two bytes is withheld rather than decoded past its end. It cannot
+     * reach the reader through a file today, as parquet-java's own footer parser rejects it, so the check is exercised
+     * directly; the parser's rejection is pinned too, so the end-to-end case can be covered should parquet-java ever
+     * let the shape through.
+     */
+    public void testShortFloat16StatIsWithheld() throws Exception {
+        PrimitiveType f16 = Types.required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(2)
+            .as(LogicalTypeAnnotation.float16Type())
+            .named("f16");
+        byte[] shortBound = randomByteArrayOfLength(randomIntBetween(0, 1));
+        byte[] value = toFloat16Bytes(1.5f);
+        assertFalse(ParquetColumnDecoding.isUsableStatBound(Binary.fromConstantByteArray(shortBound), f16));
+        assertTrue(ParquetColumnDecoding.isUsableStatBound(Binary.fromConstantByteArray(value), f16));
+
+        MessageType schema = Types.buildMessage().addField(f16).named("test_schema");
+        byte[] written = createParquetFile(
+            schema,
+            factory -> List.of(factory.newGroup().append("f16", Binary.fromConstantByteArray(value)))
+        );
+        boolean corruptMin = randomBoolean();
+        StorageObject storageObject = createStorageObject(
+            rewriteColumnStats(written, 0, "f16", stats -> setStatBound(stats, corruptMin, shortBound))
+        );
+        expectThrows(IllegalArgumentException.class, () -> footerOf(storageObject));
+    }
+
+    /** Records {@code bound} as the min (when {@code min} is set) or max statistic, in both the current and the legacy fields. */
+    private static void setStatBound(org.apache.parquet.format.Statistics stats, boolean min, byte[] bound) {
+        if (min) {
+            stats.setMin_value(bound);
+            if (stats.isSetMin()) {
+                stats.setMin(bound);
+            }
+        } else {
+            stats.setMax_value(bound);
+            if (stats.isSetMax()) {
+                stats.setMax(bound);
+            }
         }
     }
 

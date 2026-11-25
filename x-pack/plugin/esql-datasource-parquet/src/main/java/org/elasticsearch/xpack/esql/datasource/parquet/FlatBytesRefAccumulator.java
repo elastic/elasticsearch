@@ -78,13 +78,24 @@ final class FlatBytesRefAccumulator {
 
     /**
      * Makes room for {@code extraBytes} after the committed values and returns the offset to decode them at.
-     * Grows to the exact size needed: a batch grows about once per Parquet page it spans, so the copy is rare,
-     * and an exact size leaves no slack in the built vector.
+     * <p>
+     * While nothing is committed the array grows to exactly the size needed: there is nothing to copy, and most
+     * batches live in a single Parquet page, so the common case leaves no slack in the built vector. Growth past
+     * committed bytes is geometric, since a batch that spans many small pages would otherwise recopy every
+     * committed byte once per page, which is quadratic. Geometric growth is clamped to the cap ({@code maxBytes}
+     * minus the offsets array): near it, the array grows to the cap itself, which can be more than this reserve
+     * needs but never more than {@link #fits} allows. Any slack left over is charged with the built vector, whose
+     * {@code ramBytesUsed} counts the array's capacity.
      */
     int reserve(int extraBytes) {
         int needed = Math.addExact(length, extraBytes);
         if (needed > bytes.length) {
-            byte[] grown = UninitializedArrays.newByteArray(needed);
+            int newSize = needed;
+            if (length > 0) {
+                long cap = Math.max(needed, maxBytes - (maxValues + 1L) * Integer.BYTES);
+                newSize = (int) Math.min(ArrayUtil.oversize(needed, Byte.BYTES), cap);
+            }
+            byte[] grown = UninitializedArrays.newByteArray(newSize);
             System.arraycopy(bytes, 0, grown, 0, length);
             bytes = grown;
         }

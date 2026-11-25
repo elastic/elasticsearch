@@ -11,7 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.page.DataPage;
+import org.apache.parquet.column.page.DataPageV1;
+import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.NanoTime;
@@ -1141,11 +1145,43 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     private byte[] writeKeywordFile(boolean optional, boolean dictionary, int dictionaryPageSize, IntFunction<byte[]> valueFor, int numRows)
         throws IOException {
-        return writeBinaryFile(LogicalTypeAnnotation.stringType(), optional, dictionary, dictionaryPageSize, valueFor, numRows);
+        return writeKeywordFile(ParquetProperties.WriterVersion.PARQUET_1_0, optional, dictionary, dictionaryPageSize, valueFor, numRows);
+    }
+
+    private byte[] writeKeywordFile(
+        ParquetProperties.WriterVersion version,
+        boolean optional,
+        boolean dictionary,
+        int dictionaryPageSize,
+        IntFunction<byte[]> valueFor,
+        int numRows
+    ) throws IOException {
+        return writeBinaryFile(version, LogicalTypeAnnotation.stringType(), optional, dictionary, dictionaryPageSize, valueFor, numRows);
     }
 
     /** Writes one uncompressed V1 BINARY column {@code s} annotated with {@code logical}. */
     private byte[] writeBinaryFile(
+        LogicalTypeAnnotation logical,
+        boolean optional,
+        boolean dictionary,
+        int dictionaryPageSize,
+        IntFunction<byte[]> valueFor,
+        int numRows
+    ) throws IOException {
+        return writeBinaryFile(
+            ParquetProperties.WriterVersion.PARQUET_1_0,
+            logical,
+            optional,
+            dictionary,
+            dictionaryPageSize,
+            valueFor,
+            numRows
+        );
+    }
+
+    /** Writes one uncompressed BINARY column {@code s} annotated with {@code logical}, with data pages of {@code version}. */
+    private byte[] writeBinaryFile(
+        ParquetProperties.WriterVersion version,
         LogicalTypeAnnotation logical,
         boolean optional,
         boolean dictionary,
@@ -1167,7 +1203,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                 .withConf(conf)
                 .withCodecFactory(codecFactory)
                 .withType(schema)
-                .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
+                .withWriterVersion(version)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
                 .withDictionaryEncoding(dictionary)
                 .withDictionaryPageSize(dictionaryPageSize)
@@ -1329,6 +1365,197 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertFlatRead(out.toByteArray(), rows, rows, DEFAULT_CAP, row -> new BytesRef(uuids[row].toString()), BlockKind.SLOW);
     }
 
+    // --- Dictionary chunk that falls back to PLAIN ---
+
+    private static final int MIXED_ROWS = 4000;
+    /** Rows below this hold one of four values, so their pages stay dictionary-encoded; later rows are all distinct. */
+    private static final int LOW_CARDINALITY_ROWS = 2000;
+    /** Rows below this may be null in the optional variant; all of them land on dictionary pages. */
+    private static final int NULLABLE_ROWS = 500;
+
+    /**
+     * parquet-mr switches a chunk from dictionary to PLAIN once the dictionary outgrows its size limit, so a
+     * high-cardinality column has a few dictionary pages followed by many PLAIN pages. A batch that starts on one of
+     * those PLAIN pages must take the flat path, as in a dictionary-less chunk, rather than the ordinal path's
+     * per-value fallback. Batches on the dictionary pages stay ordinal, and the one batch that straddles the switch
+     * stays correct. Read with batches aligned to the switch and with a random batch size.
+     */
+    public void testDictionaryFallbackPlainPagesUseFlatPath() throws IOException {
+        for (boolean optional : new boolean[] { false, true }) {
+            // Nulls only early on, on the dictionary pages: they exercise the ordinal and straddling paths while the
+            // PLAIN pages stay null-free and so eligible for the flat path.
+            IntFunction<byte[]> valueFor = row -> optional && row < NULLABLE_ROWS && row % 5 == 0 ? null : mixedKeyword(row);
+            byte[] data = writeKeywordFile(optional, true, 256, valueFor, MIXED_ROWS);
+            int dictRows = dictionaryEncodedRows(data, Encoding.PLAIN);
+            assertThat("nulls must stay on the dictionary pages", dictRows, greaterThan(NULLABLE_ROWS));
+            IntFunction<BytesRef> expected = row -> asBytesRef(valueFor.apply(row));
+            assertMixedRead(data, dictRows, 0, dictRows, expected, -1, BlockKind.DIRECT);
+            assertMixedRead(data, dictRows, 0, randomIntBetween(2, MIXED_ROWS), expected, -1, BlockKind.DIRECT);
+            // A sparse read whose first page, past the skipped ones, is a PLAIN page.
+            int sparseStart = randomFrom(fallbackPageStarts(data, dictRows));
+            assertMixedRead(data, dictRows, sparseStart, randomIntBetween(2, MIXED_ROWS), expected, -1, BlockKind.DIRECT);
+            assertOptimizedMatchesBaseline(data, List.of("s"));
+        }
+    }
+
+    /**
+     * With the V2 writer, parquet-mr falls back from dictionary to DELTA_BYTE_ARRAY rather than PLAIN. A batch that
+     * starts on such a page leaves the ordinal path for the required/optional readers, whose slow path decodes the
+     * delta pages. Batches on the dictionary pages stay ordinal, the batch that straddles the switch stays correct,
+     * and so does a sparse read whose first page, past the skipped ones, is a fallback page.
+     */
+    public void testDictionaryFallbackDeltaPagesV2() throws IOException {
+        for (boolean optional : new boolean[] { false, true }) {
+            IntFunction<byte[]> valueFor = row -> optional && row < NULLABLE_ROWS && row % 5 == 0 ? null : mixedKeyword(row);
+            byte[] data = writeKeywordFile(ParquetProperties.WriterVersion.PARQUET_2_0, optional, true, 256, valueFor, MIXED_ROWS);
+            int dictRows = dictionaryEncodedRows(data, Encoding.DELTA_BYTE_ARRAY);
+            assertThat("nulls must stay on the dictionary pages", dictRows, greaterThan(NULLABLE_ROWS));
+            IntFunction<BytesRef> expected = row -> asBytesRef(valueFor.apply(row));
+            assertMixedRead(data, dictRows, 0, dictRows, expected, -1, BlockKind.SLOW);
+            assertMixedRead(data, dictRows, 0, randomIntBetween(2, MIXED_ROWS), expected, -1, BlockKind.SLOW);
+            int sparseStart = randomFrom(fallbackPageStarts(data, dictRows));
+            assertMixedRead(data, dictRows, sparseStart, randomIntBetween(2, MIXED_ROWS), expected, -1, BlockKind.SLOW);
+            assertOptimizedMatchesBaseline(data, List.of("s"));
+        }
+    }
+
+    /**
+     * Malformed UTF-8 on the PLAIN pages of a dictionary chunk is sanitized on the flat path's slow mode, both in a
+     * batch that starts on a PLAIN page and in the PLAIN suffix of the batch that straddles the switch. Other batches
+     * that start on PLAIN pages stay direct.
+     */
+    public void testDictionaryFallbackPlainPagesSanitizeMalformed() throws IOException {
+        for (boolean optional : new boolean[] { false, true }) {
+            byte[] probe = writeKeywordFile(optional, true, 256, PageColumnReaderCorrectnessTests::mixedKeyword, MIXED_ROWS);
+            int dictRows = dictionaryEncodedRows(probe, Encoding.PLAIN);
+            // Where the writer switches depends only on the dictionary, which the PLAIN region's bytes do not change.
+            int badRow = randomIntBetween(dictRows, MIXED_ROWS - 1);
+            byte[] bad = { 'x', (byte) 0xFF };
+            IntFunction<byte[]> valueFor = row -> row == badRow ? bad : mixedKeyword(row);
+            byte[] data = writeKeywordFile(optional, true, 256, valueFor, MIXED_ROWS);
+            assertEquals("the switch must not move", dictRows, dictionaryEncodedRows(data, Encoding.PLAIN));
+            IntFunction<BytesRef> expected = row -> row == badRow ? concat(new BytesRef("x"), FFFD) : new BytesRef(mixedKeyword(row));
+            assertMixedRead(data, dictRows, 0, dictRows, expected, badRow, BlockKind.DIRECT);
+            // A first batch that straddles the switch and holds the bad row in its PLAIN suffix.
+            int straddling = badRow + 1 + randomIntBetween(0, MIXED_ROWS - badRow - 1);
+            assertMixedRead(data, dictRows, 0, straddling, expected, badRow, BlockKind.DIRECT);
+            assertMixedRead(data, dictRows, 0, randomIntBetween(2, MIXED_ROWS), expected, badRow, BlockKind.DIRECT);
+            assertOptimizedMatchesBaseline(data, List.of("s"));
+        }
+    }
+
+    private static byte[] mixedKeyword(int row) {
+        return row < LOW_CARDINALITY_ROWS ? ("low-" + (row % 4)).getBytes(StandardCharsets.UTF_8) : distinctKeyword(row);
+    }
+
+    /**
+     * Reads column {@code s} of a dictionary chunk whose first {@code dictRows} rows are on dictionary pages, in batches
+     * of {@code batchSize}, checking every value and that the breaker returns to zero. A {@code firstRow} above 0 must
+     * start a page: the read is then sparse, with {@link RowRanges} that skip every page before it. A batch inside the
+     * dictionary pages must be ordinal or constant. A multi-row batch that starts on a fallback page must be of kind
+     * {@code fallbackKind}, unless it holds the malformed {@code badRow} ({@code -1} for none), which moves it to the
+     * slow path. Without a malformed row, PLAIN batches aligned to the switch must produce at least one direct batch.
+     */
+    private void assertMixedRead(
+        byte[] data,
+        int dictRows,
+        int firstRow,
+        int batchSize,
+        IntFunction<BytesRef> expected,
+        int badRow,
+        BlockKind fallbackKind
+    ) throws IOException {
+        CountingBreaker breaker = new CountingBreaker();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
+        BlockFactory factory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+        List<BytesRefBlock> blocks = readKeywordBatches(data, firstRow, batchSize, factory);
+        try {
+            BytesRef scratch = new BytesRef();
+            int row = firstRow;
+            int directBatches = 0;
+            for (BytesRefBlock block : blocks) {
+                int start = row;
+                int end = start + block.getPositionCount();
+                String ctx = "batch [" + start + ", " + end + ") of " + batchSize + ", switch at " + dictRows;
+                if (end <= dictRows) {
+                    assertTrue(ctx + " must stay ordinal", block.asOrdinals() != null || kindOf(block) == BlockKind.CONSTANT);
+                } else if (start >= dictRows && block.getPositionCount() > 1) {
+                    boolean malformed = start <= badRow && badRow < end;
+                    BlockKind kind = malformed ? BlockKind.SLOW : fallbackKind;
+                    assertEquals(ctx, kind, kindOf(block));
+                    directBatches += kind == BlockKind.DIRECT ? 1 : 0;
+                }
+                for (int p = 0; p < block.getPositionCount(); p++, row++) {
+                    BytesRef exp = expected.apply(row);
+                    if (exp == null) {
+                        assertTrue("null at row " + row, block.isNull(p));
+                    } else {
+                        assertFalse("non-null at row " + row, block.isNull(p));
+                        assertEquals("row " + row, exp, block.getBytesRef(p, scratch));
+                    }
+                }
+            }
+            assertEquals(MIXED_ROWS, row);
+            if (fallbackKind == BlockKind.DIRECT && badRow < 0 && batchSize == dictRows && MIXED_ROWS - dictRows > 1) {
+                assertThat("batches aligned to the switch must start on PLAIN pages", directBatches, greaterThan(0));
+            }
+        } finally {
+            Releasables.close(blocks);
+        }
+        assertEquals("every byte the batches reserved must be released", 0L, breaker.used());
+    }
+
+    /**
+     * Rows on the dictionary-encoded pages of column {@code s}, which must all come before the pages the writer fell
+     * back to, all encoded with {@code fallback}. Fails unless the chunk really mixes both, so the fixture cannot
+     * silently degrade to a single encoding.
+     */
+    private int dictionaryEncodedRows(byte[] data, Encoding fallback) throws IOException {
+        try (ParquetFileReader reader = openReader(data)) {
+            assertEquals(1, reader.getRowGroups().size());
+            ColumnDescriptor desc = reader.getFileMetaData().getSchema().getColumnDescription(new String[] { "s" });
+            PageReadStore store = reader.readNextRowGroup();
+            PageReader pages = store.getPageReader(desc);
+            assertNotNull("the chunk must have a dictionary", pages.readDictionaryPage());
+            int dictRows = 0;
+            int fallbackPages = 0;
+            for (DataPage page = pages.readPage(); page != null; page = pages.readPage()) {
+                Encoding encoding = switch (page) {
+                    case DataPageV1 v1 -> v1.getValueEncoding();
+                    case DataPageV2 v2 -> v2.getDataEncoding();
+                    default -> throw new AssertionError("unexpected page " + page);
+                };
+                if (encoding.usesDictionary()) {
+                    assertEquals("dictionary pages must precede fallback ones", 0, fallbackPages);
+                    dictRows += page.getValueCount();
+                } else {
+                    assertEquals(fallback, encoding);
+                    fallbackPages++;
+                }
+            }
+            assertThat("the chunk must start with dictionary pages", dictRows, greaterThan(0));
+            assertThat("the chunk must fall back to several pages", fallbackPages, greaterThan(1));
+            return dictRows;
+        }
+    }
+
+    /** The first row of every page of column {@code s} at or past {@code dictRows}, the pages the writer fell back to. */
+    private List<Integer> fallbackPageStarts(byte[] data, int dictRows) throws IOException {
+        try (ParquetFileReader reader = openReader(data)) {
+            OffsetIndex oi = reader.readOffsetIndex(reader.getRowGroups().getFirst().getColumns().getFirst());
+            assertNotNull("column must have an offset index", oi);
+            List<Integer> starts = new ArrayList<>();
+            for (int p = 0; p < oi.getPageCount(); p++) {
+                int firstRow = Math.toIntExact(oi.getFirstRowIndex(p));
+                if (firstRow >= dictRows) {
+                    starts.add(firstRow);
+                }
+            }
+            assertThat("the chunk must fall back to several pages", starts.size(), greaterThan(1));
+            return starts;
+        }
+    }
+
     private void assertOptionalFallsBack(IntFunction<byte[]> valueFor, IntFunction<BytesRef> expected, long cap) throws IOException {
         byte[] data = writePlainKeywordFile(true, valueFor, FLAT_ROWS);
         assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, cap, expected, BlockKind.SLOW);
@@ -1395,6 +1622,14 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     private List<BytesRefBlock> readKeywordBatches(byte[] data, int batchSize, BlockFactory factory) throws IOException {
+        return readKeywordBatches(data, 0, batchSize, factory);
+    }
+
+    /**
+     * Reads column {@code s} from {@code firstRow} to the end of the row group in batches of {@code batchSize}. A
+     * {@code firstRow} above 0 must start a page: {@link RowRanges} then skip every page before it.
+     */
+    private List<BytesRefBlock> readKeywordBatches(byte[] data, int firstRow, int batchSize, BlockFactory factory) throws IOException {
         List<BytesRefBlock> blocks = new ArrayList<>();
         boolean success = false;
         try (ParquetFileReader reader = openReader(data)) {
@@ -1410,8 +1645,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             );
             PageReadStore store = reader.readNextRowGroup();
             assertNotNull(store);
-            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(rgRows))) {
-                int read = 0;
+            RowRanges ranges = firstRow == 0 ? RowRanges.all(rgRows) : RowRanges.of(firstRow, rgRows, rgRows);
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, ranges)) {
+                int read = firstRow;
                 while (read < rgRows) {
                     Block block = pcr.readBatch(Math.min(batchSize, rgRows - read), factory);
                     blocks.add((BytesRefBlock) block);

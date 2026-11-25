@@ -1979,6 +1979,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 if (stats.hasNonNullValue()) {
                     PrimitiveType pt = col.getPrimitiveType();
+                    if (hasUsableBounds(stats, pt) == false) {
+                        // A corrupt bound (a FIXED_LEN_BYTE_ARRAY DECIMAL/FLOAT16 of the wrong width) says nothing about
+                        // this row group's values, exactly like a missing one: the file-level min/max are unservable, the
+                        // null count is not.
+                        poisonedBounds.add(colName);
+                        continue;
+                    }
                     Object minVal = normalizeStatValue(stats.genericGetMin(), pt);
                     Object maxVal = normalizeStatValue(stats.genericGetMax(), pt);
                     if (minVal == null || maxVal == null) {
@@ -2349,7 +2356,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (colStats.isEmpty()) {
                 continue;
             }
-            if (colStats.hasNonNullValue()) {
+            // A corrupt bound (a FIXED_LEN_BYTE_ARRAY DECIMAL/FLOAT16 of the wrong width) is withheld with its pair, so
+            // split pruning and MIN/MAX never see it; the null count above is unaffected.
+            if (colStats.hasNonNullValue() && hasUsableBounds(colStats, col.getPrimitiveType())) {
                 PrimitiveType pt = col.getPrimitiveType();
                 Object minVal = normalizeStatValue(colStats.genericGetMin(), pt);
                 Object maxVal = normalizeStatValue(colStats.genericGetMax(), pt);
@@ -2398,6 +2407,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return 0;
         }
         return a.compareTo(b);
+    }
+
+    /**
+     * Whether a row group's min and max may be published at all (see {@link ParquetColumnDecoding#isUsableStatBound}).
+     * Checked before {@link #normalizeStatValue}, whose {@code null} means something stronger (the null count is
+     * unusable too) and whose fallback would otherwise turn a rejected {@link Binary} into a String.
+     */
+    private static boolean hasUsableBounds(Statistics<?> stats, PrimitiveType primitiveType) {
+        return ParquetColumnDecoding.isUsableStatBound(stats.genericGetMin(), primitiveType)
+            && ParquetColumnDecoding.isUsableStatBound(stats.genericGetMax(), primitiveType);
     }
 
     /**

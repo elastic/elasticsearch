@@ -20,7 +20,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for {@link FlatBytesRefAccumulator}: chunks decoded at the reserved tail and committed with tail-relative
@@ -98,6 +101,92 @@ public class FlatBytesRefAccumulatorTests extends ESTestCase {
         decodeAndCommit(flat, List.of(new BytesRef("xy")));
         assertTrue(flat.fits(payload - 2));
         assertFalse(flat.fits(payload - 1));
+    }
+
+    /** The first reserve sizes the array exactly, so a batch that lives in one page has no slack. */
+    public void testFirstReserveIsExact() {
+        int chunkBytes = randomIntBetween(1, 1000);
+        FlatBytesRefAccumulator flat = new FlatBytesRefAccumulator(1, Long.MAX_VALUE);
+        assertEquals(0, flat.reserve(chunkBytes));
+        assertEquals(chunkBytes, flat.bytes().length);
+    }
+
+    /**
+     * A batch spanning many small pages reallocates a logarithmic number of times rather than once per page,
+     * and every value survives the copies.
+     */
+    public void testManySmallChunksGrowGeometrically() {
+        int chunks = 1000;
+        int perChunk = 3;
+        FlatBytesRefAccumulator flat = new FlatBytesRefAccumulator(chunks * perChunk, Long.MAX_VALUE);
+        List<BytesRef> expected = new ArrayList<>();
+        int reallocations = 0;
+        byte[] previous = flat.bytes();
+        for (int c = 0; c < chunks; c++) {
+            List<BytesRef> chunk = new ArrayList<>(perChunk);
+            for (int i = 0; i < perChunk; i++) {
+                chunk.add(new BytesRef(randomAlphaOfLengthBetween(1, 4)));
+            }
+            int oldCapacity = previous.length;
+            decodeAndCommit(flat, chunk);
+            expected.addAll(chunk);
+            if (flat.bytes() != previous) {
+                reallocations++;
+                if (oldCapacity > 0) {
+                    assertThat(flat.bytes().length, greaterThanOrEqualTo(oldCapacity + oldCapacity / 8));
+                }
+                previous = flat.bytes();
+            }
+        }
+        // Exact growth reallocates once per chunk (1000 here); 1/8 geometric growth from a few bytes to ~7.5KB needs ~60.
+        assertThat(reallocations, lessThan(100));
+        try (BytesRefVector vector = flat.build(blockFactory)) {
+            assertValues(vector, expected);
+        }
+    }
+
+    /** Geometric growth stops at the cap: the array never outgrows the payload room {@link FlatBytesRefAccumulator#fits} allows. */
+    public void testGrowthNeverExceedsCap() {
+        int payloadCap = randomIntBetween(50, 400);
+        // Every value is at least one byte, so the payload cap binds before the value count does.
+        int maxValues = payloadCap;
+        FlatBytesRefAccumulator flat = new FlatBytesRefAccumulator(maxValues, (maxValues + 1L) * Integer.BYTES + payloadCap);
+        List<BytesRef> expected = new ArrayList<>();
+        while (flat.count() < maxValues) {
+            BytesRef value = new BytesRef(randomAlphaOfLengthBetween(1, 5));
+            if (flat.fits(value.length) == false) {
+                break;
+            }
+            decodeAndCommit(flat, List.of(value));
+            expected.add(value);
+            assertThat(flat.bytes().length, lessThanOrEqualTo(payloadCap));
+        }
+        // Fill the last few bytes one at a time: a reserve near the cap grows to the cap, not past it.
+        while (flat.count() < maxValues && flat.fits(1)) {
+            BytesRef value = new BytesRef("z");
+            decodeAndCommit(flat, List.of(value));
+            expected.add(value);
+            assertThat(flat.bytes().length, lessThanOrEqualTo(payloadCap));
+        }
+        assertEquals(payloadCap, flat.length());
+        assertEquals(payloadCap, flat.bytes().length);
+        try (BytesRefVector vector = flat.build(blockFactory)) {
+            assertValues(vector, expected);
+        }
+    }
+
+    /** Near the cap, geometric growth is clamped to the cap itself, which can be more than the reserve needs. */
+    public void testGrowthNearCapClampsToCap() {
+        int maxValues = 2;
+        int payloadCap = 100;
+        FlatBytesRefAccumulator flat = new FlatBytesRefAccumulator(maxValues, (maxValues + 1L) * Integer.BYTES + payloadCap);
+        decodeAndCommit(flat, List.of(new BytesRef(randomAlphaOfLength(10))));
+        assertEquals(10, flat.bytes().length);
+        int extraBytes = 85;
+        assertTrue(flat.fits(extraBytes));
+        assertEquals(10, flat.reserve(extraBytes));
+        // Geometric growth asks for at least 95 + 95 / 8 = 106 bytes; the cap clamps that to 100, more than the 95 needed.
+        assertEquals(payloadCap, flat.bytes().length);
     }
 
     public void testAppendToBytesRefArray() {

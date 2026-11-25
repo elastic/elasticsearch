@@ -90,10 +90,12 @@ import java.util.function.IntConsumer;
  * advances row groups (in {@code initColumnReaders}) and when the iterator itself is
  * closed.
  *
- * <p>If a non-dictionary page is encountered mid-batch (rare in practice — Parquet writers
- * keep encoding consistent across all data pages of a column chunk), the partial ordinal
- * batch is resolved through the dictionary and the remainder is read via the materialized
- * binary path.
+ * <p>A dictionary-encoded chunk is not dictionary-encoded throughout: parquet-mr falls back to
+ * PLAIN once the dictionary outgrows its size limit, so a high-cardinality column has a few
+ * dictionary pages followed by PLAIN pages. A batch that starts on such a PLAIN page is read
+ * exactly like a batch of a dictionary-less chunk. The one batch per chunk that meets the
+ * switch mid-batch resolves its ordinal prefix through the dictionary and reads the remainder
+ * via the materialized binary path.
  *
  * <p>Non-UUID PLAIN KEYWORD pages (required and optional) copy payloads into a packed dest and
  * validate UTF-8 there. While a batch is null-free, well-formed and within
@@ -1303,7 +1305,11 @@ final class PageColumnReader implements Releasable {
         // Dictionary-encoded chunk: emit an OrdinalBytesRefBlock so downstream BlockHash can
         // hash only k dictionary entries instead of N row values. Skip for UUID, where each
         // value needs per-row byte formatting that the ordinal path does not perform.
-        if (dictionary != null && isUuid == false) {
+        // A batch that starts on a page past the writer's dictionary-to-PLAIN fallback cannot
+        // use ordinals: read it like a dictionary-less chunk so it keeps the flat/direct path.
+        // ensurePage() only loads the page the batch would read first anyway; nothing is consumed. An empty batch
+        // skips the peek: it reads nothing, and loading a page could still move the row position under RowRanges.
+        if (dictionary != null && isUuid == false && (maxRows == 0 || ensurePage() == false || currentEncoding.usesDictionary())) {
             return readBytesBatchAsOrdinals(maxRows, blockFactory);
         }
         if (maxDefLevel == 0) {
@@ -1320,7 +1326,7 @@ final class PageColumnReader implements Releasable {
      *   <li><b>flat</b>: the values sit in {@code flat}, whose arrays become a {@code DirectBytesRefVector}
      *       without another copy. Well-formed PLAIN chunks are decoded straight into it.</li>
      *   <li><b>slow</b>: the values sit in a {@link BytesRefArray}. A batch moves here, once and for good, when a
-     *       chunk is not PLAIN (UUID, delta encodings, the fallback reader), when it holds malformed UTF-8 that
+     *       chunk is not PLAIN (UUID, dictionary or delta encodings, the fallback reader), when it holds malformed UTF-8 that
      *       has to be sanitized, or when the flat arrays would grow past
      *       {@link BlockFactory#maxPrimitiveArrayBytes()}.</li>
      * </ul>

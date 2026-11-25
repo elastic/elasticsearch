@@ -681,14 +681,18 @@ final class ParquetColumnDecoding {
      * {@code FIXED_LEN_BYTE_ARRAY(2)}), so its footer stat is a Parquet {@link Binary}. DECIMAL can
      * be backed by INT32, INT64, BINARY, or FIXED_LEN_BYTE_ARRAY — its stat arrives as an
      * {@link Integer}/{@link Long} unscaled value for the former two, and as {@link Binary} bytes
-     * (big-endian two's complement) for the latter two. An empty DECIMAL stat decodes as 0, as the scan
-     * reads an empty value (see {@link #unscaledToBigInteger}): parquet-java orders an empty unscaled
+     * (big-endian two's complement) for the latter two. An empty BINARY DECIMAL stat decodes as 0, as the
+     * scan reads an empty value (see {@link #unscaledToBigInteger}): parquet-java orders an empty unscaled
      * value as 0 when it computes the min/max, so the bound agrees with the values the scan returns.
+     * A FIXED_LEN_BYTE_ARRAY DECIMAL or FLOAT16 stat that is not the declared width is corrupt instead;
+     * callers must reject it with {@link #isUsableStatBound} before decoding.
      *
      * <p>Returns {@code null} when the type is not FLOAT16/DECIMAL, or the value's runtime type
      * doesn't match what the physical type implies (caller falls through to other normalization).
      */
     static Double decodeBinaryNumericStat(Object value, PrimitiveType type) {
+        assert isUsableStatBound(value, type)
+            : "a FIXED_LEN_BYTE_ARRAY DECIMAL/FLOAT16 stat that is not the declared width must be rejected before decoding";
         LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
         if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
             if (value instanceof Binary binary) {
@@ -713,11 +717,33 @@ final class ParquetColumnDecoding {
     }
 
     /**
+     * Whether a footer min/max value may be published as a bound at all. A FIXED_LEN_BYTE_ARRAY DECIMAL or FLOAT16
+     * value always has the declared width, and parquet-java never truncates such bounds, so a statistic of any other
+     * length for such a column is corrupt. Decoding it anyway would publish a bound no scanned value backs: a short
+     * DECIMAL reads as an unrelated value (an empty one as 0, as for variable-length BINARY, where parquet-java really
+     * does order an empty value as 0) that could prune a split holding matching rows or answer a pushed MIN/MAX
+     * wrongly, and a short FLOAT16 would read past its bytes. Callers withhold the column's min and max for that row
+     * group instead, which is always safe: nothing is pruned and MIN/MAX fall back to a scan. Every other value is
+     * usable here; type-specific checks (such as temporal range) stay with the normalization that follows.
+     */
+    static boolean isUsableStatBound(Object value, PrimitiveType type) {
+        if (type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY
+            && (type.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation
+                || type.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation)
+            && value instanceof Binary binary) {
+            return binary.length() == type.getTypeLength();
+        }
+        return true;
+    }
+
+    /**
      * Decodes the unscaled value of a BINARY- or FIXED_LEN_BYTE_ARRAY-backed DECIMAL (big-endian two's complement).
      * An empty value reads as 0 instead of failing, as {@link BigInteger} rejects zero bytes: no valid writer emits
      * one, but parquet-java orders an empty unscaled value as 0 when it computes DECIMAL statistics, and a corrupt
      * negative PLAIN length decodes as an empty value (see {@link PlainValueDecoder}). Shared so the baseline and
-     * optimized scans and the footer statistics agree on that value.
+     * optimized scans and the BINARY footer statistics agree on that value. A fixed-width scan never reads an empty
+     * value, so a FIXED_LEN_BYTE_ARRAY statistic that is not the declared width is withheld rather than decoded (see
+     * {@link #isUsableStatBound}).
      */
     static BigInteger unscaledToBigInteger(byte[] bytes, int offset, int length) {
         return length == 0 ? BigInteger.ZERO : new BigInteger(bytes, offset, length);

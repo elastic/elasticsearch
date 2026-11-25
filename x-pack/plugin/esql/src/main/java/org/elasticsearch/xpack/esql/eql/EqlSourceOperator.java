@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -216,8 +215,8 @@ public class EqlSourceOperator extends SourceOperator {
         if (response.isTimeout()) {
             executionInfo.markPartial();
         }
-        ShardSearchFailure[] failures = response.shardFailures();
-        if (CollectionUtils.isEmpty(failures)) {
+        List<ShardSearchFailure> failures = response.shardFailures();
+        if (failures.isEmpty()) {
             return;
         }
         executionInfo.markPartial();

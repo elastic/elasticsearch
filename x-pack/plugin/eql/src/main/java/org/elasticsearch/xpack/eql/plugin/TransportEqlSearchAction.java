@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -171,7 +170,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             task.getExecutionId().getEncoded(),
             true,
             true,
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
     }
 

@@ -26,7 +26,7 @@ public class Results {
     private final boolean timedOut;
     private final TimeValue tookTime;
     private final Type type;
-    private ShardSearchFailure[] shardFailures;
+    private final List<ShardSearchFailure> shardFailures;
     private final DirectoryMetrics directoryMetrics;
     private final Map<String, List<ShardSearchFailure>> skippedClusters;
 
@@ -58,7 +58,7 @@ public class Results {
         boolean timedOut,
         List<?> results,
         Type type,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
         DirectoryMetrics directoryMetrics,
         Map<String, List<ShardSearchFailure>> skippedClusters
     ) {
@@ -86,7 +86,7 @@ public class Results {
         return (type == Type.SEQUENCE || type == Type.SAMPLE) ? (List<Sequence>) results : null;
     }
 
-    public ShardSearchFailure[] shardFailures() {
+    public List<ShardSearchFailure> shardFailures() {
         return shardFailures;
     }
 

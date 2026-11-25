@@ -12,6 +12,7 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -74,7 +75,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
                     walkJacksonArray(p, events);
                     events.add("endArray()");
                 }
-                case VALUE_STRING -> events.add("string(" + fieldName + "=" + p.text() + ")");
+                case VALUE_STRING -> events.add("string(" + fieldName + "=" + jacksonStringValue(p) + ")");
                 case VALUE_NUMBER -> addJacksonNumberEvent(p, fieldName, events);
                 case VALUE_BOOLEAN -> events.add("bool(" + fieldName + "=" + p.booleanValue() + ")");
                 case VALUE_NULL -> events.add("null(" + fieldName + ")");
@@ -109,7 +110,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
                     walkJacksonArray(p, events);
                     events.add("endArray()");
                 }
-                case VALUE_STRING -> events.add("string(" + fieldName + "=" + p.text() + ")");
+                case VALUE_STRING -> events.add("string(" + fieldName + "=" + jacksonStringValue(p) + ")");
                 case VALUE_NUMBER -> addJacksonNumberEvent(p, fieldName, events);
                 case VALUE_BOOLEAN -> events.add("bool(" + fieldName + "=" + p.booleanValue() + ")");
                 case VALUE_NULL -> events.add("null(" + fieldName + ")");
@@ -119,13 +120,23 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    /**
+     * The string from {@code optimizedText().bytes()} (what the Jackson-based ESCF encoder uses).
+     * This differs from {@link XContentParser#text()} for unpaired surrogate escapes, which
+     * a Java String keeps but UTF-8 encoding replaces with {@code ?}.
+     */
+    private static String jacksonStringValue(XContentParser p) throws IOException {
+        XContentString.UTF8Bytes bytes = p.optimizedText().bytes();
+        return new String(bytes.bytes(), bytes.offset(), bytes.length(), UTF_8);
+    }
+
     private void walkJacksonArray(XContentParser p, List<String> events) throws IOException {
         while (true) {
             XContentParser.Token token = p.nextToken();
             if (token == XContentParser.Token.END_ARRAY) return;
 
             switch (token) {
-                case VALUE_STRING -> events.add("arrayElemString(" + p.text() + ")");
+                case VALUE_STRING -> events.add("arrayElemString(" + jacksonStringValue(p) + ")");
                 case VALUE_NUMBER -> addJacksonArrayNumberEvent(p, events);
                 case VALUE_BOOLEAN -> events.add("arrayElemBoolean(" + p.booleanValue() + ")");
                 case VALUE_NULL -> events.add("arrayElemNull()");
@@ -291,6 +302,47 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
             expectThrows(XContentParseException.class, () -> walkWithJackson(json, false));
             expectThrows(JsonParsingException.class, () -> walkJson(json, true));
         }
+    }
+
+    // Both parsers accept unpaired surrogate escapes in string values; the value carries a '?' in place
+    // of each unpaired surrogate (see jacksonStringValue).
+    public void testUnpairedSurrogateValuesMatchJackson() throws IOException {
+        String longPadding = "a".repeat(100);
+        List<String> documents = List.of("""
+            {"x":"\\uD800"}""", """
+            {"x":"a\\uDC00b"}""", """
+            {"x":"\\uDBFF\\u0041"}""", """
+            {"x":"\\uD800\\uD800"}""", """
+            {"x":"\\uDC00\\uD800"}""", """
+            {"x":"\\uD800\\uD83D\\uDE00"}""", """
+            {"x":"\\uD800\\n"}""", """
+            {"x":["\\uDFFF","ok"]}""", """
+            {"o":{"x":"\\uD800"}}""", """
+            {"arr":[{"x":"\\uD800"}]}""", "{\"x\":\"" + longPadding + "\\uD800" + longPadding + "\"}");
+        for (String json : documents) {
+            assertParsersAgree(json);
+        }
+    }
+
+    // Unpaired surrogate escapes in field names: both parsers reject the document.
+    public void testUnpairedSurrogateFieldNamesRejectedByBothParsers() {
+        String longPadding = "a".repeat(100);
+        List<String> invalidDocuments = List.of("""
+            {"\\uD800":1}""", """
+            {"a\\uDC00b":"v"}""", """
+            {"\\uD800\\uD83D\\uDE00":true}""", """
+            {"\\uDBFF\\u0041":1}""", """
+            {"o":{"\\uDBFFx":1}}""", """
+            {"arr":[{"\\uD800":1}]}""", "{\"" + longPadding + "\\uDC00" + longPadding + "\":1}");
+        for (String json : invalidDocuments) {
+            expectThrows(XContentParseException.class, () -> walkWithJackson(json, false));
+            expectThrows(JsonParsingException.class, () -> walkJson(json, true));
+        }
+    }
+
+    public void testSurrogatePairFieldNameMatchesJackson() throws IOException {
+        assertParsersAgree("""
+            {"\\uD83D\\uDE00":1}""");
     }
 
     // Leading zeroes in the integer part (e.g. "007", "00", "-01") are invalid per RFC 8259;

@@ -42,7 +42,9 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     // version 9: lower priority
     // version 10: ES|QL query settings
     // version 11: view_settings, flattened since its keys are user-chosen view names
-    public static final int INDEX_TEMPLATE_VERSION = 10;
+    // version 12: search load
+    // version 13: time_range_filter.from/to dates
+    public static final int INDEX_TEMPLATE_VERSION = 13;
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 

@@ -15,10 +15,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.sort.SortOrder;
@@ -549,12 +547,6 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
                     "type=text,store=false"
                 )
         );
-    }
-
-    private long getRequestBreakerUsed(String nodeName) {
-        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, nodeName);
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        return breaker.getUsed();
     }
 
     private boolean containsCircuitBreakerException(Throwable t) {

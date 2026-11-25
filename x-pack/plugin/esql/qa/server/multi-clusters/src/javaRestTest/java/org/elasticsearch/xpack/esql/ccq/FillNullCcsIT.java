@@ -105,9 +105,15 @@ public class FillNullCcsIT extends ESRestTestCase {
 
     @After
     public void wipeIndices() throws IOException {
-        deleteIndex(client(), LOCAL_INDEX);
+        // The capability @Before may skip the test before setUpIndices runs, yet @After still executes; delete only an
+        // index that was actually created so a skipped old-coordinator run does not fail on a missing index.
+        if (indexExists(client(), LOCAL_INDEX)) {
+            deleteIndex(client(), LOCAL_INDEX);
+        }
         try (RestClient remoteClient = remoteClusterClient()) {
-            deleteIndex(remoteClient, REMOTE_INDEX);
+            if (indexExists(remoteClient, REMOTE_INDEX)) {
+                deleteIndex(remoteClient, REMOTE_INDEX);
+            }
         }
     }
 

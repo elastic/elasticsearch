@@ -315,6 +315,95 @@ public class GroupingEqualityTests extends ESTestCase {
     }
 
     /**
+     * A list, a block builder, a constant vector, and a copy of the block are the same key. A null position built
+     * twice, and a copy of it, are the same key too.
+     */
+    public void testProducersAgreeOnTheGroup() {
+        try (
+            Block listed = valueBlock(blockFactory, 7);
+            Block built = blockFactory.newIntBlockBuilder(1).appendInt(7).build();
+            Block constant = blockFactory.newConstantIntBlockWith(7, 1);
+            Block copied = BlockUtils.deepCopyOf(listed, blockFactory)
+        ) {
+            assertProducersShareGroup(ElementType.INT, listed, built, constant, copied);
+        }
+        try (
+            Block listed = valueBlock(blockFactory, 7L);
+            Block built = blockFactory.newLongBlockBuilder(1).appendLong(7L).build();
+            Block constant = blockFactory.newConstantLongBlockWith(7L, 1);
+            Block copied = BlockUtils.deepCopyOf(listed, blockFactory)
+        ) {
+            assertProducersShareGroup(ElementType.LONG, listed, built, constant, copied);
+        }
+        try (
+            Block listed = valueBlock(blockFactory, 1.5d);
+            Block built = blockFactory.newDoubleBlockBuilder(1).appendDouble(1.5d).build();
+            Block constant = blockFactory.newConstantDoubleBlockWith(1.5d, 1);
+            Block copied = BlockUtils.deepCopyOf(listed, blockFactory)
+        ) {
+            assertProducersShareGroup(ElementType.DOUBLE, listed, built, constant, copied);
+        }
+        try (
+            Block listed = valueBlock(blockFactory, true);
+            Block built = blockFactory.newBooleanBlockBuilder(1).appendBoolean(true).build();
+            Block constant = blockFactory.newConstantBooleanBlockWith(true, 1);
+            Block copied = BlockUtils.deepCopyOf(listed, blockFactory)
+        ) {
+            assertProducersShareGroup(ElementType.BOOLEAN, listed, built, constant, copied);
+        }
+        BytesRef text = new BytesRef("keyword");
+        try (
+            Block listed = valueBlock(blockFactory, text);
+            Block built = blockFactory.newBytesRefBlockBuilder(1).appendBytesRef(text).build();
+            Block constant = blockFactory.newConstantBytesRefBlockWith(text, 1);
+            Block copied = BlockUtils.deepCopyOf(listed, blockFactory)
+        ) {
+            assertProducersShareGroup(ElementType.BYTES_REF, listed, built, constant, copied);
+        }
+        DoubleRange range = new DoubleRange(1d, 3d);
+        try (
+            Block listed = valueBlock(blockFactory, range);
+            Block built = blockFactory.newDoubleRangeBlockBuilder(1).appendDoubleRange(range).build();
+            Block constant = blockFactory.newConstantDoubleRangeBlockWith(range, 1);
+            Block copied = BlockUtils.deepCopyOf(listed, blockFactory)
+        ) {
+            assertProducersShareGroup(ElementType.DOUBLE_RANGE, listed, built, constant, copied);
+        }
+        try (
+            Block built = blockFactory.newIntBlockBuilder(1).appendNull().build();
+            Block again = blockFactory.newIntBlockBuilder(1).appendNull().build();
+            Block copied = BlockUtils.deepCopyOf(built, blockFactory)
+        ) {
+            assertProducersShareGroup(ElementType.INT, built, again, copied);
+        }
+    }
+
+    private void assertProducersShareGroup(ElementType type, Block... blocks) {
+        for (BlockHashKind kind : BlockHashKind.values()) {
+            if (kind == BlockHashKind.ROW) {
+                try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(type), blockFactory)) {
+                    int first = hash.add(new Page(blocks[0]))[0];
+                    for (int i = 1; i < blocks.length; i++) {
+                        assertThat(hash.add(new Page(blocks[i]))[0], equalTo(first));
+                    }
+                }
+            } else {
+                BlockHash hash = kind == BlockHashKind.SINGLE
+                    ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024, false)
+                    : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024);
+                try {
+                    Set<Integer> first = set(collect(hash, new Page(blocks[0]), false)[0]);
+                    for (int i = 1; i < blocks.length; i++) {
+                        assertThat(set(collect(hash, new Page(blocks[i]), false)[0]), equalTo(first));
+                    }
+                } finally {
+                    hash.close();
+                }
+            }
+        }
+    }
+
+    /**
      * Hash the original page and then the restored page. When {@code collapseDistinctBits} is true, a non-single
      * hash kept the two positions apart and the restored page maps both of them onto the first position's group.
      */

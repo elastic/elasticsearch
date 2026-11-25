@@ -11,24 +11,33 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQueryBuilder;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -40,7 +49,9 @@ public class RandomSamplerIT extends ESIntegTestCase {
     private static final String LOWER_KEYWORD = "lower";
     private static final String UPPER_KEYWORD = "upper";
     private static final double PROBABILITY = 0.25;
+    private static final String MULTI_SHARD_INDEX = "multi_shard_idx";
     private static int numDocs;
+    private static int numMultiShardDocs;
     private static double varMonotonic = 0.0;
     private static double varNumeric = 0.0;
 
@@ -90,6 +101,19 @@ public class RandomSamplerIT extends ESIntegTestCase {
         // Force merge to ensure segment consistency as any segment merging can change which particular documents
         // are sampled
         assertNoFailures(indicesAdmin().prepareForceMerge("idx").setMaxNumSegments(1).get());
+
+        // No replicas and no refresh between the searches: another copy or other segments are another sample.
+        assertAcked(
+            prepareCreate(MULTI_SHARD_INDEX).setSettings(
+                indexSettings(between(2, 5), 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            )
+        );
+        numMultiShardDocs = between(100, 500);
+        indexRandom(
+            true,
+            IntStream.range(0, numMultiShardDocs).mapToObj(i -> prepareIndex(MULTI_SHARD_INDEX).setSource(NUMERIC_VALUE, i)).toList()
+        );
+        ensureGreen(MULTI_SHARD_INDEX);
     }
 
     public void testRandomSamplerConsistentSeed() {
@@ -137,6 +161,28 @@ public class RandomSamplerIT extends ESIntegTestCase {
                 )
                 .toArray(SearchRequestBuilder[]::new)
         );
+    }
+
+    public void testRandomSamplingQueryConsistentSeed() {
+        int seed = randomInt();
+        Set<String> sampledIds = sampledIds(seed);
+        assertThat(sampledIds.size(), allOf(greaterThan(0), lessThan(numMultiShardDocs)));
+        for (int i = 0; i < NUM_SAMPLE_RUNS; i++) {
+            assertThat(sampledIds(seed), equalTo(sampledIds));
+        }
+    }
+
+    private static Set<String> sampledIds(int seed) {
+        Set<String> ids = new HashSet<>();
+        assertResponse(
+            prepareSearch(MULTI_SHARD_INDEX).setQuery(new RandomSamplingQueryBuilder(0.5).seed(seed)).setSize(numMultiShardDocs),
+            response -> {
+                for (SearchHit hit : response.getHits().getHits()) {
+                    ids.add(hit.getId());
+                }
+            }
+        );
+        return ids;
     }
 
     public void testRandomSampler() {

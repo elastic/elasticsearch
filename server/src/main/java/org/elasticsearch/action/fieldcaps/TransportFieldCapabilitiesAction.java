@@ -43,6 +43,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -108,6 +109,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     );
     public static final String ACTION_NODE_NAME = NAME + "[n]";
     public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
+    /**
+     * One routing-wait budget for a field-caps request, shared by every index and every wait in that request.
+     */
+    public static final Setting<TimeValue> ROUTING_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
+        "search.field_caps.routing_wait_timeout",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final Executor searchCoordinationExecutor;
     private final TransportService transportService;
@@ -121,6 +132,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private volatile FieldCapsCache cache = new FieldCapsCache();
+    private volatile TimeValue routingWaitTimeout;
 
     @Inject
     public TransportFieldCapabilitiesAction(
@@ -151,6 +163,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.threadPool = threadPool;
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = crossProjectModeDecider;
+        clusterService.getClusterSettings().initializeAndWatch(ROUTING_WAIT_TIMEOUT_SETTING, value -> routingWaitTimeout = value);
         // _id aggregate depends on this setting
         clusterService.getClusterSettings().initializeAndWatch(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING, v -> {
             if (v) {
@@ -210,7 +223,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        final Executor singleThreadedExecutor = buildSingleThreadedExecutor();
+        final DispatcherExecutors dispatcherExecutors = buildSingleThreadedExecutor();
+        final Executor singleThreadedExecutor = dispatcherExecutors.regular();
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross-cluster search
@@ -419,6 +433,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 nowInMillis,
                 concreteLocalIndices,
                 singleThreadedExecutor,
+                dispatcherExecutors.terminal(),
+                routingWaitTimeout,
                 handleIndexResponse,
                 handleIndexFailure,
                 refs.acquire()::close,
@@ -567,27 +583,62 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         );
     }
 
-    private Executor buildSingleThreadedExecutor() {
-        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor);
-        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                try (releasable) {
-                    r.run();
-                }
-            }
+    /**
+     * Builds the serialized dispatcher executor and its forced terminal path. The same runner serves both views so that terminal
+     * completion stays serialized with remote-cluster and cancellation callbacks.
+     */
+    private DispatcherExecutors buildSingleThreadedExecutor() {
+        return buildSingleThreadedExecutor(searchCoordinationExecutor);
+    }
 
+    /** Package-private seam for verifying the rejected hand-off without replacing a node's search-coordination pool. */
+    static DispatcherExecutors buildSingleThreadedExecutor(Executor searchCoordinationExecutor) {
+        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor) {
             @Override
-            public void onFailure(Exception e) {
-                if (r instanceof AbstractRunnable abstractRunnable) {
-                    abstractRunnable.onFailure(e);
-                } else {
-                    // should be impossible, we should always submit an AbstractRunnable
-                    logger.error("unexpected failure running " + r, e);
-                    assert false : new AssertionError("unexpected failure running " + r, e);
-                }
+            protected boolean isForceExecution(ActionListener<Releasable> task) {
+                return task instanceof DispatcherTask dispatcherTask && dispatcherTask.forceExecution;
             }
-        });
+        };
+        return new DispatcherExecutors(
+            runnable -> throttledTaskRunner.enqueueTask(new DispatcherTask(runnable, false)),
+            runnable -> throttledTaskRunner.enqueueTask(new DispatcherTask(runnable, true))
+        );
+    }
+
+    /** The normal serialized dispatcher executor and the forced executor used only to complete a rejected wait hand-off. */
+    record DispatcherExecutors(Executor regular, Executor terminal) {}
+
+    /** Adapts a dispatcher runnable to the action's throttled runner. */
+    private static final class DispatcherTask implements ActionListener<Releasable> {
+        private final Runnable runnable;
+        private final boolean forceExecution;
+
+        private DispatcherTask(Runnable runnable, boolean forceExecution) {
+            this.runnable = runnable;
+            this.forceExecution = forceExecution;
+        }
+
+        @Override
+        public void onResponse(Releasable releasable) {
+            try (releasable) {
+                runnable.run();
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            failRunnable(runnable, e);
+        }
+    }
+
+    /** Delivers an executor failure to the abstract runnable required by the dispatcher. */
+    private static void failRunnable(Runnable runnable, Exception e) {
+        if (runnable instanceof AbstractRunnable abstractRunnable) {
+            abstractRunnable.onFailure(e);
+        } else {
+            LOGGER.error("unexpected failure running [{}]", runnable, e);
+            assert false : new AssertionError("unexpected failure running " + runnable, e);
+        }
     }
 
     public interface LinkedRequestExecutor<R extends ActionResponse> {

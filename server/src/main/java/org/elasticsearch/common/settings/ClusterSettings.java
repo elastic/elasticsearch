@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.PreResolvedUpdates;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
@@ -282,6 +283,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
         IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
         IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
+        TransportFieldCapabilitiesAction.ROUTING_WAIT_TIMEOUT_SETTING,
         MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
         MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
         Metadata.SETTING_READ_ONLY_SETTING,

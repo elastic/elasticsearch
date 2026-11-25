@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -93,6 +94,13 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             // The setting is rejected while the feature flag is off, which would fail the cluster before the tests can be skipped.
             settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
         }
+        // The size of the bulks that INTO sends comes from these settings, which the test cluster randomizes: with the defaults, a few
+        // hundred rows go in one 4MB bulk, and tests that fail or count the bulks of a write have no second bulk to work on. Pin the
+        // small sizes, so that they always get several.
+        settings.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B");
+        settings.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB");
+        settings.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "16KB");
+        settings.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
         return settings.build();
     }
 

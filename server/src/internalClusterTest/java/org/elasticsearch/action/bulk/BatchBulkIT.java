@@ -964,6 +964,107 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
     }
 
+    public void testColumnarBulkWithVersionConflict() throws IOException {
+        final String index = "test-columnar-conflict-then-success";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                )
+                .setMapping("ints", "type=integer")
+        );
+        ensureGreen(index);
+
+        final List<List<String>> idSequences = List.of(
+            List.of("a", "a"),
+            List.of("a", "b", "a"),
+            List.of("a", "b", "b"),
+            List.of("a", "a", "b"),
+            List.of("a", "b", "a", "c"),
+            List.of("a", "a", "b", "c"),
+            List.of("a", "a", "a", "b")
+        );
+        // Each id sequence is a bulk. The ids carry the number of the sequence so that the bulks do not interact.
+        final List<List<String>> bulks = new ArrayList<>();
+        for (int sequence = 0; sequence < idSequences.size(); sequence++) {
+            final String prefix = sequence + "-";
+            bulks.add(idSequences.get(sequence).stream().map(id -> prefix + id).toList());
+        }
+
+        final String coordinatingNode = findCoordinatingNode();
+        final Set<String> expectedIds = new LinkedHashSet<>();
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try {
+            for (List<String> ids : bulks) {
+                BulkRequest bulkRequest = new BulkRequest();
+                for (String id : ids) {
+                    bulkRequest.add(
+                        new IndexRequest(index).id(id).opType(DocWriteRequest.OpType.CREATE).source(XContentType.JSON, "ints", 1)
+                    );
+                }
+
+                final BulkResponse bulkResponse;
+                try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "batch indexed on primary",
+                            ShardBatchIndexer.class.getName(),
+                            Level.TRACE,
+                            "batch indexed * operations on primary shard *"
+                        )
+                    );
+                    bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+                    mockLog.assertAllExpectationsMatched();
+                }
+
+                final BulkItemResponse[] items = bulkResponse.getItems();
+                assertThat(items.length, equalTo(ids.size()));
+                for (int i = 0; i < items.length; i++) {
+                    if (expectedIds.add(ids.get(i))) {
+                        assertFalse(ids + " item " + i, items[i].isFailed());
+                        assertThat(ids + " item " + i, items[i].status(), equalTo(RestStatus.CREATED));
+                    } else {
+                        assertTrue(ids + " item " + i, items[i].isFailed());
+                        assertThat(ids + " item " + i, items[i].status(), equalTo(RestStatus.CONFLICT));
+                    }
+                }
+
+                refresh(index);
+                assertResponse(
+                    prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true),
+                    searchResponse -> assertThat(
+                        "documents after the bulk " + ids,
+                        searchResponse.getHits().getTotalHits().value(),
+                        equalTo((long) expectedIds.size())
+                    )
+                );
+            }
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        // Fetching a document without an _id used to fail an assertion, which is fatal for the node.
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
+                .setSize(expectedIds.size())
+                .seqNoAndPrimaryTerm(true)
+                .setVersion(true),
+            searchResponse -> {
+                final Set<String> fetchedIds = new LinkedHashSet<>();
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    fetchedIds.add(hit.getId());
+                    assertThat(hit.getId(), hit.getSeqNo(), greaterThanOrEqualTo(0L));
+                }
+                assertThat(fetchedIds, equalTo(expectedIds));
+            }
+        );
+    }
+
     /**
      * A pre-built batch can carry raw binary values, which a JSON source cannot, and they are indexed as a batch.
      */

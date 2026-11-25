@@ -22,12 +22,15 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
+import org.elasticsearch.compute.lucene.read.FetchSliceQueue;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverExecutor;
@@ -55,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
@@ -64,6 +68,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +84,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The data node half of a fetch, on a real {@code SearchService} with the reader contexts the query phase keeps open.
@@ -87,7 +91,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public class FetchServiceTests extends FetchContextsTestCase {
     private static final String FETCHED = "fetched";
-    private static final int DOCS = 40;
+    /**
+     * Enough documents that a shard holds more than one slice.
+     */
+    private static final int DOCS = 300;
     private static final Attribute ID = field("id", DataType.KEYWORD);
     private static final Attribute N = field("n", DataType.LONG);
 
@@ -132,13 +139,13 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
-     * Each run of consecutive shards loads on a driver of its own, as many as {@code task_concurrency} allows, and the
+     * The drivers of a request take its slices as they go, as many drivers as {@code task_concurrency} allows, and the
      * rows follow the request: the shards in request order, and the documents of each shard in the order the request
      * listed them.
      */
     public void testFetchesTheRowsOfEveryShardInRequestOrder() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = withTaskConcurrency(request(shards, randomSubsetOf(between(1, DOCS), allNs())), between(1, SHARDS + 1));
+        FetchRequest request = withTaskConcurrency(request(shards, randomSubsetOf(between(1, DOCS), allNs())), between(1, 8));
 
         try (Fetched fetched = fetch(request)) {
             assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
@@ -148,15 +155,20 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
-     * With a {@code task_concurrency} as large as the shards of the request, each shard loads on a driver of its own, and
-     * the drivers run at the same time. The first task of each driver waits until every driver runs its own, which
-     * drivers that ran one after the other would never do.
+     * Several drivers load the slices of one shard at the same time. The first task of each driver waits until every
+     * driver runs its own, which drivers that ran one after the other would never do.
      */
-    public void testLoadsTheShardsInParallel() throws Exception {
+    public void testLoadsOneShardOnSeveralDrivers() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        FetchRequest request = request(shards, allNs());
-        request = withTaskConcurrency(request, request.shards().size());
-        AllDriversAtOnce executor = new AllDriversAtOnce(request.shards().size(), computeExecutor());
+        FetchRequest everyShard = request(shards, allNs());
+        // the shard with the most documents holds more than one slice
+        FetchRequest.ShardDocs largest = everyShard.shards()
+            .stream()
+            .max(Comparator.comparingInt(FetchRequest.ShardDocs::docCount))
+            .orElseThrow();
+        assertThat(slices(List.of(largest)).sliceCount(), greaterThan(1));
+        FetchRequest request = withTaskConcurrency(withShards(everyShard, List.of(largest)), 2);
+        AllDriversAtOnce executor = new AllDriversAtOnce(2, computeExecutor());
 
         try (Fetched fetched = fetch(request, newTask(), executor)) {
             assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
@@ -166,30 +178,19 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
-     * The shards of a request cut into at most {@code task_concurrency} runs of consecutive shards, as even as possible. A
-     * request without shards still gets one run, so a driver answers it.
+     * A slice already bounds its documents, so the fetch ignores {@code esql.values_loading_jumbo_size} and loads each
+     * slice as one page.
      */
-    public void testCutsTheShardsIntoEvenRunsOfConsecutiveShards() {
-        assertThat(FetchService.driverBounds(5, 2), equalTo(new int[] { 0, 2, 5 }));
-        assertThat(FetchService.driverBounds(7, 3), equalTo(new int[] { 0, 2, 4, 7 }));
-        assertThat(FetchService.driverBounds(3, 8), equalTo(new int[] { 0, 1, 2, 3 }));
-        assertThat(FetchService.driverBounds(4, 0), equalTo(new int[] { 0, 4 }));
-        assertThat(FetchService.driverBounds(0, 4), equalTo(new int[] { 0, 0 }));
+    public void testLoadsEachSliceAsOnePage() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        FetchRequest request = request(shards, allNs());
+        PlannerSettings tinyJumbo = PlannerSettings.DEFAULTS.valuesLoadingJumboSize(ByteSizeValue.ofBytes(1));
 
-        int shardCount = between(1, 200);
-        int concurrency = between(1, 50);
-        int[] bounds = FetchService.driverBounds(shardCount, concurrency);
-        assertThat(bounds.length - 1, equalTo(Math.min(shardCount, concurrency)));
-        assertThat(bounds[0], equalTo(0));
-        assertThat(bounds[bounds.length - 1], equalTo(shardCount));
-        int smallest = Integer.MAX_VALUE;
-        int largest = 0;
-        for (int d = 0; d < bounds.length - 1; d++) {
-            smallest = Math.min(smallest, bounds[d + 1] - bounds[d]);
-            largest = Math.max(largest, bounds[d + 1] - bounds[d]);
+        try (Fetched fetched = fetch(request, newTask(), computeExecutor(), tinyJumbo)) {
+            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
+            assertThat(fetched.pages(), hasSize(slices(request.shards()).sliceCount()));
         }
-        assertThat(smallest, greaterThan(0));
-        assertThat(largest - smallest, lessThanOrEqualTo(1));
+        freeAndAssertAllFreed(shards);
     }
 
     /**
@@ -299,17 +300,18 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
-     * A profiled query gets the profile of every {@code fetch} driver of the request, one per run of consecutive shards.
+     * A profiled query gets the profile of every {@code fetch} driver of the request: {@code task_concurrency} drivers,
+     * but never more than slices.
      */
     public void testProfileListsEveryFetchDriver() throws Exception {
         List<OpenShard> shards = openEveryShard();
-        int concurrency = between(1, SHARDS + 1);
+        int concurrency = between(1, 16);
         FetchRequest request = withTaskConcurrency(request(shards, allNs()), concurrency);
         FetchRequest profiled = withConfiguration(request, new ConfigurationBuilder(request.configuration()).profile(true).build());
 
         try (Fetched fetched = fetch(profiled)) {
             List<DriverProfile> profiles = fetched.info().driverProfiles();
-            assertThat(profiles, hasSize(Math.min(request.shards().size(), concurrency)));
+            assertThat(profiles, hasSize(Math.min(slices(request.shards()).sliceCount(), concurrency)));
             for (DriverProfile profile : profiles) {
                 assertThat(profile.description(), equalTo(FetchService.DESCRIPTION));
             }
@@ -505,12 +507,16 @@ public class FetchServiceTests extends FetchContextsTestCase {
         return fetch(request, task, computeExecutor());
     }
 
+    private Fetched fetch(FetchRequest request, CancellableTask task, DriverExecutor driverExecutor) {
+        return fetch(request, task, driverExecutor, PlannerSettings.DEFAULTS);
+    }
+
     /**
      * Runs the request on the search pool, where the transport layer runs fetch requests.
      *
      * @param driverExecutor runs the drivers of the request
      */
-    private Fetched fetch(FetchRequest request, CancellableTask task, DriverExecutor driverExecutor) {
+    private Fetched fetch(FetchRequest request, CancellableTask task, DriverExecutor driverExecutor, PlannerSettings plannerSettings) {
         ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
         FetchService service = new FetchService(
             getInstanceFromNode(TransportService.class),
@@ -520,13 +526,26 @@ public class FetchServiceTests extends FetchContextsTestCase {
             searchService(),
             getInstanceFromNode(BigArrays.class),
             blockFactory,
-            () -> PlannerSettings.DEFAULTS,
+            () -> plannerSettings,
             driverExecutor
         );
         PlainActionFuture<Fetched> future = new PlainActionFuture<>();
         threadPool.executor(ThreadPool.Names.SEARCH)
             .execute(() -> service.execute(request, task, future.map(r -> new Fetched(r.takePages(), r.completionInfo()))));
         return future.actionGet(TimeValue.timeValueSeconds(30));
+    }
+
+    /**
+     * The slices the node cuts {@code shards} into. The test index has the default
+     * {@code index.esql.stored_fields_sequential_proportion}.
+     */
+    private static FetchSliceQueue slices(List<FetchRequest.ShardDocs> shards) {
+        List<FetchDocsSourceOperator.ShardDocs> docs = new ArrayList<>(shards.size());
+        for (int position = 0; position < shards.size(); position++) {
+            docs.add(new FetchDocsSourceOperator.ShardDocs(position, shards.get(position).segments(), shards.get(position).docs()));
+        }
+        double proportion = EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(Settings.EMPTY);
+        return FetchSliceQueue.create(docs, slot -> proportion);
     }
 
     /**

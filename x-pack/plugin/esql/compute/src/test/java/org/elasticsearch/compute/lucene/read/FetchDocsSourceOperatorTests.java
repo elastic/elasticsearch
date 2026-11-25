@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,6 +42,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FetchDocsSourceOperatorTests extends ComputeTestCase {
+    /**
+     * The default of {@code index.esql.stored_fields_sequential_proportion}.
+     */
+    private static final double PROPORTION = 0.2;
+
     // the one reference its owner holds, like the shard contexts of a data node
     private final AbstractRefCounted shard = AbstractRefCounted.of(() -> {});
 
@@ -68,9 +75,10 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * Every page is one run of one segment, the shape {@link ValuesSourceReaderOperator} loads with a single reader.
+     * Every page is one slice, the shape {@link ValuesSourceReaderOperator} loads with a single reader, and its second
+     * block is the position of the slice.
      */
-    public void testOnePagePerSegmentRun() {
+    public void testOnePagePerSlice() {
         BlockFactory blockFactory = blockFactory();
         FetchDocsSourceOperator.ShardDocs docs = new FetchDocsSourceOperator.ShardDocs(
             0,
@@ -78,19 +86,25 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
             new int[] { 1, 5, 9, 4, 0, 8 }
         );
         List<int[]> pages = new ArrayList<>();
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory, refCounteds(), List.of(docs))) {
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory, refCounteds(), slices(docs))) {
             while (source.isFinished() == false) {
                 Page page = source.getOutput();
+                if (page == null) {
+                    continue;
+                }
                 try {
                     DocVector vector = page.<DocBlock>getBlock(0).asVector();
                     assertTrue(vector.singleSegment());
                     assertTrue(vector.singleSegmentNonDecreasing());
                     assertFalse(vector.mayContainDuplicates());
                     assertThat("the page holds its shard", shard.refCount(), equalTo(2));
-                    int[] values = new int[vector.getPositionCount() + 1];
-                    values[0] = vector.segments().getInt(0);
+                    IntBlock position = page.getBlock(1);
+                    assertTrue(position.asVector().isConstant());
+                    int[] values = new int[vector.getPositionCount() + 2];
+                    values[0] = position.getInt(0);
+                    values[1] = vector.segments().getInt(0);
                     for (int p = 0; p < vector.getPositionCount(); p++) {
-                        values[p + 1] = vector.docs().getInt(p);
+                        values[p + 2] = vector.docs().getInt(p);
                     }
                     pages.add(values);
                 } finally {
@@ -100,9 +114,9 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
             assertThat(source.status(), equalTo(new FetchDocsSourceOperator.Status(3, 6, 3)));
         }
         assertThat(pages.size(), equalTo(3));
-        assertArrayEquals(new int[] { 0, 1, 5, 9 }, pages.get(0));
-        assertArrayEquals(new int[] { 2, 4 }, pages.get(1));
-        assertArrayEquals(new int[] { 3, 0, 8 }, pages.get(2));
+        assertArrayEquals(new int[] { 0, 0, 1, 5, 9 }, pages.get(0));
+        assertArrayEquals(new int[] { 1, 2, 4 }, pages.get(1));
+        assertArrayEquals(new int[] { 2, 3, 0, 8 }, pages.get(2));
         assertThat("released pages return their shard", shard.refCount(), equalTo(1));
     }
 
@@ -147,16 +161,20 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
                     FetchDocsSourceOperator source = new FetchDocsSourceOperator(
                         driverContext.blockFactory(),
                         refCounteds(),
-                        List.of(shardDocs)
+                        slices(shardDocs)
                     );
                     Operator values = ValuesSourceReaderOperatorTests.factory(reader, key, ElementType.LONG).get(driverContext)
                 ) {
                     while (source.isFinished() == false) {
-                        values.addInput(source.getOutput());
-                        drain(values, loaded);
+                        Page page = source.getOutput();
+                        if (page != null) {
+                            values.addInput(page);
+                            drain(values, loaded);
+                        }
                     }
                     values.finish();
                     drain(values, loaded);
+                    // one driver alone keeps to the slice after its last, so it moves to each segment once
                     assertThat(source.status().segmentRuns(), equalTo((int) segments.stream().distinct().count()));
                 }
                 assertThat(loaded, equalTo(expected));
@@ -167,7 +185,8 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
     private static void drain(Operator values, List<Long> loaded) {
         for (Page page = values.getOutput(); page != null; page = values.getOutput()) {
             try {
-                LongBlock block = page.getBlock(1);
+                // the _doc column, the position of the slice, then the loaded values
+                LongBlock block = page.getBlock(2);
                 for (int p = 0; p < block.getPositionCount(); p++) {
                     loaded.add(block.getLong(block.getFirstValueIndex(p)));
                 }
@@ -178,9 +197,9 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * However many documents a segment holds, they come out as one page.
+     * A long run of a segment comes out in slices, not as one page.
      */
-    public void testALongRunIsOnePage() {
+    public void testALongRunComesOutInSlices() {
         BlockFactory blockFactory = blockFactory();
         int docCount = between(1000, 20_000);
         int[] segments = new int[docCount];
@@ -188,16 +207,20 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
         for (int i = 0; i < docCount; i++) {
             docIds[i] = i * 3;
         }
-        FetchDocsSourceOperator.ShardDocs docs = new FetchDocsSourceOperator.ShardDocs(0, segments, docIds);
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory, refCounteds(), List.of(docs))) {
-            Page page = source.getOutput();
-            try {
-                assertThat(page.getPositionCount(), equalTo(docCount));
-            } finally {
-                page.releaseBlocks();
+        FetchSliceQueue slices = slices(new FetchDocsSourceOperator.ShardDocs(0, segments, docIds));
+        int pages = 0;
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory, refCounteds(), slices)) {
+            while (source.isFinished() == false) {
+                Page page = source.getOutput();
+                if (page != null) {
+                    int left = docCount - pages * FetchSliceQueue.DENSE_SLICE_DOCS;
+                    assertThat(page.getPositionCount(), equalTo(Math.min(FetchSliceQueue.DENSE_SLICE_DOCS, left)));
+                    page.releaseBlocks();
+                    pages++;
+                }
             }
-            assertTrue(source.isFinished());
-            assertThat(source.status(), equalTo(new FetchDocsSourceOperator.Status(1, docCount, 1)));
+            assertThat(pages, equalTo(slices.sliceCount()));
+            assertThat(source.status(), equalTo(new FetchDocsSourceOperator.Status(pages, docCount, 1)));
         }
     }
 
@@ -206,30 +229,33 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
         assertThat(docs.toString(), equalTo("ShardDocs[shard=3, docs=2]"));
     }
 
-    public void testNoShardEmitsNothing() {
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), refCounteds(), List.of())) {
-            assertTrue(source.isFinished());
+    public void testNoSlicesEmitNothing() {
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), refCounteds(), slices())) {
             assertThat(source.getOutput(), nullValue());
+            assertTrue(source.isFinished());
         }
     }
 
     /**
-     * One source emits the documents of several shards, each shard after the one before, so one driver loads them all in
-     * the order of the request. A shard without documents adds no page.
+     * One source alone emits the slices of several shards in request order, each shard after the one before. A shard
+     * without documents adds no page.
      */
     public void testEmitsSeveralShardsOneAfterTheOther() {
         AbstractRefCounted second = AbstractRefCounted.of(() -> {});
         AbstractRefCounted third = AbstractRefCounted.of(() -> {});
         IndexedByShardId<AbstractRefCounted> shards = new IndexedByShardIdFromList<>(List.of(shard, second, third));
-        List<FetchDocsSourceOperator.ShardDocs> docs = List.of(
+        FetchSliceQueue slices = slices(
             new FetchDocsSourceOperator.ShardDocs(2, new int[] { 0, 1 }, new int[] { 3, 0 }),
             new FetchDocsSourceOperator.ShardDocs(1, new int[0], new int[0]),
             new FetchDocsSourceOperator.ShardDocs(0, new int[] { 4 }, new int[] { 9 })
         );
         List<int[]> pages = new ArrayList<>();
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), shards, docs)) {
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), shards, slices)) {
             while (source.isFinished() == false) {
                 Page page = source.getOutput();
+                if (page == null) {
+                    continue;
+                }
                 try {
                     DocVector vector = page.<DocBlock>getBlock(0).asVector();
                     assertThat(vector.getPositionCount(), equalTo(1));
@@ -247,14 +273,52 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
         assertThat("released pages return their shards", shard.refCount() + second.refCount() + third.refCount(), equalTo(3));
     }
 
+    /**
+     * The sources of several drivers share the slices of a request, and each slice goes to one of them.
+     */
+    public void testSourcesThatShareTheSlicesEmitEachSliceOnce() {
+        int docCount = between(200, 2_000);
+        int step = between(1, 10);
+        int[] segments = new int[docCount];
+        int[] docIds = new int[docCount];
+        for (int i = 0; i < docCount; i++) {
+            segments[i] = i / 300;
+            docIds[i] = i * step;
+        }
+        FetchSliceQueue slices = slices(new FetchDocsSourceOperator.ShardDocs(0, segments, docIds));
+        List<FetchDocsSourceOperator> sources = new ArrayList<>();
+        for (int s = between(2, 4); s > 0; s--) {
+            sources.add(new FetchDocsSourceOperator(blockFactory(), refCounteds(), slices));
+        }
+        List<Integer> positions = new ArrayList<>();
+        long docsEmitted = 0;
+        while (sources.stream().allMatch(FetchDocsSourceOperator::isFinished) == false) {
+            FetchDocsSourceOperator source = randomFrom(sources);
+            Page page = source.getOutput();
+            if (page != null) {
+                positions.add(page.<IntBlock>getBlock(1).getInt(0));
+                docsEmitted += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        sources.forEach(FetchDocsSourceOperator::close);
+        assertThat(positions.stream().sorted().toList(), equalTo(IntStream.range(0, slices.sliceCount()).boxed().toList()));
+        assertThat(docsEmitted, equalTo((long) docCount));
+        assertThat("released pages return their shard", shard.refCount(), equalTo(1));
+    }
+
     public void testFinishStops() {
         FetchDocsSourceOperator.ShardDocs docs = new FetchDocsSourceOperator.ShardDocs(0, new int[] { 0, 1 }, new int[] { 0, 0 });
-        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), refCounteds(), List.of(docs))) {
+        try (FetchDocsSourceOperator source = new FetchDocsSourceOperator(blockFactory(), refCounteds(), slices(docs))) {
             source.getOutput().releaseBlocks();
             source.finish();
             assertTrue(source.isFinished());
             assertThat(source.getOutput(), nullValue());
         }
+    }
+
+    private static FetchSliceQueue slices(FetchDocsSourceOperator.ShardDocs... shards) {
+        return FetchSliceQueue.create(List.of(shards), slot -> PROPORTION);
     }
 
     private DriverContext driverContext() {

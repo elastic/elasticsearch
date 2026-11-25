@@ -260,7 +260,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
         final AllocatedIndex<? extends Shard> indexService = indicesService.indexService(routing.index());
         final Shard shard = indexService == null ? null : indexService.getShardOrNull(routing.id());
-        return shard == null ? 0 : shard.recoveryState().getLocalRetries();
+        if (shard == null || shard.routingEntry().isSameAllocation(routing) == false) {
+            return 0;
+        }
+        return shard.recoveryState().getLocalRetries();
     }
 
     private final RepositoriesService repositoriesService;

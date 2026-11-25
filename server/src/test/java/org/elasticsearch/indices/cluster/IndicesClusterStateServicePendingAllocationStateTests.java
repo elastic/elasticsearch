@@ -680,6 +680,30 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(siblingRouting), equalTo(0));
     }
 
+    /// getShardOrNull looks up by shard number alone, so once the applier has replaced this shard with a new
+    /// allocation, the local shard found there belongs to that new allocation, not the stale `routing` passed
+    /// in. Its retry count must not be attributed back to the old allocation's key.
+    public void testGetLocalRecoveryRetryCountDoesNotLeakReplacementAllocationsRetries() {
+        ShardRouting oldRouting = applyInitializingPrimary();
+
+        ShardRouting newRouting = TestShardRouting.newShardRouting(
+            oldRouting.shardId(),
+            oldRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        applyState(stateWithShardRouting(newRouting));
+        assertFalse(oldRouting.isSameAllocation(newRouting));
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(oldRouting)));
+
+        handleRecoveryFailureWithRetry(newRouting);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(isInFlight(newRouting));
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(newRouting), equalTo(1));
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(oldRouting), equalTo(0));
+    }
+
     public void testFailureReportedEvictedWhenPrimaryTermBumped() {
         ShardRouting shardRouting = applyInitializingPrimary();
         indicesClusterStateService.handleRecoveryFailure(

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.search.scheduling.QueryLoad;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -108,9 +109,10 @@ public abstract class SourceOperator implements Operator {
      * resets its internal counters on each invocation.</p>
      *
      * @param extraDriverNanos time the driver held a thread, in nanoseconds, since the previous call
+     * @param driverLoad       where the driver adds up what it charged
      * @return whether the time was attributed to shards
      */
-    final boolean reportSearchLoad(long extraDriverNanos, long now) {
+    final boolean reportSearchLoad(long extraDriverNanos, long now, QueryLoad driverLoad) {
         final List<ShardLoad> delta = shardLoadDelta(now);
         final int size = delta.size();
         if (size == 0) {
@@ -121,7 +123,7 @@ public abstract class SourceOperator implements Operator {
             // Single shard: attribute all processing to it
             ShardLoad load = delta.getFirst();
             load.context().addRowsEmitted(load.rowsEmitted());
-            TaskLoadAttribution.charge(load.context().stats().searchLoadTarget(), extraDriverNanos, now);
+            TaskLoadAttribution.charge(driverLoad.charging(load.context().stats().searchLoadTarget()), extraDriverNanos, now);
             return true;
         }
 
@@ -154,7 +156,11 @@ public abstract class SourceOperator implements Operator {
             }
         }
         if (totalNanos > 0L) {
-            TaskLoadAttribution.charge((n, cpu, finish) -> ShardSearchStats.charge(shards, nanos, n, cpu, finish), totalNanos, now);
+            TaskLoadAttribution.charge(
+                driverLoad.charging((n, cpu, finish) -> ShardSearchStats.charge(shards, nanos, n, cpu, finish)),
+                totalNanos,
+                now
+            );
         }
         return true;
     }

@@ -476,7 +476,7 @@ $$$csv-pad-short-rows$$$
 
     By default a row that stops before its file's width is a malformed row, as a row past it already is, and the dataset's `error_mode` decides what happens to it: `fail_fast` fails the query naming the row and both widths, while `skip_row` and `null_field` drop the row, report it with a `Warning` header and count it against the error limit.
 
-    Set `true` to read such a row instead, with the fields it lacks as `null`, under every `error_mode`. Padded rows are reported with `Warning` headers, because a padded `null` cannot otherwise be told from a `null` the file carries. The first 20 padded rows are named one by one, and one more header says when there were more.
+    Set `true` to read such a row instead, with the fields it lacks as `null`, under every `error_mode`. Padded rows are reported with `Warning` headers, because a padded `null` cannot otherwise be told from a `null` the file carries. Padded rows are named one by one up to a cap, after which a single header says that further warnings were suppressed, so the row warnings are not a full list of the rows padded.
 
     A query answered from cached statistics rather than by reading the file carries no such header, as it carries no warning any reader raises. A `COUNT` repeated over an unchanged dataset is the common case.
 

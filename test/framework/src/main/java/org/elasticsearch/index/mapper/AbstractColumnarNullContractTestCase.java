@@ -456,6 +456,10 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         );
     }
 
+    /**
+     * Force merges the index to one segment, which changes the segments of {@code indexWriter}, and returns the reconstructed
+     * {@code _source} of the first {@code count} documents in index order.
+     */
     protected final List<String> reconstructedSources(MapperService mapperService, IndexWriter indexWriter, int count) throws IOException {
         indexWriter.forceMerge(1);
         try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {

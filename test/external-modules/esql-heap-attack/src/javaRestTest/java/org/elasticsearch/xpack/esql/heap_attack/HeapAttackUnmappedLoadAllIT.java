@@ -262,6 +262,55 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         assertCircuitBreaks(attempt -> loadAllOneRow(index), WRITTEN_JSON_BREAK);
     }
 
+    /**
+     * Index:
+     * <ul>
+     *     <li>60,000 documents with 100 unmapped leaves each, every name distinct across the index: about 2KB of JSON per row</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL}, {@code DEDUP}, then the last row by the mapped field, which needs every row to have passed</li>
+     * </ul>
+     * Expected: circuit break while the keys of the groups are held
+     * <p>
+     * Since {@code DEDUP} compares {@code _unmapped_fields}, the JSON of every distinct row is a key that the grouping keeps until the
+     * end, and no row is a duplicate here. The documents are narrow, so that one page of them is far under the breaker and what
+     * crosses it is the keys that add up over many pages. The request breaker is lowered, as in
+     * {@link #testArrayOfTinyObjectsCircuitBreaksInSourceLoading}, to stand in for the headroom of a larger heap.
+     * <p>
+     * The query cannot end with {@code STATS}: a command that does not return the unmapped fields removes {@code _unmapped_fields} from
+     * the plan, and then nothing carries the JSON. A {@code LIMIT} alone lets the query finish after the first rows. The last row by
+     * the mapped field needs every row, and loads the JSON only for the one that it returns.
+     */
+    public void testDedupCircuitBreaksWhileTheJsonOfEveryGroupIsHeld() throws IOException {
+        setRequestBreakerLimit("15%");
+        assertCircuitBreaksVia(attempt -> {
+            int docs = 60_000 * attempt;
+            String index = "load_all_dedup_" + attempt;
+            createMostlyUnmappedIndex(index);
+            StringBuilder bulk = new StringBuilder();
+            int docsPerBulk = 500;
+            for (int d = 0; d < docs; d++) {
+                bulk.append("{\"create\":{}}\n{\"").append(MAPPED_FIELD).append("\":\"").append(String.format(Locale.ROOT, "%08d", d));
+                bulk.append('"');
+                for (int f = 0; f < 100; f++) {
+                    bulk.append(",\"").append(manyDocsFieldName(d * 100 + f)).append("\":1");
+                }
+                bulk.append("}\n");
+                if (d % docsPerBulk == docsPerBulk - 1) {
+                    bulk(index, bulk.toString());
+                    bulk.setLength(0);
+                }
+            }
+            initIndex(index, bulk.toString());
+
+            StringBuilder query = startQuery();
+            query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+            query.append("FROM ").append(index).append("\n| DEDUP\n| SORT ").append(MAPPED_FIELD).append(" DESC\n| LIMIT 1\"}");
+            return responseAsMap(query(query.toString(), "columns"));
+        }, "GroupedLimitOperator");
+    }
+
     /** One document with the array {@code a} of {@code elements} one-character strings, or two arrays that are the field {@code a.b}. */
     private void indexDocumentWithArrays(String index, int elements, boolean spelledInTwoWays) throws IOException {
         createMostlyUnmappedIndex(index);

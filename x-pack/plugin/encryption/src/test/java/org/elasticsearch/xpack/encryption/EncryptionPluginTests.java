@@ -46,10 +46,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * The joining node's own join validator, which keeps a node that can't persist the key out of a cluster that has one, and secure settings
- * reloads. The cluster service and plugin services are mocked, since only the cluster state they return matters here.
+ * The join checks that keep a node that can't persist the key out of a cluster that has one: the joining node's own join validator, and
+ * the join attribute it reports for the validator on the master. The cluster service and plugin services are mocked, since only the
+ * cluster state they return matters here.
  */
 public class EncryptionPluginTests extends ESTestCase {
+
+    private static final String CAN_PERSIST = EncryptionPlugin.CAN_PERSIST_KEY_JOIN_ATTRIBUTE;
 
     private final DiscoveryNode localNode = DiscoveryNodeUtils.create("local");
     private final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other");
@@ -94,6 +97,26 @@ public class EncryptionPluginTests extends ESTestCase {
         plugin.getJoinValidator().accept(otherNode, stateWith(key()));
     }
 
+    public void testJoinAttributeReportsWhetherThisNodeCanPersistTheKey() {
+        assertEquals(Map.of(CAN_PERSIST, "false"), plugin.getJoinAttributes());
+        plugin.reload(EncryptionIntegTestUtils.passwordSettings("v1", "test-password-fips"));
+        assertEquals(Map.of(CAN_PERSIST, "true"), plugin.getJoinAttributes());
+    }
+
+    public void testMasterRejectsNodeThatReportsItCannotPersistTheKey() {
+        ClusterState withKey = stateWith(key());
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> plugin.getJoinAttributesValidator().validate(otherNode, Map.of(CAN_PERSIST, "false"), withKey)
+        );
+        assertThat(e.getMessage(), containsString("node [" + otherNode.getName() + "] cannot join the cluster"));
+
+        plugin.getJoinAttributesValidator().validate(otherNode, Map.of(CAN_PERSIST, "true"), withKey);
+        // a node on an earlier version doesn't report it, and its own join validator checks it
+        plugin.getJoinAttributesValidator().validate(otherNode, Map.of(), withKey);
+        plugin.getJoinAttributesValidator().validate(otherNode, Map.of(CAN_PERSIST, "false"), stateWith(null));
+    }
+
     /** On stateless with the password in cluster secrets, a keystore reload, which doesn't have it, doesn't replace it. */
     public void testKeystoreReloadKeepsPasswordFromClusterSecretsOnStateless() throws IOException {
         String json = Strings.format(
@@ -106,15 +129,10 @@ public class EncryptionPluginTests extends ESTestCase {
             state.set(ClusterState.builder(stateWith(null)).putCustom(ClusterSecrets.TYPE, secrets).build());
         }
         plugin = new EncryptionPlugin(Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build());
-        PasswordPekEncryption pekEncryption = plugin.createComponents(pluginServices())
-            .stream()
-            .filter(PasswordPekEncryption.class::isInstance)
-            .map(PasswordPekEncryption.class::cast)
-            .findFirst()
-            .orElseThrow();
+        plugin.createComponents(pluginServices());
 
         plugin.reload(Settings.EMPTY);
-        assertTrue(pekEncryption.canWrapForGateway());
+        assertEquals(Map.of(CAN_PERSIST, "true"), plugin.getJoinAttributes());
     }
 
     private static ProjectEncryptionKeyMetadata key() {

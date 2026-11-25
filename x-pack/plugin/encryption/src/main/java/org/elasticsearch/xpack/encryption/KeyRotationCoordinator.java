@@ -70,7 +70,7 @@ import java.util.stream.Stream;
  *   <li><b>Persist check retry</b>: while a node can't, the master asks again after {@link #PERSIST_CHECK_INTERVAL}, or right
  *   away when it reloads its secure settings or a node that persists cluster state joins or leaves.</li>
  *   <li><b>Join condition</b>: once the key is installed, a node that persists cluster state but can't wrap the key can't join
- *   ({@link EncryptionPlugin#getJoinValidator()}).</li>
+ *   ({@link EncryptionPlugin#getJoinAttributesValidator()} on the master, {@link EncryptionPlugin#getJoinValidator()} on the node).</li>
  *   <li><b>Key rotation</b>: once the active key is older than {@link #ROTATION_INTERVAL_SETTING}, a new key becomes active, the
  *   registered {@link EncryptedDataHandler}s re-encrypt their data under it, and keys no longer in use are retired.</li>
  *   <li><b>Password rotation</b>: when the active password id changes, {@link ProjectEncryptionKeyMetadata#getPasswordId()} follows.</li>

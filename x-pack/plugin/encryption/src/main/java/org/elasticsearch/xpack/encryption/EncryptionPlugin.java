@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.coordination.JoinAttributesValidator;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
@@ -40,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -58,6 +61,8 @@ public class EncryptionPlugin extends Plugin
         HealthPlugin,
         ClusterCoordinationPlugin {
 
+    static final String CAN_PERSIST_KEY_JOIN_ATTRIBUTE = "encryption.can_persist_key";
+
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
@@ -68,6 +73,8 @@ public class EncryptionPlugin extends Plugin
     private final boolean stateless;
     private final boolean persistsClusterState;
     private volatile Settings pekSettings;
+    // cached so join requests, sent under the coordinator's mutex, never wait for a key derivation
+    private volatile boolean canPersistKey;
 
     private final PasswordPekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
     private final ProjectEncryptionKeyMetadata.DegradedBlobHolder degradedBlobHolder =
@@ -130,6 +137,7 @@ public class EncryptionPlugin extends Plugin
         this.healthIndicatorService.set(healthIndicator);
         this.pekService.set(pekService);
         this.clusterService.set(services.clusterService());
+        canPersistKey = pekEncryption.canWrapForGateway();
 
         List<Object> components = new ArrayList<>();
         components.add(new PluginComponentBinding<>(EncryptionService.class, encryptionService));
@@ -166,6 +174,7 @@ public class EncryptionPlugin extends Plugin
             ProjectEncryptionKeyPasswordSettings.validateReload(pekEncryption.canWrapForGateway(), updated);
         }
         this.pekSettings = updated;
+        canPersistKey = pekEncryption.canWrapForGateway();
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
         if (localCoordinator != null) {
             localCoordinator.reload();
@@ -207,6 +216,31 @@ public class EncryptionPlugin extends Plugin
                 + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
                 + "<id>] secure setting in its keystore, then restart it or reload its secure settings"
         );
+    }
+
+    /** Reports whether this node can persist the key with each join request, for {@link #getJoinAttributesValidator()} on the master. */
+    @Override
+    public Map<String, String> getJoinAttributes() {
+        return persistsClusterState ? Map.of(CAN_PERSIST_KEY_JOIN_ATTRIBUTE, Boolean.toString(canPersistKey)) : Map.of();
+    }
+
+    /**
+     * Rejects, on the elected master, a node that reported it cannot persist the key, as the join validator does on the node itself. It
+     * runs in the update that adds the node, so it also rejects a node whose join was validated against a state from before the key was
+     * installed or restored.
+     */
+    @Override
+    public JoinAttributesValidator getJoinAttributesValidator() {
+        return this::rejectJoiningNodeThatCannotPersistKey;
+    }
+
+    private void rejectJoiningNodeThatCannotPersistKey(DiscoveryNode node, Map<String, String> joinAttributes, ClusterState state) {
+        // nodes on older versions don't report it
+        String canPersist = joinAttributes.get(CAN_PERSIST_KEY_JOIN_ATTRIBUTE);
+        if (canPersist == null || Booleans.parseBoolean(canPersist) || requiresNodesToPersistKey(state) == false) {
+            return;
+        }
+        throw cannotJoin("node [" + node.getName() + "]", "");
     }
 
     /**

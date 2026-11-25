@@ -145,7 +145,11 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
     private void runDisruptionRounds(List<String> indices) throws IOException {
         final int rounds = between(3, 6);
         for (int round = 0; round < rounds; round++) {
-            final var disruption = randomFrom(Disruption.values());
+            // The first round recovers all the shards of a node at once (relocating them off it, or restarting it), which
+            // always exceeds the data node recovery limits, so the test leverages data node recovery queueing.
+            final var disruption = round == 0
+                ? randomFrom(Disruption.RELOCATE_OFF_INDEX_NODE, Disruption.RELOCATE_OFF_SEARCH_NODE, Disruption.RESTART_DATA_NODE)
+                : randomFrom(Disruption.values());
             logger.info("--> round [{}/{}]: [{}]", round + 1, rounds, disruption);
             triggerDisruption(disruption, indices);
             waitForGreenAndBalanced();
@@ -217,7 +221,6 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
         updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name").build());
     }
 
-    /// Returns the actual name of the node, which the test cluster suffixes with a random string.
     private static String resolveNodeName(String nodeSpecName) throws IOException {
         final var request = new Request("GET", "/_cat/nodes");
         request.addParameter("h", "name");

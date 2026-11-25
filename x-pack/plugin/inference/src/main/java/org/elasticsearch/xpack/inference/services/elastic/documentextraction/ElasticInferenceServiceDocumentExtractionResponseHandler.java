@@ -14,8 +14,9 @@ import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 
 /**
- * Response handler for document extraction requests. A 413 (content too large) is not retried, because the default behavior
- * of truncating the request makes no sense for a document: a truncated document would silently yield partial extraction results.
+ * Response handler for document extraction requests. A 413 (content too large) is not retried: the default handler would retry
+ * with a truncated request, but document extraction requests are never truncated, so the retry would resend the identical
+ * oversized request and fail again.
  */
 public class ElasticInferenceServiceDocumentExtractionResponseHandler extends ElasticInferenceServiceResponseHandler {
 

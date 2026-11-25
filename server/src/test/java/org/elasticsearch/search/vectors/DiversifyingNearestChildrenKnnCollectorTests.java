@@ -38,8 +38,7 @@ public class DiversifyingNearestChildrenKnnCollectorTests extends ESTestCase {
         assertEquals(NeighborQueue.encodeRaw(3, 0.8f), collector.getMinCompetitiveDocScore());
     }
 
-    /** Two children of one parent with the same score: the lower child id is kept, whichever was collected first. */
-    public void testEqualScoresKeepTheLowerChildWhateverTheOrder() {
+    public void testEqualScoresKeepTheLowerChild() {
         for (boolean lowerFirst : new boolean[] { true, false }) {
             FixedBitSet parents = new FixedBitSet(6);
             parents.set(5);

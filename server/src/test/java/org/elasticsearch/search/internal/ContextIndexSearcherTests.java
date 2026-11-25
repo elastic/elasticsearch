@@ -225,13 +225,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
     }
 
-    /**
-     * A search that splits its own work (DiskBBQ's parallel scan) may cut it into as many tasks as the searcher's maximum
-     * number of slices, and into one when the searcher has no executor.
-     */
+    /** A search that splits its own work may cut it into as many tasks as the searcher's maximum number of slices. */
     public void testMaximumParallelTasks() throws Exception {
-        int threads = randomIntBetween(2, 5);
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threads);
+        int maxSlices = randomIntBetween(2, 5);
         try (Directory directory = newDirectory()) {
             indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
@@ -241,11 +237,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(),
                     randomBoolean(),
-                    executor,
-                    threads,
+                    Runnable::run,
+                    maxSlices,
                     1
                 );
-                assertEquals("the searcher's maximum", threads, ContextIndexSearcher.maximumParallelTasks(withExecutor));
+                assertEquals("the searcher's maximum", maxSlices, ContextIndexSearcher.maximumParallelTasks(withExecutor));
                 ContextIndexSearcher withoutExecutor = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
@@ -254,11 +250,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     randomBoolean()
                 );
                 assertEquals("no executor", 1, ContextIndexSearcher.maximumParallelTasks(withoutExecutor));
-                IndexSearcher plain = new IndexSearcher(directoryReader, executor);
+                IndexSearcher plain = new IndexSearcher(directoryReader, Runnable::run);
                 assertEquals("not a ContextIndexSearcher", 1, ContextIndexSearcher.maximumParallelTasks(plain));
             }
-        } finally {
-            terminate(executor);
         }
     }
 

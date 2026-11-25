@@ -557,10 +557,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             this.nextCentroidOrdinal = centroidOrdinal;
         }
 
-        /**
-         * Caches quantizations in the segment's {@code shared} map instead of this visitor's own, so the parts searching the
-         * segment compute each centroid's once. That map never evicts, so no array another part reads is ever reused.
-         */
+        /** Caches quantizations in the segment's shared map, which never evicts: no array another part reads is reused. */
         void share(Map<Integer, QuantizedQuery> shared) {
             this.cache = shared;
         }

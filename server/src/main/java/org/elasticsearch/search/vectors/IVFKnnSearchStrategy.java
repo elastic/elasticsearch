@@ -41,13 +41,7 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         this(visitRatio, numCands, k, sharedScore, queryTransformCache, null);
     }
 
-    /**
-     * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
-     * @param queryTransformCache cache of transformations of the query vector shared across leaves, as for the constructor
-     *                              above
-     * @param segmentScan shared by the parts of one segment's search that run on different threads, or null when the
-     *                    segment is searched by a single call
-     */
+    /** @param segmentScan shared by the parts of one segment's search, or null when the segment is searched whole */
     public IVFKnnSearchStrategy(
         float visitRatio,
         int numCands,

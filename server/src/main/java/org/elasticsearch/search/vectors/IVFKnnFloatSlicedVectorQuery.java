@@ -105,8 +105,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
 
     @Override
     boolean canSplitLeaves() {
-        // One slice is a single scan of a leaf. Several are several scans that fill one collector in turn, which the parts of a
-        // leaf cannot share.
+        // several slices are several scans of a leaf, which its parts cannot share
         return sliceKeys.isSingle() && getClass() == IVFKnnFloatSlicedVectorQuery.class; // a subclass has to opt in
     }
 

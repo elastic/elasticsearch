@@ -207,16 +207,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.ivfParallelScanEnabled = ivfParallelScanEnabled;
     }
 
-    /** Whether DiskBBQ (IVF) kNN queries on {@code searcher} scan in parallel, across segments and within large segments. */
+    /** Whether DiskBBQ (IVF) kNN queries on {@code searcher} may split large segments into parts searched in parallel. */
     public static boolean ivfParallelScanEnabled(IndexSearcher searcher) {
         return searcher instanceof ContextIndexSearcher cis && cis.ivfParallelScanEnabled;
     }
 
-    /**
-     * How many tasks a search on {@code searcher} may run in parallel: its maximum number of slices (Elasticsearch sets it to
-     * the search pool's size while the pool's queue is short, else 1); 1 when it has no executor. A query may cut its work
-     * into that many tasks: tasks that no free thread picks up run on the calling thread, as with any Lucene search.
-     */
+    /** How many tasks a search on {@code searcher} may run in parallel: its maximum number of slices, or 1 without an executor. */
     public static int maximumParallelTasks(IndexSearcher searcher) {
         if (searcher instanceof ContextIndexSearcher cis && cis.hasExecutor) {
             return Math.max(1, cis.maximumNumberOfSlices);

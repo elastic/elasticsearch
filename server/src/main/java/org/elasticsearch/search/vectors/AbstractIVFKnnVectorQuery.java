@@ -232,8 +232,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             leafInputs.add(new LeafInput(context, knnCollectorManagerForSegment, usePrecondition));
         }
 
-        // A parallel scan only changes the search of leaves it splits. A query that cannot split its leaves, or has no leaf
-        // worth splitting, is searched as without one.
+        // a query that cannot split its leaves, or has no leaf worth splitting, is searched as without a parallel scan
         final int maxParallelTasks = ContextIndexSearcher.maximumParallelTasks(indexSearcher);
         final boolean maySplit = maxParallelTasks > 1 && canSplitLeaves() && ContextIndexSearcher.ivfParallelScanEnabled(indexSearcher);
         final IVFParallelScan parallelScan = maySplit
@@ -305,10 +304,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(new TotalHits(totalHitsValue, relation), mergedScoreDocs);
     }
 
-    /**
-     * What {@link #rewrite} prepares for the search of one leaf. {@code collectorManager} is null when the leaf has no vectors
-     * for the field, so it has no hits.
-     */
+    /** What {@link #rewrite} prepares for one leaf. The collector manager is null if the leaf has no vectors for the field. */
     record LeafInput(LeafReaderContext ctx, @Nullable IVFCollectorManager collectorManager, boolean usePrecondition) {}
 
     /** One task per leaf, each searching its whole leaf. */
@@ -325,7 +321,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
     }
 
-    /** Searches one leaf whole, on the calling thread. Returns its hits with shard-wide doc ids, each doc once. */
+    /** Searches one leaf whole. Returns its hits with shard-wide doc ids, each doc once. */
     TopDocs searchLeaf(LeafInput leaf, Weight filterWeight, float visitRatio) throws IOException {
         TopDocs results = ThreadConfinedArena.withConfinedArena(
             () -> getLeafResults(leaf.ctx(), filterWeight, leaf.collectorManager(), visitRatio, leaf.usePrecondition())
@@ -333,10 +329,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return keepBestCopies(results, leaf.ctx().docBase);
     }
 
-    /**
-     * Shifts a leaf's hits to shard-wide doc ids and keeps one hit per doc, changing the hits in place. SOAR overspill copies
-     * of a doc score differently; keeping the best makes the result independent of the order the copies were collected in.
-     */
+    /** Shifts a leaf's hits to shard-wide doc ids, in place, and keeps the best of a doc's SOAR copies. */
     static TopDocs keepBestCopies(TopDocs results, int docBase) {
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
@@ -365,43 +358,31 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         boolean usePrecondition
     ) throws IOException;
 
-    /**
-     * Whether a leaf's search may be split into parts that share one scan. A query type has to opt in: its leaf search must
-     * be a single scan of the leaf's posting lists into one collector.
-     */
+    /** Whether a leaf's search may be split into parts sharing one scan. A query type opts in if it scans a leaf once. */
     boolean canSplitLeaves() {
         return false;
     }
 
     /**
-     * The search of a leaf's parts. {@code search} searches one part: the codec search with the part's own collector, through
-     * the leaf's shared scan. {@code searchesQueryVector} is whether the leaf is searched with the query's own vector: only
-     * then are its parts handed the query's transform cache, as for {@link IVFCollectorManager#newSearchStrategy}.
+     * How to search a leaf's parts: {@code search} runs one, into its own collector. The parts get the query's transform cache
+     * only if the leaf is searched with the query's own vector.
      */
     record PartSearch(boolean searchesQueryVector, IOConsumer<KnnCollector> search) {}
 
     /**
-     * Prepares the search of {@code ctx}'s parts once, e.g. its preconditioned query vector. Each part's search builds its
-     * own accepted docs on its own thread: Lucene's test readers check that live docs are read by the thread that acquired
-     * them. Only called when {@link #canSplitLeaves()}.
+     * Prepares the search of a leaf's parts once. Each part builds its own accepted docs, on its own thread: Lucene's test
+     * readers check that live docs are read by the thread that acquired them. Only called when {@link #canSplitLeaves()}.
      */
     PartSearch partSearch(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * How many of a leaf's {@code numVectors} vectors this query's search considers: all of them, unless the query searches
-     * only some of the leaf (a data slice). A parallel scan sizes the leaf's work with it. Only called when
-     * {@link #canSplitLeaves()}.
-     */
+    /** How many of a leaf's vectors the query considers: all, unless it searches a data slice. Sizes the leaf's work. */
     int searchedVectors(LeafReaderContext ctx, int numVectors) throws IOException {
         return numVectors;
     }
 
-    /**
-     * The docs a leaf's search may match: its live docs, intersected with {@code filterWeight} if there is a filter.
-     * Returns null if the filter matches nothing in the leaf.
-     */
+    /** The docs a leaf's search may match: its live docs, within the filter's. Null if the filter matches nothing in the leaf. */
     static AcceptDocs leafAcceptDocs(LeafReaderContext ctx, Weight filterWeight) throws IOException {
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
@@ -576,10 +557,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             );
         }
 
-        /**
-         * Creates the search strategy for one part of this leaf's search: as for the whole leaf, see {@link #newSearchStrategy},
-         * plus the scan its parts share.
-         */
+        /** As {@link #newSearchStrategy}, for one part of the leaf's search: with the scan its parts share. */
         IVFKnnSearchStrategy newPartSearchStrategy(
             float visitRatio,
             int numCands,

@@ -202,9 +202,8 @@ final class IVFSlicedSearchHelper {
     }
 
     /**
-     * Searches the only slice a query asks for, in this leaf, into {@code collector}: what {@link #getLeafResults} does for
-     * one slice, for a caller that brings the collector and reads its hits itself. Each part of a split leaf's search calls
-     * this on its own thread, so everything read from the leaf here belongs to the calling thread.
+     * Searches the only slice a query asks for, in this leaf, into {@code collector}. Each part of a split leaf calls this on
+     * its own thread, so everything read from the leaf here belongs to the calling thread.
      */
     static void searchOnlySlice(
         LeafReaderContext ctx,
@@ -252,10 +251,8 @@ final class IVFSlicedSearchHelper {
     }
 
     /**
-     * About how many of a leaf's {@code numVectors} vectors lie in the only slice a query asks for: the slice's share of the
-     * leaf's docs. The share is read off the skipper alone, so it can be wrong by one skipper interval of docs. That is
-     * close enough to size the slice's search, and far cheaper than the slice's exact doc range, which takes a walk over
-     * doc values that costs as much as searching a small slice.
+     * About how many of a leaf's vectors lie in the only slice a query asks for: the slice's share of the leaf's docs, read off
+     * the skipper. It can be wrong by one skipper interval, and is far cheaper than the slice's exact doc range.
      */
     static int approximateSliceVectors(LeafReaderContext ctx, int numVectors, String sliceField, SliceKeys sliceKeys) throws IOException {
         assert sliceKeys.isSingle();
@@ -269,8 +266,8 @@ final class IVFSlicedSearchHelper {
         if (sliceOrd < 0) {
             return 0; // the leaf has no doc of the slice
         }
-        // Docs are sorted by slice. The slice starts in the first interval that holds its ordinal, and ends in the first
-        // interval that holds a higher one: take where those intervals start.
+        // Docs are sorted by slice: it starts in the first interval that holds its ordinal, and ends in the first that holds
+        // a higher one.
         long start = 0;
         if (skipper.minValue() != sliceOrd) {
             skipper.advance(sliceOrd, Long.MAX_VALUE);

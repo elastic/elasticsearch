@@ -777,9 +777,7 @@ public class KnnSearcher {
 
     /**
      * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_parallel_scan} is set, the {@link ContextIndexSearcher}
-     * Elasticsearch searches with, with DiskBBQ's parallel scan turned on or off; comparing the two must use the same searcher
-     * in both arms. Like Elasticsearch, it runs at most as many tasks in parallel as the pool has threads, unless
-     * {@code -Dbench.max_tasks} says otherwise.
+     * Elasticsearch searches with, with the parallel scan on or off and at most {@code -Dbench.max_tasks} tasks at a time.
      */
     private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor, int searchThreads) throws IOException {
         String parallelScan = System.getProperty("bench.ivf_parallel_scan");

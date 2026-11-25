@@ -71,8 +71,7 @@ public class DiversifyingChildrenIVFKnnByteVectorQuery extends IVFKnnByteVectorQ
 
     @Override
     boolean canSplitLeaves() {
-        // Each part keeps its best child per parent. The scan gathers the parts' hits into one such collector before it asks
-        // whether enough parents were found, so a split leaf returns what a whole-leaf search returns.
+        // each part keeps its best child per parent; the scan gathers them into one collector before it counts parents
         return getClass() == DiversifyingChildrenIVFKnnByteVectorQuery.class;
     }
 

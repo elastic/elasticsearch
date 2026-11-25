@@ -282,10 +282,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
-    /**
-     * Lets a DiskBBQ (IVF) kNN query split a segment that holds a large share of a shard's work into parts, which threads of
-     * the search pool search at the same time, sharing the segment's scan. Every other segment is searched as without it.
-     */
+    /** Lets a DiskBBQ (IVF) kNN query split a segment holding a large share of a shard's work into parts searched in parallel. */
     public static final Setting<Boolean> IVF_PARALLEL_SCAN_ENABLED = Setting.boolSetting(
         "search.vectors.ivf.parallel_scan.enabled",
         true,

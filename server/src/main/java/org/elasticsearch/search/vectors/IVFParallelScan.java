@@ -36,17 +36,12 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * Searches a shard's leaves for one IVF query with one task per leaf, as without a parallel scan, except that a leaf holding
- * a large share of the work is split into parts: several tasks that share the leaf's {@link IVFSegmentScan}, and so together
- * visit exactly what one task would. A leaf that is not split is searched exactly as without a parallel scan.
+ * Searches a shard's leaves for one IVF query, one task per leaf, except that a leaf holding a large share of the work is
+ * split into parts: several tasks that share the leaf's {@link IVFSegmentScan}, and together visit what one task would.
  */
 final class IVFParallelScan {
 
-    /**
-     * The least work a part may have, in posting list entries. Each part costs a hand-off to another thread, and a collector
-     * and a visitor of its own. In benchmarks of one-segment indexes a query got no faster from parts with less work than
-     * this, and a segment with less than two of them got no faster from being split at all.
-     */
+    /** The least work a part may have, in posting list entries: in benchmarks, parts with less made a query no faster. */
     static final long MIN_PART_WORK = 4_000;
 
     private final AbstractIVFKnnVectorQuery query;
@@ -54,9 +49,6 @@ final class IVFParallelScan {
     private final float visitRatio;
     private final Leaf[] leaves;
 
-    /**
-     * @param maxParallelTasks how many tasks the searcher runs in parallel (1 without an executor, and then no leaf is split)
-     */
     IVFParallelScan(
         AbstractIVFKnnVectorQuery query,
         Weight filterWeight,
@@ -81,7 +73,7 @@ final class IVFParallelScan {
         }
     }
 
-    /** Whether any leaf is split. If none is, the parallel scan changes nothing, and the caller searches as without one. */
+    /** Whether any leaf is split. If none is, the caller searches as without a parallel scan. */
     boolean splitsALeaf() {
         for (Leaf leaf : leaves) {
             if (leaf.scan != null) {
@@ -91,7 +83,7 @@ final class IVFParallelScan {
         return false;
     }
 
-    /** Searches every leaf and returns one result per leaf, in leaf order, with shard-wide doc ids and each doc at most once. */
+    /** One result per leaf, in leaf order, with shard-wide doc ids and each doc at most once. */
     TopDocs[] search(TaskExecutor executor) throws IOException {
         prepareSplitLeaves(executor);
         executor.invokeAll(tasks());
@@ -102,31 +94,26 @@ final class IVFParallelScan {
         return results;
     }
 
-    /**
-     * Plans each split leaf, and lists its budget, before its parts start. The parts then find their work waiting, rather
-     * than wake up to wait for the plan.
-     */
+    /** Plans each split leaf and lists its budget before its parts start, so that they find their work waiting. */
     private void prepareSplitLeaves(TaskExecutor executor) throws IOException {
         List<Callable<Void>> preparations = new ArrayList<>();
         for (Leaf leaf : leaves) {
             if (leaf.scan != null) {
-                // while claims are held, searching the leaf plans it and lists its budget, and visits nothing
-                leaf.scan.holdClaims();
                 preparations.add(() -> {
-                    searchPart(leaf);
+                    prepareSplitLeaf(leaf);
                     return null;
                 });
             }
         }
         executor.invokeAll(preparations);
-        for (Leaf leaf : leaves) {
-            if (leaf.scan != null) {
-                leaf.scan.releaseClaims();
-            }
-        }
     }
 
-    /** One task per part of a split leaf and one per other leaf. The biggest leaves come first, so their searches start first. */
+    /** Searches the leaf as a part would, while its scan prepares: nothing is visited. */
+    private void prepareSplitLeaf(Leaf leaf) throws IOException {
+        leaf.scan.prepare(() -> searchPart(leaf));
+    }
+
+    /** One task per part of a split leaf and one per other leaf, the biggest leaves first. */
     private List<Callable<Void>> tasks() {
         Leaf[] biggestFirst = leaves.clone();
         Arrays.sort(biggestFirst, Comparator.comparingLong((Leaf leaf) -> leaf.work).reversed());
@@ -137,7 +124,7 @@ final class IVFParallelScan {
             }
             if (leaf.scan == null) {
                 tasks.add(() -> {
-                    leaf.wholeLeafHits = query.searchLeaf(leaf.input, filterWeight, visitRatio); // as without a parallel scan
+                    leaf.wholeLeafHits = query.searchLeaf(leaf.input, filterWeight, visitRatio);
                     return null;
                 });
             } else {
@@ -153,11 +140,9 @@ final class IVFParallelScan {
     }
 
     /**
-     * How many parts each leaf's search is split into; 1 means the leaf is searched whole. A leaf is split when it holds at
-     * least the work of one of {@code parallelism} equal tasks: it then gets its share of those tasks, rounded. Two floors
-     * keep parts from getting too small. No part has less than {@link #MIN_PART_WORK}. And parts follow the floor
-     * Elasticsearch sets for the slices of a search ({@link ContextIndexSearcher#MINIMUM_DOCS_PERCENT_PER_SLICE}): no part has
-     * less than that share of the shard's work, which also means at most ten parts per shard.
+     * Parts per leaf; 1 means searched whole. A leaf with at least one task's worth of the work gets its share of the tasks,
+     * rounded. No part has less than {@link #MIN_PART_WORK}, or than the share of the shard's work Elasticsearch asks of a
+     * slice ({@link ContextIndexSearcher#MINIMUM_DOCS_PERCENT_PER_SLICE}).
      */
     static int[] partsPerLeaf(long[] work, boolean[] splittable, int parallelism) {
         double minShare = ContextIndexSearcher.MINIMUM_DOCS_PERCENT_PER_SLICE;
@@ -187,10 +172,7 @@ final class IVFParallelScan {
         return parts;
     }
 
-    /**
-     * A leaf's work is its visit budget: the posting list entries its search scans before it may stop. That is the work the
-     * parts of a leaf can share. 0 if the leaf has no vectors for the field.
-     */
+    /** A leaf's work is its visit budget, which is what its parts can share. 0 if the leaf has no vectors for the field. */
     private long estimatedWork(LeafReaderContext ctx) throws IOException {
         LeafReader reader = ctx.reader();
         FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(query.field);
@@ -203,15 +185,13 @@ final class IVFParallelScan {
         int numVectors = values == null ? 0 : values.size();
         long work = visitBudget(numVectors);
         if (work < 2 * MIN_PART_WORK) {
-            // Too small to split even if the query searches all of the leaf. A query on a data slice searches less, but
-            // finding out how much costs a lookup, so such a leaf keeps this, at worst an overestimate.
+            // too small to split anyway, so not worth the lookup of how much of it a data slice query searches
             return work;
         }
         int searched = query.searchedVectors(ctx, numVectors);
         return searched == numVectors ? work : visitBudget(searched);
     }
 
-    /** The visit budget of a search that considers {@code numVectors} of a leaf's vectors. */
     private long visitBudget(int numVectors) {
         if (numVectors == 0) {
             return 0;
@@ -221,10 +201,7 @@ final class IVFParallelScan {
         return IVFVectorsReader.visitBudget(ratio, numVectors);
     }
 
-    /**
-     * Whether the leaf's field is searched by scanning DiskBBQ posting lists, the only search that parts can share. A field
-     * can hold segments of other formats, e.g. after its index options changed from flat to bbq_disk.
-     */
+    /** Whether the leaf is searched by scanning DiskBBQ posting lists: a field can hold segments of other formats. */
     private boolean scansPostingLists(LeafReader reader) {
         SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(reader);
         if (segmentReader == null) {
@@ -237,12 +214,9 @@ final class IVFParallelScan {
         return vectorsReader instanceof IVFVectorsReader<?> ivf && ivf.hasIvfStructure(query.field);
     }
 
-    /** Searches a split leaf as one of its parts: with a collector of its own, through the scan the leaf's parts share. */
+    /** Searches a split leaf as one of its parts: with a collector of its own, through the leaf's scan. */
     private void searchPart(Leaf leaf) throws IOException {
-        if (leaf.scan.nothingToClaim()) {
-            return; // the other parts took all the work: return before allocating a collector or building accepted docs
-        }
-        // No ThreadConfinedArena, unlike the whole-leaf search: the threads of other parts read what this part allocates.
+        // no ThreadConfinedArena, unlike the whole-leaf search: other parts' threads read what this part allocates
         LeafInput input = leaf.input;
         AbstractIVFKnnVectorQuery.PartSearch partSearch = leaf.partSearch(query, filterWeight);
         IVFKnnSearchStrategy strategy = input.collectorManager()
@@ -255,7 +229,6 @@ final class IVFParallelScan {
         partSearch.search().accept(collector);
     }
 
-    /** One leaf's state while the query runs. */
     private static final class Leaf {
         private final LeafInput input;
         private final long work;
@@ -271,7 +244,7 @@ final class IVFParallelScan {
             this.scan = parts > 1 ? new IVFSegmentScan() : null;
         }
 
-        /** How to search one of the leaf's parts, prepared by its first part and shared with the others. */
+        /** How to search a part, prepared once and shared by the parts. */
         synchronized AbstractIVFKnnVectorQuery.PartSearch partSearch(AbstractIVFKnnVectorQuery query, Weight filterWeight)
             throws IOException {
             if (partSearch == null) {
@@ -280,10 +253,7 @@ final class IVFParallelScan {
             return partSearch;
         }
 
-        /**
-         * The leaf's hits, with shard-wide doc ids and each doc once. For a split leaf they are in the one collector the scan
-         * gathered every part's hits into, and the visited count is that of all its parts.
-         */
+        /** The leaf's hits, with shard-wide doc ids and each doc once. A split leaf's are those its scan gathered. */
         TopDocs hits() {
             if (scan == null) {
                 return wholeLeafHits != null ? wholeLeafHits : AbstractIVFKnnVectorQuery.NO_RESULTS;

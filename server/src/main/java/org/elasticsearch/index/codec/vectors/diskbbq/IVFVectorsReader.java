@@ -385,9 +385,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     /**
-     * Returns true if this field has an IVF structure (centroids), false if it should fall back to the raw delegate. Only a
-     * search of an IVF structure scans posting lists, so only such a search can be split into parts sharing an
-     * {@link IVFSegmentScan}.
+     * Returns true if this field has an IVF structure (centroids), false if it should fall back to the raw delegate.
      */
     public boolean hasIvfStructure(String field) {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
@@ -467,7 +465,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         };
         final IVFSegmentScan scan = sharedScan(knnCollector);
         if (scan == null) {
-            // A search on its own: nothing of the budget is used yet, and no doc is scored.
+            // a search on its own starts from zero
             IVFSegmentScan.Plan plan = planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, values);
             if (plan == null) {
                 return; // no vectors in this segment / slice
@@ -477,22 +475,20 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             return;
         }
         try {
-            // The scan's plan gets vector values of its own: whichever part lists the budget or goes on past it advances the
-            // plan's posting order, not only the part that built the plan.
+            // the plan gets vector values of its own: other parts than the one that built it advance its posting order
             boolean hasWork = scan.planOnce(
                 () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo))
             );
-            if (hasWork == false || scan.nothingToClaim()) {
-                return; // no vectors in this segment / slice, or the other parts already took all the work
+            if (hasWork == false) {
+                return; // no vectors in this segment / slice
             }
-            // Each part reads its own live docs: Lucene's test readers check that the thread that acquired them reads them.
-            // A filter's docs are collected once, by the plan, and shared by the parts.
+            // own live docs per part (Lucene's test readers check that the acquiring thread reads them); a filter's are shared
             Bits visitorBits = acceptDocs instanceof ESAcceptDocs.BitsAcceptDocs ? acceptDocs.bits() : scan.acceptBits();
             PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, visitorBits, esAcceptDocs);
             visitor.shareQuantizedQueries(scan.quantizedQueries());
             scan.search(visitor, knnCollector);
         } catch (Throwable t) {
-            scan.fail(); // the query has failed, so the other parts take no more posting lists within the budget
+            scan.fail(); // the other parts stop taking posting lists
             throw t;
         }
     }
@@ -527,10 +523,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         return knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfStrategy ? ivfStrategy.getSegmentScan() : null;
     }
 
-    /**
-     * Everything a search needs before visiting postings: how many vectors to consider, the visit budget, the filter and
-     * the best-first posting order. Returns null if the segment (or slice) has no vectors.
-     */
+    /** What a search needs before visiting postings. Null if the segment (or slice) has no vectors. */
     private IVFSegmentScan.Plan planScan(
         FieldInfo fieldInfo,
         E entry,
@@ -574,9 +567,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             values,
             visitRatio
         );
-        // Prefetch one posting list ahead, however many parts search the segment. A shared scan lists its whole budget through
-        // this iterator, so one ahead already prefetches every listed posting list; deeper would only reach past the budget,
-        // into posting lists the search may never visit.
+        // One posting list ahead, however many parts: a scan lists its budget through this iterator, so deeper would only
+        // reach past the budget.
         // TODO we may want to prefetch more, with a limit so we don't prefetch many lists we won't end up scoring
         CentroidIterator postings = new PrefetchingCentroidIterator(centroidOrder, entry.postingListSlice(ivfClusters));
         return new IVFSegmentScan.Plan(
@@ -598,18 +590,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         return visitBudget(visitRatio, numVectors);
     }
 
-    /**
-     * The dynamic visit ratio of a segment with {@code numVectors} vectors. Public so that query-side work estimates
-     * (e.g. how to split a query across threads) agree with how far the search loop actually scans.
-     */
+    /** The dynamic visit ratio of a segment. Public so that query-side work estimates agree with the search loop. */
     public static float segmentVisitRatio(int numCands, int k, int numVectors) {
         return Math.min(computeDynamicVisitRatio(numCands, k) * computeSmallSegmentBoost(k, numVectors), computeSegmentSizeCap(numVectors));
     }
 
-    /**
-     * The number of posting entries a search visits in a segment: twice the visit ratio, because SOAR places a vector in
-     * up to two postings.
-     */
+    /** The posting list entries a search visits: twice the visit ratio, as SOAR puts a vector in up to two posting lists. */
     public static long visitBudget(float visitRatio, int numVectors) {
         return (long) (2.0 * visitRatio * numVectors);
     }
@@ -853,29 +839,22 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         ESAcceptDocs acceptDocs
     ) throws IOException;
 
-    /**
-     * The query quantized against one centroid: the corrections and packed bits a posting list's scorer needs. Formats that
-     * quantize the query per parent centroid compute it once per centroid, and the parts of a segment's search share them.
-     */
+    /** The query quantized against one centroid. Computed once per centroid, and shared by the parts of a segment's search. */
     public record QuantizedQuery(OptimizedScalarQuantizer.QuantizationResult queryCorrections, ScoringQuery quantizedTarget) {}
 
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(PostingMetadata metadata) throws IOException;
 
-        /**
-         * Uses, and adds to, the query quantizations by centroid ordinal of the other parts searching the segment, so each is
-         * computed once per segment rather than once per part. Formats that don't quantize the query per centroid ignore it.
-         */
+        /** Uses, and adds to, the other parts' query quantizations by centroid. Formats that don't quantize per centroid ignore it. */
         default void shareQuantizedQueries(Map<Integer, QuantizedQuery> shared) {}
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
 
         /**
-         * Whether docs whose best score is {@code bestScore} should be offered to {@code collector}. Docs that only tie with
-         * the collector's worst hit are offered too. The collector then breaks the tie by doc id, so the hits do not depend on
-         * the order the posting lists were visited in, or on how a search was split across threads.
+         * Whether docs with this best score should be offered to the collector. Ties with its worst hit are offered too: the
+         * collector breaks them by doc id, so the hits don't depend on visiting order or on how a search was split.
          */
         static boolean isCompetitive(KnnCollector collector, float bestScore) {
             return collector.minCompetitiveSimilarity() <= bestScore;

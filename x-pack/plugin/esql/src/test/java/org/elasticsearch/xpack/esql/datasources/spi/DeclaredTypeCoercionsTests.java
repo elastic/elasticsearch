@@ -1762,6 +1762,36 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
+     * Calendar and compound formats must stay on the boxed parse arm. The arithmetic path matches
+     * {@code epoch_second} / {@code epoch_millis} exactly; a contains/startsWith slip would decode these as a
+     * single scale.
+     */
+    public void testCalendarAndCompoundFormatsStayOnParsePath() {
+        DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
+        long calendarExpected = DeclaredTypeCoercions.parseDatetimeMillis("20260101", yyyyMMdd);
+        try (
+            Block src = integralBlock(DataType.LONG, 20260101L);
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd)
+        ) {
+            assertEquals(calendarExpected, ((LongBlock) cast).getLong(0));
+            assertNotEquals("not epoch_millis identity", 20260101L, calendarExpected);
+            assertNotEquals("not epoch_second scale", 20260101L * 1000L, calendarExpected);
+        }
+        try (Block src = integralBlock(DataType.LONG, 7L)) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd).close()
+            );
+            assertThat(e.getMessage(), not(containsString("epoch value [")));
+        }
+
+        DateFormatter compound = DateFormatter.forPattern("epoch_second||epoch_millis");
+        try (Block src = integralBlock(DataType.LONG, 1L); Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, compound)) {
+            assertEquals("first-match is epoch_second, not the identity", 1000L, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /**
      * INTEGER/LONG + a pure epoch format must decode to the same instant the string parse would have produced.
      * Randomized over both physical types, both temporal targets, both epoch dialects, and all three error
      * policies so a future arithmetic tweak cannot drift from the formatter the text readers still use.
@@ -1832,6 +1862,47 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
+     * {@code Long.MAX_VALUE/1000 + 1} epoch seconds is a valid {@link java.time.Instant} whose
+     * {@code toEpochMilli} overflows a long. The arithmetic path range-checks first so that cell is an
+     * {@link IllegalArgumentException} with {@code epoch value [N]} — never a bare {@link ArithmeticException}
+     * — and neighbours still decode.
+     */
+    public void testEpochSecondOverflowIsPerCellNotPageAbort() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        long good = 1_704_067_200L;
+        long overflow = Long.MAX_VALUE / 1000L + 1;
+        long expected = parseEpoch(good, DataType.DATETIME, epochSecond);
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = integralBlock(DataType.LONG, good, overflow, good);
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.LONG,
+                DataType.DATETIME,
+                epochSecond,
+                blockFactory,
+                "ts",
+                capturing(warnings)
+            )
+        ) {
+            LongBlock out = (LongBlock) cast;
+            assertEquals(expected, out.getLong(out.getFirstValueIndex(0)));
+            assertTrue(out.isNull(1));
+            assertEquals(expected, out.getLong(out.getFirstValueIndex(2)));
+        }
+        assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), containsString("epoch value [" + overflow + "]"));
+        try (Block src = integralBlock(DataType.LONG, overflow)) {
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
+                () -> castStrict(src, DataType.LONG, DataType.DATETIME, epochSecond).close()
+            );
+            assertFalse(e.getCause() instanceof ArithmeticException);
+            assertThat(e.getCause().getMessage(), containsString("epoch value [" + overflow + "]"));
+        }
+    }
+
+    /**
      * Pins the overflow and domain edges the arithmetic path must agree with the parse on: 0, ±1, year 0001/9999,
      * Long.MAX_VALUE and Long.MAX_VALUE/1000 ± 1, date_nanos pre-epoch and post-2262.
      */
@@ -1841,8 +1912,20 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         long year1Seconds = -62_135_596_800L;
         long year9999Seconds = 253_402_300_799L;
         long maxSafeSeconds = Long.MAX_VALUE / 1000L;
+        long minSafeSeconds = Math.ceilDiv(Long.MIN_VALUE, 1000L);
 
-        assertEpochEqualsParse(DataType.LONG, DataType.DATETIME, epochSecond, 0L, 1L, -1L, year1Seconds, year9999Seconds, maxSafeSeconds);
+        assertEpochEqualsParse(
+            DataType.LONG,
+            DataType.DATETIME,
+            epochSecond,
+            0L,
+            1L,
+            -1L,
+            year1Seconds,
+            year9999Seconds,
+            minSafeSeconds,
+            maxSafeSeconds
+        );
         assertEpochEqualsParse(
             DataType.INTEGER,
             DataType.DATETIME,
@@ -1893,7 +1976,15 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             assertEquals(Long.MIN_VALUE, ((LongBlock) cast).getLong(0));
         }
 
-        assertEpochFails(DataType.LONG, DataType.DATETIME, epochSecond, maxSafeSeconds + 1, Long.MAX_VALUE, Long.MIN_VALUE);
+        assertEpochFails(
+            DataType.LONG,
+            DataType.DATETIME,
+            epochSecond,
+            minSafeSeconds - 1,
+            maxSafeSeconds + 1,
+            Long.MAX_VALUE,
+            Long.MIN_VALUE
+        );
         assertEpochFails(
             DataType.LONG,
             DataType.DATE_NANOS,

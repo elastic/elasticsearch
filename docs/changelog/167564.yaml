@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 167564
-summary: Convert epoch_second/epoch_millis declared dates arithmetically
+summary: Convert epoch_second/epoch_millis declared dates arithmetically. Out-of-range values now report "epoch value [x] is out of range for the declared date type".
 type: bug

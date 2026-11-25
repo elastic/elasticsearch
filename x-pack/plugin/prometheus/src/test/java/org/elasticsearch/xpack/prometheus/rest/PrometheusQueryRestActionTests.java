@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -33,6 +34,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.junit.After;
 import org.junit.Before;
@@ -213,8 +216,14 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
         FakeRestChannel channel = handle(action, request);
         assertNotNull("the request reaches the query action", client.capturedRequest);
         assertThat(sentResponses(channel), equalTo(0));
-        expectThrows(ParsingException.class, client.capturedRequest::statement);
+        expectThrows(IllegalStateException.class, client.capturedRequest::statement);
+        expectThrows(ParsingException.class, () -> parse(client.capturedRequest));
         request.getHttpChannel().close();
+    }
+
+    /** Parses the request as the query action does once it is authorized. */
+    private static EsqlStatement parse(PreparedEsqlQueryRequest request) {
+        return request.parse(null, new SettingsValidationContext(false, Build.current().isSnapshot()), null, null);
     }
 
     private void assertQueryTimesOut(BaseRestHandler action, RestRequest request) throws Exception {
@@ -260,7 +269,7 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
 
     private String capturedIndexPattern() {
         assertNotNull(client.capturedRequest);
-        return client.capturedRequest.statement().plan().collect(UnresolvedRelation.class).getFirst().indexPattern().indexPattern();
+        return parse(client.capturedRequest).plan().collect(UnresolvedRelation.class).getFirst().indexPattern().indexPattern();
     }
 
     /**

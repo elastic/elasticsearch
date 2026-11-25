@@ -169,6 +169,21 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         ActionListener<IndexResolution> listener
     ) {
+        resolveLookupIndices(indexPattern, fieldNames, needsFieldSemantics, null, minimumVersion, listener);
+    }
+
+    /**
+     * Like {@link #resolveLookupIndices(String, Set, boolean, TransportVersion, ActionListener)}, also resolving the names in
+     * {@code namedFields} that are keys of the {@code flattened} fields of the lookup indices, as it does for the main indices.
+     */
+    public void resolveLookupIndices(
+        String indexPattern,
+        Set<String> fieldNames,
+        boolean needsFieldSemantics,
+        @Nullable Set<String> namedFields,
+        TransportVersion minimumVersion,
+        ActionListener<IndexResolution> listener
+    ) {
         doResolveIndices(
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, false, false),
             false, /* lookup indices never read nested fields */
@@ -181,7 +196,7 @@ public class IndexResolver {
             false, /* HIGHLIGHT only reads the analyzer groups of the main indices */
             needsFieldSemantics,
             false,
-            null,
+            namedFields == null ? null : new NamedFields(namedFields, Set.of()),
             null,
             DO_NOT_GROUP,
             null, /* lookup indices never feed the EQL delegate */

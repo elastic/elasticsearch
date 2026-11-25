@@ -686,6 +686,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
     }
 
+    @Override
+    protected boolean readsFlattenedKeys(LookupRequest request) {
+        return request.configuration != null && request.configuration.flattenedKeys();
+    }
+
     protected void doLookupStreaming(
         LookupFromIndexService.LookupRequest request,
         CancellableTask task,
@@ -702,7 +707,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-            LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
+            LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId, readsFlattenedKeys(request));
             releasables.add(shardContext.release());
 
             // Create aliasFilter here before building operators

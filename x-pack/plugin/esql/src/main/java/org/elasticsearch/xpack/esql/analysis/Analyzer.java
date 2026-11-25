@@ -1409,6 +1409,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.enrichFields(),
                     policy
                 );
+                if (context.mapTypes() && context.configuration().flattenedKeys(context.minimumVersion())) {
+                    // An enrich policy is a source: it provides the children of the maps it brings in (MapKeys, rule 1)
+                    enrichFields = MapKeys.withChildrenOfEnrichFields(
+                        plan.source(),
+                        enrichFields,
+                        context.enrichResolution().namedFields()
+                    );
+                }
                 return new Enrich(
                     plan.source(),
                     plan.child(),
@@ -1904,7 +1912,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (context.mapTypes()) {
                 // Maps are handled here for every command alike, see MapKeys for the contract
-                resolved = MapKeys.replaceSubtrees(MapKeys.resolveKeys(resolved));
+                boolean sourcesProvideChildren = context.configuration().flattenedKeys(context.minimumVersion());
+                resolved = MapKeys.replaceSubtrees(MapKeys.resolveKeys(resolved, sourcesProvideChildren));
             }
             return resolved;
         }

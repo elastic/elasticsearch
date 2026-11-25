@@ -223,3 +223,70 @@ id:keyword | host:keyword
 f1         | a
 k1         | k
 ;
+
+// Rule 1: a lookup index is a source. It answers the name, and the join brings in the child, hidden.
+keysOfAMapFromALookupIndex
+required_capability: map_types_setting
+required_capability: join_lookup_v12
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| WHERE attributes.zone == "L"
+| KEEP id, attr*
+| KEEP id
+;
+
+id:keyword
+k1
+;
+
+// Rule 2: KEEP makes the child from the lookup index a column
+keysOfAMapFromALookupIndexKept
+required_capability: map_types_setting
+required_capability: join_lookup_v12
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.zone, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.zone:keyword | attributes.host:keyword
+f1         | L                       | L
+f2         | null                    | null
+;
+
+// Rule 1 and 3: an enrich policy is a source too, and the map it brings replaces the column [attributes.host]
+keysOfAMapFromAnEnrichPolicy
+required_capability: map_types_setting
+required_capability: enrich_load
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| ENRICH flattened_attributes_policy ON id
+| EVAL zone = attributes.zone, host = attributes.host
+| KEEP id, zone, host
+;
+
+id:keyword | zone:keyword | host:keyword
+k1         | L            | L
+;
+
+// Rule 3: a renamed map from a lookup index is the same map under another name
+keysOfARenamedMapFromALookupIndex
+required_capability: map_types_setting
+required_capability: join_lookup_v12
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| RENAME attributes AS a
+| EVAL zone = a.zone
+| KEEP id, zone
+;
+
+id:keyword | zone:keyword
+k1         | L
+;

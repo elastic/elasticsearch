@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -105,7 +107,7 @@ public final class MapKeys {
      * Rules 1, 2 and 4 for one command: answers the dotted names that are still unresolved in {@code plan} with the keys of the maps
      * its input holds. A name that is a column has been resolved to it before this runs, so a column wins over a key.
      */
-    static LogicalPlan resolveKeys(LogicalPlan plan) {
+    static LogicalPlan resolveKeys(LogicalPlan plan, boolean sourcesProvideChildren) {
         if (plan instanceof UnaryPlan == false) {
             return plan;
         }
@@ -125,7 +127,7 @@ public final class MapKeys {
         }
         Map<String, Expression> reads = new LinkedHashMap<>();
         for (String name : names) {
-            Expression read = read(name, input, plan.source());
+            Expression read = read(name, input, plan.source(), sourcesProvideChildren);
             if (read != null) {
                 reads.put(name, read);
             }
@@ -160,7 +162,7 @@ public final class MapKeys {
      * </ul>
      * Either way the map has to be in the output, and no projection may have excluded the name (rule 4).
      */
-    private static Expression read(String name, LogicalPlan input, Source source) {
+    private static Expression read(String name, LogicalPlan input, Source source, boolean sourcesProvideChildren) {
         Attribute hidden = null;
         List<Attribute> maps = new ArrayList<>();
         for (Attribute column : input.output()) {
@@ -182,7 +184,14 @@ public final class MapKeys {
             return hidden;
         }
         maps.removeIf(map -> isOpen(input, map, name) == false);
-        return maps.isEmpty() ? null : valueRead(name, maps, source);
+        if (maps.isEmpty()) {
+            return null;
+        }
+        // A map that is a field of an index has its children from that index. Reading its key from the value instead means that
+        // the name was not asked of the source, which loses the union of the shards' answers without failing.
+        assert sourcesProvideChildren == false || maps.stream().noneMatch(map -> map instanceof FieldAttribute)
+            : "the key [" + name + "] of a map that is a field of an index is read from its value: " + maps;
+        return valueRead(name, maps, source);
     }
 
     /** Rule 5 for a read from the value: per row, the nearest of {@code maps} that the row has. */
@@ -304,14 +313,11 @@ public final class MapKeys {
      * command that takes it as a column makes a column of it. View bodies are left alone: the setting does not reach into a view.
      */
     static LogicalPlan hideKeys(LogicalPlan plan) {
-        return ViewUtils.transformUpOutsideViews(plan, node -> {
+        return ViewUtils.transformUpOutsideViews(withoutLookupKeysInViews(plan), node -> {
             if (node instanceof EsRelation == false) {
                 return node;
             }
             EsRelation relation = (EsRelation) node;
-            if (relation.indexMode() == IndexMode.LOOKUP) {
-                return node;
-            }
             List<Attribute> output = relation.output();
             List<Attribute> hidden = new ArrayList<>(output.size());
             boolean changed = false;
@@ -338,6 +344,64 @@ public final class MapKeys {
             }
             return changed ? relation.withAttributes(hidden) : relation;
         });
+    }
+
+    /**
+     * A lookup index is resolved once for the query, with the names its caller asks of it. A join on the same index in the body of
+     * a view must not see those key fields: the setting does not reach into a view, where a lookup index has no keys.
+     */
+    private static LogicalPlan withoutLookupKeysInViews(LogicalPlan plan) {
+        return plan.transformUp(BranchPlan.class, union -> {
+            List<LogicalPlan> branches = union.children();
+            List<LogicalPlan> newBranches = new ArrayList<>(branches.size());
+            boolean changed = false;
+            for (int i = 0; i < branches.size(); i++) {
+                LogicalPlan branch = branches.get(i);
+                if (union.isViewBranch(i)) {
+                    LogicalPlan withoutKeys = branch.transformUp(EsRelation.class, relation -> {
+                        if (relation.indexMode() != IndexMode.LOOKUP) {
+                            return relation;
+                        }
+                        List<Attribute> kept = new ArrayList<>(relation.output());
+                        kept.removeIf(a -> a instanceof FieldAttribute field && FlattenedKeyEsField.isKey(field.field()));
+                        return kept.size() == relation.output().size() ? relation : relation.withAttributes(kept);
+                    });
+                    changed |= withoutKeys != branch;
+                    branch = withoutKeys;
+                }
+                newBranches.add(branch);
+            }
+            return changed ? union.replaceChildren(newBranches) : union;
+        });
+    }
+
+    /**
+     * Rule 1 for {@code ENRICH}: the enrich fields, and as hidden children the names in {@code names} that are under a map among
+     * them. The enrich index answers those names as an index in {@code FROM} does. A field that {@code WITH} renames provides
+     * none: the policy knows its children under the name the field has in the enrich index.
+     */
+    static List<NamedExpression> withChildrenOfEnrichFields(Source source, List<NamedExpression> enrichFields, Set<String> names) {
+        if (names.isEmpty()) {
+            return enrichFields;
+        }
+        Set<String> maps = new HashSet<>();
+        Set<String> fields = new HashSet<>();
+        for (NamedExpression field : enrichFields) {
+            fields.add(field.name());
+            if (field instanceof ReferenceAttribute && isMap(field.dataType())) {
+                maps.add(field.name() + ".");
+            }
+        }
+        if (maps.isEmpty()) {
+            return enrichFields;
+        }
+        List<NamedExpression> withChildren = new ArrayList<>(enrichFields);
+        for (String name : names.stream().sorted().toList()) {
+            if (fields.contains(name) == false && prefixOf(name, maps) != null) {
+                withChildren.add(new ReferenceAttribute(source, null, name, DataType.KEYWORD, Nullability.TRUE, null, true));
+            }
+        }
+        return withChildren;
     }
 
     /**

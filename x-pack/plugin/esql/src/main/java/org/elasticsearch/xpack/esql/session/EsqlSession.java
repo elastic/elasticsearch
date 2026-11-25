@@ -2366,6 +2366,9 @@ public class EsqlSession {
         // view does not count here: the view's own settings nullify its body (ViewQuerySettings#from), and must not
         // change how the caller's query resolves.
         boolean nullify = exemplars || callerScopeHasPromql(parsed);
+        // With map types a lookup index and an enrich policy are sources like FROM: they answer the names the query uses, so that a
+        // join loads the key and not the whole map (MapKeys, rule 1)
+        Set<String> mapChildNames = configuration.flattenedKeys() && mapTypes(configuration) ? MapKeys.namesAskedOfSources(parsed) : null;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,
@@ -2438,6 +2441,7 @@ public class EsqlSession {
                     preAnalysis.lookupIndices().iterator(),
                     parsed,
                     preAnalysis.needsFieldSemantics(),
+                    mapChildNames,
                     r,
                     executionInfo,
                     l
@@ -2474,6 +2478,9 @@ public class EsqlSession {
                     r.minimumTransportVersion(),
                     planningCpu.meteredCpu(l.delegateFailureAndWrap((ll, enrichResolution) -> {
                         executionInfo.queryProfile().enrichResolutionMarker().stop();
+                        if (mapChildNames != null) {
+                            enrichResolution.namedFields(mapChildNames);
+                        }
                         ll.onResponse(r.withEnrichResolution(enrichResolution));
                     }))
                 );
@@ -2516,6 +2523,7 @@ public class EsqlSession {
         Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
         boolean needsFieldSemantics,
+        @Nullable Set<String> mapChildNames,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2523,7 +2531,7 @@ public class EsqlSession {
         forAll(
             lookupIndices,
             preAnalysisResult,
-            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, r, executionInfo, l),
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, mapChildNames, r, executionInfo, l),
             listener
         );
     }
@@ -2532,6 +2540,7 @@ public class EsqlSession {
         PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
         boolean needsFieldSemantics,
+        @Nullable Set<String> mapChildNames,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2592,6 +2601,7 @@ public class EsqlSession {
             qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             needsFieldSemantics,
+            mapChildNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should

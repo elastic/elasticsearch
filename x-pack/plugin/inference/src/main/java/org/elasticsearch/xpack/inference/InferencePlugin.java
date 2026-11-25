@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.inference.InferenceRequestMetadata.Field;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -69,9 +70,12 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.action.DecisionAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
@@ -93,9 +97,11 @@ import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.inference.action.TransportDecisionAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteRegionPolicyAction;
+import org.elasticsearch.xpack.inference.action.TransportDocumentExtractionAction;
 import org.elasticsearch.xpack.inference.action.TransportEmbeddingAction;
 import org.elasticsearch.xpack.inference.action.TransportGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
@@ -205,6 +211,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
@@ -230,10 +237,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
 
@@ -361,6 +364,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
             new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
             new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
+            new ActionHandler(DecisionAction.INSTANCE, TransportDecisionAction.class),
+            new ActionHandler(DocumentExtractionAction.INSTANCE, TransportDocumentExtractionAction.class),
             new ActionHandler(RefreshAuthorizedEndpointsAction.INSTANCE, TransportRefreshAuthorizedEndpointsAction.class),
             new ActionHandler(GetRegionPolicyAction.INSTANCE, TransportGetRegionPolicyAction.class),
             new ActionHandler(PutRegionPolicyAction.INSTANCE, TransportPutRegionPolicyAction.class),
@@ -724,6 +729,7 @@ public class InferencePlugin extends Plugin
         factories.add(context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new OciGenAiService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context));
@@ -1015,22 +1021,17 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(
-            new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true),
-            new RestHeaderDefinition(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, false),
-            new RestHeaderDefinition(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, false),
-            new RestHeaderDefinition(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, false)
-        );
+        return InferenceContext.WIRE_LAYOUT.stream()
+            .map(field -> new RestHeaderDefinition(field.httpHeader(), field.allowsMultipleRestValues()))
+            .toList();
     }
 
     @Override
     public Collection<String> getTaskHeaders() {
-        return Set.of(
-            X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER,
-            X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
-            X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
-            X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER
-        );
+        // Task headers are exposed through the tasks API. The trace, user, and space ids are left out on purpose.
+        return Stream.of(Field.PRODUCT_USE_CASE, Field.PRODUCT_SOLUTION, Field.PRODUCT_FEATURE, Field.INTERACTION_ID)
+            .map(Field::httpHeader)
+            .toList();
     }
 
     protected SSLService getSslService() {

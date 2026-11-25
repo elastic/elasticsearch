@@ -81,11 +81,11 @@ public class Stage1IndexingBenchmark {
 
     /**
      * All three shapes by default: unlike the end-to-end benchmark this one is cheap, and the
-     * shapes differ in exactly the dimension that drives index density — {@code clickbench_flat}
-     * has few long string values, {@code small_sparse} many short keys, {@code otel_nested} the
-     * deepest structure.
+     * shapes differ in exactly the dimension that drives index density — {@code analytics} is wide
+     * and flat with escape-dense URL strings, {@code small_sparse} has many short keys,
+     * {@code otel_nested} the deepest structure.
      */
-    @Param({ "clickbench_flat", "small_sparse", "otel_nested" })
+    @Param({ "analytics", "small_sparse", "otel_nested" })
     private String shape;
 
     @Param({ "0" })

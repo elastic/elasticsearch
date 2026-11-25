@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +38,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
+import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -758,7 +759,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(query, request.query());
         assertFalse(request.keepOnCompletion());
         assertEquals(TimeValue.timeValueSeconds(1), request.waitForCompletionTimeout());
-        assertEquals(TimeValue.timeValueDays(5), request.keepAlive());
+        // null means "use the async_search.default_keep_alive cluster setting"
+        assertNull(request.keepAlive());
     }
 
     public void testSettingsBlockTimeZoneAndProjectRouting() throws IOException {
@@ -826,6 +828,52 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
         assertNotNull(request.get(QuerySettings.APPROXIMATION));
         assertEquals(Integer.valueOf(10000), request.get(QuerySettings.APPROXIMATION).rows());
+    }
+
+    public void testSettingsBlockExemplarsBoolean() throws IOException {
+        EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "exemplars": true
+                }
+            }""");
+        assertEquals(ExemplarsSettings.ENABLED, request.get(QuerySettings.EXEMPLARS));
+    }
+
+    public void testSettingsBlockUnmappedFields() throws IOException {
+        for (UnmappedResolution resolution : UnmappedResolution.values()) {
+            EsqlQueryRequest request = parseEsqlQueryRequestSync(Strings.format("""
+                {
+                    "query": "FROM idx",
+                    "settings": {
+                        "unmapped_fields": "%s"
+                    }
+                }""", resolution.settingValue()));
+            assertEquals(resolution, request.get(QuerySettings.UNMAPPED_FIELDS));
+        }
+    }
+
+    public void testSettingsBlockUnmappedFieldsRejectsUnknownValue() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "unmapped_fields": "everything"
+                }
+            }"""));
+        assertThat(e.getCause().getMessage(), containsString("Failed to parse value for setting [unmapped_fields]"));
+    }
+
+    public void testSettingsBlockExemplarsObject() throws IOException {
+        EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "exemplars": {"limit": 1234}
+                }
+            }""");
+        assertEquals(new ExemplarsSettings(true, 1234, false), request.get(QuerySettings.EXEMPLARS));
     }
 
     public void testSettingsBlockRejectsConflictingValuesAtBothLevels() {
@@ -904,16 +952,19 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testSettingsBlockRejectsSetOnlySetting() {
-        // unmapped_fields is in the registry but opted out of body exposure.
+        // time_series_reduce_per_index is in the registry but opted out of body exposure.
         Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
             {
                 "query": "FROM idx",
                 "settings": {
-                    "unmapped_fields": "NULLIFY"
+                    "time_series_reduce_per_index": true
                 }
             }"""));
         assertThat(e.getMessage(), containsString("settings"));
-        assertThat(e.getCause().getMessage(), containsString("Setting [unmapped_fields] is not exposed as a request body parameter"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Setting [time_series_reduce_per_index] is not exposed as a request body parameter")
+        );
     }
 
     public void testRejectUnknownFields() {
@@ -1408,6 +1459,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
+    /** {@code max_rows}, {@code max_bytes} and {@code store} belong to {@code POST /_query/stream} only. */
+    public void testStreamOnlyFieldsAreUnknownOnTheQueryEndpoints() {
+        for (String field : new String[] { "\"max_rows\": 1", "\"max_bytes\": 1", "\"store\": \"none\"" }) {
+            String json = "{\"query\": \"FROM idx\", " + field + "}";
+            expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+            expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestAsync(json));
+        }
+    }
+
     public static QueryBuilder randomQueryBuilder() {
         return randomFrom(
             new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 10)),
@@ -1416,6 +1476,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     private BlockFactory blockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 }

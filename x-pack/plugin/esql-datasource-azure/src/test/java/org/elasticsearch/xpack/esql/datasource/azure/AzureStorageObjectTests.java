@@ -26,6 +26,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -265,7 +266,13 @@ public class AzureStorageObjectTests extends ESTestCase {
             }
             ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 2));
             assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
-            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString(path.toString()));
+            // The storage path is intentionally absent from scan-time exception messages so that
+            // users without read_dataset_metadata cannot learn bucket/key names from error responses.
+            assertThat(
+                thrown.getMessage(),
+                org.hamcrest.Matchers.containsString("External data object [blob.csv.gz] was modified during read")
+            );
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(path.toString())));
         } finally {
             server.stop(0);
         }
@@ -311,6 +318,112 @@ public class AzureStorageObjectTests extends ESTestCase {
      * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted in
      * metrics() — they are not data reads. Even when fetchMetadata fails, requestCount stays at 0.
      */
+    /**
+     * A probe seeds the quoted ETag, and the download of the same blob reports it unquoted. Both name the same blob, so the
+     * read must not be taken for a rewrite.
+     */
+    public void testQuotedSeedMatchesADownloadThatReportsTheETagUnquoted() throws IOException {
+        byte[] payload = "hello azure".getBytes(StandardCharsets.UTF_8);
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            addBlobHeaders(exchange, payload.length, payload.length, "0x1");
+            exchange.sendResponseHeaders(206, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.csv.gz");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.csv.gz");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.csv.gz", path);
+            obj.seedVersion("\"0x1\"");
+
+            try (InputStream stream = obj.newStream()) {
+                assertArrayEquals(payload, stream.readAllBytes());
+            }
+            assertEquals("\"0x1\"", obj.contentGeneration());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * A listing seeds the ETag unquoted, and the download of the same blob quotes it. The two must match, as the quoted
+     * forms do.
+     */
+    public void testUnquotedListingSeedMatchesAQuotedDownload() throws IOException {
+        byte[] payload = "hello azure".getBytes(StandardCharsets.UTF_8);
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            addBlobHeaders(exchange, payload.length, payload.length, "\"0x1\"");
+            exchange.sendResponseHeaders(206, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.csv.gz");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.csv.gz");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.csv.gz", path);
+            obj.seedVersion("0x1");
+
+            try (InputStream stream = obj.newStream()) {
+                assertArrayEquals(payload, stream.readAllBytes());
+            }
+            assertEquals("\"0x1\"", obj.contentGeneration());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    public void testSeededETagIsStillCheckedAgainstTheDownload() throws IOException {
+        byte[] payload = "hello azure".getBytes(StandardCharsets.UTF_8);
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            addBlobHeaders(exchange, payload.length, payload.length, "0x2");
+            exchange.sendResponseHeaders(206, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.csv.gz");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.csv.gz");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.csv.gz", path);
+            obj.seedVersion("\"0x1\"");
+
+            expectThrows(ExternalObjectChangedException.class, () -> obj.newStream().readAllBytes());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * The probe reports the ETag it saw, so an entry built from it is versioned, but it does not pin the readers: reads are
+     * conditional only on an ETag a read has returned, or on one a listing seeded.
+     */
+    public void testProbeReportsItsETagWithoutPinning() throws IOException {
+        HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.getResponseHeaders().add("ETag", "\"0x2\"");
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            BlobClient blobClient = newBlobClient(server, "container", "blob.parquet");
+            StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.parquet");
+            AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.parquet", path);
+
+            assertTrue(obj.exists());
+            assertEquals("\"0x2\"", obj.probedVersion());
+            assertNull(obj.contentGeneration());
+            assertNull(obj.version());
+        } finally {
+            server.stop(0);
+        }
+    }
+
     public void testMetadataProbesDoNotCountAsRequests() throws IOException {
         // 404 the properties HEAD so fetchMetadata sets cachedExists=false fast (single try, no retries).
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -324,9 +437,9 @@ public class AzureStorageObjectTests extends ESTestCase {
             StoragePath path = StoragePath.of("wasbs://devstoreaccount1.blob.core.windows.net/container/blob.parquet");
             AzureStorageObject obj = new AzureStorageObject(blobClient, "container", "blob.parquet", path);
 
-            // length() throws IOException because the blob does not exist; that's fine — we only
-            // care that no metrics counter incremented.
-            expectThrows(IOException.class, obj::length);
+            // length() throws ExternalClientException (OBJECT_NOT_FOUND) because the blob does not exist;
+            // that's fine — we only care that no metrics counter incremented.
+            expectThrows(ExternalClientException.class, obj::length);
             assertFalse(obj.exists());
             assertNull(obj.lastModified());
 

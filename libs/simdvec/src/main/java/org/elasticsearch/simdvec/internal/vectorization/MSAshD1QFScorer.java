@@ -15,9 +15,10 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.AshScorer;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -42,7 +43,7 @@ final class MSAshD1QFScorer implements AshScorer<float[]> {
     private final IndexInput in;
     private final int nDims;
     private final int planeBytes;
-    private final BufferScratch scratch = new BufferScratch();
+    private final SegmentBufferScratch scratch = new SegmentBufferScratch();
 
     MSAshD1QFScorer(IndexInput in, int nDims, int planeBytes) {
         this.in = in;
@@ -90,35 +91,28 @@ final class MSAshD1QFScorer implements AshScorer<float[]> {
     }
 
     @Override
-    public void scoreBulkOffsets(float[] queryTransformed, int[] offsets, int offsetsCount, float[] scores, int blockSize)
-        throws IOException {
+    public void scoreBulkMasked(float[] queryTransformed, int mask, float[] scores, int blockSize) throws IOException {
         float querySum = ESVectorUtil.sum(queryTransformed, nDims);
         float centerOffset = 0.5f;
         long totalBytes = (long) planeBytes * blockSize;
 
         if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
             IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
-                int next = 0;
-                for (int j = 0; j < blockSize; j++) {
-                    if (next < offsetsCount && offsets[next] == j) {
-                        next++;
-                        long offset = (long) j * planeBytes;
-                        float ipfb = ipFloatBitSegment256(queryTransformed, seg, offset, nDims);
-                        scores[j] = ipfb - centerOffset * querySum;
-                    }
+                for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+                    int j = BulkMask.first(m);
+                    long offset = (long) j * planeBytes;
+                    float ipfb = ipFloatBitSegment256(queryTransformed, seg, offset, nDims);
+                    scores[j] = ipfb - centerOffset * querySum;
                 }
                 return null;
             });
         } else {
             IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
-                int next = 0;
-                for (int j = 0; j < blockSize; j++) {
-                    if (next < offsetsCount && offsets[next] == j) {
-                        next++;
-                        long offset = (long) j * planeBytes;
-                        float ipfb = ipFloatBitSegment128(queryTransformed, seg, offset, nDims);
-                        scores[j] = ipfb - centerOffset * querySum;
-                    }
+                for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+                    int j = BulkMask.first(m);
+                    long offset = (long) j * planeBytes;
+                    float ipfb = ipFloatBitSegment128(queryTransformed, seg, offset, nDims);
+                    scores[j] = ipfb - centerOffset * querySum;
                 }
                 return null;
             });

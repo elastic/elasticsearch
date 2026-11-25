@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 163129
+summary: Match the key exactly in case-insensitive queries on flattened keys, and run prefix queries on keys without terms
+type: bug

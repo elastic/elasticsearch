@@ -7,20 +7,35 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.generator.Column;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.CANDIDATE_STRIPPED_MAPPING_PARAMS;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.REFERENCE_STRIPPED_MAPPING_PARAMS;
 import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.SORTED_SET_BACKED_TYPES;
 import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.canonicalValue;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.cellMatchesWithinRoundingTolerance;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.isStrictAllFieldsNarrowingDifference;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.rowsMatchWithinRoundingTolerance;
 import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.toCanonical;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.toCanonicalCells;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner.withoutMappingParams;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
- * Unit tests for the canonicalisation helpers in {@link CrossIndexModeGenerativeRestRunner}.
+ * Unit tests for the comparison helpers in {@link CrossIndexModeGenerativeRestRunner}.
  *
- * <p>These cover the type-aware MV cell comparison ({@code toCanonical}) and the near-zero
- * double snap ({@code canonicalValue}). The helpers are package-private so this test can live
+ * <p>These cover the type-aware MV cell comparison ({@code toCanonical}), the near-zero
+ * double snap ({@code canonicalValue}), the rounding-boundary fallback, the strict field-less
+ * {@code qstr} failure allowance and the per-side mapping sanitisation. The helpers are package-private so this test can live
  * in the same package without requiring reflection or changes to production accessibility.
  */
 public class CrossIndexModeGenerativeRestRunnerTests extends ESTestCase {
@@ -222,5 +237,198 @@ public class CrossIndexModeGenerativeRestRunnerTests extends ESTestCase {
         java.util.Collections.sort(canonB);
 
         assertEquals(canonA, canonB);
+    }
+
+    // -----------------------------------------------------------------------
+    // rounding tolerance — fallback for values on a rounding boundary
+    // -----------------------------------------------------------------------
+
+    /** A stored coordinate and its doc-values reconstruction round to different last digits. */
+    public void testWktCoordinateOnRoundingBoundaryMatches() {
+        String ref = canonicalValue("POINT (-99.8825 16.8636)");
+        String cand = canonicalValue("POINT (-99.88250002 16.86360001)");
+        assertNotEquals("precondition: exact canonical forms differ", ref, cand);
+
+        assertTrue(cellMatchesWithinRoundingTolerance(ref, cand, "keyword"));
+    }
+
+    public void testMultiValueWktCoordinateOnRoundingBoundaryMatches() {
+        List<Column> schema = List.of(new Column("shape", "keyword", List.of()));
+        List<List<String>> ref = toCanonicalCells(List.of(List.of(List.of("POINT (-99.8825 16.8636)", "POINT (1.0 2.0)"))), schema);
+        List<List<String>> cand = toCanonicalCells(
+            List.of(List.of(List.of("POINT (1.0 2.0)", "POINT (-99.88250002 16.86360001)"))),
+            schema
+        );
+        assertNotEquals("precondition: exact canonical forms differ", ref, cand);
+
+        assertTrue(cellMatchesWithinRoundingTolerance(ref.get(0).get(0), cand.get(0).get(0), "keyword"));
+    }
+
+    public void testDoubleOnRoundingBoundaryMatches() {
+        assertTrue(cellMatchesWithinRoundingTolerance("-99.882", "-99.883", "double"));
+    }
+
+    /** One step is measured at the larger magnitude, so the step from 9.9999 up to 10.0 still counts as one. */
+    public void testDoubleCrossingPowerOfTenMatches() {
+        assertTrue(cellMatchesWithinRoundingTolerance("9.9999", "10.0", "double"));
+    }
+
+    public void testDoubleTwoRoundingStepsApartDoesNotMatch() {
+        assertFalse(cellMatchesWithinRoundingTolerance("-99.882", "-99.884", "double"));
+    }
+
+    /** Near-zero values snap to exactly {@code 0.0}, so zero gets no tolerance at all. */
+    public void testZeroIsNotRoundingTolerant() {
+        assertFalse(cellMatchesWithinRoundingTolerance("0.0", "1.0E-9", "double"));
+    }
+
+    /** A long's canonical form is exact. A magnitude-based step would be 10^14 here. */
+    public void testLongIsNotRoundingTolerant() {
+        assertFalse(cellMatchesWithinRoundingTolerance("2706453028782618448", "2706453028782618449", "long"));
+    }
+
+    public void testKeywordIsNotRoundingTolerant() {
+        assertFalse(cellMatchesWithinRoundingTolerance("v1.2345", "v1.2346", "keyword"));
+    }
+
+    public void testDifferentGeometryTypesDoNotMatch() {
+        assertFalse(cellMatchesWithinRoundingTolerance("POINT (1.0 2.0)", "LINESTRING (1.0 2.0)", "keyword"));
+    }
+
+    public void testRowsPairedWithinToleranceRegardlessOfOrder() {
+        List<Column> schema = List.of(new Column("k", "keyword", List.of()), new Column("d", "double", List.of()));
+        List<List<String>> ref = List.of(List.of("a", "-99.882"), List.of("b", "1.0"));
+        List<List<String>> cand = List.of(List.of("b", "1.0"), List.of("a", "-99.883"));
+
+        assertTrue(rowsMatchWithinRoundingTolerance(ref, cand, schema));
+    }
+
+    public void testRowWithDifferentExactCellDoesNotMatch() {
+        List<Column> schema = List.of(new Column("k", "keyword", List.of()), new Column("d", "double", List.of()));
+        List<List<String>> ref = List.of(List.of("a", "-99.882"));
+        List<List<String>> cand = List.of(List.of("b", "-99.883"));
+
+        assertFalse(rowsMatchWithinRoundingTolerance(ref, cand, schema));
+    }
+
+    /** Both reference rows are within one step of the first candidate row, but it can only be paired once. */
+    public void testCandidateRowIsNotPairedTwice() {
+        List<Column> schema = List.of(new Column("d", "double", List.of()));
+        List<List<String>> ref = List.of(List.of("-99.882"), List.of("-99.884"));
+        List<List<String>> cand = List.of(List.of("-99.883"), List.of("5.0"));
+
+        assertFalse(rowsMatchWithinRoundingTolerance(ref, cand, schema));
+    }
+
+    public void testToCanonicalEqualsJoinedCanonicalCells() {
+        List<Column> schema = List.of(new Column("k", "keyword", List.of()), new Column("n", "long", List.of()));
+        List<List<Object>> rows = List.of(List.of(List.of("b", "a", "a"), 1L), List.of("c", 2L));
+
+        List<String> joined = toCanonicalCells(rows, schema).stream().map(cells -> String.join("\t", cells)).toList();
+
+        assertEquals(joined, toCanonical(rows, schema));
+    }
+
+    // -----------------------------------------------------------------------
+    // strict field-less qstr - all-fields narrowing
+    // -----------------------------------------------------------------------
+
+    private static final String NUMERIC_PARSE_FAILURE = "failed to create query: For input string: \"quick\"";
+
+    public void testStrictFieldlessQstrParseFailureIsAllowed() {
+        String query = "FROM ref_employees | WHERE qstr(\"quick\", {\"lenient\": false})";
+
+        assertTrue(isStrictAllFieldsNarrowingDifference(query, NUMERIC_PARSE_FAILURE));
+    }
+
+    public void testStrictFieldlessQstrDateParseFailureIsAllowed() {
+        String query = "FROM ref_employees | WHERE qstr(\"quick\", {\"lenient\": false})";
+        String error = "failed to parse date field [quick] with format [strict_date_optional_time]";
+
+        assertTrue(isStrictAllFieldsNarrowingDifference(query, error));
+    }
+
+    public void testStrictFieldlessQstrWithOtherOptionsIsAllowed() {
+        String query = "FROM ref_employees | WHERE qstr(\"quick\", {\"phrase_slop\": 1, \"lenient\": false})";
+
+        assertTrue(isStrictAllFieldsNarrowingDifference(query, NUMERIC_PARSE_FAILURE));
+    }
+
+    /** A field-prefixed query targets one field on both sides, so the all-fields list plays no part. */
+    public void testStrictFieldPrefixedQstrIsNotAllowed() {
+        String query = "FROM ref_employees | WHERE qstr(\"salary:quick\", {\"lenient\": false})";
+
+        assertFalse(isStrictAllFieldsNarrowingDifference(query, NUMERIC_PARSE_FAILURE));
+    }
+
+    public void testLenientFieldlessQstrIsNotAllowed() {
+        String query = "FROM ref_employees | WHERE qstr(\"quick\", {\"lenient\": true})";
+
+        assertFalse(isStrictAllFieldsNarrowingDifference(query, NUMERIC_PARSE_FAILURE));
+    }
+
+    public void testNonParseFailureIsNotAllowed() {
+        String query = "FROM ref_employees | WHERE qstr(\"quick\", {\"lenient\": false})";
+
+        assertFalse(isStrictAllFieldsNarrowingDifference(query, "Unknown column [quick]"));
+    }
+
+    // -----------------------------------------------------------------------
+    // mapping sanitisation
+    // -----------------------------------------------------------------------
+
+    private static final String MAPPING_WITH_IGNORE_ABOVE_AND_STORE = """
+        {
+          "properties": {
+            "message": {
+              "type": "text",
+              "fields": { "raw": { "type": "keyword", "ignore_above": 10 } }
+            },
+            "host": { "type": "keyword", "store": true }
+          }
+        }""";
+
+    public void testIgnoreAboveStrippedFromReferenceSide() throws IOException {
+        String mapping = withoutMappingParams(MAPPING_WITH_IGNORE_ABOVE_AND_STORE, REFERENCE_STRIPPED_MAPPING_PARAMS);
+
+        assertThat(mapping, not(containsString("ignore_above")));
+    }
+
+    public void testIgnoreAboveStrippedFromCandidateSide() throws IOException {
+        String mapping = withoutMappingParams(MAPPING_WITH_IGNORE_ABOVE_AND_STORE, CANDIDATE_STRIPPED_MAPPING_PARAMS);
+
+        assertThat(mapping, not(containsString("ignore_above")));
+    }
+
+    public void testStoreKeptOnReferenceSide() throws IOException {
+        String mapping = withoutMappingParams(MAPPING_WITH_IGNORE_ABOVE_AND_STORE, REFERENCE_STRIPPED_MAPPING_PARAMS);
+
+        assertThat(mapping, containsString("\"store\":true"));
+    }
+
+    public void testStoreStrippedFromCandidateSide() throws IOException {
+        String mapping = withoutMappingParams(MAPPING_WITH_IGNORE_ABOVE_AND_STORE, CANDIDATE_STRIPPED_MAPPING_PARAMS);
+
+        assertThat(mapping, not(containsString("store")));
+    }
+
+    /** Stripping only removes attributes. The fields and their types stay, so both sides still map the same columns. */
+    public void testStrippingKeepsFieldDefinitions() throws IOException {
+        String mapping = withoutMappingParams(MAPPING_WITH_IGNORE_ABOVE_AND_STORE, CANDIDATE_STRIPPED_MAPPING_PARAMS);
+
+        assertThat(
+            XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false),
+            equalTo(
+                Map.of(
+                    "properties",
+                    Map.of(
+                        "message",
+                        Map.of("type", "text", "fields", Map.of("raw", Map.of("type", "keyword"))),
+                        "host",
+                        Map.of("type", "keyword")
+                    )
+                )
+            )
+        );
     }
 }

@@ -10,29 +10,27 @@
 package org.elasticsearch.telemetry;
 
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 /**
  * Recording versions of Elasticsearch {@link Instrument}s.  All invocations are recorded via {@link MetricRecorder}.
@@ -57,18 +55,16 @@ public class RecordingInstruments {
         }
     }
 
-    protected interface NumberWithAttributesObserver extends Supplier<Collection<Tuple<Number, Map<String, Object>>>> {
-
-    }
-
-    protected abstract static class CallbackRecordingInstrument extends RecordingInstrument implements AutoCloseable, Runnable {
-        private final NumberWithAttributesObserver observer;
+    protected abstract static class CallbackRecordingInstrument<M> extends RecordingInstrument implements AutoCloseable, Runnable {
+        private final Consumer<M> callback;
+        private final M measurementRecorder;
         private boolean closed = false;
         private final ReleasableLock closedLock = new ReleasableLock(new ReentrantLock());
 
-        public CallbackRecordingInstrument(String name, NumberWithAttributesObserver observer, MetricRecorder<Instrument> recorder) {
+        public CallbackRecordingInstrument(String name, MetricRecorder<Instrument> recorder, Consumer<M> callback, M measurementRecorder) {
             super(name, recorder);
-            this.observer = observer;
+            this.callback = callback;
+            this.measurementRecorder = measurementRecorder;
         }
 
         @Override
@@ -77,8 +73,7 @@ public class RecordingInstruments {
                 if (closed) {
                     return;
                 }
-                var observation = observer.get();
-                observation.forEach(o -> call(o.v1(), o.v2()));
+                callback.accept(measurementRecorder);
             }
         }
 
@@ -88,6 +83,42 @@ public class RecordingInstruments {
             try (ReleasableLock lock = closedLock.acquire()) {
                 assert closed == false : "double close";
                 closed = true;
+            }
+        }
+
+        static class LongMeasurement implements LongAsyncMeasurement {
+
+            private final MetricRecorder<?> recorder;
+            private final InstrumentType instrumentType;
+            private final String name;
+
+            LongMeasurement(MetricRecorder<?> recorder, InstrumentType instrumentType, String name) {
+                this.recorder = recorder;
+                this.instrumentType = instrumentType;
+                this.name = name;
+            }
+
+            @Override
+            public void record(long value, Map<String, Object> attributes) {
+                recorder.call(instrumentType, name, value, attributes);
+            }
+        }
+
+        static class DoubleMeasurement implements DoubleAsyncMeasurement {
+
+            private final MetricRecorder<?> recorder;
+            private final InstrumentType instrumentType;
+            private final String name;
+
+            DoubleMeasurement(MetricRecorder<?> recorder, InstrumentType instrumentType, String name) {
+                this.recorder = recorder;
+                this.instrumentType = instrumentType;
+                this.name = name;
+            }
+
+            @Override
+            public void record(double value, Map<String, Object> attributes) {
+                recorder.call(instrumentType, name, value, attributes);
             }
         }
     }
@@ -129,16 +160,9 @@ public class RecordingInstruments {
         }
     }
 
-    public static class RecordingDoubleAsyncGauge extends CallbackRecordingInstrument implements DoubleAsyncGauge {
-        public RecordingDoubleAsyncGauge(
-            String name,
-            Supplier<Collection<DoubleWithAttributes>> observer,
-            MetricRecorder<Instrument> recorder
-        ) {
-            super(name, () -> {
-                var observation = observer.get();
-                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
-            }, recorder);
+    public static class RecordingDoubleAsyncGauge extends CallbackRecordingInstrument<DoubleAsyncMeasurement> implements DoubleAsyncGauge {
+        public RecordingDoubleAsyncGauge(String name, MetricRecorder<Instrument> recorder, Consumer<DoubleAsyncMeasurement> callback) {
+            super(name, recorder, callback, new DoubleMeasurement(recorder, InstrumentType.DOUBLE_ASYNC_GAUGE, name));
         }
     }
 
@@ -195,32 +219,19 @@ public class RecordingInstruments {
         }
     }
 
-    public static class RecordingAsyncLongCounter extends CallbackRecordingInstrument implements LongAsyncCounter {
+    public static class RecordingAsyncLongCounter extends CallbackRecordingInstrument<LongAsyncMeasurement> implements LongAsyncCounter {
 
-        public RecordingAsyncLongCounter(
-            String name,
-            Supplier<Collection<LongWithAttributes>> observer,
-            MetricRecorder<Instrument> recorder
-        ) {
-            super(name, () -> {
-                var observation = observer.get();
-                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
-            }, recorder);
+        public RecordingAsyncLongCounter(String name, MetricRecorder<Instrument> recorder, Consumer<LongAsyncMeasurement> callback) {
+            super(name, recorder, callback, new LongMeasurement(recorder, InstrumentType.LONG_ASYNC_COUNTER, name));
         }
-
     }
 
-    public static class RecordingAsyncDoubleCounter extends CallbackRecordingInstrument implements DoubleAsyncCounter {
+    public static class RecordingAsyncDoubleCounter extends CallbackRecordingInstrument<DoubleAsyncMeasurement>
+        implements
+            DoubleAsyncCounter {
 
-        public RecordingAsyncDoubleCounter(
-            String name,
-            Supplier<Collection<DoubleWithAttributes>> observer,
-            MetricRecorder<Instrument> recorder
-        ) {
-            super(name, () -> {
-                var observation = observer.get();
-                return observation.stream().map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
-            }, recorder);
+        public RecordingAsyncDoubleCounter(String name, MetricRecorder<Instrument> recorder, Consumer<DoubleAsyncMeasurement> callback) {
+            super(name, recorder, callback, new DoubleMeasurement(recorder, InstrumentType.DOUBLE_ASYNC_COUNTER, name));
         }
 
     }
@@ -241,17 +252,10 @@ public class RecordingInstruments {
         }
     }
 
-    public static class RecordingLongAsyncGauge extends CallbackRecordingInstrument implements LongAsyncGauge {
+    public static class RecordingLongAsyncGauge extends CallbackRecordingInstrument<LongAsyncMeasurement> implements LongAsyncGauge {
 
-        public RecordingLongAsyncGauge(
-            String name,
-            Supplier<Collection<LongWithAttributes>> observer,
-            MetricRecorder<Instrument> recorder
-        ) {
-            super(name, () -> {
-                var observation = observer.get();
-                return observation.stream().filter(Objects::nonNull).map(o -> new Tuple<>((Number) o.value(), o.attributes())).toList();
-            }, recorder);
+        public RecordingLongAsyncGauge(String name, MetricRecorder<Instrument> recorder, Consumer<LongAsyncMeasurement> callback) {
+            super(name, recorder, callback, new LongMeasurement(recorder, InstrumentType.LONG_ASYNC_GAUGE, name));
         }
     }
 

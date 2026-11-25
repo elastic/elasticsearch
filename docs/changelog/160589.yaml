@@ -1,0 +1,5 @@
+pr: 160589
+summary: Fix method references to script-aware methods through def
+area: Infra/Scripting
+type: bug
+issues: []

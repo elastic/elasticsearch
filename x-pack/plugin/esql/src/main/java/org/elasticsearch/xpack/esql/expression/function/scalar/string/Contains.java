@@ -163,18 +163,20 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument, Tr
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(str) && substr.foldable() ? Translatable.YES : Translatable.NO;
+        return pushdownPredicates.isPushableValueAttribute(str) && substr.foldable() ? Translatable.YES : Translatable.NO;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         LucenePushdownPredicates.checkIsPushableAttribute(str);
-        var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
+        // A field pushable only over its values is named as it stands, and its value is what the pattern matches.
+        final boolean overValues = LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, str);
+        var fieldName = handler.nameOf(overValues == false && str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
 
         // TODO: Get the real FoldContext here
         var wildcardQuery = "*" + StringUtils.escapeWildcardLiteral(BytesRefs.toString(substr.fold(FoldContext.small()))) + "*";
 
-        return new WildcardQuery(source(), fieldName, wildcardQuery, false, pushdownPredicates.flags().stringLikeOnIndex());
+        return new WildcardQuery(source(), fieldName, wildcardQuery, false, overValues || pushdownPredicates.flags().stringLikeOnIndex());
     }
 
     @Override

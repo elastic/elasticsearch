@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -294,9 +295,12 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .build();
         safeGet(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, sourceIndex)));
 
-        // call reindex
-        var response = safeGet(
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        // call reindex; this multi-step flow can take longer than the default ten seconds on a loaded host
+        var response = safeAwait(
+            SubscribableListener.<ReindexDataStreamIndexAction.Response>newForked(
+                l -> client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex), l)
+            ),
+            TimeValue.timeValueSeconds(30)
         );
         safeGet(indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())));
 

@@ -237,6 +237,10 @@ setup:
 
 ---
 "Test change data stream mode":
+  - requires:
+      cluster_features: [ "data_stream.get_data_streams.index_mode_fix" ]
+      test_runner_features: [ "allowed_warnings" ]
+      reason: "get data streams resolves the index mode from the additional index setting providers"
   # This test makes sure that if we change the index mode of a data stream, the get data stream and get data stream
   # mappings APIs do not blow up before or after rollover.
   - do:
@@ -307,7 +311,7 @@ setup:
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
-  - match: { data_streams.0.index_mode: time_series }
+  - match: { data_streams.0.index_mode: standard }
 
   - do:
       indices.rollover:
@@ -422,6 +426,10 @@ setup:
 
 ---
 "Test change data stream from time_series to standard with no routing_path":
+  - requires:
+      cluster_features: [ "data_stream.get_data_streams.index_mode_fix" ]
+      test_runner_features: [ "allowed_warnings" ]
+      reason: "get data streams resolves the index mode from the additional index setting providers"
   # This test makes sure that if we change the index mode of a data stream from time_series without a configured
   # routing_path to standard, the get data stream and get data stream mappings APIs do not blow up before or after
   # rollover.
@@ -492,7 +500,7 @@ setup:
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
-  - match: { data_streams.0.index_mode: time_series }
+  - match: { data_streams.0.index_mode: standard }
 
   - do:
       indices.rollover:

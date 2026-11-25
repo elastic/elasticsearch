@@ -91,6 +91,16 @@ public class ErrorPolicyTests extends ESTestCase {
         assertFalse(policy.isBudgetExceeded(2, 100));
     }
 
+    public void testTrippedLimitNamesOnlyTheLimitThatTripped() {
+        ErrorPolicy both = new ErrorPolicy(5, 0.5, false);
+        assertEquals("over [max_errors] of [5]", both.trippedLimit(6));
+        assertEquals("over [max_error_ratio] of [0.5]", both.trippedLimit(3));
+        // An unset max_errors holds Long.MAX_VALUE and must not be named; an unset ratio is never reached here.
+        assertEquals("over [max_error_ratio] of [0.1]", new ErrorPolicy(Long.MAX_VALUE, 0.1, false).trippedLimit(11));
+        // A long limit prints as a long, not widened to a double.
+        assertEquals("over [max_errors] of [10]", new ErrorPolicy(10, false).trippedLimit(11));
+    }
+
     public void testBudgetNotExceededWithZeroRows() {
         ErrorPolicy policy = new ErrorPolicy(Long.MAX_VALUE, 0.1, false);
         assertFalse(policy.isBudgetExceeded(0, 0));

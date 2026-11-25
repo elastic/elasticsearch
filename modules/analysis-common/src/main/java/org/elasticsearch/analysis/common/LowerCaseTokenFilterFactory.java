@@ -32,10 +32,12 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     private final String lang;
+    private final Object sharingKey;
 
     LowerCaseTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.lang = settings.get("language", null);
+        this.sharingKey = new Key(lang);
     }
 
     @Override
@@ -53,4 +55,10 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory impl
         }
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String lang) {}
 }

@@ -81,6 +81,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DefaultRestChannelTests extends ESTestCase {
 
@@ -521,9 +522,13 @@ public class DefaultRestChannelTests extends ESTestCase {
             return null;
         }).when(httpChannel).sendResponse(any(HttpResponse.class), anyActionListener());
 
+        var instrumentationEnd = mock(Releasable.class);
+        when(instrumentation.prepareEnd(any(), any())).thenReturn(instrumentationEnd);
+
         executeRequest(Settings.EMPTY, "request-host");
 
-        verify(instrumentation).end(argThat(id -> id.getSpanId().startsWith("rest-")), any(RestResponse.class));
+        verify(instrumentation).prepareEnd(argThat(id -> id.getSpanId().startsWith("rest-")), any(RestResponse.class));
+        verify(instrumentationEnd).close();
     }
 
     public void testHandleHeadRequest() {

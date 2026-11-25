@@ -98,7 +98,8 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
             true,
             true,
             hasState,
-            config.getAnalysis().persistsState()
+            config.getAnalysis().persistsState(),
+            false
         );
 
         // The extra 2 are for the checksum and the control field

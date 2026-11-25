@@ -37,20 +37,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
@@ -89,6 +91,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.FieldMaskingReader;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -99,8 +102,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -109,11 +114,14 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.index.mapper.BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -191,6 +199,16 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(settings, mappings).documentMapper();
     }
 
+    /**
+     * Like {@link #createColumnarModeDocumentMapper(XContentBuilder)} but with an explicit index version,
+     * for testing pre-gate BWC behavior.
+     */
+    protected final DocumentMapper createColumnarModeDocumentMapper(IndexVersion indexVersion, XContentBuilder mappings)
+        throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(indexVersion, settings, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createColumnarLogsdbModeDocumentMapper(XContentBuilder mappings) throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
         return createMapperService(settings, mappings).documentMapper();
@@ -250,6 +268,35 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return IndexVersion.current();
     }
 
+    protected final MapperService createMapperServiceWithParams(Settings settings, org.elasticsearch.datageneration.Mapping mapping)
+        throws IOException {
+        return createMapperServiceWithParams(settings, mapping.raw());
+    }
+
+    protected final MapperService createMapperServiceWithParams(Settings settings, Map<String, Object> mapping) throws IOException {
+        IndexMode indexMode = IndexMode.fromString(settings.get(IndexSettings.MODE.getKey()));
+        var mappingWithDimensions = addTimeSeriesDimensionsIfNeeded(mapping, indexMode);
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mappingWithDimensions);
+        return createMapperService(getVersion(), settings, () -> true, mappingXContent);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> addTimeSeriesDimensionsIfNeeded(Map<String, Object> mapping, IndexMode indexMode) {
+        if (indexMode != IndexMode.TIME_SERIES) {
+            return mapping;
+        }
+
+        // Copies all tha maps down the path to _doc.properties.sensor_id
+        var mappingRawCopy = new HashMap<>(mapping);
+        var doc = (Map<String, Object>) mappingRawCopy.get("_doc");
+        var docCopy = new HashMap<>(doc);
+        var propertiesCopy = new HashMap<>((Map<String, Object>) docCopy.get("properties"));
+        propertiesCopy.put(TIME_SERIES_DIMENSION_FIELD, Map.of("type", "keyword", "time_series_dimension", true));
+        docCopy.put("properties", propertiesCopy);
+        mappingRawCopy.put("_doc", docCopy);
+        return mappingRawCopy;
+    }
+
     protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
         return createMapperService(getVersion(), settings, () -> true, mappings);
     }
@@ -268,6 +315,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
+    }
+
+    /**
+     * A random index version on which strict-columnar indices still honour {@code doc_values: false}, i.e. one created before
+     * {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR}.
+     */
+    protected static IndexVersion randomVersionBeforeDocValuesNoOp() {
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+        );
     }
 
     protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)
@@ -322,6 +380,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         private MapperMetrics mapperMetrics;
         private boolean applyDefaultMapping;
         private RootObjectMapperNamespaceValidator namespaceValidator;
+        private Predicate<NodeFeature> clusterSupportsFeature;
 
         public TestMapperServiceBuilder() {
             indexVersion = getVersion();
@@ -330,6 +389,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             scriptCompiler = MapperServiceTestCase.this::compileScript;
             mapperMetrics = MapperMetrics.NOOP;
             applyDefaultMapping = true;
+            clusterSupportsFeature = f -> true;
         }
 
         public TestMapperServiceBuilder indexVersion(IndexVersion indexVersion) {
@@ -362,6 +422,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             return this;
         }
 
+        public TestMapperServiceBuilder clusterSupportsFeature(Predicate<NodeFeature> clusterSupportsFeature) {
+            this.clusterSupportsFeature = clusterSupportsFeature;
+            return this;
+        }
+
         public MapperService build() {
             Collection<? extends Plugin> plugins = getPlugins();
             Collection<Setting<?>> pluginIndexSettings = plugins.stream()
@@ -383,6 +448,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
             var mapperService = new MapperService(
                 () -> TransportVersion.current(),
+                clusterSupportsFeature,
                 indexSettings,
                 createIndexAnalyzers(indexSettings),
                 parserConfig(),
@@ -440,7 +506,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         Environment env = TestEnvironment.newEnvironment(envSettings);
         var telemetryProvider = getPlugins().stream()
             .filter(p -> p instanceof TelemetryPlugin)
-            .map(p -> ((TelemetryPlugin) p).getTelemetryProvider(env, List.of(), new TelemetryLogResourceProvider.Default()))
+            .map(
+                p -> ((TelemetryPlugin) p).getTelemetryProvider(
+                    new ThreadContext(Settings.EMPTY),
+                    env,
+                    List.of(),
+                    new TelemetryLogResourceProvider.Default()
+                )
+            )
             .findFirst()
             .orElse(TelemetryProvider.NOOP);
         return new MapperMetrics(new SourceFieldMetrics(telemetryProvider.getMeterRegistry(), new LongSupplier() {
@@ -450,7 +523,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             public long getAsLong() {
                 return value++;
             }
-        }), new TokenCountingMetrics(telemetryProvider.getMeterRegistry()));
+        }));
     }
 
     protected static void withLuceneIndex(
@@ -463,9 +536,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             mapperService::fieldType,
             (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
-        IndexWriterConfig iwc = new IndexWriterConfig(
-            IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
-        ).setCodec(
+        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
             new PerFieldMapperCodec(
                 Lucene104Codec.Mode.BEST_SPEED,
                 ElasticsearchStoredFieldsFormat.Mode.LUCENE,
@@ -528,12 +599,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         builder.endObject();
         return new SourceToParse(
             id,
-            BytesReference.bytes(builder),
-            XContentType.JSON,
+            new BytesSource(BytesReference.bytes(builder), XContentType.JSON, true),
             routing,
             dynamicTemplates,
             dynamicTemplateParams,
-            true,
             xContentMeteringParserDecorator(),
             null
         );
@@ -608,14 +677,48 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return builder.endObject().endObject().endObject();
     }
 
-    protected static XContentBuilder dynamicMapping(Mapping dynamicMapping) throws IOException {
+    /**
+     * The mapping a mapper service holds, as a builder parsed from its source. That is how a mapping is read back, for Get Field Mappings
+     * or for anything else that is not the source as it was stored.
+     */
+    protected static MappingBuilder parsedMapping(MapperService mapperService) {
+        return mapperService.parseMappings(mapperService.documentMapper().mappingSource(), MapperService.MergeReason.MAPPING_RECOVERY);
+    }
+
+    protected static void mappingToXContent(MapperService mapperService, XContentBuilder builder, ToXContent.Params params)
+        throws IOException {
+        parsedMapping(mapperService).toXContent(builder, params);
+    }
+
+    /**
+     * Writes the {@code {"<field>": {...}}} fragment for a single field, as Get Field Mappings does: from the builder parsed out of the
+     * mapping source, so that {@code include_defaults} can be asked for.
+     */
+    protected static void fieldToXContent(MapperService mapperService, String field, XContentBuilder builder, ToXContent.Params params)
+        throws IOException {
+        List<Mapper.Builder> found = new ArrayList<>();
+        parsedMapping(mapperService).collectFieldBuilders(MapperService.MergeReason.MAPPING_RECOVERY, (path, b) -> {
+            if (path.equals(field)) {
+                found.add(b);
+            }
+        });
+        assertThat("no field [" + field + "] in the mapping", found, hasSize(1));
+        found.get(0).toXContent(builder, params);
+    }
+
+    /** The {@code {"<field>": {...}}} JSON for a single field, without {@code include_defaults}. */
+    protected static String fieldMappingToString(MapperService mapperService, String field) throws IOException {
+        return fieldMappingToString(mapperService, field, ToXContent.EMPTY_PARAMS);
+    }
+
+    protected static String fieldMappingToString(MapperService mapperService, String field, ToXContent.Params params) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return builder.endObject();
+        fieldToXContent(mapperService, field, builder, params);
+        return Strings.toString(builder.endObject());
     }
 
     protected static void mergeDynamicUpdate(MapperService mapperService, CompressedXContent dynamicUpdate) {
-        mapperService.merge("_doc", dynamicUpdate, MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("_doc", dynamicUpdate, MapperService.MergeReason.MAPPING_AUTO_UPDATE);
     }
 
     public static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
@@ -811,6 +914,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             @Override
             public CircuitBreaker breaker() {
                 return breaker;
+            }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, String label) {
+                breaker.addEstimateBytesAndMaybeBreak(bytes, label);
             }
 
             @Override

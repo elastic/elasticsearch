@@ -29,7 +29,7 @@ public final class ExternalStats {
 
     /**
      * Node-stable fingerprint of the row-interpretation-affecting config (see
-     * {@link SchemaCacheKey#buildFormatConfig}). Distinct fingerprints scope distinct entries so a
+     * the identity the format reader vends for its own configuration). Distinct fingerprints scope distinct entries so a
      * same-file re-query under different {@code WITH} options does not serve stale stats.
      */
     public static final String CONFIG_FINGERPRINT_KEY = "_stats.config_fingerprint";

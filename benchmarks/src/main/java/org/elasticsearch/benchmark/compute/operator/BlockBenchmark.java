@@ -93,7 +93,7 @@ public class BlockBenchmark {
     static final Random random = new Random();
 
     static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
     static final BufferAllocator arrowAllocator = new RootAllocator(Long.MAX_VALUE);
 

@@ -61,4 +61,8 @@ GET /_search
 
 The [`fuzziness`](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-match-query-fuzziness), `prefix_length`, `max_expansions`, `fuzzy_transpositions`, and `fuzzy_rewrite` parameters can be applied to the `term` subqueries constructed for all terms but the final term. They do not have any effect on the prefix query constructed for the final term.
 
+## Allow expensive queries [match-bool-prefix-query-allow-expensive-queries]
+
+The final term uses a [`prefix` query](/reference/query-languages/query-dsl/query-dsl-prefix-query.md). If [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries) is `false`, {{es}} returns an error instead of running the query. The exception is a `text` field with [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md) enabled, when the final term's length is within the configured `min_chars` and `max_chars` range.
+
 

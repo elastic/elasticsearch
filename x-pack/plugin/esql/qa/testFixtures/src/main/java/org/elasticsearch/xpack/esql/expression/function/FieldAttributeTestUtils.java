@@ -63,7 +63,7 @@ public class FieldAttributeTestUtils {
 
     private static EsField randomRepresentableEsField(int maxDepth, TransportVersion supportedOn) {
         return randomValueOtherThanMany(
-            f -> false == DataType.isRepresentable(f.getDataType()),
+            f -> false == DataType.isRepresentableInExpression(f.getDataType()),
             () -> randomSerializableEsField(maxDepth, supportedOn)
         );
     }

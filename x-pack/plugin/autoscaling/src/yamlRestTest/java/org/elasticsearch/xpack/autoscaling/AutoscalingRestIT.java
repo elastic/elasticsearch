@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -30,7 +31,7 @@ public class AutoscalingRestIT extends ESClientYamlSuiteTestCase {
         .user("autoscaling-user", "autoscaling-user-password", "autoscaling", false)
         .build();
 
-    public AutoscalingRestIT(final ClientYamlTestCandidate testCandidate) {
+    public AutoscalingRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

@@ -287,6 +287,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             } else {
                 concreteIndices = Strings.EMPTY_ARRAY;
             }
+        } else if (localIndices.indices().length == 0) {
+            // groupIndices returns an empty local group when no expression targets the local cluster, e.g. a source of only
+            // cluster wildcards that match no remote. Resolving it would expand to every local index.
+            concreteIndices = Strings.EMPTY_ARRAY;
         } else {
             // note: when security is turned on, the indices are already resolved
             // TODO: do a quick check and only resolve if necessary??
@@ -573,6 +577,11 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         return fatal;
     }
 
+    /** Sender timeout for GetCheckpoint node fan-out. Null/zero means wait forever. */
+    static TransportRequestOptions checkpointNodeTransportOptions(TimeValue timeout) {
+        return timeout != null && timeout.millis() > 0 ? TransportRequestOptions.timeout(timeout) : TransportRequestOptions.EMPTY;
+    }
+
     private void getCheckpointsFromNodes(
         ClusterState clusterState,
         Task task,
@@ -638,7 +647,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 GetCheckpointNodeAction.NAME,
                 nodeCheckpointsRequest,
                 task,
-                TransportRequestOptions.EMPTY,
+                checkpointNodeTransportOptions(timeout),
                 new ActionListenerResponseHandler<>(
                     groupedListener,
                     GetCheckpointNodeAction.Response::new,

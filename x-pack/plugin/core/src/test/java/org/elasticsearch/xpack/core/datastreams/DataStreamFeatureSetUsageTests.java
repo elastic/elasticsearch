@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsageTests.generateGlobalRetention;
-import static org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsageTests.generateRetentionStats;
+import static org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsageTests.generateTimeThresholdStats;
 
 public class DataStreamFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataStreamFeatureSetUsage> {
 
@@ -30,8 +30,8 @@ public class DataStreamFeatureSetUsageTests extends AbstractWireSerializingTestC
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                generateRetentionStats(),
-                generateRetentionStats(),
+                generateTimeThresholdStats(),
+                generateTimeThresholdStats(),
                 randomBoolean() ? Map.of() : Map.of("default", generateGlobalRetention(), "max", generateGlobalRetention())
             )
         );
@@ -73,11 +73,11 @@ public class DataStreamFeatureSetUsageTests extends AbstractWireSerializingTestC
             );
             case 7 -> dataRetentionStats = randomValueOtherThan(
                 dataRetentionStats,
-                DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats
+                DataStreamLifecycleFeatureSetUsageTests::generateTimeThresholdStats
             );
             case 8 -> effectiveRetentionStats = randomValueOtherThan(
                 effectiveRetentionStats,
-                DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats
+                DataStreamLifecycleFeatureSetUsageTests::generateTimeThresholdStats
             );
             case 9 -> maxRetention = randomValueOtherThan(maxRetention, DataStreamLifecycleFeatureSetUsageTests::generateGlobalRetention);
             case 10 -> defaultRetention = randomValueOtherThan(

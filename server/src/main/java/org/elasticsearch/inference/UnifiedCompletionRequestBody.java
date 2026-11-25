@@ -11,6 +11,7 @@ package org.elasticsearch.inference;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,11 +28,13 @@ import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.Template;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -47,6 +50,7 @@ import java.util.Map;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHE_CONTROL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_TEMPLATE_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_COMPLETION_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
@@ -55,14 +59,18 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REAS
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SESSION_ID_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.STOP_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPLATE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * The body of a unified chat completion request. Exactly one of {@code messages} and {@code template} is expected to be
+ * present; the transport request's {@code validate()} enforces that, this record only carries the fields.
+ */
 public record UnifiedCompletionRequestBody(
-    List<Message> messages,
+    @Nullable List<Message> messages,
     @Nullable String model,
     @Nullable Long maxCompletionTokens,
     @Nullable List<String> stop,
@@ -72,7 +80,8 @@ public record UnifiedCompletionRequestBody(
     @Nullable Float topP,
     @Nullable Reasoning reasoning,
     @Nullable CacheControl cacheControl,
-    @Nullable String sessionId
+    @Nullable String sessionId,
+    @Nullable Template template
 ) implements Accountable, Writeable, ToXContentFragment {
 
     /**
@@ -163,12 +172,13 @@ public record UnifiedCompletionRequestBody(
             (Float) args[7],
             (Reasoning) args[8],
             (CacheControl) args[9],
-            (String) args[10]
+            (String) args[10],
+            (Template) args[11]
         )
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField(MESSAGES_FIELD));
+        PARSER.declareObjectArray(optionalConstructorArg(), Message.PARSER::apply, new ParseField(MESSAGES_FIELD));
         PARSER.declareString(optionalConstructorArg(), new ParseField(MODEL_FIELD));
         PARSER.declareLong(optionalConstructorArg(), new ParseField(MAX_COMPLETION_TOKENS_FIELD));
         PARSER.declareStringArray(optionalConstructorArg(), new ParseField(STOP_FIELD));
@@ -184,6 +194,7 @@ public record UnifiedCompletionRequestBody(
         PARSER.declareObject(optionalConstructorArg(), Reasoning.PARSER::apply, new ParseField(REASONING_FIELD));
         PARSER.declareObject(optionalConstructorArg(), CacheControl.PARSER::apply, new ParseField(CACHE_CONTROL_FIELD));
         PARSER.declareString(optionalConstructorArg(), new ParseField(SESSION_ID_FIELD));
+        PARSER.declareObject(optionalConstructorArg(), Template.PARSER::apply, new ParseField(TEMPLATE_FIELD));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -215,7 +226,7 @@ public record UnifiedCompletionRequestBody(
     }
 
     public static UnifiedCompletionRequestBody of(List<Message> messages) {
-        return new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null, null, null, null);
+        return new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public UnifiedCompletionRequestBody(
@@ -228,12 +239,30 @@ public record UnifiedCompletionRequestBody(
         @Nullable List<Tool> tools,
         @Nullable Float top
     ) {
-        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, top, null, null, null);
+        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, top, null, null, null, null);
+    }
+
+    public UnifiedCompletionRequestBody(
+        List<Message> messages,
+        @Nullable String model,
+        @Nullable Long maxCompletionTokens,
+        @Nullable List<String> stop,
+        @Nullable Float temperature,
+        @Nullable ToolChoice toolChoice,
+        @Nullable List<Tool> tools,
+        @Nullable Float topP,
+        @Nullable Reasoning reasoning,
+        @Nullable CacheControl cacheControl,
+        @Nullable String sessionId
+    ) {
+        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP, reasoning, cacheControl, sessionId, null);
     }
 
     public UnifiedCompletionRequestBody(StreamInput in) throws IOException {
         this(
-            in.readCollectionAsImmutableList(Message::new),
+            in.getTransportVersion().supports(CHAT_COMPLETION_TEMPLATE_ADDED)
+                ? in.readOptional(input -> input.readCollectionAsImmutableList(Message::new))
+                : in.readCollectionAsImmutableList(Message::new),
             in.readOptionalString(),
             in.readOptionalVLong(),
             in.readOptionalStringCollectionAsList(),
@@ -247,13 +276,25 @@ public record UnifiedCompletionRequestBody(
             in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED)
                 ? in.readOptionalWriteable(CacheControl::new)
                 : null,
-            in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED) ? in.readOptionalString() : null
+            in.getTransportVersion().supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED) ? in.readOptionalString() : null,
+            in.getTransportVersion().supports(CHAT_COMPLETION_TEMPLATE_ADDED) ? in.readOptionalWriteable(Template::new) : null
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(messages);
+        if (out.getTransportVersion().supports(CHAT_COMPLETION_TEMPLATE_ADDED)) {
+            out.writeOptionalCollection(messages);
+        } else if (template != null) {
+            // Dropping the template would send the older node an empty request, so refuse instead.
+            throw new ElasticsearchStatusException(
+                "Cannot send a chat completion request with a template to an older node. "
+                    + "Please wait until all nodes are upgraded before using templates",
+                RestStatus.BAD_REQUEST
+            );
+        } else {
+            out.writeCollection(messages);
+        }
         out.writeOptionalString(model);
         out.writeOptionalVLong(maxCompletionTokens);
         out.writeOptionalStringCollection(stop);
@@ -268,11 +309,16 @@ public record UnifiedCompletionRequestBody(
             out.writeOptionalWriteable(cacheControl);
             out.writeOptionalString(sessionId);
         }
+        if (out.getTransportVersion().supports(CHAT_COMPLETION_TEMPLATE_ADDED)) {
+            out.writeOptionalWriteable(template);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MESSAGES_FIELD, messages);
+        if (messages != null) {
+            builder.field(MESSAGES_FIELD, messages);
+        }
         if (stop != null && (stop.isEmpty() == false)) {
             builder.field(STOP_FIELD, stop);
         }
@@ -306,15 +352,19 @@ public record UnifiedCompletionRequestBody(
         if (sessionId != null) {
             builder.field(SESSION_ID_FIELD, sessionId);
         }
+        if (template != null) {
+            builder.field(TEMPLATE_FIELD, template);
+        }
         return builder;
     }
 
     public boolean containsMultimodalContent() {
-        return messages().stream().anyMatch(m -> m.content() != null && m.content().containsMultimodalContent());
+        return messages() != null && messages().stream().anyMatch(m -> m.content() != null && m.content().containsMultimodalContent());
     }
 
     public boolean containsChatCompletionReasoning() {
-        return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
+        return reasoning() != null
+            || (messages() != null && messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null));
     }
 
     /**
@@ -333,15 +383,21 @@ public record UnifiedCompletionRequestBody(
         return sessionId() != null;
     }
 
+    public boolean containsTemplate() {
+        return template() != null;
+    }
+
     @Override
     public long ramBytesUsed() {
         // sizeOfCollection uses one NUM_BYTES_ARRAY_HEADER, but the actual JVM layout of immutable collections
         // (List.of) has enough overhead that sizeOfCollection under-counts by ~8 bytes per list. The extra
         // NUM_BYTES_ARRAY_HEADER keeps the estimate >= actual as required by the circuit-breaker contract.
-        var messagesRamBytesUsed = RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.shallowSizeOf(messages()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) messages().size()
-                * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-        ) + messages().stream().mapToLong(Message::ramBytesUsed).sum();
+        var messagesRamBytesUsed = messages() == null
+            ? 0L
+            : RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.shallowSizeOf(messages()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) messages().size()
+                    * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            ) + messages().stream().mapToLong(Message::ramBytesUsed).sum();
         var modelRamBytesUsed = RamUsageEstimator.sizeOf(model());
         var toolChoicesRamBytesUsed = toolChoice() == null ? 0L : toolChoice().ramBytesUsed();
         var stopRamBytesUsed = stop() == null
@@ -359,9 +415,10 @@ public record UnifiedCompletionRequestBody(
         var reasoningRamBytesUsed = reasoning() == null ? 0L : reasoning().ramBytesUsed();
         var cacheControlRamBytesUsed = containsChatCompletionCacheControl() ? cacheControl().ramBytesUsed() : 0L;
         var sessionIdRamBytesUsed = RamUsageEstimator.sizeOf(sessionId());
+        var templateRamBytesUsed = template() == null ? 0L : template().ramBytesUsed();
 
         return SHALLOW_SIZE + messagesRamBytesUsed + modelRamBytesUsed + toolChoicesRamBytesUsed + stopRamBytesUsed + toolsRamBytesUsed
-            + reasoningRamBytesUsed + cacheControlRamBytesUsed + sessionIdRamBytesUsed;
+            + reasoningRamBytesUsed + cacheControlRamBytesUsed + sessionIdRamBytesUsed + templateRamBytesUsed;
     }
 
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {

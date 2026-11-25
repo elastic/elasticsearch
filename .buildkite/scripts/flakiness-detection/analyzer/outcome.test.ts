@@ -106,10 +106,80 @@ describe("deriveOutcome", () => {
     });
   });
 
+  test("rc 124 with a heap dump is an oom infra fail that keeps timedOut", () => {
+    // The test JVM got stuck after the OOM and the job only ended at the wrapper's timeout.
+    expect(deriveOutcome({ rc: 124, durationSec: 3480, realFailures: 0, totalCases: 0, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: true,
+      infraSubtype: "oom",
+    });
+  });
+
+  test("rc 137 at/after the inner timeout with a heap dump is an oom infra fail that keeps timedOut", () => {
+    expect(deriveOutcome({ rc: 137, durationSec: 4000, realFailures: 0, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: true,
+      infraSubtype: "oom",
+    });
+  });
+
+  test("rc 137 boundary with a heap dump: at the threshold is an oom timeout, one second before is an OOM-kill", () => {
+    expect(deriveOutcome({ rc: 137, durationSec: THRESHOLD, realFailures: 0, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: true,
+      infraSubtype: "oom",
+    });
+    expect(deriveOutcome({ rc: 137, durationSec: THRESHOLD - 1, realFailures: 0, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: false,
+      infraSubtype: "oom_killed",
+    });
+  });
+
+  test("a short rc 137 stays an OOM-kill even with a heap dump", () => {
+    expect(deriveOutcome({ rc: 137, durationSec: 20, realFailures: 0, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: false,
+      infraSubtype: "oom_killed",
+    });
+  });
+
+  test("a real failure still wins over a timed-out run with a heap dump", () => {
+    expect(deriveOutcome({ rc: 124, durationSec: 3480, realFailures: 1, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "flaky_detected",
+      timedOut: true,
+    });
+  });
+
   test("rc 0 with no recorded cases is a hang", () => {
     expect(deriveOutcome({ rc: 0, durationSec: 30, realFailures: 0, totalCases: 0, timeoutThresholdSec: THRESHOLD })).toEqual({
       outcome: "hang",
       timedOut: false,
     });
+  });
+});
+
+describe("deriveOutcome: onlyIf-skipped tasks", () => {
+  const base = { rc: 0, durationSec: 10, realFailures: 0, totalCases: 0, timeoutThresholdSec: 1680 };
+
+  test("zero tests with every requested task SKIPPED is not_applicable, not hang", () => {
+    // Verified against Gradle 9: an `onlyIf { false }` task (bwc_tests_enabled, distro arch check) and a
+    // NO-SOURCE task both surface as SKIPPED, run zero tests and exit 0.
+    expect(deriveOutcome({ ...base, taskSkipped: true })).toEqual({ outcome: "not_applicable", timedOut: false });
+  });
+
+  test("zero tests without the skipped signal stays a hang", () => {
+    expect(deriveOutcome({ ...base, taskSkipped: false })).toEqual({ outcome: "hang", timedOut: false });
+    expect(deriveOutcome(base)).toEqual({ outcome: "hang", timedOut: false });
+  });
+
+  test("the signal never overrides tests that actually ran", () => {
+    expect(deriveOutcome({ ...base, totalCases: 12, taskSkipped: true }).outcome).toBe("clean_pass");
+    expect(deriveOutcome({ ...base, totalCases: 12, realFailures: 1, taskSkipped: true }).outcome).toBe("flaky_detected");
+  });
+
+  test("the signal never masks a timeout or a non-zero exit", () => {
+    expect(deriveOutcome({ ...base, rc: 124, taskSkipped: true }).outcome).toBe("timeout");
+    expect(deriveOutcome({ ...base, rc: 1, taskSkipped: true }).outcome).toBe("infra_fail");
   });
 });

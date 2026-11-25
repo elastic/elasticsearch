@@ -21,7 +21,9 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -42,14 +44,21 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -127,6 +136,97 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexAnalyzers a = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, settingsA);
         IndexAnalyzers b = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, settingsB);
         assertSame(a.getDefaultIndexAnalyzer(), b.getDefaultIndexAnalyzer());
+    }
+
+    private ClusterSettings watchSharing(Settings nodeSettings) {
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        nonEmptyRegistry.watchSharingSetting(clusterSettings);
+        return clusterSettings;
+    }
+
+    private static Settings sharingDisabled() {
+        return Settings.builder().put(AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING.getKey(), false).build();
+    }
+
+    private IndexAnalyzers buildSharedRecipeIndex(String name) throws IOException {
+        Settings recipe = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase")
+            .build();
+        return nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings(name, recipe));
+    }
+
+    private IndexAnalyzers buildSharedNormalizerIndex(String name) throws IOException {
+        Settings recipe = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.normalizer.my_norm.type", "custom")
+            .putList("index.analysis.normalizer.my_norm.filter", "reverse")
+            .build();
+        return nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings(name, recipe));
+    }
+
+    /** Hatch off stops sharing for subsequently built indices; back on resumes it. */
+    public void testSharingEscapeHatch() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        ClusterSettings clusterSettings = watchSharing(Settings.EMPTY);
+
+        clusterSettings.applySettings(sharingDisabled());
+        IndexAnalyzers a = buildSharedRecipeIndex("a");
+        IndexAnalyzers b = buildSharedRecipeIndex("b");
+        assertNotSame(a.get("my_analyzer").analyzer(), b.get("my_analyzer").analyzer());
+
+        clusterSettings.applySettings(Settings.EMPTY);
+        IndexAnalyzers c = buildSharedRecipeIndex("c");
+        IndexAnalyzers d = buildSharedRecipeIndex("d");
+        assertSame(c.get("my_analyzer").analyzer(), d.get("my_analyzer").analyzer());
+        IOUtils.close(a, b, c, d);
+    }
+
+    /** The setting is honored from node settings (elasticsearch.yml) at watch time, before any dynamic update. */
+    public void testSharingDisabledViaNodeSettings() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        watchSharing(sharingDisabled());
+        IndexAnalyzers a = buildSharedRecipeIndex("a");
+        IndexAnalyzers b = buildSharedRecipeIndex("b");
+        assertNotSame(a.get("my_analyzer").analyzer(), b.get("my_analyzer").analyzer());
+        IOUtils.close(a, b);
+    }
+
+    /** The escape hatch also gates the normalizer caches (keyword and whitespace variants), including eviction. */
+    public void testNormalizerSharingEscapeHatch() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        ClusterSettings clusterSettings = watchSharing(Settings.EMPTY);
+
+        clusterSettings.applySettings(sharingDisabled());
+        IndexAnalyzers a = buildSharedNormalizerIndex("a");
+        IndexAnalyzers b = buildSharedNormalizerIndex("b");
+        assertNotSame(a.getNormalizer("my_norm").analyzer(), b.getNormalizer("my_norm").analyzer());
+        assertNotSame(a.getWhitespaceNormalizer("my_norm").analyzer(), b.getWhitespaceNormalizer("my_norm").analyzer());
+
+        clusterSettings.applySettings(Settings.EMPTY);
+        IndexAnalyzers c = buildSharedNormalizerIndex("c");
+        IndexAnalyzers d = buildSharedNormalizerIndex("d");
+        assertSame(c.getNormalizer("my_norm").analyzer(), d.getNormalizer("my_norm").analyzer());
+        assertSame(c.getWhitespaceNormalizer("my_norm").analyzer(), d.getWhitespaceNormalizer("my_norm").analyzer());
+        assertThat(nonEmptyRegistry.normalizerCacheSize(), greaterThan(0));
+
+        clusterSettings.applySettings(sharingDisabled());
+        IOUtils.close(a, b, c, d);
+        assertEquals(0, nonEmptyRegistry.normalizerCacheSize());
+    }
+
+    /** The release handle is captured at build time, so analyzers shared before the hatch flips off still evict on close. */
+    public void testSharedAnalyzerReleaseAfterHatchDisabled() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        ClusterSettings clusterSettings = watchSharing(Settings.EMPTY);
+        IndexAnalyzers a = buildSharedRecipeIndex("a");
+        IndexAnalyzers b = buildSharedRecipeIndex("b");
+        assertSame(a.get("my_analyzer").analyzer(), b.get("my_analyzer").analyzer());
+
+        clusterSettings.applySettings(sharingDisabled());
+        IOUtils.close(a, b);
+        assertEquals(0, nonEmptyRegistry.analyzerCacheSize());
     }
 
     /**
@@ -604,6 +704,80 @@ public class AnalysisRegistryTests extends ESTestCase {
         );
         indexAnalyzers.close();
         indexAnalyzers.close();
+    }
+
+    /**
+     * Index cleanup can finish after its last shard store releases the reference that keeps the
+     * registry alive. Pause registry shutdown after it collects its analyzers, then release the
+     * index references to verify that only one path closes each underlying analyzer.
+     */
+    public void testNoDoubleCloseWhenRegistryAndIndexAnalyzersCloseConcurrently() throws Exception {
+        assumeAnalyzerSharingEnabled();
+        CountDownLatch closeStarted = new CountDownLatch(1);
+        CountDownLatch continueClose = new CountDownLatch(1);
+        AtomicBoolean firstClose = new AtomicBoolean(true);
+        Map<String, AtomicInteger> closeCounts = new HashMap<>();
+        Map<String, AnalyzerProvider<?>> providers = new HashMap<>();
+
+        // Create 2 analyzers, the test will pause the close registry thread
+        // as the first analyzer is closed
+        for (String name : List.of("default", "other")) {
+            AtomicInteger closeCount = new AtomicInteger();
+            closeCounts.put(name, closeCount);
+
+            Analyzer analyzer = new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents(String fieldName) {
+                    return new TokenStreamComponents(new StandardTokenizer());
+                }
+
+                @Override
+                public void close() {
+                    closeCount.incrementAndGet();
+                    if (firstClose.compareAndSet(true, false)) {
+                        closeStarted.countDown();  // pause the registry.close() thread
+                        safeAwait(continueClose);
+                    }
+                    super.close();
+                }
+            };
+            providers.put(name, new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, analyzer));
+        }
+
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        AnalysisRegistry registry = emptyAnalysisRegistry(settings);
+        try (
+            IndexAnalyzers indexAnalyzers = registry.build(
+                IndexCreationContext.CREATE_INDEX,
+                indexSettingsOfCurrentVersion(Settings.builder()),
+                providers,
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of()
+            )
+        ) {
+            FutureTask<Void> closeRegistry = new FutureTask<>(() -> {
+                registry.close();
+                return null;
+            });
+            Thread closeThread = new Thread(closeRegistry, "close-analysis-registry");
+            closeThread.start();
+            try {
+                safeAwait(closeStarted);
+                // Both entries have been collected and removed from the map before IOUtils.
+                // The first analzyer has been closed, now trigger the second hitting the
+                // releaseFromCache path
+                indexAnalyzers.close();
+            } finally {
+                continueClose.countDown();
+                closeThread.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("registry close thread did not finish", closeThread.isAlive());
+            closeRegistry.get(10, TimeUnit.SECONDS);
+            closeCounts.forEach((name, count) -> assertEquals(name, 1, count.get()));
+            registry.assertNoCachedEntries();
+        }
     }
 
     public void testEnsureCloseInvocationProperlyDelegated() throws IOException {

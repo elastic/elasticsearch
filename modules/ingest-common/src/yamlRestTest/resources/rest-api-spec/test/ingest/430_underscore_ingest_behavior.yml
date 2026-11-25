@@ -1,0 +1,488 @@
+# Characterization tests for how pipelines see and touch a field called "_ingest" (and, nearby, the document metadata
+# fields such as _id, _index, _routing and _version) -- in Painless (script processor and 'if' conditions), in processor
+# field paths, in the json processor's add_to_root, and in mustache templates.
+#
+# These tests pin down CURRENT behavior in the spirit of Hyrum's law: somebody out there probably depends on it. They are
+# not a statement that the behavior is ideal or was intended. If a later change makes one of them fail, that is not
+# necessarily a bug, but it IS a user-visible behavior change that should be a deliberate, called-out decision (changelog,
+# breaking-change note), not an accident.
+#
+# Every test is tagged with how much we believe the behavior was intended (a test can carry more than one tag, when
+# different parts of it have different support):
+#   [DOCUMENTED]      described in the reference docs.
+#   [UNIT-TESTED]     asserted by an existing unit/integration test (named in the comment), but not at the REST level.
+#   [IMPLEMENTATION]  an observable consequence of how the code happens to be structured. Probably never intentional, not
+#                     documented, and not covered by any other test as far as we know.
+#
+# In Painless, 'ctx' is a view over the document source plus the document metadata fields. The execution's own '_ingest'
+# metadata (timestamp, pipeline, _value, on_failure_message, ...) is a separate map that is NOT part of 'ctx'.
+#
+# Most tests use _simulate, which is fast and lets us assert on the own _ingest metadata separately from _source (the
+# stored document never contains it). The tests under "Indexing:" at the end of the file index real documents instead,
+# because simulate does not serialize the source, run it through the mapper, or apply the metadata to a bulk item -- and
+# some behaviors (e.g. writing a metadata name into the source) only differ there. They all share one index, "test",
+# whose mapping is explicitly "dynamic": false so that no test depends on dynamic mapping.
+#
+# Deliberately NOT repeated here, because existing tests already cover them (and they behave the same either way):
+#   * bare '_ingest' field paths (get/has/remove) and '_source._ingest...' field paths: IngestDocumentTests
+#     (#testGetIngestObject, #testHasFieldIngestObject, #testRemoveIngestObject, #testSimpleGetFieldValue,
+#     #testHasFieldNested).
+#   * '_ingest.' vs '_source._ingest.' in templates when the source has an _ingest field: IngestDocumentMustacheIT
+#     (#testAccessIngestMetadataViaTemplate).
+#   * bare metadata names ({{_index}}, {{_id}}, setting _index): 10_pipeline_with_mustache_templates.yml (in
+#     qa/smoke-test-ingest-with-all-dependencies), 230_change_target_index.yml, 270_set_processor.yml.
+
+---
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            dynamic: false
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "test,unused_source_index"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "ui_*"
+        ignore: 404
+
+---
+"Painless: ctx._ingest is absent when the source has no _ingest field":
+  # [IMPLEMENTATION] Follows from 'ctx' being source + document metadata only. No test or doc states that ctx._ingest is
+  # null, although docs/reference/ingest-processor/script-processor.md describes ctx as the document being processed.
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - script:
+                  source: >-
+                    ctx.not_null = ctx._ingest != null;
+                    ctx.contains = ctx.containsKey('_ingest');
+                    ctx.in_keyset = ctx.keySet().contains('_ingest');
+                    ctx.default_returned = ctx.getOrDefault('_ingest', 'dflt') == 'dflt';
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _source: {}
+            - _index: "idx"
+              _id: "2"
+              _source:
+                _ingest:
+                  baz: "quux"
+  # no source _ingest field: it looks entirely absent
+  - match: { docs.0.doc._source.not_null: false }
+  - match: { docs.0.doc._source.contains: false }
+  - match: { docs.0.doc._source.in_keyset: false }
+  - match: { docs.0.doc._source.default_returned: true }
+  # a source _ingest field is an ordinary field
+  - match: { docs.1.doc._source.not_null: true }
+  - match: { docs.1.doc._source.contains: true }
+  - match: { docs.1.doc._source.in_keyset: true }
+  - match: { docs.1.doc._source.default_returned: false }
+
+---
+"Painless: assigning ctx._ingest sets the source field, and removing it makes it null again":
+  # [IMPLEMENTATION] Assignment, put and remove on 'ctx' all act on the source (and document metadata).
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - script:
+                  source: "ctx._ingest = 1;"
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _source: {}
+            - _index: "idx"
+              _id: "2"
+              _source:
+                _ingest:
+                  baz: "quux"
+  - match: { docs.0.doc._source._ingest: 1 }
+  - match: { docs.1.doc._source._ingest: 1 }
+
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - script:
+                  source: "ctx._ingest = 1; ctx.remove('_ingest'); ctx.null_after_remove = ctx._ingest == null;"
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _source: {}
+  - match: { docs.0.doc._source.null_after_remove: true }
+  - not_exists: docs.0.doc._source._ingest
+
+---
+"Painless: copying ctx does not invent an _ingest key, and putAll of one stores it in the source":
+  # [IMPLEMENTATION] Reading ctx._ingest yields null so nothing is copied; copying the map doesn't invent the key; putAll
+  # of an _ingest key stores it in the source.
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - script:
+                  source: >-
+                    ctx.copy = ctx._ingest;
+                    ctx.copied_has_ingest = new HashMap(ctx).containsKey('_ingest');
+                    ctx.putAll(['_ingest': ['x': 1]]);
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _source: {}
+  - match: { docs.0.doc._source.copy: null }
+  - match: { docs.0.doc._source.copied_has_ingest: false }
+  - match: { docs.0.doc._source._ingest.x: 1 }
+  - not_exists: docs.0.doc._ingest.x
+
+---
+"Painless: dereferencing a missing ctx._ingest is a script exception":
+  # [IMPLEMENTATION] A consequence of ctx._ingest being null. Pipelines can't have intentionally relied on the exact
+  # error, but ignore_failure / on_failure handlers may have (accidentally) caught it.
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - script:
+                  source: "ctx._ingest.foo = 'bar';"
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _source: {}
+  - match: { docs.0.error.type: "script_exception" }
+
+---
+"Conditionals: ctx._ingest checks are false when the source has no _ingest field":
+  # [IMPLEMENTATION] Same cause as above, but in an 'if' (read-only) rather than a script processor. A pipeline that gates
+  # processors on "this document already has an _ingest field" could depend on this.
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - set:
+                  if: "ctx._ingest != null"
+                  field: "c_not_null"
+                  value: true
+              - set:
+                  if: "ctx.containsKey('_ingest')"
+                  field: "c_contains"
+                  value: true
+              - set:
+                  if: "ctx._ingest?.timestamp != null"
+                  field: "c_has_timestamp"
+                  value: true
+              - set:
+                  if: "ctx._ingest?.baz == 'quux'"
+                  field: "c_baz"
+                  value: true
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _source: {}
+            - _index: "idx"
+              _id: "2"
+              _source:
+                _ingest:
+                  baz: "quux"
+  # no source _ingest field: no condition fires
+  - length: { docs.0.doc._source: 0 }
+  # a source _ingest field is visible to conditions, and the pipeline's timestamp is not mixed in
+  - match: { docs.1.doc._source.c_not_null: true }
+  - match: { docs.1.doc._source.c_contains: true }
+  - match: { docs.1.doc._source.c_baz: true }
+  - not_exists: docs.1.doc._source.c_has_timestamp
+
+---
+"Field paths: an _ingest. prefixed path is the pipeline's ingest metadata, even when the source has an _ingest field":
+  # [DOCUMENTED] The docs show the ingest metadata under _ingest in simulate output, and foreach-processor.md uses
+  # {{_ingest._value}} in templates. [UNIT-TESTED] IngestDocumentTests#testSimpleGetFieldValue ('_ingest.timestamp' is the
+  # metadata value, '_source._ingest.timestamp' the source value). Writing through the prefix when the source has a field
+  # of the same name is the part nothing else covers: the source field must be left alone.
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - set:
+                  field: "_ingest.baz"
+                  value: "set_by_processor"
+              - set:
+                  field: "read_back"
+                  copy_from: "_ingest.baz"
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _source:
+                _ingest:
+                  baz: "quux"
+  - match: { docs.0.doc._ingest.baz: "set_by_processor" }
+  - match: { docs.0.doc._source.read_back: "set_by_processor" }
+  # the source field is left alone
+  - match: { docs.0.doc._source._ingest.baz: "quux" }
+
+---
+"Field paths: _source. prefixed metadata names can be read":
+  # [IMPLEMENTATION] Reading document metadata through the _source. prefix works because the prefix resolves against the
+  # whole ctx map (source + metadata), not just the source. Not documented, and no existing test reads metadata this way.
+  # (Writing through the prefix is covered by the "Indexing:" tests below.)
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - set:
+                  field: "cf_id"
+                  copy_from: "_source._id"
+              - set:
+                  field: "cf_index"
+                  copy_from: "_source._index"
+              - set:
+                  field: "cf_routing"
+                  copy_from: "_source._routing"
+              - set:
+                  field: "cf_foo"
+                  copy_from: "_source.foo"
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _routing: "r0"
+              _source:
+                foo: "bar"
+  - match: { docs.0.doc._source.cf_id: "1" }
+  - match: { docs.0.doc._source.cf_index: "idx" }
+  - match: { docs.0.doc._source.cf_routing: "r0" }
+  - match: { docs.0.doc._source.cf_foo: "bar" }
+
+---
+"Templates: _source. prefixed metadata names resolve":
+  # [IMPLEMENTATION] In a template, '_source' resolves against the whole ctx map (source + metadata), so metadata is
+  # reachable as {{_source._id}}. Not documented, and no existing test covers it.
+  - do:
+      ingest.simulate:
+        body:
+          pipeline:
+            processors:
+              - set:
+                  field: "t_id"
+                  value: "{{_source._id}}"
+              - set:
+                  field: "t_index"
+                  value: "{{_source._index}}"
+          docs:
+            - _index: "idx"
+              _id: "1"
+              _source:
+                foo: "bar"
+  - match: { docs.0.doc._source.t_id: "1" }
+  - match: { docs.0.doc._source.t_index: "idx" }
+
+---
+"Indexing: a source _ingest field is stored and returned":
+  # [IMPLEMENTATION] Nothing documents or reserves the name _ingest as a source field, and nothing rejects it: it is stored
+  # and returned by get (even though the mapping doesn't know about it). Indices in the wild can therefore contain it.
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          _ingest:
+            baz: "quux"
+          x: 1
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source._ingest.baz: "quux" }
+  - match: { _source.x: 1 }
+
+---
+"Indexing: scripts that create an _ingest field store it in the document":
+  # [IMPLEMENTATION] Two natural ways to write "make sure there is an _ingest object, then add to it". Both work because
+  # ctx._ingest is null when absent, so the script creates a real source field that is part of the stored document. The
+  # second spells out the put, and the stored field holds only what the script added: none of the pipeline's own metadata
+  # (such as its timestamp) ends up in the indexed document.
+  - do:
+      ingest.put_pipeline:
+        id: "ui_cia"
+        body:
+          processors:
+            - script:
+                source: "if (ctx._ingest == null) { ctx._ingest = [:]; } ctx._ingest.foo = 'bar';"
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "ui_cia"
+        body:
+          x: 1
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "ui_cia"
+        body:
+          _ingest:
+            baz: "quux"
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source._ingest.foo: "bar" }
+  - length: { _source._ingest: 1 }
+  - do:
+      get:
+        index: test
+        id: "2"
+  - match: { _source._ingest.baz: "quux" }
+  - match: { _source._ingest.foo: "bar" }
+
+  - do:
+      ingest.put_pipeline:
+        id: "ui_gd"
+        body:
+          processors:
+            - script:
+                source: "ctx.put('_ingest', ctx.getOrDefault('_ingest', [:])); ctx._ingest.foo = 'bar';"
+  - do:
+      index:
+        index: test
+        id: "3"
+        pipeline: "ui_gd"
+        body:
+          x: 1
+  - do:
+      get:
+        index: test
+        id: "3"
+  - match: { _source._ingest.foo: "bar" }
+  - length: { _source._ingest: 1 }
+
+---
+"Indexing: json add_to_root with the merge strategy stores a parsed _ingest object":
+  # [IMPLEMENTATION] When the source has no _ingest field the parsed object is simply added (doc 1); when it has one the two
+  # are merged key by key (doc 2): a nested object is merged recursively, a key present on both sides takes the parsed
+  # value, and keys on only one side are kept. Either way it lands in the stored document. The existing json processor
+  # tests (JsonProcessorTests#testAddToRootRecursiveMerge, 140_json.yml) cover merge in general but don't use _ingest as a
+  # key.
+  - do:
+      ingest.put_pipeline:
+        id: "ui_jm"
+        body:
+          processors:
+            - json:
+                field: "payload"
+                add_to_root: true
+                add_to_root_conflict_strategy: "merge"
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "ui_jm"
+        body:
+          payload: '{"_ingest":{"a":1,"c":{"d":1}},"x":2}'
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "ui_jm"
+        body:
+          payload: '{"_ingest":{"a":1,"c":{"d":1}},"x":2}'
+          _ingest:
+            a: 0
+            b: 2
+            c:
+              e: 2
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source._ingest.a: 1 }
+  - match: { _source._ingest.c.d: 1 }
+  - length: { _source._ingest: 2 }
+  - match: { _source.x: 2 }
+  - do:
+      get:
+        index: test
+        id: "2"
+  # on both sides: the parsed value wins
+  - match: { _source._ingest.a: 1 }
+  # only in the existing field
+  - match: { _source._ingest.b: 2 }
+  # nested object: merged recursively
+  - match: { _source._ingest.c.d: 1 }
+  - match: { _source._ingest.c.e: 2 }
+  - length: { _source._ingest: 3 }
+  - length: { _source._ingest.c: 2 }
+
+---
+"Indexing: setting _source._routing applies the routing to the indexed document":
+  # [IMPLEMENTATION] Writing a metadata name through the _source. prefix works exactly like the bare name does. Not
+  # documented and not covered by any other test. The bare-name equivalent for _index is covered by
+  # 230_change_target_index.yml and 270_set_processor.yml.
+  - do:
+      ingest.put_pipeline:
+        id: "ui_rs"
+        body:
+          processors:
+            - set:
+                field: "_source._routing"
+                value: "r1"
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "ui_rs"
+        body:
+          foo: "bar"
+  - do:
+      get:
+        index: test
+        id: "1"
+        routing: "r1"
+  - match: { _routing: "r1" }
+  - match: { _source.foo: "bar" }
+  - length: { _source: 1 }
+
+---
+"Indexing: setting _source._index reroutes the indexed document":
+  # [IMPLEMENTATION] As above, for _index: the document is rerouted exactly as it is when the bare name is used. The
+  # request names an index that is never created; the pipeline sends the document to "test" instead.
+  - do:
+      ingest.put_pipeline:
+        id: "ui_is"
+        body:
+          processors:
+            - set:
+                field: "_source._index"
+                value: "test"
+  - do:
+      index:
+        index: unused_source_index
+        id: "1"
+        pipeline: "ui_is"
+        body:
+          foo: "bar"
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "bar" }
+  - length: { _source: 1 }
+  # the index named in the request was never created
+  - do:
+      indices.exists:
+        index: unused_source_index
+  - is_false: ''

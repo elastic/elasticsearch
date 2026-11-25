@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -57,7 +58,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
         ShardRouting.Role.DEFAULT,
-        ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+        RecoveryPriority.UNASSIGNED_NEW_PRIMARY
     );
     private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
     private final NodeReplacementAllocationDecider decider = new NodeReplacementAllocationDecider();
@@ -100,7 +101,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assignedShard = assignedShard.initialize(NODE_A.getId(), null, 1);
         assignedShard = assignedShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -286,7 +287,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
                 NODE_A.getId()
             ),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+            RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
         state = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes()).remove(NODE_A.getId()).build())

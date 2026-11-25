@@ -77,6 +77,15 @@ public class DoubleParserBenchmark {
     @Param({ "0", "10", "25", "50", "75", "100" })
     private int fastPathPercent;
 
+    // Which kind of input goes through Eisel-Lemire.
+    // - "extreme": 16-digit significand with |exponent| in [30, 230), the shape of values like 1.2345e+142.
+    // - "fullPrecision": 17-digit significand with a small exponent (-20..-11), the shape of the shortest
+    // round-trip form of an ordinary full-precision double such as 0.12345678901234567 (ML scores, computed
+    // ratios, widened floats). These exceed 2^53, so the fast path rejects them, but the exponent alone would
+    // not; real data that reaches Eisel-Lemire looks like this far more often than like "extreme".
+    @Param({ "extreme", "fullPrecision" })
+    private String slowShape;
+
     private final DoubleParser doubleParser = new DoubleParser();
     private boolean[] negatives;
     private long[] digits;
@@ -109,6 +118,12 @@ public class DoubleParserBenchmark {
                 digits[i] = whole * 1000 + frac;
                 exponents[i] = -3;
                 digitCounts[i] = 9;
+            } else if (slowShape.equals("fullPrecision")) {
+                // e.g. "0.12345678901234567" -> digits=12345678901234567, exponent=-17: 17 significant digits
+                // (always > 2^53, so never fast-path eligible), small exponent.
+                digits[i] = 10_000_000_000_000_000L + (random.nextLong() & Long.MAX_VALUE) % 90_000_000_000_000_000L;
+                exponents[i] = -17 + (random.nextInt(10) - 3); // [-20, -11]
+                digitCounts[i] = 17;
             } else {
                 // Eisel-Lemire-eligible: e.g. "1.234567890123456e+142"/"...e-142"-shaped -
                 // exponent magnitude comfortably past the fast path's cutoff

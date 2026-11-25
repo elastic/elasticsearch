@@ -11,13 +11,16 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.codec.columnar.BehaviorCheck;
 import org.elasticsearch.test.codec.columnar.DuelContext;
+import org.elasticsearch.test.codec.columnar.DuelDoc;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +59,7 @@ public final class EsqlKeywordChecks {
             new ExistsCheck(),
             new IsNullCheck(),
             new SortCheck(),
+            new LengthCheck(),
             new StatsByKeywordCheck(),
             new CountDistinctCheck(),
             new ValueCountCheck(),
@@ -77,9 +81,9 @@ public final class EsqlKeywordChecks {
             final String query = "FROM "
                 + "%s"
                 + " | MV_EXPAND "
-                + ctx.keywordField()
+                + ctx.field()
                 + " | WHERE "
-                + ctx.keywordField()
+                + ctx.field()
                 + " == ?term | KEEP "
                 + ctx.docIdField()
                 + " | SORT "
@@ -105,7 +109,7 @@ public final class EsqlKeywordChecks {
         @Override
         public void check(final DuelContext ctx) {
             final String query = "FROM %s | WHERE "
-                + ctx.keywordField()
+                + ctx.field()
                 + " IS NOT NULL | KEEP "
                 + ctx.docIdField()
                 + " | SORT "
@@ -129,9 +133,9 @@ public final class EsqlKeywordChecks {
         public void check(final DuelContext ctx) {
             final String prefix = ctx.prefixCharacter();
             final String query = "FROM %s | MV_EXPAND "
-                + ctx.keywordField()
+                + ctx.field()
                 + " | WHERE STARTS_WITH("
-                + ctx.keywordField()
+                + ctx.field()
                 + ", ?prefix) | KEEP "
                 + ctx.docIdField()
                 + " | SORT "
@@ -151,9 +155,9 @@ public final class EsqlKeywordChecks {
         public void check(final DuelContext ctx) {
             final String prefix = ctx.prefixCharacter();
             final String query = "FROM %s | MV_EXPAND "
-                + ctx.keywordField()
+                + ctx.field()
                 + " | WHERE "
-                + ctx.keywordField()
+                + ctx.field()
                 + " LIKE \""
                 + prefix
                 + "*\" | KEEP "
@@ -174,9 +178,9 @@ public final class EsqlKeywordChecks {
         public void check(final DuelContext ctx) {
             final String prefix = ctx.prefixCharacter();
             final String query = "FROM %s | MV_EXPAND "
-                + ctx.keywordField()
+                + ctx.field()
                 + " | WHERE "
-                + ctx.keywordField()
+                + ctx.field()
                 + " RLIKE \""
                 + prefix
                 + ".*\" | KEEP "
@@ -203,11 +207,11 @@ public final class EsqlKeywordChecks {
             final String lower = ascii.get(0);
             final String upper = ascii.get(ascii.size() - 1);
             final String query = "FROM %s | MV_EXPAND "
-                + ctx.keywordField()
+                + ctx.field()
                 + " | WHERE "
-                + ctx.keywordField()
+                + ctx.field()
                 + " >= ?lower AND "
-                + ctx.keywordField()
+                + ctx.field()
                 + " < ?upper | KEEP "
                 + ctx.docIdField()
                 + " | SORT "
@@ -231,12 +235,7 @@ public final class EsqlKeywordChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final String query = "FROM %s | WHERE "
-                + ctx.keywordField()
-                + " IS NULL | KEEP "
-                + ctx.docIdField()
-                + " | SORT "
-                + ctx.docIdField();
+            final String query = "FROM %s | WHERE " + ctx.field() + " IS NULL | KEEP " + ctx.docIdField() + " | SORT " + ctx.docIdField();
             assertDocIds(ctx, name(), query, null, ctx.docIdsWithoutValue());
         }
     }
@@ -257,7 +256,7 @@ public final class EsqlKeywordChecks {
             final String query = "FROM %s | EVAL k = "
                 + reducer
                 + "("
-                + ctx.keywordField()
+                + ctx.field()
                 + ") | SORT k "
                 + order
                 + ", "
@@ -277,6 +276,55 @@ public final class EsqlKeywordChecks {
         }
     }
 
+    /**
+     * LENGTH and BYTE_LENGTH, which the planner pushes into the field's doc-values loader rather than computing over loaded
+     * values. Each answers for a document holding exactly one value and is null otherwise, so every document's answer is
+     * known from the corpus.
+     */
+    static final class LengthCheck implements BehaviorCheck {
+        @Override
+        public String name() {
+            return "esql_length";
+        }
+
+        @Override
+        public void check(final DuelContext ctx) {
+            final String query = "FROM %s | EVAL n = LENGTH("
+                + ctx.field()
+                + "), b = BYTE_LENGTH("
+                + ctx.field()
+                + ") | KEEP "
+                + ctx.docIdField()
+                + ", n, b | SORT "
+                + ctx.docIdField();
+            final List<String> expected = new ArrayList<>(ctx.docs().size());
+            for (final DuelDoc doc : ctx.docs().stream().sorted(Comparator.comparingLong(DuelDoc::docId)).toList()) {
+                final List<String> values = doc.nonNullValues();
+                if (values.size() == 1) {
+                    final String value = values.get(0);
+                    expected.add(
+                        doc.docId() + "|" + value.codePointCount(0, value.length()) + "|" + value.getBytes(StandardCharsets.UTF_8).length
+                    );
+                } else {
+                    expected.add(doc.docId() + "|null|null");
+                }
+            }
+            final List<String> baseline = lengthRows(runEsql(ctx.client(), Strings.format(query, ctx.baselineIndex())));
+            final List<String> contender = lengthRows(runEsql(ctx.client(), Strings.format(query, ctx.contenderIndex())));
+            final String context = ctx.failureContext(name());
+            assertEquals(context + " stage=[baseline-oracle]", expected, baseline);
+            assertEquals(context + " stage=[contender-vs-baseline]", baseline, contender);
+        }
+
+        private static List<String> lengthRows(final List<List<Object>> rows) {
+            final List<String> ordered = new ArrayList<>(rows.size());
+            for (final List<Object> row : rows) {
+                ordered.add(((Number) row.get(0)).longValue() + "|" + row.get(1) + "|" + row.get(2));
+            }
+            return ordered;
+        }
+    }
+
     static final class StatsByKeywordCheck implements BehaviorCheck {
         @Override
         public String name() {
@@ -288,13 +336,13 @@ public final class EsqlKeywordChecks {
             // Exclude the null group so the bucket keys are the distinct values, matching the DSL terms
             // aggregation contract; the value-less documents are covered by the exists check.
             final String query = "FROM %s | WHERE "
-                + ctx.keywordField()
+                + ctx.field()
                 + " IS NOT NULL | STATS c = COUNT(*) BY "
-                + ctx.keywordField()
+                + ctx.field()
                 + " | KEEP "
-                + ctx.keywordField()
+                + ctx.field()
                 + ", c | SORT "
-                + ctx.keywordField();
+                + ctx.field();
             final Map<String, Long> baseline = keyedCounts(runEsql(ctx.client(), Strings.format(query, ctx.baselineIndex())));
             final Map<String, Long> contender = keyedCounts(runEsql(ctx.client(), Strings.format(query, ctx.contenderIndex())));
             final String context = ctx.failureContext(name());
@@ -315,7 +363,7 @@ public final class EsqlKeywordChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final String query = "FROM %s | STATS d = COUNT_DISTINCT(" + ctx.keywordField() + ")";
+            final String query = "FROM %s | STATS d = COUNT_DISTINCT(" + ctx.field() + ")";
             final long baseline = scalar(runEsql(ctx.client(), Strings.format(query, ctx.baselineIndex())));
             final long contender = scalar(runEsql(ctx.client(), Strings.format(query, ctx.contenderIndex())));
             final String context = ctx.failureContext(name());
@@ -337,7 +385,7 @@ public final class EsqlKeywordChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final String query = "FROM %s | STATS n = COUNT(" + ctx.keywordField() + ")";
+            final String query = "FROM %s | STATS n = COUNT(" + ctx.field() + ")";
             final long baseline = scalar(runEsql(ctx.client(), Strings.format(query, ctx.baselineIndex())));
             final long contender = scalar(runEsql(ctx.client(), Strings.format(query, ctx.contenderIndex())));
             final String context = ctx.failureContext(name());
@@ -354,7 +402,7 @@ public final class EsqlKeywordChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final String query = "FROM %s | STATS v = VALUES(" + ctx.keywordField() + ")";
+            final String query = "FROM %s | STATS v = VALUES(" + ctx.field() + ")";
             final List<String> expected = ctx.distinctValues();
             final List<String> baseline = flatten(single(runEsql(ctx.client(), Strings.format(query, ctx.baselineIndex()))));
             final List<String> contender = flatten(single(runEsql(ctx.client(), Strings.format(query, ctx.contenderIndex()))));
@@ -372,7 +420,7 @@ public final class EsqlKeywordChecks {
 
         @Override
         public void check(final DuelContext ctx) {
-            final String query = "FROM %s | KEEP " + ctx.docIdField() + ", " + ctx.keywordField() + " | SORT " + ctx.docIdField();
+            final String query = "FROM %s | KEEP " + ctx.docIdField() + ", " + ctx.field() + " | SORT " + ctx.docIdField();
             final Map<Long, List<String>> expected = ctx.perDocSortedDistinct();
             final Map<Long, List<String>> baseline = perDoc(runEsql(ctx.client(), Strings.format(query, ctx.baselineIndex())));
             final Map<Long, List<String>> contender = perDoc(runEsql(ctx.client(), Strings.format(query, ctx.contenderIndex())));

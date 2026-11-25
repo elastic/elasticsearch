@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -52,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
@@ -66,8 +68,11 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResol
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
-import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.SHOULD;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FilterTests extends ESTestCase {
@@ -226,7 +231,7 @@ public class FilterTests extends ESTestCase {
             EMP_NO,
             ((SingleValueQuery.Builder) shoulds.get(1)).source()
         );
-        var should = Queries.combine(SHOULD, asList(left, right));
+        var should = boolQuery().should(left).should(right);
         var expected = Queries.combine(FILTER, asList(restFilter, should));
         assertEquals(expected.toString(), filter.toString());
     }
@@ -346,6 +351,29 @@ public class FilterTests extends ESTestCase {
         assertEquals(LAST_NAME, innerFilter.fieldName());
         assertEquals("""
             last_name LIKE ("a+", "b+")""", innerFilter.getExpression().toString());
+    }
+
+    public void testIsNotNullCanMatchFilterDeserializesAsPlainExists() throws IOException {
+        var plan = plan(LoggerMessageFormat.format(null, """
+             FROM test
+            |WHERE {} IS NOT NULL
+            """, EMP_NO), null);
+
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
+        assertThat(filter, instanceOf(ExistsQueryBuilder.class));
+        assertThat(filter.getClass(), not(equalTo(ExistsQueryBuilder.class)));
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeNamedWriteable(filter);
+            try (
+                StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), SerializationTestUtils.writableRegistry())
+            ) {
+                QueryBuilder read = in.readNamedWriteable(QueryBuilder.class);
+                assertThat(read.getClass(), equalTo(ExistsQueryBuilder.class));
+                assertThat(((ExistsQueryBuilder) read).fieldName(), equalTo(EMP_NO));
+                assertThat(in.available(), is(0));
+            }
+        }
     }
 
     /**

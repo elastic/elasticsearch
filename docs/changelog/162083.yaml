@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162013
+pr: 162083
+summary: Fix prefetch breaker test race
+type: bug

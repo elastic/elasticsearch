@@ -26,6 +26,7 @@ import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
@@ -38,6 +39,21 @@ public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
         Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
         filters.put("stempelpolishstem", PolishStemTokenFilterFactory.class);
         return filters;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.of(
+            "polish_stem",
+            alwaysShares(),
+            "polish_stop",
+            settings().affects("stopwords", List.of("foo")).affects("ignore_case", "true").affects("remove_trailing", "false")
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of("polish", alwaysShares());
     }
 
     public void testThreadSafety() throws IOException {

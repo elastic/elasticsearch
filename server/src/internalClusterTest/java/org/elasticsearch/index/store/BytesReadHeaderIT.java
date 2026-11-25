@@ -30,6 +30,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -116,7 +118,10 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         String biggerIndex = randomIndexName();
 
         createIndex(smallerIndex, 1, 0);
-        createIndex(biggerIndex, 1, 0);
+        createIndex(
+            biggerIndex,
+            indexSettings(1, 0).put(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT.getKey(), indexColumnarIdMode(smallerIndex)).build()
+        );
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
@@ -130,10 +135,20 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         flushAndRefresh(smallerIndex, biggerIndex);
         forceMerge(true);
 
-        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"));
-        long smallerBytesRead = assertBytesReadHeader(new SearchRequest(smallerIndex).source(source));
-        long biggerBytesRead = assertBytesReadHeader(new SearchRequest(biggerIndex).source(source));
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(2 * numDocs);
+        SetOnce<Integer> smallerHits = new SetOnce<>();
+        SetOnce<Integer> biggerHits = new SetOnce<>();
+        long smallerBytesRead = assertBytesReadHeader(
+            new SearchRequest(smallerIndex).source(source),
+            response -> smallerHits.set(response.getHits().getHits().length)
+        );
+        long biggerBytesRead = assertBytesReadHeader(
+            new SearchRequest(biggerIndex).source(source),
+            response -> biggerHits.set(response.getHits().getHits().length)
+        );
 
+        assertThat(smallerHits.get(), equalTo(numDocs));
+        assertThat(biggerHits.get(), equalTo(2 * numDocs));
         assertThat(smallerBytesRead, greaterThan(0L));
         assertThat(biggerBytesRead, greaterThan(smallerBytesRead));
     }
@@ -148,17 +163,26 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         }
         indexRandom(true, false, true, false, builders);
         flushAndRefresh(indexName);
+        // pin to a single segment so a background merge can't swap the reader between the two searches
+        assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
 
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
             .size(0)
             .aggregation(AggregationBuilders.terms("agg").field("field.keyword"));
 
         // initial request fills the cache
-        long initialBytesRead = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
-        assertThat(initialBytesRead, greaterThan(0L));
+        long storeBytesReadOnMiss = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
+        assertThat(storeBytesReadOnMiss, greaterThan(0L));
 
-        long cachedBytesRead = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
-        assertThat(cachedBytesRead, equalTo(0L));
+        long storeBytesReadOnHit = assertBytesReadHeader(new SearchRequest(indexName).source(source).requestCache(true));
+        RequestCacheStats requestCacheStats = indicesAdmin().prepareStats(indexName)
+            .setRequestCache(true)
+            .get()
+            .getTotal()
+            .getRequestCache();
+        assertEquals(1L, requestCacheStats.getHitCount());
+        assertEquals(1L, requestCacheStats.getMissCount());
+        assertThat(storeBytesReadOnHit, equalTo(0L));
     }
 
     public void testDfsQueryThenFetchReadsMoreDataThanQueryThenFetch() throws InterruptedException {

@@ -1,0 +1,6 @@
+area: Columnar
+issues:
+ - 166199
+pr: 166205
+summary: "Fix(flattened): fix root aggregations in columnar modes"
+type: bug

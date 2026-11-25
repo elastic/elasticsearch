@@ -303,7 +303,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     static void validateSearchRequest(SearchRequest request) {
         if (request.isRoutingFromSlice()) {
-            throw new IllegalArgumentException("Rollup search does not support [" + SliceIndexing.PARAM_NAME + "].");
+            throw new IllegalArgumentException("Rollup search does not support [" + SliceIndexing.FIELD_NAME + "].");
         }
         // Rollup does not support hits at the moment
         if (request.source().size() != 0) {

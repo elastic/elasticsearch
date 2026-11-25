@@ -9,16 +9,21 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
@@ -27,8 +32,12 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -43,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -53,6 +63,7 @@ import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -62,6 +73,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
@@ -84,7 +98,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -346,6 +360,19 @@ public class DataSourceModuleTests extends ESTestCase {
                 throw new IllegalArgumentException("Length mismatch for path [" + path + "]: " + length + " vs " + payload.length);
             }
             return new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
+
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
                 @Override
                 public InputStream newStream() {
                     return new ByteArrayInputStream(payload);
@@ -853,7 +880,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
      * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
-     * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.
+    * a message that names the supported set, while gzip and zstd still resolve.
      */
     public void testTextCodecsRejectedOnReleaseBuilds() {
         assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
@@ -895,7 +922,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
     /**
      * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
-     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+    * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats.
      */
     public void testTextCodecsAllowedOnSnapshotBuilds() {
         assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
@@ -1094,7 +1121,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * On release builds, an explicit {@code format} over a codec outside the GA text-format surface
      * (bzip2, snappy, lz4, brotli) must be rejected the same way the extension-inferred path already is —
-     * not silently accepted while misreading the compressed bytes. See elastic/esql-planning#938.
+    * not silently accepted while misreading the compressed bytes.
      */
     public void testExplicitFormatRejectsNonGaCodecsOnReleaseBuilds() {
         assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
@@ -1303,6 +1330,128 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * The node's {@link ThreadContext} must flow from the {@link ThreadPool} given to the module through its
+     * {@link StorageProviderRegistry} to the providers it builds, so an async read completing on a thread with an empty
+     * context still completes under the issuing context. A module that passes {@code null} instead fails here.
+     */
+    public void testThreadPoolContextReachesAsyncReadCompletion() throws Exception {
+        String identityHeader = "X-Test-Identity";
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        ThreadContext threadContext = threadPool.getThreadContext();
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        StoragePath path = StoragePath.of("custom://bucket/file.csv");
+        try {
+            // A real object cannot be used: the test must control the completing thread, which a storage SDK callback thread does by
+            // completing the read with an empty ThreadContext.
+            StorageObject leaf = new AbstractTestStorageObject() {
+                @Override
+                public InputStream newStream() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public long length() {
+                    return 4;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return Instant.now();
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return path;
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor executor,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    sdkThread.execute(() -> {
+                        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+                            listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                        }
+                    });
+                }
+            };
+            DataSourcePlugin plugin = new DataSourcePlugin() {
+                @Override
+                public Set<String> supportedSchemes() {
+                    return Set.of("custom");
+                }
+
+                @Override
+                public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                    return Map.of("custom", StorageProviderFactory.noConfigKeys(() -> new LeafStorageProvider(leaf)));
+                }
+            };
+            List<DataSourcePlugin> plugins = List.of(plugin);
+            try (
+                DataSourceModule module = new DataSourceModule(
+                    plugins,
+                    DataSourceCapabilities.build(plugins),
+                    Settings.EMPTY,
+                    blockFactory,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    new DataSourceCredentials(ENCRYPTION_SERVICE),
+                    () -> false,
+                    threadPool,
+                    null,
+                    null,
+                    null
+                )
+            ) {
+                StorageObject obj = module.storageProviderRegistry().provider(path).newObject(path, 4);
+                threadContext.putHeader(identityHeader, "issuing-user");
+                PlainActionFuture<String> observed = new PlainActionFuture<>();
+                obj.startReadBytesAsync(
+                    0,
+                    4,
+                    len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+                    Runnable::run,
+                    ActionListener.wrap(buffer -> {
+                        buffer.close();
+                        observed.onResponse(threadContext.getHeader(identityHeader));
+                    }, observed::onFailure)
+                );
+                assertEquals("issuing-user", observed.get(10, TimeUnit.SECONDS));
+            }
+        } finally {
+            terminate(sdkThread);
+            terminate(threadPool);
+        }
+    }
+
+    /** Storage provider whose objects are all the given leaf; every other operation is unsupported. */
+    private static class LeafStorageProvider extends MockStorageProvider {
+        private final StorageObject leaf;
+
+        LeafStorageProvider(StorageObject leaf) {
+            this.leaf = leaf;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return leaf;
+        }
     }
 
     // ==================== Classloader Isolation Tests ====================

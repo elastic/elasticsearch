@@ -12,16 +12,14 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
-import org.apache.lucene.util.IntroSorter;
-
-import java.util.function.IntBinaryOperator;
 
 /**
  * Ranks a surveyed column's terms by what they are worth, and answers each {@link TermQuota} asked of it
  * with the terms that quota pays for.
  *
- * <p>The ranking is done once, in the constructor, because every answer is a prefix of it and ranking is
- * the expensive part. What each consumer asks for is stated by its quota rather than here.
+ * <p>The ranking is done once, in the constructor, because every answer walks it in order and ranking is
+ * the expensive part. Terms rank by what they name per byte they cost, since the budget is spent on bytes
+ * and buys named values. What each consumer asks for is stated by its quota rather than here.
  *
  * <p>Answers come back in term order, which is the order a dictionary is written and searched in, and ties
  * are broken by term, so the same column always yields the same answer however its values arrived.
@@ -30,11 +28,8 @@ final class TermSelection {
 
     private final BytesRefHash terms;
     private final long[] counts;
-    private final int[] byFrequency;
-
-    TermSelection(BytesRefHash terms, int[] counts) {
-        this(terms, widen(counts, terms.size()));
-    }
+    private final TermOrdering ordering;
+    private final int[] byDensity;
 
     /**
      * Counts summed across merged columns pass what an int holds long before a column does, and a ranking
@@ -43,7 +38,8 @@ final class TermSelection {
     TermSelection(BytesRefHash terms, long[] counts) {
         this.terms = terms;
         this.counts = counts;
-        this.byFrequency = idsByFrequency(terms, counts);
+        this.ordering = new TermOrdering(terms);
+        this.byDensity = idsByDensity(ordering, terms, counts);
     }
 
     /**
@@ -54,89 +50,173 @@ final class TermSelection {
         return counts;
     }
 
-    /** The most valuable ids whose bytes {@code quota} pays for, in term order. */
-    int[] thatFit(TermQuota quota) {
-        int keptCount = 0;
+    BytesRefHash terms() {
+        return terms;
+    }
+
+    /** What {@code ids} cost a budget, charged the same way one term is by {@link TermQuota#cost}. */
+    long bytesOf(int[] ids) {
         long bytes = 0;
         final BytesRef scratch = new BytesRef();
-        for (int id : byFrequency) {
-            if (counts[id] < quota.minCount()) {
-                break;
-            }
+        for (int id : ids) {
             terms.get(id, scratch);
-            if (bytes + TermQuota.cost(scratch) > quota.budget()) {
-                break;
-            }
             bytes += TermQuota.cost(scratch);
-            keptCount++;
         }
-        final int[] kept = ArrayUtil.copyOfSubArray(byFrequency, 0, keptCount);
-        sort(kept, 0, keptCount, terms, null);
-        return kept;
-    }
-
-    private static long[] widen(int[] counts, int size) {
-        final long[] widened = new long[size];
-        for (int id = 0; id < size; id++) {
-            widened[id] = counts[id];
-        }
-        return widened;
-    }
-
-    /** Every id the survey saw, most frequent first, so all the answers share one ranking. */
-    private static int[] idsByFrequency(BytesRefHash terms, long[] counts) {
-        final int size = terms.size();
-        final int[] ids = new int[size];
-        for (int id = 0; id < size; id++) {
-            ids[id] = id;
-        }
-        sort(ids, 0, size, terms, (a, b) -> Long.compare(counts[b], counts[a]));
-        return ids;
+        return bytes;
     }
 
     /**
-     * Sorts {@code ids} by {@code first}, and by term where that does not decide, so an ordering is total
-     * and a column does not depend on the order its values happened to arrive in.
+     * An upper bound on the values a dictionary of no more than {@code budget} term bytes could name. The
+     * relaxed knapsack optimum, plus every occurrence {@link #occurrences} does not account for, since
+     * those counts are lower bounds. No minimum count applies: relaxing it only widens the sets covered.
+     *
+     * @param budget    the term bytes a dictionary may hold
+     * @param numValues the non-null values in the column, which the answer is capped at
+     * @return the most values any dictionary within {@code budget} could name, never below the truth
      */
-    private static void sort(int[] ids, int from, int to, BytesRefHash terms, IntBinaryOperator first) {
-        new IntroSorter() {
-            private final BytesRef left = new BytesRef();
-            private final BytesRef right = new BytesRef();
-            private int pivotId;
+    long bestCoverage(long budget, long numValues) {
+        long counted = 0;
+        for (int id = 0; id < terms.size(); id++) {
+            counted = clampSum(counted, counts[id]);
+        }
+        final long unaccounted = Math.max(0, numValues - counted);
+        final long best = clampSum(bestWithPartialTerms(budget), unaccounted);
+        return Math.min(numValues, best);
+    }
 
-            @Override
-            protected void swap(int i, int j) {
-                final int tmp = ids[i];
-                ids[i] = ids[j];
-                ids[j] = tmp;
+    /**
+     * The most occurrences a budget could hold when a term may be taken in part, which is what makes this
+     * an over-estimate of any real dictionary. Counted in longs: a count can pass what a double holds
+     * exactly, and rounding one down would put the answer below the truth.
+     */
+    private long bestWithPartialTerms(long budget) {
+        long spent = 0;
+        long held = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int id : byDensity) {
+            terms.get(id, scratch);
+            final long cost = TermQuota.cost(scratch);
+            // NOTE: a term the whole budget cannot buy is in no dictionary this bounds, so it is not part
+            // of the problem being relaxed. Crediting a fraction of it would bound the column by a term it
+            // can never name.
+            if (cost > budget) {
+                continue;
             }
+            if (spent + cost <= budget) {
+                spent += cost;
+                held = clampSum(held, counts[id]);
+                continue;
+            }
+            final long left = budget - spent;
+            if (left > 0) {
+                held = clampSum(held, fractionOfCount(counts[id], left, cost));
+            }
+            break;
+        }
+        return held;
+    }
 
-            @Override
-            protected int compare(int i, int j) {
-                return compareIds(ids[i], ids[j]);
-            }
+    /** The {@code part / whole} share of {@code count}, rounded up and split so neither product overflows. */
+    private static long fractionOfCount(long count, long part, long whole) {
+        final long quotient = count / whole;
+        final long remainder = count % whole;
+        return clampSum(quotient * part, Math.ceilDiv(remainder * part, whole));
+    }
 
-            @Override
-            protected void setPivot(int i) {
-                pivotId = ids[i];
-            }
+    /** A sum that stops at {@link Long#MAX_VALUE} rather than wrapping, which still over-states. */
+    private static long clampSum(long left, long right) {
+        final long sum = left + right;
+        return ((left ^ sum) & (right ^ sum)) < 0 ? Long.MAX_VALUE : sum;
+    }
 
-            @Override
-            protected int comparePivot(int j) {
-                return compareIds(pivotId, ids[j]);
+    /**
+     * The ids {@code quota} admits, in term order, taken greedily by density and stepping over one the
+     * budget cannot afford rather than stopping there.
+     *
+     * <p>Greedy by density is a heuristic over whole terms and not their optimum, so what this achieves is
+     * read as evidence that a dictionary exists and never as proof that none does. A larger budget can also
+     * trade several low density terms for one high density term it could not previously afford, so
+     * selections under different budgets need not nest and a larger budget does not promise more terms.
+     * What it does promise is coverage: the terms it admits never name fewer values.
+     */
+    int[] thatFit(TermQuota quota) {
+        final int[] admitted = new int[byDensity.length];
+        int keptCount = 0;
+        long bytes = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int id : byDensity) {
+            // NOTE: density ranks a short term held once ahead of a long one held often, so neither the
+            // count a quota asks for nor the bytes it has left fall away along the ranking. A term either
+            // refuses is stepped over; ending the walk there would refuse every term behind it. The walk
+            // is therefore always a full one, and the budget is spent exactly rather than nearly.
+            if (counts[id] < quota.minCount()) {
+                continue;
             }
+            terms.get(id, scratch);
+            if (bytes + TermQuota.cost(scratch) > quota.budget()) {
+                continue;
+            }
+            bytes += TermQuota.cost(scratch);
+            admitted[keptCount++] = id;
+        }
+        final int[] kept = ArrayUtil.copyOfSubArray(admitted, 0, keptCount);
+        ordering.byTerm(kept, 0, keptCount);
+        return kept;
+    }
 
-            private int compareIds(int a, int b) {
-                if (first != null) {
-                    final int cmp = first.applyAsInt(a, b);
-                    if (cmp != 0) {
-                        return cmp;
-                    }
-                }
-                terms.get(a, left);
-                terms.get(b, right);
-                return left.compareTo(right);
+    /**
+     * The ids two quotas admit together: {@code repeated} first, so they are exactly what it admits alone,
+     * then the terms below its minimum count into whatever room is left, bounded also by {@code tail}.
+     */
+    int[] thatFit(TermQuota repeated, TermQuota tail) {
+        final int[] thatRepeat = thatFit(repeated);
+        final long room = Math.min(tail.budget(), repeated.budget() - bytesOf(thatRepeat));
+        final int[] admitted = new int[byDensity.length];
+        System.arraycopy(thatRepeat, 0, admitted, 0, thatRepeat.length);
+        int keptCount = thatRepeat.length;
+        long bytes = 0;
+        final BytesRef scratch = new BytesRef();
+        for (int id : byDensity) {
+            if (counts[id] >= repeated.minCount() || counts[id] < tail.minCount()) {
+                continue;
             }
-        }.sort(from, to);
+            terms.get(id, scratch);
+            final long cost = TermQuota.cost(scratch);
+            if (bytes + cost <= room) {
+                bytes += cost;
+                admitted[keptCount++] = id;
+            }
+        }
+        final int[] kept = ArrayUtil.copyOfSubArray(admitted, 0, keptCount);
+        ordering.byTerm(kept, 0, keptCount);
+        return kept;
+    }
+
+    /**
+     * Cross multiplication orders by count per byte without dividing, across 128 bits since the products
+     * can pass what a long holds. An order that wrapped would stop the walk in {@link #bestCoverage} being
+     * the optimum of its relaxation, which is the one place a greedy walk here is exact.
+     */
+    private static int[] idsByDensity(TermOrdering ordering, BytesRefHash terms, long[] counts) {
+        final int size = terms.size();
+        final int[] ids = new int[size];
+        final int[] lengths = new int[size];
+        final BytesRef term = new BytesRef();
+        for (int id = 0; id < size; id++) {
+            ids[id] = id;
+            terms.get(id, term);
+            lengths[id] = (int) TermQuota.cost(term);
+        }
+        ordering.sort(ids, 0, size, (a, b) -> compareProducts(counts[b], lengths[a], counts[a], lengths[b]));
+        return ids;
+    }
+
+    private static int compareProducts(long left, long leftBy, long right, long rightBy) {
+        // NOTE: compared over both halves of the 128 bit product. A merged count times a term length
+        // passes what a long holds, and a wrapped comparison would rank by something other than density,
+        // which is the one thing the greedy walk in bestWithPartialTerms needs to be the optimum.
+        final long highLeft = Math.multiplyHigh(left, leftBy);
+        final long highRight = Math.multiplyHigh(right, rightBy);
+        return highLeft != highRight ? Long.compare(highLeft, highRight) : Long.compareUnsigned(left * leftBy, right * rightBy);
     }
 }

@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 163380
+summary: "Account ingest pipeline growth in indexing pressure, and do not redirect capacity failures in ingest pipelines to the failure store"
+type: enhancement

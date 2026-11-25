@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -32,11 +33,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -227,6 +226,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<DfsSearchResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -236,7 +236,12 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(listener, countingReader(DfsSearchResult::new, resultBytesConsumer), connection)
+            new ConnectionCountingHandler<>(
+                listener,
+                countingReader(DfsSearchResult::new, resultBytesConsumer),
+                connection,
+                unlessProxied(connection, reservation)
+            )
         );
     }
 
@@ -244,6 +249,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<SearchPhaseResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -266,8 +272,24 @@ public class SearchTransportService {
             QUERY_ACTION_NAME,
             countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(handler, countingReader(reader, resultBytesConsumer), connection)
+            new ConnectionCountingHandler<>(
+                handler,
+                countingReader(reader, resultBytesConsumer),
+                connection,
+                unlessProxied(connection, reservation)
+            )
         );
+    }
+
+    /**
+     * Returns {@code reservation}, or {@code null} to charge nothing while the response arrives if {@code connection} goes through a
+     * gateway node. It's for responses that name a reader context the coordinator doesn't know yet. A trip drops such a response unread,
+     * and the data node frees the context on the {@code cancel_child} that follows only if it names the request's parent task. Through a
+     * gateway that parent is the gateway's proxy task, so the context would wait for the reaper.
+     */
+    @Nullable
+    static ShardResponseReservation unlessProxied(Transport.Connection connection, ShardResponseReservation reservation) {
+        return TransportService.unwrapConnection(connection) == connection ? reservation : null;
     }
 
     ActionListener<? super SearchPhaseResult> newStatsCollector(Transport.Connection connection) {
@@ -281,6 +303,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final QuerySearchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<SearchPhaseResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -293,7 +316,7 @@ public class SearchTransportService {
             QUERY_ID_ACTION_NAME,
             countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(handler, countingReader(QuerySearchResult::new, resultBytesConsumer), connection)
+            new ConnectionCountingHandler<>(handler, countingReader(QuerySearchResult::new, resultBytesConsumer), connection, reservation)
         );
     }
 
@@ -316,6 +339,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final RankFeatureShardRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<RankFeatureResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -325,7 +349,7 @@ public class SearchTransportService {
             RANK_FEATURE_SHARD_ACTION_NAME,
             countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(listener, countingReader(RankFeatureResult::new, resultBytesConsumer), connection)
+            new ConnectionCountingHandler<>(listener, countingReader(RankFeatureResult::new, resultBytesConsumer), connection, reservation)
         );
     }
 
@@ -422,7 +446,8 @@ public class SearchTransportService {
                 connection.getNode(),
                 headers,
                 requestBytesConsumer,
-                resultBytesConsumer
+                resultBytesConsumer,
+                e -> context.failOnCoordinatorTrip(FetchSearchPhase.NAME, e)
             );
             transportService.sendChildRequest(
                 localConnection,
@@ -442,6 +467,7 @@ public class SearchTransportService {
                 FETCH_ID_ACTION_NAME,
                 countingRequestForConnection(shardFetchRequest, connection, requestBytesConsumer),
                 task,
+                context.newShardResponseReservation(FetchSearchPhase.NAME, ShardResponseReservation.FETCH_BREAKER_LABEL),
                 listener,
                 countingReader(FetchSearchResult::new, resultBytesConsumer)
             );
@@ -454,7 +480,8 @@ public class SearchTransportService {
         SearchTask task,
         final ActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener, FetchSearchResult::new);
+        // Scroll reserves nothing. The data nodes have moved the cursor by then, so a client retrying the 429 of a trip would skip a page.
+        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, null, listener, FetchSearchResult::new);
     }
 
     private void sendExecuteFetch(
@@ -462,14 +489,22 @@ public class SearchTransportService {
         String action,
         final TransportRequest request,
         SearchTask task,
+        @Nullable ShardResponseReservation reservation,
         final ActionListener<FetchSearchResult> listener,
         Writeable.Reader<FetchSearchResult> reader
     ) {
-        transportService.sendChildRequest(connection, action, request, task, new ConnectionCountingHandler<>(listener, reader, connection));
+        transportService.sendChildRequest(
+            connection,
+            action,
+            request,
+            task,
+            new ConnectionCountingHandler<>(listener, reader, connection, reservation)
+        );
     }
 
     /**
-     * Used by {@link TransportSearchAction} to send the expand queries (field collapsing).
+     * Used by {@link TransportSearchAction} to send the expand queries (field collapsing). Reserves nothing for the response, since
+     * it goes to the local node and never arrives through the transport.
      */
     void sendExecuteMultiSearch(final MultiSearchRequest request, SearchTask task, final ActionListener<MultiSearchResponse> listener) {
         final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
@@ -566,7 +601,7 @@ public class SearchTransportService {
             logger.trace("releasing search context [{}], [{}]", request.id(), freed);
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
-        final Executor freeContextExecutor = buildFreeContextExecutor(transportService, settings);
+        final Executor freeContextExecutor = searchService.getFreeContextExecutor();
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             freeContextExecutor,
@@ -787,6 +822,12 @@ public class SearchTransportService {
             // coordinator and data node have different feature flag states or versions.
             if (fetchPhaseChunkedEnabled && versionSupported && coordinatorSupportsChunkedFetch) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                final CircuitBreaker breaker = searchService.getCircuitBreaker();
+                // A coordinator on this node reads the hits as slices of the chunk pages and charges them itself, so the pages are not
+                // charged here. Each chunk is uncharged until the coordinator charges it, normally right after it is built, so at most the
+                // target chunk size plus one hit per chunk. The last chunk is the exception: it waits for the shard's result before the
+                // coordinator sees it, so it is charged while held.
+                final boolean localCoordinator = transportService.getLocalNode().equals(fetchSearchReq.getCoordinatingNode());
 
                 // Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
@@ -829,13 +870,17 @@ public class SearchTransportService {
 
                     @Override
                     public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                        return transportService.newNetworkBytesStream(searchService.getCircuitBreaker());
+                        return transportService.newNetworkBytesStream(localCoordinator ? null : breaker);
+                    }
+
+                    @Override
+                    public ReleasableBytesReference holdLastChunk(ReleasableBytesReference bytes) {
+                        return localCoordinator ? chargeHeldChunk(bytes, breaker) : bytes;
                     }
                 };
             }
-            // BWC: old coordinator (CHUNKED_FETCH_PHASE) expects lastChunkBytes but this node
-            // (CHUNKED_FETCH_DOC_ID_ORDER) fell back to traditional fetch — serialize hits into
-            // lastChunkBytes in the old format so the coordinator's response stream isn't empty.
+            // The coordinator asked for a chunked fetch but this node does a classic one. Older coordinators build the shard
+            // result from lastChunkBytes only, so also serialize the hits there in the format that coordinator reads.
             ActionListener<FetchSearchResult> responseListener = new ChannelActionListener<>(channel);
             if (hasCoordinator && chunkWriter == null) {
                 final TransportVersion bwcVersion = channelVersion;
@@ -893,53 +938,39 @@ public class SearchTransportService {
     }
 
     /**
-     * BWC: serializes hits into lastChunkBytes (old format, no vInt position prefix) for old coordinators
-     * whose TransportFetchPhaseCoordinationAction ignores FetchSearchResult.hits.
+     * Serializes a classic fetch's hits into lastChunkBytes for coordinators that build the shard result from those bytes only
+     * and ignore FetchSearchResult.hits. Coordinators that support {@code CHUNKED_FETCH_DOC_ID_ORDER} read a vInt position before
+     * each hit; older ones read the hits alone. Classic fetch returns hits in request order, so a hit's position is its index.
      */
     static void populateBwcLastChunkBytes(FetchSearchResult result, TransportVersion transportVersion) throws IOException {
         SearchHit[] hits = result.hits().getHits();
         if (hits.length == 0) {
             return;
         }
+        final boolean withPositions = transportVersion.supports(CHUNKED_FETCH_DOC_ID_ORDER);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(transportVersion);
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                if (withPositions) {
+                    out.writeVInt(i);
+                }
+                hits[i].writeTo(out);
             }
             result.setLastChunkSequenceStart(0);
             result.setLastChunkBytes(out.bytes(), hits.length);
         }
     }
 
+    /**
+     * Charges a held last chunk written for a coordinator on this node until its pages are freed. The coordinator's hits keep slices of
+     * the pages, so once it charges them too the chunk is counted twice until it releases them, at most one chunk per shard. A trip here
+     * is a shard failure, like the other data-side fetch charges.
+     */
     // package-private for testing
-    static int freeContextConcurrency(Settings settings) {
-        return Math.max(1, EsExecutors.allocatedProcessors(settings) / 2);
-    }
-
-    private static Executor buildFreeContextExecutor(TransportService transportService, Settings settings) {
-        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner(
-            "free_context",
-            freeContextConcurrency(settings),
-            transportService.getThreadPool().generic()
-        );
-        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                try (releasable) {
-                    r.run();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (r instanceof AbstractRunnable abstractRunnable) {
-                    abstractRunnable.onFailure(e);
-                }
-                // should be impossible, GENERIC pool doesn't reject anything
-                logger.error("unexpected failure running " + r, e);
-                assert false : new AssertionError("unexpected failure running " + r, e);
-            }
-        });
+    static ReleasableBytesReference chargeHeldChunk(ReleasableBytesReference bytes, CircuitBreaker breaker) {
+        final long size = bytes.length();
+        breaker.addEstimateBytesAndMaybeBreak(size, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+        return new ReleasableBytesReference(bytes, () -> Releasables.close(bytes, () -> breaker.addWithoutBreaking(-size)));
     }
 
     /**
@@ -1043,16 +1074,33 @@ public class SearchTransportService {
 
     private final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final String nodeId;
+        @Nullable
+        private final ShardResponseReservation reservation;
 
         ConnectionCountingHandler(
             final ActionListener<? super Response> listener,
             final Writeable.Reader<Response> responseReader,
             final Transport.Connection connection
         ) {
+            this(listener, responseReader, connection, null);
+        }
+
+        ConnectionCountingHandler(
+            final ActionListener<? super Response> listener,
+            final Writeable.Reader<Response> responseReader,
+            final Transport.Connection connection,
+            @Nullable final ShardResponseReservation reservation
+        ) {
             super(listener, responseReader, TransportResponseHandler.TRANSPORT_WORKER);
             this.nodeId = connection.getNode().getId();
+            this.reservation = reservation;
             // Increment the number of connections for this node by one
             clientConnections.compute(nodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+        }
+
+        @Override
+        public Releasable reserveResponseBytes(int bytes) {
+            return reservation == null ? NO_RESERVATION : reservation.reserve(bytes);
         }
 
         @Override
@@ -1063,6 +1111,10 @@ public class SearchTransportService {
 
         @Override
         public void handleException(TransportException e) {
+            if (reservation != null) {
+                // The listener then gets the trip too, and must not count it as a shard failure.
+                reservation.reportTrip();
+            }
             super.handleException(e);
             decConnectionCount();
         }

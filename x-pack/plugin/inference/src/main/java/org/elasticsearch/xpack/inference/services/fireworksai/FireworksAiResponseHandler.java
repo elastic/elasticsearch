@@ -28,7 +28,7 @@ public class FireworksAiResponseHandler extends BaseResponseHandler {
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // Handle error status codes
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 500) {
             // 500 errors are retryable (temporary server issues)
             return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));

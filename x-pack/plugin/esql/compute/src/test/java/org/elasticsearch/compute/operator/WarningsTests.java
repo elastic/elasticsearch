@@ -66,6 +66,23 @@ public class WarningsTests extends ESTestCase {
         assertThat(collected(dc), contains(expected));
     }
 
+    public void testRegisterExceptionDeduplication() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {
+            warnings.registerException(new ArithmeticException("not a finite double number: Infinity"));
+        }
+        warnings.registerException(new ArithmeticException("not a finite double number: -Infinity"));
+        assertThat(
+            collected(dc),
+            contains(
+                "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity",
+                "Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity"
+            )
+        );
+    }
+
     public void testRegisterIgnore() {
         DriverContext dc = ignoringContext();
         Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
@@ -123,6 +140,49 @@ public class WarningsTests extends ESTestCase {
         Warnings warnings = dc.createWarnings(new TestWarningsSource("foo", "view1"));
         warnings.registerWarning("some custom warning");
         assertThat(collected(dc), contains("Line 1:1 [foo] (in view [view1]): some custom warning"));
+    }
+
+    public void testRegisterWarningWithoutSourceTextCollect() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        warnings.registerWarningWithoutSourceText("some custom warning");
+        assertThat(collected(dc), contains("Line 1:1: some custom warning"));
+    }
+
+    public void testRegisterWarningWithoutSourceTextWithView() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo", "view1"));
+        warnings.registerWarningWithoutSourceText("some custom warning");
+        assertThat(collected(dc), contains("Line 1:1 (in view [view1]): some custom warning"));
+    }
+
+    public void testRegisterWarningWithoutSourceTextDeduplication() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        warnings.registerWarningWithoutSourceText("duplicate warning");
+        warnings.registerWarningWithoutSourceText("duplicate warning");
+        assertThat(collected(dc), contains("Line 1:1: duplicate warning"));
+    }
+
+    public void testRegisterWarningWithoutSourceTextCollectFilled() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {
+            warnings.registerWarningWithoutSourceText("warning " + i);
+        }
+
+        String[] expected = new String[Warnings.MAX_ADDED_WARNINGS];
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS; i++) {
+            expected[i] = "Line 1:1: warning " + i;
+        }
+        assertThat(collected(dc), contains(expected));
+    }
+
+    public void testRegisterWarningWithoutSourceTextIgnore() {
+        DriverContext dc = ignoringContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        warnings.registerWarningWithoutSourceText("some custom warning");
+        assertThat(collected(dc), empty());
     }
 
     public void testMixedRegisterExceptionThenWarning() {

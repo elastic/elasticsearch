@@ -26,9 +26,13 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
 
   private final ExpressionEvaluator deg;
 
-  public ToDegreesEvaluator(Source source, ExpressionEvaluator deg, DriverContext driverContext) {
+  private final boolean allowNonFinite;
+
+  public ToDegreesEvaluator(Source source, ExpressionEvaluator deg, boolean allowNonFinite,
+      DriverContext driverContext) {
     super(driverContext, source);
     this.deg = deg;
+    this.allowNonFinite = allowNonFinite;
   }
 
   @Override
@@ -48,7 +52,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendDouble(evalValue(vector, p));
@@ -63,14 +67,14 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
 
   private double evalValue(DoubleVector container, int index) {
     double value = container.getDouble(index);
-    return ToDegrees.process(value);
+    return ToDegrees.process(value, this.allowNonFinite);
   }
 
   @Override
   public Block evalBlock(Block b) {
     DoubleBlock block = (DoubleBlock) b;
     int positionCount = block.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -102,7 +106,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
 
   private double evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
-    return ToDegrees.process(value);
+    return ToDegrees.process(value, this.allowNonFinite);
   }
 
   @Override
@@ -127,14 +131,17 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
 
     private final ExpressionEvaluator.Factory deg;
 
-    public Factory(Source source, ExpressionEvaluator.Factory deg) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory deg, boolean allowNonFinite) {
       this.source = source;
       this.deg = deg;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public ToDegreesEvaluator get(DriverContext context) {
-      return new ToDegreesEvaluator(source, deg.get(context), context);
+      return new ToDegreesEvaluator(source, deg.get(context), allowNonFinite, context);
     }
 
     @Override

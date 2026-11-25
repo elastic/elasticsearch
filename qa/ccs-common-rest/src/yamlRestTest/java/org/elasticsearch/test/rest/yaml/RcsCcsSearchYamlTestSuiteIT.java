@@ -9,10 +9,12 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import java.io.IOException;
 
 public class RcsCcsSearchYamlTestSuiteIT extends RcsCcsCommonYamlTestSuiteIT {
-    public RcsCcsSearchYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
+    public RcsCcsSearchYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) throws IOException {
         super(testCandidate);
     }
 }

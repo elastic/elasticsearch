@@ -17,15 +17,20 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 import org.elasticsearch.simdvec.AshScorer;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
@@ -72,7 +77,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param qOffset the query minimum value (used as offset in correction)
      * @param constantCorrection precomputed centering correction term
      */
-    private record QuantizedQuery(byte[] queryQuantized, float invQScale, float qOffset, float constantCorrection) {}
+    private record QuantizedQuery(ScoringQuery queryQuantized, float invQScale, float qOffset, float constantCorrection) {}
 
     /**
      * Quantizes a projected query vector for the integer scoring path.
@@ -125,7 +130,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
         float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
         float constantCorrection = centerOffset * (unsignedSum * invQScale + qMin * nDims);
-        return new QuantizedQuery(queryQuantized, invQScale, qMin, constantCorrection);
+        return new QuantizedQuery(new ScoringQuery(queryQuantized), invQScale, qMin, constantCorrection);
     }
 
     /**
@@ -133,8 +138,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * appropriate query path (float or integer), encapsulating query projection, optional
      * quantization, and scorer selection.
      *
-     * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
-     * @param originalDim original vector dimensionality (number of columns in wT)
+     * @param matrix the projection matrix, used to project the query
      * @param query the raw query vector
      * @param similarityFunction the vector similarity function for score conversion
      * @param indexInput input for reading posting list data (must be unwrapped for MemorySegment access)
@@ -142,29 +146,32 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param bitsPerDim bits per dimension for document codes
      * @param queryBitsPerDim bits per dimension for query quantization (0 for float path)
      * @param centroidReader function mapping centroid ordinal to float[] centroid vector
+     * @param transformCache the query's cache of transformed queries, to reuse the projected query of another
+     *                         segment with the same projection matrix, or {@link QueryTransformCache#NONE} to project it
+     *                         for this segment alone
      * @return a configured visitor for the appropriate scoring path
      */
     public static AshPostingsVisitor<?> create(
-        float[] wT,
-        int originalDim,
+        AshProjectionMatrix matrix,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         IndexInput indexInput,
         Bits acceptDocs,
         int bitsPerDim,
         int queryBitsPerDim,
-        CheckedIntFunction<float[], IOException> centroidReader
+        CheckedIntFunction<float[], IOException> centroidReader,
+        QueryTransformCache transformCache
     ) throws IOException {
         return createVisitor(
-            wT,
-            originalDim,
+            matrix,
             query,
             similarityFunction,
             indexInput,
             acceptDocs,
             bitsPerDim,
             queryBitsPerDim,
-            centroidReader
+            centroidReader,
+            transformCache
         );
     }
 
@@ -173,8 +180,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * ({@code numSlices == 0}). The returned visitor translates vector ordinals to doc IDs via
      * {@link KnnVectorValues#ordToDoc} and restricts scoring to the {@code [startDoc, endDoc)} range.
      *
-     * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
-     * @param originalDim original vector dimensionality (number of columns in wT)
+     * @param matrix the projection matrix, used to project the query
      * @param query the raw query vector
      * @param similarityFunction the vector similarity function for score conversion
      * @param indexInput input for reading posting list data (must be unwrapped for MemorySegment access)
@@ -185,11 +191,13 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param vectorValues vector values for ordinal-to-doc translation in the sliced path
      * @param startDoc inclusive start of the slice doc range
      * @param endDoc exclusive end of the slice doc range
+     * @param transformCache the query's cache of transformed queries, to reuse the projected query
+     *                         of another segment or named slice with the same projection matrix, or
+     *                         {@link QueryTransformCache#NONE} to project it for this named slice alone
      * @return a configured sliced visitor for the appropriate scoring path
      */
     public static AshPostingsVisitor<?> createSliced(
-        float[] wT,
-        int originalDim,
+        AshProjectionMatrix matrix,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         IndexInput indexInput,
@@ -199,44 +207,76 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         CheckedIntFunction<float[], IOException> centroidReader,
         KnnVectorValues vectorValues,
         int startDoc,
-        int endDoc
+        int endDoc,
+        QueryTransformCache transformCache
     ) throws IOException {
         AshPostingsVisitor<?> base = createVisitor(
-            wT,
-            originalDim,
+            matrix,
             query,
             similarityFunction,
             indexInput,
             acceptDocs,
             bitsPerDim,
             queryBitsPerDim,
-            centroidReader
+            centroidReader,
+            transformCache
         );
         return new SlicedAshPostingsVisitor<>(base, vectorValues, startDoc, endDoc);
     }
 
+    /**
+     * The query projected through W, and for the integer scoring path also quantized. It depends on nothing but the query,
+     * W, and the bits, so segments that share W can share it.
+     */
+    record ProjectedQuery(float[] projected, @Nullable QuantizedQuery quantized) {}
+
+    /**
+     * Key of a {@link ProjectedQuery} in a query's {@link QueryTransformCache}. It leaves out the query vector, as
+     * the cache holds those of a single vector: two segments whose matrices have the same id have the same W, so they
+     * project the query the same way. The document bits only matter to the quantized query, so the float path ignores them.
+     */
+    record ProjectedQueryKey(UUID matrixId, int queryBitsPerDim, int bitsPerDim) {
+        static ProjectedQueryKey of(UUID matrixId, int queryBitsPerDim, int bitsPerDim) {
+            return new ProjectedQueryKey(matrixId, queryBitsPerDim, queryBitsPerDim > 0 ? bitsPerDim : 0);
+        }
+    }
+
+    static ProjectedQuery projectQuery(AshProjectionMatrix matrix, float[] query, int queryBitsPerDim, int bitsPerDim) {
+        // queryTransformed = W^T @ query
+        float[] queryTransformed = matrix.projectQuery(query);
+        QuantizedQuery quantized = queryBitsPerDim > 0
+            ? quantizeQuery(queryTransformed, matrix.nDims(), queryBitsPerDim, bitsPerDim)
+            : null;
+        return new ProjectedQuery(queryTransformed, quantized);
+    }
+
     private static AshPostingsVisitor<?> createVisitor(
-        float[] wT,
-        int originalDim,
+        AshProjectionMatrix matrix,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         IndexInput indexInput,
         Bits acceptDocs,
         int bitsPerDim,
         int queryBitsPerDim,
-        CheckedIntFunction<float[], IOException> centroidReader
+        CheckedIntFunction<float[], IOException> centroidReader,
+        QueryTransformCache transformCache
     ) throws IOException {
-        int nDims = wT.length / originalDim;
-
-        // Precompute query projection: queryTransformed[j] = dot(query, wT[j*originalDim .. (j+1)*originalDim))
-        float[] queryTransformed = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
+        ProjectedQuery projectedQuery = transformCache.getSharedQuery(
+            ProjectedQueryKey.of(matrix.id(), queryBitsPerDim, bitsPerDim),
+            () -> projectQuery(matrix, query, queryBitsPerDim, bitsPerDim)
+        );
+        float[] queryTransformed = projectedQuery.projected();
 
         if (queryBitsPerDim > 0) {
-            QuantizedQuery qq = quantizeQuery(queryTransformed, nDims, queryBitsPerDim, bitsPerDim);
-            AshScorer<byte[]> scorer = ESVectorUtil.getAshIntegerVectorsScorer(indexInput, nDims, bitsPerDim, queryBitsPerDim);
+            QuantizedQuery qq = projectedQuery.quantized();
+            AshScorer<ScoringQuery> scorer = ESVectorUtil.getAshIntegerVectorsScorer(
+                indexInput,
+                matrix.nDims(),
+                bitsPerDim,
+                queryBitsPerDim
+            );
             return new AshPostingsVisitor<>(
-                wT,
-                originalDim,
+                matrix.nDims(),
                 query,
                 similarityFunction,
                 scorer,
@@ -248,10 +288,9 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
                 centroidReader
             );
         } else {
-            AshScorer<float[]> scorer = ESVectorUtil.getAshFloatVectorsScorer(indexInput, nDims, bitsPerDim);
+            AshScorer<float[]> scorer = ESVectorUtil.getAshFloatVectorsScorer(indexInput, matrix.nDims(), bitsPerDim);
             return new AshPostingsVisitor<>(
-                wT,
-                originalDim,
+                matrix.nDims(),
                 query,
                 similarityFunction,
                 scorer,
@@ -297,7 +336,6 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     // Scratch buffers for bulk I/O
     final DocIdsWriter idsWriter = new DocIdsWriter();
     final int[] docIdsScratch = new int[BULK_SIZE];
-    final int[] offsetsScratch = new int[BULK_SIZE];
     private final float[] scores = new float[BULK_SIZE];
     // Per-vector corrections in SoA layout: [scales][offsets][docSums][vecCentroidDots][vecCentroidSqDists]
     private final byte[] bulkCorrectionsBuf = new byte[BULK_SIZE * CORRECTION_BYTES];
@@ -347,8 +385,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     }
 
     /**
-     * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
-     * @param originalDim original vector dimensionality (number of columns in wT)
+     * @param nDims number of projected dimensions
      * @param query the raw query vector
      * @param similarityFunction the vector similarity function for score conversion
      * @param scorer the scorer to use for reading and scoring packed codes
@@ -360,8 +397,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param centroidReader function mapping centroid ordinal to float[] centroid vector
      */
     private AshPostingsVisitor(
-        float[] wT,
-        int originalDim,
+        int nDims,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         AshScorer<T> scorer,
@@ -372,7 +408,6 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         QuantizedQuery quantizedQuery,
         CheckedIntFunction<float[], IOException> centroidReader
     ) {
-        int nDims = wT.length / originalDim;
         this.indexInput = indexInput;
         this.acceptDocs = acceptDocs;
         this.packedCodeBytes = bitsPerDim * ((nDims + 7) >>> 3);
@@ -464,7 +499,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
     private int processBlock(KnnCollector knnCollector, int blockSize) throws IOException {
         readDocIds(blockSize);
-        int docsToScore = filterAcceptedDocs(blockSize);
+        int mask = filterAcceptedDocsMask(blockSize);
+        int docsToScore = Integer.bitCount(mask);
         if (docsToScore == 0) {
             // Skip the entire block: codes + corrections
             long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * CORRECTION_BYTES;
@@ -474,7 +510,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
         // Step 1: Read packed codes via the scorer (produces raw dot products).
         if (docsToScore < blockSize) {
-            scorer.scoreBulkOffsets(scorerQuery, offsetsScratch, docsToScore, scores, blockSize);
+            scorer.scoreBulkMasked(scorerQuery, mask, scores, blockSize);
         } else {
             scorer.scoreBulk(scorerQuery, blockSize, scores);
         }
@@ -502,7 +538,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         }
 
         if (knnCollector.minCompetitiveSimilarity() < maxScore) {
-            collectBulk(knnCollector, blockSize, docsToScore, maxScore);
+            collectBulk(knnCollector, blockSize, mask, docsToScore, maxScore);
         }
         return docsToScore;
     }
@@ -517,30 +553,34 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     }
 
     // package-private so SlicedAshPostingsVisitor can override
-    int filterAcceptedDocs(int bulkSize) {
+    int filterAcceptedDocsMask(int bulkSize) {
+        assert bulkSize <= Integer.SIZE
+            : "bulk size "
+                + bulkSize
+                + " exceeds the mask width; split the block into Integer.SIZE-sized parts and call scoreBulkMasked once per part";
         if (acceptDocs == null) {
-            return bulkSize;
+            return BulkMask.all(bulkSize);
         }
-        int docToScore = 0;
+        int mask = 0;
         for (int ii = 0; ii < bulkSize; ii++) {
             if (docIdsScratch[ii] == -1 || acceptDocs.get(docIdsScratch[ii]) == false) {
                 docIdsScratch[ii] = -1;
             } else {
-                offsetsScratch[docToScore] = ii;
-                docToScore++;
+                mask = BulkMask.select(mask, ii);
             }
         }
-        return docToScore;
+        return mask;
     }
 
-    private void collectBulk(KnnCollector knnCollector, int bulkSize, int docsToScore, float maxScore) {
+    private void collectBulk(KnnCollector knnCollector, int bulkSize, int mask, int docsToScore, float maxScore) {
         if (knnCollector instanceof BulkKnnCollector bulkCollector) {
             if (docsToScore == bulkSize) {
                 bulkCollector.bulkCollect(docIdsScratch, scores, bulkSize, maxScore);
                 return;
             }
-            for (int ii = 0; ii < docsToScore; ii++) {
-                int offset = offsetsScratch[ii];
+            int ii = 0;
+            for (int m = mask; m != 0; m = BulkMask.deselectFirst(m), ii++) {
+                int offset = BulkMask.first(m);
                 docIdsScratch[ii] = docIdsScratch[offset];
                 scores[ii] = scores[offset];
             }
@@ -615,19 +655,22 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         }
 
         @Override
-        int filterAcceptedDocs(int bulkSize) {
+        int filterAcceptedDocsMask(int bulkSize) {
+            assert bulkSize <= Integer.SIZE
+                : "bulk size "
+                    + bulkSize
+                    + " exceeds the mask width; split the block into Integer.SIZE-sized parts and call scoreBulkMasked once per part";
             // Combined slice range filtering (already applied in readDocIds via -1 sentinel)
             // plus acceptDocs filtering.
-            int docsToScore = 0;
+            int mask = 0;
             for (int i = 0; i < bulkSize; i++) {
                 if (docIdsScratch[i] == -1 || (acceptDocs != null && acceptDocs.get(docIdsScratch[i]) == false)) {
                     docIdsScratch[i] = -1;
                 } else {
-                    offsetsScratch[docsToScore] = i;
-                    docsToScore++;
+                    mask = BulkMask.select(mask, i);
                 }
             }
-            return docsToScore;
+            return mask;
         }
     }
 }

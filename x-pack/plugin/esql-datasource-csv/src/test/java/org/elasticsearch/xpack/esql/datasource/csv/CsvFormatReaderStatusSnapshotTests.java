@@ -14,7 +14,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -37,7 +40,7 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     public void testCountersPopulatedAfterDrain() throws IOException {
@@ -90,6 +93,21 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         );
     }
 
+    public void testPerReadBlockFactoryCopyUsesTheSameCounters() throws IOException {
+        CsvFormatReader node = new CsvFormatReader(blockFactory);
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        CsvFormatReader perRead = node.withBlockFactory(other);
+        assertNotSame(node, perRead);
+        CsvReaderCounters counters = (CsvReaderCounters) node.newReadCounters();
+
+        drain(perRead, counters);
+
+        assertTrue(
+            "withBlockFactory runs per read; passing the same counters object threads work through to the caller",
+            counters.snapshot().rowsEmitted() > 0
+        );
+    }
+
     private void drain(CsvFormatReader reader, CsvReaderCounters counters) throws IOException {
         String csv = """
             id:long,name:keyword
@@ -109,6 +127,14 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
     private static StorageObject inMemoryCsv(String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);

@@ -38,7 +38,13 @@ path:
 
 :::::::
 ::::{warning}
-Don’t modify anything within the data directory or run processes that might interfere with its contents. If something other than {{es}} modifies the contents of the data directory, then {{es}} may fail, reporting corruption or other data inconsistencies, or may appear to work correctly having silently lost some of your data. Don’t attempt to take filesystem backups of the data directory; there is no supported way to restore such a backup. Instead, use [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md) to take backups safely. Don’t run virus scanners on the data directory. A virus scanner can prevent {{es}} from working correctly and may modify the contents of the data directory. The data directory contains no executables so a virus scan will only find false positives.
+Follow these precautions to protect the contents of the {{es}} data directory:
+
+* Don’t modify anything within the data directory or run processes that might interfere with its contents.
+
+  If something other than {{es}} modifies the contents of the data directory, then {{es}} may fail, reporting corruption or other data inconsistencies, or may appear to work correctly having silently lost some of your data.
+* Don’t attempt to take filesystem backups of the data directory; there is no supported way to restore such a backup. Instead, use [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md) to take backups safely.
+* Don’t run virus scanners on the data directory. A virus scanner can prevent {{es}} from working correctly and may modify the contents of the data directory. The data directory contains no executables so a virus scan will only find false positives.
 ::::
 
 

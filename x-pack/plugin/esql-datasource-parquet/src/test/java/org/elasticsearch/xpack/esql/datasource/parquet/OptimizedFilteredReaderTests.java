@@ -43,16 +43,21 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -85,7 +90,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -523,6 +528,148 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
+     * A pushed filter over DOUBLE must keep every row ES|QL IEEE operators keep: both signed
+     * zeros for {@code == 0.0} / {@code >= 0.0}, and the NaN row for {@code NOT (d > 0)} and
+     * {@code d != 5.0}. parquet-java total-order stats would drop those rows.
+     */
+    public void testIeeeSignedZeroAndNanSurvivePushedFilter() throws IOException {
+        MessageType schema = Types.buildMessage().required(INT32).named("id").required(DOUBLE).named("d").named("ieee_double");
+        byte[] parquetData = createParquetFile(
+            schema,
+            factory -> List.of(
+                factory.newGroup().append("id", 1).append("d", -0.0),
+                factory.newGroup().append("id", 2).append("d", 0.0),
+                factory.newGroup().append("id", 3).append("d", 1.0),
+                factory.newGroup().append("id", 4).append("d", -1.0),
+                factory.newGroup().append("id", 5).append("d", Double.NaN),
+                factory.newGroup().append("id", 6).append("d", 5.0)
+            )
+        );
+        ReferenceAttribute d = new ReferenceAttribute(Source.EMPTY, "d", DataType.DOUBLE);
+        Literal zero = new Literal(Source.EMPTY, 0.0, DataType.DOUBLE);
+        Literal minusZero = new Literal(Source.EMPTY, -0.0, DataType.DOUBLE);
+
+        assertThat(
+            "d == 0.0 keeps both signed zeros",
+            idsOf(readWithPushedExpressions(parquetData, new Equals(Source.EMPTY, d, zero, null))),
+            equalTo(List.of(1, 2))
+        );
+        assertThat(
+            "d == -0.0 keeps both signed zeros",
+            idsOf(readWithPushedExpressions(parquetData, new Equals(Source.EMPTY, d, minusZero, null))),
+            equalTo(List.of(1, 2))
+        );
+        assertThat(
+            "d >= 0.0 keeps both zeros and positives",
+            idsOf(readWithPushedExpressions(parquetData, new GreaterThanOrEqual(Source.EMPTY, d, zero, null))),
+            equalTo(List.of(1, 2, 3, 6))
+        );
+        assertThat(
+            "NOT (d > 0.0) keeps zeros, negatives, and NaN",
+            idsOf(readWithPushedExpressions(parquetData, new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, d, zero, null)))),
+            equalTo(List.of(1, 2, 4, 5))
+        );
+        assertThat(
+            "d != 5.0 keeps the NaN row",
+            idsOf(
+                readWithPushedExpressions(
+                    parquetData,
+                    new NotEquals(Source.EMPTY, d, new Literal(Source.EMPTY, 5.0, DataType.DOUBLE), null)
+                )
+            ),
+            equalTo(List.of(1, 2, 3, 4, 5))
+        );
+    }
+
+    /**
+     * Parquet min/max omit NaN, so a two-row group {@code {5.0, NaN}} looks constant-5 and
+     * parquet-java would drop it for {@code d != 5.0}. Same for {@code {6.0, NaN}} under
+     * {@code NOT (d > 5.0)} rewritten as {@code d <= 5.0}. Those predicates must not be
+     * pushed; late-mat keeps the NaN row.
+     */
+    public void testIeeeNanSurvivesFiniteNotEqAndInvertedGt() throws IOException {
+        MessageType schema = Types.buildMessage().required(INT32).named("id").required(DOUBLE).named("d").named("ieee_nan_group");
+        ReferenceAttribute d = new ReferenceAttribute(Source.EMPTY, "d", DataType.DOUBLE);
+        Literal five = new Literal(Source.EMPTY, 5.0, DataType.DOUBLE);
+
+        byte[] eqGroup = createParquetFile(
+            schema,
+            factory -> List.of(
+                factory.newGroup().append("id", 1).append("d", 5.0),
+                factory.newGroup().append("id", 2).append("d", Double.NaN)
+            )
+        );
+        assertThat(
+            "d != 5.0 keeps the NaN row of a {5.0, NaN} group",
+            idsOf(readWithPushedExpressions(eqGroup, new NotEquals(Source.EMPTY, d, five, null))),
+            equalTo(List.of(2))
+        );
+
+        byte[] gtGroup = createParquetFile(
+            schema,
+            factory -> List.of(
+                factory.newGroup().append("id", 1).append("d", 6.0),
+                factory.newGroup().append("id", 2).append("d", Double.NaN)
+            )
+        );
+        assertThat(
+            "NOT (d > 5.0) keeps the NaN row of a {6.0, NaN} group",
+            idsOf(readWithPushedExpressions(gtGroup, new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, d, five, null)))),
+            equalTo(List.of(2))
+        );
+    }
+
+    /**
+     * A dictionary of {@code +0.0} must still return every row for {@code d == -0.0}. parquet-java's
+     * DictionaryFilter uses {@code HashSet.contains}, which separates the zeros.
+     */
+    public void testDictionaryEncodedPositiveZeroKeptForNegativeZeroLiteral() throws IOException {
+        MessageType schema = Types.buildMessage().required(DOUBLE).named("d").named("dict_zero");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withDictionaryEncoding(true)
+                .withRowGroupSize(10 * 1024 * 1024)
+                .withPageSize(1024)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < 64; i++) {
+                writer.write(groupFactory.newGroup().append("d", 0.0));
+            }
+        }
+        Expression eq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "d", DataType.DOUBLE),
+            new Literal(Source.EMPTY, -0.0, DataType.DOUBLE),
+            null
+        );
+        List<Page> pages = readWithPushedExpressions(outputStream.toByteArray(), eq);
+        int rows = pages.stream().mapToInt(Page::getPositionCount).sum();
+        releasePages(pages);
+        assertThat("dictionary of +0.0 must satisfy d == -0.0", rows, equalTo(64));
+    }
+
+    private static List<Integer> idsOf(List<Page> pages) {
+        List<Integer> ids = new ArrayList<>();
+        try {
+            for (Page page : pages) {
+                IntBlock id = (IntBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    ids.add(id.getInt(i));
+                }
+            }
+        } finally {
+            releasePages(pages);
+        }
+        return ids;
+    }
+
+    /**
      * NOT(Eq) via PushedExpressions: late-materialization evaluates the filter exactly (row-level),
      * producing results at least as precise as the baseline's page-level approximate filtering.
      * The pushed result must be a subset of the baseline and contain only rows satisfying NOT(EQ).
@@ -920,7 +1067,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         }
     }
 
-    private static final class CountingAsyncStorageObject implements StorageObject {
+    private static final class CountingAsyncStorageObject extends AbstractTestStorageObject {
         private static final long LARGE_ROW_GROUP_BYTES = 8_000_000L;
 
         private final byte[] data;
@@ -1006,6 +1153,19 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
 
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

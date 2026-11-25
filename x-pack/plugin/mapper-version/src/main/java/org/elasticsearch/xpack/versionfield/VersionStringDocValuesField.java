@@ -60,6 +60,11 @@ public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Vers
         return VersionEncoder.decodeVersion(getBytesRefInternal(index)).utf8ToString();
     }
 
+    /** Length of the stored encoding at {@code index}. The encoding is never shorter than the decoded version, so it bounds it. */
+    int encodedLength(int index) {
+        return getBytesRefInternal(index).length;
+    }
+
     private BytesRef getBytesRefInternal(int index) {
         try {
             return input.lookupOrd(ords[index]);

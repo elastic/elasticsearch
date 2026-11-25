@@ -24,4 +24,9 @@ public class FirstLineWithLettersCharFilterFactory extends AbstractCharFilterFac
     public Reader create(Reader tokenStream) {
         return new FirstLineWithLettersCharFilter(tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

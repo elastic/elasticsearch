@@ -76,7 +76,7 @@ public class StGeohashTests extends SpatialGridFunctionTestCase {
         if (geometry instanceof Point point) {
             StGeohash.GeoHashBoundedGrid bounds = new StGeohash.GeoHashBoundedGrid.Factory(precision, bbox).get(null);
             long gridId = bounds.calculateGridId(point);
-            return gridId < 0 ? null : gridId;
+            return gridId == -1L ? null : gridId;
         }
         try {
             return SpatialGridFunction.foldMultiValue(StGeohash.computeGeohashCells(wkb, precision, bbox, warnings));

@@ -1,0 +1,3 @@
+LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+FROM employees, low, (FROM employees | WHERE salary > 1200 | KEEP emp_no) METADATA _class, _name
+| KEEP emp_no, _class, _name

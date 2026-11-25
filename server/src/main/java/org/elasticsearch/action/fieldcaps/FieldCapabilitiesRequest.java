@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
@@ -53,6 +54,7 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     private boolean includeEmptyFields = true;
+    private boolean includeTimeSeriesStats = false;
     @Nullable
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
     @Nullable
@@ -104,6 +106,7 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
         } else {
             includeResolvedTo = false;
         }
+        includeTimeSeriesStats = in.getTransportVersion().supports(FieldCapabilitiesIndexResponse.TIME_SERIES_STATS) && in.readBoolean();
     }
 
     public FieldCapabilitiesRequest() {}
@@ -154,6 +157,9 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
         }
         if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             out.writeBoolean(includeResolvedTo);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilitiesIndexResponse.TIME_SERIES_STATS)) {
+            out.writeBoolean(includeTimeSeriesStats);
         }
     }
 
@@ -226,6 +232,18 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
     public FieldCapabilitiesRequest includeEmptyFields(boolean includeEmptyFields) {
         this.includeEmptyFields = includeEmptyFields;
         return this;
+    }
+
+    /**
+     * Asks for {@link TimeSeriesStats}
+     */
+    public FieldCapabilitiesRequest includeTimeSeriesStats(boolean includeTimeSeriesStats) {
+        this.includeTimeSeriesStats = includeTimeSeriesStats;
+        return this;
+    }
+
+    public boolean includeTimeSeriesStats() {
+        return includeTimeSeriesStats;
     }
 
     public FieldCapabilitiesRequest includeIndices(boolean includeIndices) {
@@ -385,7 +403,8 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
             && Arrays.equals(filters, that.filters)
             && Arrays.equals(types, that.types)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && includeEmptyFields == that.includeEmptyFields;
+            && includeEmptyFields == that.includeEmptyFields
+            && includeTimeSeriesStats == that.includeTimeSeriesStats;
     }
 
     @Override
@@ -397,7 +416,8 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
             indexFilter,
             nowInMillis,
             runtimeFields,
-            includeEmptyFields
+            includeEmptyFields,
+            includeTimeSeriesStats
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
@@ -421,5 +441,18 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
                 return FieldCapabilitiesRequest.this.getDescription();
             }
         };
+    }
+
+    boolean cacheable() {
+        return fields.length <= FieldCapsCache.MAX_FIELDS
+            && filters.length <= FieldCapsCache.MAX_FILTERS
+            && types.length == 0
+            && includeEmptyFields
+            && includeTimeSeriesStats == false
+            && (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder)
+            && runtimeFields.isEmpty()
+            // This cache targets low-latency local requests. Requests that are part of a cross-cluster request
+            // already pay a remote round trip, so the saving is negligible; keep the slots for local requests.
+            && Strings.isEmpty(clusterAlias);
     }
 }

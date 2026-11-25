@@ -91,7 +91,21 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
      * other format keeps direct writes. Merge reads of the sources stay direct either way.
      */
     static ES93GenericFlatVectorsFormat withBufferedMergeWrites(DenseVectorFieldMapper.ElementType elementType, boolean onDiskMerge) {
-        return new ES93GenericFlatVectorsFormat(elementType, false, onDiskMerge, false);
+        return withBufferedMergeWrites(elementType, false, onDiskMerge);
+    }
+
+    /**
+     * Like {@link #withBufferedMergeWrites(DenseVectorFieldMapper.ElementType, boolean)}, but searches may still read
+     * the raw vectors with direct I/O.
+     *
+     * @param useDirectIO whether searches read the raw vectors with direct I/O (the field's {@code on_disk_rescore} option)
+     */
+    static ES93GenericFlatVectorsFormat withBufferedMergeWrites(
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        boolean onDiskMerge
+    ) {
+        return new ES93GenericFlatVectorsFormat(elementType, useDirectIO, onDiskMerge, false);
     }
 
     /**

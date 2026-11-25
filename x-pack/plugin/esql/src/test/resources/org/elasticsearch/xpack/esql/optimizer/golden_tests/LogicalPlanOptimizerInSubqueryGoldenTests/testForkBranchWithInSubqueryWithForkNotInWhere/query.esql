@@ -1,0 +1,5 @@
+FROM employees
+| FORK (WHERE emp_no NOT IN (FROM employees
+                             | FORK (WHERE salary > 70000) (WHERE salary <= 70000)
+                             | KEEP emp_no))
+       (WHERE true)

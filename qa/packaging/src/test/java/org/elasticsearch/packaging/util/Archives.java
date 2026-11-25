@@ -254,7 +254,7 @@ public class Archives {
         // pty allocation (it sets an SELinux type); pty propagation is controlled by the "use_pty" sudoers
         // policy setting, which CI enables explicitly (see .ci/scripts/packaging-test.sh).
         List<String> command = new ArrayList<>();
-        command.add("sudo -E -u %s %s -p %s");
+        command.add("sudo --preserve-env=" + String.join(",", sh.getEnv().keySet()) + " -u %s %s -p %s");
         if (daemonize) {
             command.add("-d");
         }
@@ -262,8 +262,13 @@ public class Archives {
         if (parameters != null && parameters.isEmpty() == false) {
             command.addAll(parameters);
         }
+        // Matches the prompt of both KeyStoreWrapper and the security auto-configuration CLI. Fail on timeout: when the
+        // prompt didn't match, expect used to wait out the whole timeout and send the password anyway.
         String keystoreScript = keystorePassword == null ? "" : String.format(Locale.ROOT, """
-            expect "Elasticsearch keystore password:"
+            expect {
+              "Enter password for the elasticsearch keystore" {}
+              timeout { send_user "\\nTimed out waiting for the keystore password prompt\\n"; exit 1 }
+            }
             send "%s\\r"
             """, keystorePassword);
         String checkStartupScript = daemonize
@@ -321,7 +326,7 @@ public class Archives {
             }
 
             List<String> command = new ArrayList<>();
-            command.add("sudo -E -u ");
+            command.add("sudo --preserve-env=" + String.join(",", sh.getEnv().keySet()) + " -u ");
             command.add(ARCHIVE_OWNER);
             command.add(bin.elasticsearch.toString());
             if (daemonize) {

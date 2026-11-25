@@ -30,6 +30,7 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InetAddressesTests extends ESTestCase {
@@ -105,6 +106,21 @@ public class InetAddressesTests extends ESTestCase {
                 // expected behavior
             }
             assertFalse(InetAddresses.isInetAddress(bogusInputs[i]));
+            byte[] utf8 = bogusInputs[i].getBytes(StandardCharsets.UTF_8);
+            assertNull(bogusInputs[i], InetAddresses.tryEncodeAsIpv6(utf8, 0, utf8.length));
+        }
+    }
+
+    public void testTryEncodeAsIpv6MatchesEncodeAsIpv6() {
+        for (int i = 0; i < 100; i++) {
+            String ip = NetworkAddress.format(randomIp(randomBoolean()));
+            byte[] utf8 = ip.getBytes(StandardCharsets.UTF_8);
+            assertArrayEquals(ip, InetAddresses.encodeAsIpv6(utf8, 0, utf8.length), InetAddresses.tryEncodeAsIpv6(utf8, 0, utf8.length));
+
+            // The address is read from a slice of a larger buffer.
+            byte[] padded = new byte[utf8.length + 5];
+            System.arraycopy(utf8, 0, padded, 2, utf8.length);
+            assertArrayEquals(ip, InetAddresses.encodeAsIpv6(utf8, 0, utf8.length), InetAddresses.tryEncodeAsIpv6(padded, 2, utf8.length));
         }
     }
 
@@ -297,6 +313,45 @@ public class InetAddressesTests extends ESTestCase {
         cidr = InetAddresses.parseCidr("::fffe:0:0/128");
         assertEquals(InetAddresses.forString("::fffe:0:0"), cidr.v1());
         assertEquals(Integer.valueOf(128), cidr.v2());
+    }
+
+    public void testLongInputIsTruncatedInError() {
+        String ip = "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        String kept = ip.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "...";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.forString(ip));
+        assertEquals("'" + kept + "' is not an IP string literal.", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.encodeAsIpv6(new Text(ip)));
+        assertEquals("'" + kept + "' is not an IP string literal.", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr(ip));
+        assertEquals("Expected [ip/prefix] but was [" + kept + "]", e.getMessage());
+
+        String digits = "1".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        e = expectThrows(NumberFormatException.class, () -> InetAddresses.parseCidr("1.2.3.4/" + digits));
+        assertEquals("For input string: \"" + digits.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "..." + "\"", e.getMessage());
+
+        // The scope ID after % is not parsed, so it can be long while the address is valid
+        String mapped = "::ffff:1.2.3.4%" + "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr(mapped + "/24"));
+        assertThat(
+            e.getMessage(),
+            Matchers.startsWith(
+                "CIDR notation is not allowed with IPv6-mapped IPv4 address ["
+                    + mapped.substring(0, MAX_INPUT_LENGTH_IN_ERROR)
+                    + "..."
+                    + "] as"
+            )
+        );
+
+        // Leading zeros keep the prefix length an int, so the error is the range check, which repeats the whole input
+        String cidr = "1.2.3.4/" + "0".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR) + "33";
+        e = expectThrows(IllegalArgumentException.class, () -> InetAddresses.parseCidr(cidr));
+        assertEquals(
+            "Illegal prefix length [33] in ["
+                + cidr.substring(0, MAX_INPUT_LENGTH_IN_ERROR)
+                + "..."
+                + "]. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges",
+            e.getMessage()
+        );
     }
 
     public void testEncodeAsIpv6() throws Exception {

@@ -22,7 +22,6 @@ teardown:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
 
   # Index 80 empty documents. Using empty source avoids relying on rawSourceLength(), which
   # can be near-zero after transport compression for repetitive payloads in CCS mode.

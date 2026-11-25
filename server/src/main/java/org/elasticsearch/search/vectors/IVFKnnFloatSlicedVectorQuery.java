@@ -25,6 +25,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
 
     final String sliceField;
     final BytesRef[] sliceIds;
+    final IVFSlicedSearchHelper.SliceKeys sliceKeys;
 
     /**
      * Creates a new {@link IVFKnnFloatSlicedVectorQuery} with the given parameters.
@@ -66,6 +67,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         super(field, query, k, numCands, filter, visitRatio, queryConfigResolver, postFilterDelegate);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceIds = Objects.requireNonNull(sliceIds);
+        this.sliceKeys = IVFSlicedSearchHelper.SliceKeys.of(this.sliceIds);
     }
 
     /**
@@ -74,7 +76,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      */
     @Override
     public float estimateFilterSelectivity(Weight filterWeight, List<LeafReaderContext> leaves) throws IOException {
-        return IVFSlicedSearchHelper.estimateSliceFilterSelectivity(leaves, filterWeight, field, false, sliceField, sliceIds);
+        return IVFSlicedSearchHelper.estimateSliceFilterSelectivity(leaves, filterWeight, field, false, sliceField, sliceKeys);
     }
 
     @Override
@@ -95,7 +97,8 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             k,
             field,
             sliceField,
-            sliceIds,
+            sliceKeys,
+            leafQuery == query,
             (context, f, collector, acceptDocs) -> context.reader().searchNearestVectors(f, leafQuery, collector, acceptDocs)
         );
     }

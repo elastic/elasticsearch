@@ -30,6 +30,23 @@ import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
 
+    /**
+     * Counts the null positions of a block by checking each of them. This is the fallback for {@link Block#nullValuesCount()}
+     * implementations that have no cheaper way of doing it.
+     */
+    public static int nullValuesCount(Block block) {
+        if (block.mayHaveNulls() == false) {
+            return 0;
+        }
+        int count = 0;
+        for (int i = 0, positions = block.getPositionCount(); i < positions; i++) {
+            if (block.isNull(i)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public static final Block[] NO_BLOCKS = new Block[0];
 
     private BlockUtils() {}
@@ -293,6 +310,11 @@ public final class BlockUtils {
     public record Doc(int shard, int segment, int doc) {}
 
     /**
+     * Returned by {@link #toJavaObject} for "doc" type blocks whose rows left the node that read them.
+     */
+    public record DetachedDoc(DocOrigin origin, int segment, int doc) {}
+
+    /**
      * Read all values from a positions into a java object. This is not fast
      * but fine to call in the "fold" path.
      */
@@ -324,7 +346,9 @@ public final class BlockUtils {
             case NULL -> null;
             case DOC -> {
                 DocVector v = ((DocBlock) block).asVector();
-                yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
+                yield v.origins() == null
+                    ? new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset))
+                    : new DetachedDoc(v.origin(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
             case AGGREGATE_METRIC_DOUBLE -> {

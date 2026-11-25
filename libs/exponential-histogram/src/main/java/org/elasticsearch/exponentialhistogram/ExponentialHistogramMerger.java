@@ -38,7 +38,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     // OpenTelemetry SDK default, we might make this configurable later
     public static final int DEFAULT_MAX_HISTOGRAM_BUCKETS = 320;
 
-    private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class) + DownscaleStats.SIZE;
+    private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class);
 
     public interface Factory extends Accountable, Releasable {
 
@@ -213,7 +213,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
 
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
 
-        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
+        // Merging never increases the number of buckets, so the result has at most as many buckets as both inputs combined
+        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer(populatedBucketCount(a) + populatedBucketCount(b));
         try {
 
             buffer.setSum(a.sum() + b.sum());
@@ -229,6 +230,10 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         } finally {
             factory.releaseBuffer(buffer);
         }
+    }
+
+    private static int populatedBucketCount(ExponentialHistogram histogram) {
+        return histogram.negativeBuckets().bucketCount() + histogram.positiveBuckets().bucketCount();
     }
 
     private void mergeBucketsInto(
@@ -429,7 +434,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             return Math.max(0L, aCount - bCount);
         };
 
-        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
+        // Buckets only present in b are clamped to zero and dropped, so the result never has more buckets than a
+        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer(populatedBucketCount(a));
         try {
             mergeBucketsInto(
                 subtractedZeroBucket,
@@ -464,7 +470,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 );
                 assert estimatedMin.isPresent()
                     : "The merged histogram should have at least one value, so the estimated minimum should be present";
-                buffer.setMin(Math.max(a.min(), estimatedMin.getAsDouble()));
+                // The estimated minimum must lie within the cumulative min/max
+                buffer.setMin(Math.clamp(estimatedMin.getAsDouble(), a.min(), a.max()));
             }
 
             // Same logic as for min
@@ -478,7 +485,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 );
                 assert estimatedMax.isPresent()
                     : "The merged histogram should have at least one value, so the estimated maximum should be present";
-                buffer.setMax(Math.min(a.max(), estimatedMax.getAsDouble()));
+                // The estimated maximum must lie within the cumulative min/max
+                buffer.setMax(Math.clamp(estimatedMax.getAsDouble(), a.min(), a.max()));
             }
 
             result = buffer;

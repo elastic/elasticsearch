@@ -70,9 +70,9 @@ class FlightConnectorFactory implements ConnectorFactory {
             return new SimpleSourceMetadata(attributes, "flight", location, null, null, null, resolvedConfig);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while resolving Flight schema for [" + location + "]", e);
+            throw new IllegalStateException("Interrupted while resolving Flight schema for [" + target + "]", e);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to resolve Flight schema for [" + location + "]: " + e.getMessage(), e);
+            throw new IllegalStateException("Failed to resolve Flight schema for [" + target + "]", e);
         }
     }
 

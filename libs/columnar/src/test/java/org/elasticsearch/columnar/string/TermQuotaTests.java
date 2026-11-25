@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 public class TermQuotaTests extends ESTestCase {
 
     private static final DictionaryPolicy DICTIONARY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
-    private static final SummaryPolicy VOCABULARY = new SummaryPolicy(512 * 1024);
+    private static final SummaryPolicy VOCABULARY = SummaryPolicy.sized(512 * 1024);
 
     public void testADictionaryRefusesTermsHeldOnce() {
         assertEquals(2, TermQuota.forDictionary(DICTIONARY, 1_000_000).minCount());

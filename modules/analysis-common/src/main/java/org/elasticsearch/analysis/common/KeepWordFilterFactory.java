@@ -42,10 +42,10 @@ import java.util.List;
  */
 public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     private final CharArraySet keepWords;
+    private final Object sharingKey;
     private static final String KEEP_WORDS_KEY = "keep_words";
     private static final String KEEP_WORDS_PATH_KEY = KEEP_WORDS_KEY + "_path";
-    @SuppressWarnings("unused")
-    private static final String KEEP_WORDS_CASE_KEY = KEEP_WORDS_KEY + "_case"; // for javadoc
+    private static final String KEEP_WORDS_CASE_KEY = KEEP_WORDS_KEY + "_case";
 
     // unsupported ancient option
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
@@ -65,10 +65,18 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");
         }
         this.keepWords = Analysis.getWordSet(env, settings, KEEP_WORDS_KEY);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(keepWords, settings.getAsBoolean(KEEP_WORDS_CASE_KEY, false)));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new KeepWordFilter(tokenStream, keepWords);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet keepWords) {}
 }

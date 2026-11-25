@@ -181,6 +181,57 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
         assertThat(attributes.get("event.name"), equalTo("exception"));
     }
 
+    public void testPrepareBulkRequestRoutesSpanEventsByResourceAndScope() throws Exception {
+        Span.Event event = OtlpTraceUtils.createEvent("exception", 2_000_000_000L, List.of());
+        Span.Event eventWithDataset = OtlpTraceUtils.createEvent(
+            "exception",
+            2_000_000_000L,
+            List.of(OtlpUtils.keyValue("data_stream.dataset", "event-dataset"))
+        );
+        ExportTraceServiceRequest tracesRequest = ExportTraceServiceRequest.newBuilder()
+            .addResourceSpans(
+                OtlpTraceUtils.createResourceSpans(
+                    List.of(OtlpUtils.keyValue("data_stream.namespace", "resource-namespace")),
+                    List.of(
+                        OtlpTraceUtils.createScopeSpans(
+                            "scope/receiver/fooreceiver",
+                            "1.0.0",
+                            List.of(OtlpTraceUtils.createSpan("span-1"))
+                        ),
+                        OtlpTraceUtils.createScopeSpans(
+                            "scope/receiver/barreceiver",
+                            "1.0.0",
+                            List.of(OtlpTraceUtils.createSpan("span-2", List.of(), List.of(event, eventWithDataset)))
+                        ),
+                        OtlpTraceUtils.createScopeSpans(
+                            "scope/receiver/bazreceiver",
+                            "1.0.0",
+                            List.of(OtlpTraceUtils.createSpan("span-3", List.of(), List.of(event)))
+                        )
+                    )
+                )
+            )
+            .build();
+
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        createAction().prepareBulkRequest(new OTLPActionRequest(new BytesArray(tracesRequest.toByteArray())), bulkRequestBuilder);
+
+        List<String> indices = bulkRequestBuilder.request().requests().stream().map(request -> request.index()).toList();
+        assertThat(
+            indices,
+            equalTo(
+                List.of(
+                    "traces-fooreceiver.otel-resource-namespace",
+                    "traces-barreceiver.otel-resource-namespace",
+                    "logs-barreceiver.otel-resource-namespace",
+                    "logs-event_dataset.otel-resource-namespace",
+                    "traces-bazreceiver.otel-resource-namespace",
+                    "logs-bazreceiver.otel-resource-namespace"
+                )
+            )
+        );
+    }
+
     public void testAttributeFanoutReturns413() {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
@@ -214,6 +265,8 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
         verify(responseListener).onFailure(exception.capture());
         assertThat(ExceptionsHelper.status(exception.getValue()), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
         assertThat(exception.getValue().getMessage(), containsString("expanded content would exceed limit"));
+        assertThat(exception.getValue().getMessage(), containsString("[15] telemetry items selected for conversion"));
+        assertThat(exception.getValue().getMessage(), containsString("Estimated expanded size of the full request"));
         verify(client, never()).execute(any(), any(), any());
     }
 

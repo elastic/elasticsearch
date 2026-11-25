@@ -270,6 +270,56 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
+     * A read that returns {@code _source} next to {@code _timeseries} — an ES|QL exemplars query, say — hands both columns the whole
+     * document, since {@link StoredFieldsSpec#merge} widens the shared source to what its hungriest reader needs. The loader must
+     * narrow it back down to the dimensions itself; otherwise {@code _timeseries} duplicates {@code _source}.
+     */
+    public void testReadEmitsDimensionsOnlyFromFullSource() throws IOException {
+        BytesReference json = bytes(XContentType.JSON, b -> {
+            writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1");
+            b.field("cpu", 0.25);
+            b.field("message", "not a dimension");
+        });
+        BytesRef value = readTimeSeriesValue(TSDB_SYNTHETIC_SETTINGS, MAPPING, sourceToParse(json, XContentType.JSON), Set.of(), false);
+        assertThat(parseJsonObject(value), equalTo(Map.of("host", "host-1", "env", "prod", "region", "us-east-1")));
+    }
+
+    /**
+     * Two {@code _timeseries} columns of one read — a PROMQL query with two differently excluding {@code without} clauses, say — share
+     * a source holding the union of the dimensions they asked for. Each column must still emit only its own, so the exclusions of one
+     * cannot leak into the other.
+     */
+    public void testWithoutProjectionFiltersSharedSource() throws IOException {
+        XContentType type = randomFrom(XContentType.JSON, XContentType.CBOR);
+        BytesReference source = bytes(type, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            randomFrom(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS),
+            MAPPING,
+            sourceToParse(source, type),
+            Set.of("host", "region"),
+            false
+        );
+        assertThat(parseJsonObject(value), equalTo(Map.of("env", "prod")));
+    }
+
+    /**
+     * Excluding every dimension leaves nothing to identify the series by, so the column is an empty object rather than the document the
+     * shared source happens to hold.
+     */
+    public void testWithoutAllDimensionsEmitsEmptyObject() throws IOException {
+        XContentType type = randomFrom(XContentType.JSON, XContentType.CBOR);
+        BytesReference source = bytes(type, b -> writeTimestampAndDimensions(b, "host-1", "prod", "us-east-1"));
+        BytesRef value = readTimeSeriesValue(
+            randomFrom(TSDB_SYNTHETIC_SETTINGS, TSDB_STORED_SETTINGS),
+            MAPPING,
+            sourceToParse(source, type),
+            Set.of("host", "env", "region"),
+            randomBoolean()
+        );
+        assertThat(value.utf8ToString(), equalTo("{}"));
+    }
+
+    /**
      * A TSDB index modeled after the Prometheus remote-write component template, with a {@code labels} {@code passthrough} object marked as
      * a dimension and stored CBOR source. The emitted {@code _timeseries} JSON object must contain a nested {@code labels} object with
      * the indexed dimension key/value pairs.
@@ -430,6 +480,22 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
 
     private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse, Set<String> withoutFields)
         throws IOException {
+        return readTimeSeriesValue(settings, mapping, sourceToParse, withoutFields, true);
+    }
+
+    /**
+     * {@code narrowSource} loads the source the way a read of only the {@code _timeseries} column does, restricted to the paths the
+     * loader asks for and reporting them as {@link BlockLoader.StoredFields#sourcePaths()}. Clearing it loads the whole document
+     * instead, the way a read that also returns {@code _source} does: the readers of a read share one source and
+     * {@link StoredFieldsSpec#merge} widens it to all of the document for all of them.
+     */
+    private BytesRef readTimeSeriesValue(
+        Settings settings,
+        String mapping,
+        SourceToParse sourceToParse,
+        Set<String> withoutFields,
+        boolean narrowSource
+    ) throws IOException {
         MapperService mapperService = createMapperService(settings, mapping);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
@@ -445,9 +511,8 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             try (BlockLoader.RowStrideReader rowReader = loader.rowStrideReader(breaker, ctx)) {
                 StoredFieldsSpec loaderSpec = loader.rowStrideStoredFieldSpec();
-                SourceFilter filter = loaderSpec.requiresSource()
-                    ? new SourceFilter(loaderSpec.sourcePaths().toArray(new String[0]), null)
-                    : null;
+                Set<String> sourcePaths = narrowSource ? loaderSpec.sourcePaths() : Set.of();
+                SourceFilter filter = sourcePaths.isEmpty() ? null : new SourceFilter(sourcePaths.toArray(new String[0]), null);
                 SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
                 SourceLoader.Leaf sourceLeaf = sourceLoader.leaf(ctx, null);
                 StoredFieldsSpec storedFieldsSpec = loaderSpec.merge(
@@ -455,7 +520,8 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
                 );
                 BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                     StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                    sourceLeaf
+                    sourceLeaf,
+                    sourcePaths
                 );
                 BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
                 storedFields.advanceTo(0);

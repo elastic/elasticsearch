@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.function.IntFunction;
 
 public class ZstdDecompressorTests extends ESTestCase {
 
@@ -288,7 +289,12 @@ public class ZstdDecompressorTests extends ESTestCase {
         }
 
         @Override
-        public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) {
+        public boolean withMemorySegmentSlice(
+            long offset,
+            long length,
+            IntFunction<MemorySegment> scratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) {
             throw new AlreadyClosedException("no free region found");
         }
 
@@ -325,7 +331,12 @@ public class ZstdDecompressorTests extends ESTestCase {
         }
 
         @Override
-        public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) {
+        public boolean withMemorySegmentSlice(
+            long offset,
+            long length,
+            IntFunction<MemorySegment> scratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) {
             return false;
         }
 

@@ -10,18 +10,24 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
+import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -31,6 +37,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class ArrowFormatIT extends ESRestTestCase {
@@ -97,7 +104,11 @@ public class ArrowFormatIT extends ESRestTestCase {
     }
 
     private VectorSchemaRoot esql(String query) throws IOException {
-        Request request = new Request("POST", "/_query?format=arrow");
+        return esql(query, false);
+    }
+
+    private VectorSchemaRoot esql(String query, boolean dropNullColumns) throws IOException {
+        Request request = new Request("POST", "/_query?format=arrow&drop_null_columns=" + dropNullColumns);
         request.setJsonEntity(query);
         Response response = client().performRequest(request);
 
@@ -165,6 +176,136 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertValues(root);
             assertIp(root);
             assertVersion(root);
+        }
+    }
+
+    public void testDropNullColumns() throws Exception {
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-test | SORT value | LIMIT 100 | EVAL empty = null::keyword | KEEP empty, description, value"
+            }""", true)) {
+            List<Field> fields = root.getSchema().getFields();
+            assertEquals(List.of("description", "value"), fields.stream().map(Field::getName).toList());
+
+            assertDescription(root);
+            assertValues(root);
+        }
+    }
+
+    public void testAggregateMetricDouble() throws Exception {
+        Request request = new Request("PUT", "/arrow-aggregate-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "metric": { "type": "aggregate_metric_double", "metrics": ["min", "max", "sum", "value_count"] }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-aggregate-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "metric": {"min": 1.0, "max": 3.0, "sum": 6.0, "value_count": 3}}
+            {"index": {"_id": "2"}}
+            {"value": 2}
+            {"index": {"_id": "3"}}
+            {"value": 3, "metric": {"min": -2.0, "max": 0.0, "sum": -2.0, "value_count": 2}}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-aggregate-test | SORT value | LIMIT 100 | KEEP metric"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+            assertEquals(1, root.getSchema().getFields().size());
+            StructVector metric = (StructVector) root.getVector("metric");
+            Field field = metric.getField();
+            assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
+            assertTrue(field.isNullable());
+            assertEquals("aggregate_metric_double", field.getMetadata().get("elastic:type"));
+            assertEquals(List.of("min", "max", "sum", "value_count"), field.getChildren().stream().map(Field::getName).toList());
+            for (Field child : field.getChildren()) {
+                assertTrue(child.isNullable());
+                assertEquals(
+                    child.getName().equals("value_count") ? Types.MinorType.INT.getType() : Types.MinorType.FLOAT8.getType(),
+                    child.getType()
+                );
+            }
+
+            Float8Vector min = (Float8Vector) metric.getChild("min");
+            Float8Vector max = (Float8Vector) metric.getChild("max");
+            Float8Vector sum = (Float8Vector) metric.getChild("sum");
+            IntVector count = (IntVector) metric.getChild("value_count");
+            assertFalse(metric.isNull(0));
+            assertEquals(1.0, min.get(0), 0.0);
+            assertEquals(3.0, max.get(0), 0.0);
+            assertEquals(6.0, sum.get(0), 0.0);
+            assertEquals(3, count.get(0));
+            assertTrue(metric.isNull(1));
+            assertTrue(min.isNull(1));
+            assertTrue(max.isNull(1));
+            assertTrue(sum.isNull(1));
+            assertTrue(count.isNull(1));
+            assertFalse(metric.isNull(2));
+            assertEquals(-2.0, min.get(2), 0.0);
+            assertEquals(0.0, max.get(2), 0.0);
+            assertEquals(-2.0, sum.get(2), 0.0);
+            assertEquals(2, count.get(2));
+        }
+    }
+
+    /**
+     * {@code _source} and {@code flattened} values are emitted as JSON text in a VARCHAR, tagged with the {@code arrow.json}
+     * extension type.
+     */
+    public void testJsonExtensionType() throws Exception {
+        Request request = new Request("PUT", "/arrow-json-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "flat": { "type": "flattened" }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-json-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "flat": {"a": "x"}}
+            {"index": {"_id": "2"}}
+            {"value": 2}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-json-test METADATA _source | SORT value | LIMIT 100 | KEEP _source, flat"
+            }""")) {
+            for (String name : List.of("_source", "flat")) {
+                Field field = root.getSchema().findField(name);
+                assertEquals("arrow.json", field.getMetadata().get("ARROW:extension:name"));
+                assertEquals(ArrowType.Utf8.INSTANCE, field.getType());
+            }
+
+            var source = (VarCharVector) root.getVector("_source");
+            // Compare as parsed JSON so the test doesn't depend on the exact formatting of the stored _source
+            assertEquals(Map.of("value", 1, "flat", Map.of("a", "x")), parseJson(source.getObject(0).toString()));
+            assertEquals(Map.of("value", 2), parseJson(source.getObject(1).toString()));
+
+            var flat = (VarCharVector) root.getVector("flat");
+            assertEquals("{\"a\":\"x\"}", flat.getObject(0).toString());
+            assertTrue(flat.isNull(1));
+        } finally {
+            client().performRequest(new Request("DELETE", "/arrow-json-test"));
         }
     }
 
@@ -238,5 +379,9 @@ public class ArrowFormatIT extends ESRestTestCase {
         assertEquals("1.0.2", versionVector.getObject(1).toString());
         assertTrue(versionVector.isNull(2));
         assertEquals("1.0.4", versionVector.getObject(3).toString());
+    }
+
+    private static Map<String, Object> parseJson(String json) {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
     }
 }

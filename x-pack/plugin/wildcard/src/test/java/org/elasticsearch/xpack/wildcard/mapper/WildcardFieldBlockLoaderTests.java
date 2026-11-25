@@ -31,7 +31,7 @@ public class WildcardFieldBlockLoaderTests extends BlockLoaderTestCase {
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
-        var ignoreAbove = fieldMapping.get("ignore_above") == null
+        var ignoreAbove = (fieldMapping.get("ignore_above") == null || params.indexMode().isStrictColumnar())
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();
 
@@ -47,7 +47,7 @@ public class WildcardFieldBlockLoaderTests extends BlockLoaderTestCase {
             .filter(Objects::nonNull);
 
         // Strictly columnar index modes store values in document order, keeping duplicates, instead of sorting and deduplicating them.
-        boolean preserveOrder = params.indexMode().isColumnar();
+        boolean preserveOrder = params.indexMode().isStrictColumnar();
         var resultList = preserveOrder
             ? convertValues.andThen(Stream::toList).apply(((List<String>) value).stream())
             : convertValues.andThen(Stream::distinct)

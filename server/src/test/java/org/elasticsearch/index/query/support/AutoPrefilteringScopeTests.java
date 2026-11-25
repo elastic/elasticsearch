@@ -97,6 +97,24 @@ public class AutoPrefilteringScopeTests extends ESTestCase {
         assertThat(autoPrefilteringScope.getPrefilters(), empty());
     }
 
+    public void testSuspend() {
+        AutoPrefilteringScope scope = new AutoPrefilteringScope();
+        List<QueryBuilder> outer = randomList(1, 5, () -> RandomQueryBuilder.createQuery(random()));
+        List<QueryBuilder> inner = randomList(1, 5, () -> RandomQueryBuilder.createQuery(random()));
+        scope.push(outer, null);
+
+        try (AutoPrefilteringScope suspended = scope.suspend()) {
+            assertThat(suspended.getPrefilters(), is(empty()));
+            // prefilters pushed while suspended are visible, but the ones collected before are not
+            try (AutoPrefilteringScope pushed = scope) {
+                pushed.push(inner, null);
+                assertThat(pushed.getPrefilters(), equalTo(scoped(inner, null)));
+            }
+            assertThat(scope.getPrefilters(), is(empty()));
+        }
+        assertThat(scope.getPrefilters(), equalTo(scoped(outer, null)));
+    }
+
     public void testReleasable() {
         AutoPrefilteringScope autoPrefilteringScope = new AutoPrefilteringScope();
         List<QueryBuilder> prefilters_1 = randomList(0, 5, () -> RandomQueryBuilder.createQuery(random()));

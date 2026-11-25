@@ -1,0 +1,83 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.flattened.columnar_root_values" ]
+      reason: "columnar index modes and the flattened root values fix required"
+
+  - do:
+      indices.create:
+        index: logsdb_columnar_ship
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              crew: { type: flattened }
+
+---
+two slots, two roles with one value each:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logsdb_columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: 2 }
+  - match: { aggregations.crew_names.buckets: [ { key: chewbacca, doc_count: 1 }, { key: han solo, doc_count: 1 } ] }
+
+---
+two slots, one role with two values:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "passengers": [ "luke skywalker", "princess leia" ] } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logsdb_columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: 2 }
+  - match: { aggregations.crew_names.buckets: [ { key: luke skywalker, doc_count: 1 }, { key: princess leia, doc_count: 1 } ] }
+
+---
+sort and docvalue_fields on the root field:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "luke skywalker", "droid": [ "r2-d2", "r2-d2" ] } }'
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "passengers": [ "princess leia", "luke skywalker" ], "copilot": "chewbacca" } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logsdb_columnar_ship
+        filter_path: hits.hits.sort,hits.hits.fields
+        body: { _source: false, docvalue_fields: [ crew ], sort: [ { crew: { order: asc, mode: max } } ] }
+  - match:
+      hits.hits:
+        - { sort: [ han solo ], fields: { crew: [ chewbacca, han solo ] } }
+        - { sort: [ princess leia ], fields: { crew: [ chewbacca, luke skywalker, princess leia ] } }
+        - { sort: [ r2-d2 ], fields: { crew: [ luke skywalker, r2-d2 ] } }

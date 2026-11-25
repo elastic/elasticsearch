@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.transform.telemetry;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -18,11 +19,13 @@ import org.elasticsearch.xpack.transform.transforms.TransformContext;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -41,14 +44,15 @@ import static org.mockito.Mockito.when;
 public class TransformCrossProjectMetricsTests extends ESTestCase {
 
     private final TransformNode transformNode = new TransformNode(Optional::empty);
-    private final Map<String, Supplier<Collection<LongWithAttributes>>> observersByMetricName = new HashMap<>();
+    private final Map<String, Consumer<LongAsyncMeasurement>> observersByMetricName = new HashMap<>();
 
     private TransformCrossProjectMetrics component;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void initTransformCrossProjectMetrics() throws Exception {
         var meterRegistry = mock(MeterRegistry.class);
-        when(meterRegistry.registerLongsAsyncGauge(anyString(), anyString(), anyString(), any())).thenAnswer(inv -> {
+        when(meterRegistry.registerLongAsyncGauge(anyString(), anyString(), anyString(), any(Consumer.class))).thenAnswer(inv -> {
             observersByMetricName.put(inv.getArgument(0), inv.getArgument(3));
             return mock(LongAsyncGauge.class);
         });
@@ -61,12 +65,18 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         );
     }
 
-    private Collection<LongWithAttributes> observeUiamAuth() {
-        return observersByMetricName.get(TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT).get();
+    private Collection<Measurement> observeUiamAuth() {
+        return observe(TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT);
     }
 
-    private Collection<LongWithAttributes> observeActive() {
-        return observersByMetricName.get(TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT).get();
+    private Collection<Measurement> observeActive() {
+        return observe(TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT);
+    }
+
+    private Collection<Measurement> observe(String metricName) {
+        List<Measurement> observations = new ArrayList<>();
+        observersByMetricName.get(metricName).accept((value, attributes) -> observations.add(new Measurement(value, attributes, false)));
+        return observations;
     }
 
     /** Registers a mocked running task with the given per-search facts ({@code null} = no search yet). */
@@ -107,15 +117,15 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         assertThat(
             observeUiamAuth(),
             containsInAnyOrder(
-                new LongWithAttributes(1L, Map.of("auth_type", "uiam")),
-                new LongWithAttributes(0L, Map.of("auth_type", "legacy"))
+                new Measurement(1L, Map.of("auth_type", "uiam"), false),
+                new Measurement(0L, Map.of("auth_type", "legacy"), false)
             )
         );
         assertThat(
             observeActive(),
             containsInAnyOrder(
-                new LongWithAttributes(1L, Map.of("scope", "cross_project")),
-                new LongWithAttributes(0L, Map.of("scope", "origin"))
+                new Measurement(1L, Map.of("scope", "cross_project"), false),
+                new Measurement(0L, Map.of("scope", "origin"), false)
             )
         );
     }
@@ -137,8 +147,8 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         assertThat(
             observeUiamAuth(),
             containsInAnyOrder(
-                new LongWithAttributes(2L, Map.of("auth_type", "uiam")),
-                new LongWithAttributes(1L, Map.of("auth_type", "legacy"))
+                new Measurement(2L, Map.of("auth_type", "uiam"), false),
+                new Measurement(1L, Map.of("auth_type", "legacy"), false)
             )
         );
     }
@@ -151,8 +161,8 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         assertThat(
             observeUiamAuth(),
             containsInAnyOrder(
-                new LongWithAttributes(2L, Map.of("auth_type", "uiam")),
-                new LongWithAttributes(0L, Map.of("auth_type", "legacy"))
+                new Measurement(2L, Map.of("auth_type", "uiam"), false),
+                new Measurement(0L, Map.of("auth_type", "legacy"), false)
             )
         );
     }
@@ -165,8 +175,8 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         assertThat(
             observeUiamAuth(),
             containsInAnyOrder(
-                new LongWithAttributes(0L, Map.of("auth_type", "uiam")),
-                new LongWithAttributes(2L, Map.of("auth_type", "legacy"))
+                new Measurement(0L, Map.of("auth_type", "uiam"), false),
+                new Measurement(2L, Map.of("auth_type", "legacy"), false)
             )
         );
     }
@@ -181,8 +191,8 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         assertThat(
             observeActive(),
             containsInAnyOrder(
-                new LongWithAttributes(1L, Map.of("scope", "cross_project")),
-                new LongWithAttributes(2L, Map.of("scope", "origin"))
+                new Measurement(1L, Map.of("scope", "cross_project"), false),
+                new Measurement(2L, Map.of("scope", "origin"), false)
             )
         );
     }
@@ -195,8 +205,8 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         assertThat(
             observeActive(),
             containsInAnyOrder(
-                new LongWithAttributes(2L, Map.of("scope", "cross_project")),
-                new LongWithAttributes(0L, Map.of("scope", "origin"))
+                new Measurement(2L, Map.of("scope", "cross_project"), false),
+                new Measurement(0L, Map.of("scope", "origin"), false)
             )
         );
     }
@@ -208,15 +218,15 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         assertThat(
             observeUiamAuth(),
             containsInAnyOrder(
-                new LongWithAttributes(1L, Map.of("auth_type", "uiam")),
-                new LongWithAttributes(0L, Map.of("auth_type", "legacy"))
+                new Measurement(1L, Map.of("auth_type", "uiam"), false),
+                new Measurement(0L, Map.of("auth_type", "legacy"), false)
             )
         );
         assertThat(
             observeActive(),
             containsInAnyOrder(
-                new LongWithAttributes(1L, Map.of("scope", "cross_project")),
-                new LongWithAttributes(0L, Map.of("scope", "origin"))
+                new Measurement(1L, Map.of("scope", "cross_project"), false),
+                new Measurement(0L, Map.of("scope", "origin"), false)
             )
         );
     }
@@ -227,8 +237,8 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
         assertThat(
             observeUiamAuth(),
             containsInAnyOrder(
-                new LongWithAttributes(1L, Map.of("auth_type", "uiam")),
-                new LongWithAttributes(0L, Map.of("auth_type", "legacy"))
+                new Measurement(1L, Map.of("auth_type", "uiam"), false),
+                new Measurement(0L, Map.of("auth_type", "legacy"), false)
             )
         );
 

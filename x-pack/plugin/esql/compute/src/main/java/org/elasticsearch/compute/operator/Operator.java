@@ -91,7 +91,11 @@ public interface Operator extends Releasable {
 
     /**
      * notifies the operator that it won't be used anymore (i.e. none of the other methods called),
-     * and its resources can be cleaned up
+     * and its resources can be cleaned up.
+     * <p>
+     * Operators that return {@code true} from {@link #finalStatusAfterAsyncActions()} are an
+     * exception: {@link #status()} stays readable after {@code close()} so the driver can
+     * resnapshot after {@code DriverContext#waitForAsyncActions}.
      */
     @Override
     void close();
@@ -101,6 +105,15 @@ public interface Operator extends Releasable {
      */
     default Status status() {
         return null;
+    }
+
+    /**
+     * When {@code true}, the driver keeps this operator after {@link #close()} and replaces its
+     * completed {@link Status} after {@code DriverContext#waitForAsyncActions} so close-time
+     * producer metrics appear in the query profile. Default {@code false}: no methods after close.
+     */
+    default boolean finalStatusAfterAsyncActions() {
+        return false;
     }
 
     /**
@@ -154,6 +167,14 @@ public interface Operator extends Releasable {
 
         /** Pre-decompression bytes from storage; external-source operators only. */
         default long bytesRead() {
+            return 0;
+        }
+
+        /**
+         * The bytes the values this operator decoded spell, against {@link #bytesRead()} the bytes they were
+         * read from. An operator that decodes nothing returns {@code 0}.
+         */
+        default long bytesDecoded() {
             return 0;
         }
 

@@ -90,6 +90,45 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
     }
 
     /**
+     * Like {@link #assertCircuitBreaks(TryCircuitBreaking)} but also accepts a 400 whose reason is a
+     * cancelled whole-file decompress ({@code Truncated zstd input} / gzip EOF). STATS-BY blows the
+     * request breaker while the source is still in {@code PanamaZstdInputStream}; aborting the S3 GET
+     * mid-frame is reported as malformed data, not 429. The node staying up is the heap-attack
+     * invariant; {@code ConnectionClosedException} still fails the test.
+     */
+    protected void assertCircuitBreaksAllowingCancelledDecompress(TryCircuitBreaking tryBreaking) throws IOException {
+        int attempt = 1;
+        while (attempt <= MAX_ATTEMPTS) {
+            try {
+                Map<String, Object> response = tryBreaking.attempt(attempt);
+                logger.warn("{}: should have circuit broken but got {}", attempt, response);
+                attempt++;
+            } catch (ResponseException e) {
+                Map<?, ?> map = responseAsMap(e.getResponse());
+                if (isCancelledDecompress(map)) {
+                    logger.info("{}: query failed via cancelled decompress (node alive): {}", attempt, map.get("error"));
+                    return;
+                }
+                assertMap(
+                    map,
+                    matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+                );
+                return;
+            }
+        }
+        fail("giving up circuit breaking after " + MAX_ATTEMPTS + " attempts");
+    }
+
+    static boolean isCancelledDecompress(Map<?, ?> map) {
+        if (map.get("error") instanceof Map<?, ?> error
+            && "external_client_exception".equals(error.get("type"))
+            && error.get("reason") instanceof String reason) {
+            return reason.contains("Truncated zstd") || reason.contains("Truncated gzip") || reason.contains("Unexpected end of ZLIB");
+        }
+        return false;
+    }
+
+    /**
      * Asserts that the given operation eventually trips the circuit breaker via the expected code
      * path, as confirmed by all {@code classes} appearing in the exception's stack trace.
      * <p>
@@ -244,11 +283,8 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
     ) {}
 
     @SuppressWarnings("unchecked")
-    protected StreamSummary streamQuery(String esqlQuery, int batchSize) throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("streaming", "true");
-        request.addParameter("format", "ndjson");
-        request.addParameter("batch_size", Integer.toString(batchSize));
+    protected StreamSummary streamQuery(String esqlQuery) throws IOException {
+        Request request = new Request("POST", "/_query/stream");
         request.addParameter("error_trace", "");
         String body = "{\"query\":\"" + esqlQuery.replace("\n", "\\n") + "\"}";
         request.setJsonEntity(body);
@@ -271,14 +307,17 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 if (line.isBlank()) {
                     continue;
                 }
+                if (line.startsWith("[")) {
+                    // A row: one line per row, written as a bare array of values. There is no need to parse it to count it.
+                    rowCount++;
+                    continue;
+                }
                 Map<String, Object> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
                 if (parsed.containsKey("error")) {
                     errors.add(parsed);
                 }
                 if (parsed.containsKey("columns")) {
                     columns = (List<Map<String, Object>>) parsed.get("columns");
-                } else if (parsed.containsKey("values")) {
-                    rowCount += ((List<List<Object>>) parsed.get("values")).size();
                 } else if (parsed.containsKey("took")) {
                     footer = parsed;
                 }

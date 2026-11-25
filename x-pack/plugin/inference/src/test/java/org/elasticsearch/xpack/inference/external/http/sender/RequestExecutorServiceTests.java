@@ -49,9 +49,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_CIRCUIT_BREAKER_NAME;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.noopReleasable;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings;
@@ -64,6 +65,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -72,7 +74,7 @@ import static org.mockito.Mockito.when;
 public class RequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private static final String INFERENCE_ID = "id";
-    private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker(INFERENCE_CIRCUIT_BREAKER_NAME);
+    private static final CircuitBreaker NOOP_BREAKER = NoopCircuitBreaker.INSTANCE;
     private static final InferenceInputs EMBEDDING_INPUT = new EmbeddingsInput(List.of(), InputType.UNSPECIFIED);
 
     private ThreadPool threadPool;
@@ -147,7 +149,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         var service = createRequestExecutorService(null, requestSender);
 
@@ -245,7 +247,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             throw new IllegalArgumentException("failed");
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -298,6 +300,87 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
+    /**
+     * Given a request whose http exchange never completes (e.g. it waits for a pooled connection that never frees up)
+     * When the request times out
+     * Then the exchange is aborted, so that it does not stay queued in the connection pool holding on to its request body.
+     */
+    public void testExecute_AbortsHttpExchange_WhenRequestTimesOut() throws Exception {
+        var requestSender = mock(RetryingHttpSender.class);
+        var exchangeStarted = new CountDownLatch(1);
+        var exchangeAborted = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            TimedListener<InferenceServiceResults> timedListener = invocation.getArgument(3);
+            timedListener.addAbortHandler(exchangeAborted::countDown);
+            exchangeStarted.countDown();
+            // never complete the listener, the exchange is stuck
+            return Void.TYPE;
+        }).when(requestSender).send(any(), any(), any(), any());
+
+        // never elapses on its own, the test fires the timeout manually once the exchange started instead of relying on the clock
+        var timeout = TimeValue.MAX_VALUE;
+        var onTimeout = new AtomicReference<Runnable>();
+        var service = new RequestExecutorService(
+            threadPoolCapturingTimeout(timeout, onTimeout),
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            requestSender,
+            new TestCircuitBreaker()
+        );
+        threadPool.generic().execute(service::start);
+
+        // randomly exercise the fast path and the rate limited path
+        var requestManager = RequestManagerTests.createMock(
+            requestSender,
+            INFERENCE_ID,
+            new RateLimitSettings(1, TimeUnit.MINUTES, randomBoolean())
+        );
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputType.SEARCH), timeout, listener);
+
+        assertTrue(exchangeStarted.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
+        assertThat(exchangeAborted.getCount(), is(1L));
+        assertNotNull("the request timeout must have been scheduled", onTimeout.get());
+
+        onTimeout.get().run();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+        // the timeout runs the abort handlers synchronously after notifying the listener
+        assertThat(exchangeAborted.getCount(), is(0L));
+
+        service.shutdown();
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+    }
+
+    public void testExecute_DoesNotAbortHttpExchange_WhenRequestSucceeds() throws Exception {
+        var requestSender = mock(RetryingHttpSender.class);
+        var exchangeAborted = new AtomicBoolean();
+        doAnswer(invocation -> {
+            TimedListener<InferenceServiceResults> timedListener = invocation.getArgument(3);
+            timedListener.addAbortHandler(() -> exchangeAborted.set(true));
+            timedListener.getListener().onResponse(null);
+            return Void.TYPE;
+        }).when(requestSender).send(any(), any(), any(), any());
+
+        var service = createRequestExecutorService(null, requestSender);
+        threadPool.generic().execute(service::start);
+
+        var requestManager = RequestManagerTests.createMock(
+            requestSender,
+            INFERENCE_ID,
+            new RateLimitSettings(1, TimeUnit.MINUTES, randomBoolean())
+        );
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputType.SEARCH), null, listener);
+
+        listener.actionGet(TIMEOUT);
+        // a successful (e.g. streamed) response may still be backed by the exchange
+        assertFalse(exchangeAborted.get());
+
+        service.shutdown();
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+    }
+
     public void testExecute_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
         var headerKey = "not empty";
         var headerValue = "value";
@@ -321,14 +404,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
             // ensure that the spawned thread didn't pick up the header that was set initially on a separate thread
             assertNull(serviceThreadContext.getHeader(headerKey));
 
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = invocation.getArgument(4, ActionListener.class);
+            TimedListener<InferenceServiceResults> timedListener = invocation.getArgument(3);
+            var listener = timedListener.getListener();
             listener.onResponse(null);
 
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         var finishedOnResponse = new CountDownLatch(1);
         ActionListener<InferenceServiceResults> listener = new ActionListener<>() {
@@ -429,7 +512,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             taskProcessedLatch.countDown();
             throw new ElasticsearchException("failed");
-        }).when(requestManager).execute(any(), any(), any(), any());
+        }).when(requestManager).execute(any(), any(), any());
 
         var service = new RequestExecutorService(
             threadPool,
@@ -491,7 +574,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -553,7 +636,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -620,7 +703,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -693,7 +776,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -732,16 +815,16 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         doAnswer(invocation -> {
             service.shutdown();
-            ActionListener<InferenceServiceResults> passedListener = invocation.getArgument(4);
-            passedListener.onResponse(null);
+            TimedListener<InferenceServiceResults> passedListener = invocation.getArgument(3);
+            passedListener.getListener().onResponse(null);
 
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         service.start();
 
         listener.actionGet(TIMEOUT);
-        verify(requestSender, times(1)).send(any(), any(), any(), any(), any());
+        verify(requestSender, times(1)).send(any(), any(), any(), any());
     }
 
     public void testRemovesRateLimitGroup_AfterStaleDuration() {
@@ -1181,7 +1264,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             throw new IllegalStateException("failed to create request");
-        }).when(requestSender).send(any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any());
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.execute(
@@ -1248,6 +1331,23 @@ public class RequestExecutorServiceTests extends ESTestCase {
         long getTotalCharged() {
             return totalCharged;
         }
+    }
+
+    /**
+     * Spies on the test thread pool so that the request timeout is captured instead of scheduled, letting tests fire it manually
+     * rather than relying on the clock. Every other call, including the executor service's own scheduling, uses the real thread pool.
+     */
+    private ThreadPool threadPoolCapturingTimeout(TimeValue requestTimeout, AtomicReference<Runnable> onTimeout) {
+        var spiedThreadPool = spy(threadPool);
+        doAnswer(invocation -> {
+            TimeValue delay = invocation.getArgument(1);
+            if (delay.equals(requestTimeout) == false) {
+                return invocation.callRealMethod();
+            }
+            onTimeout.set(invocation.getArgument(0));
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(spiedThreadPool).schedule(any(Runnable.class), any(), any());
+        return spiedThreadPool;
     }
 
     private RequestExecutorService createRequestExecutorServiceWithMocks() {

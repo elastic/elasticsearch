@@ -290,7 +290,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         private final boolean upgrade;
 
         MockIndexMetadataVerifier(boolean upgrade) {
-            super(Settings.EMPTY, null, null, null, null, null, MapperMetrics.NOOP);
+            super(Settings.EMPTY, null, null, null, null, null, null, MapperMetrics.NOOP);
             this.upgrade = upgrade;
         }
 

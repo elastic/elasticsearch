@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -85,11 +88,14 @@ public class StorageProviderRegistry implements Closeable {
     private final ExternalSourceSettings.BlobStoreConcurrency concurrency;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
+    @Nullable
+    private final ThreadContext threadContext;
     /**
      * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
-     * test-only constructors; production always goes through the five-argument constructor via {@code DataSourceModule}.
+     * test-only constructors; production always goes through the seven-argument constructor via {@code DataSourceModule}.
      */
     private final LocalFileAccess localFileAccess;
+    private final AdmissionTracker admissionTracker;
 
     public StorageProviderRegistry(Settings settings) {
         this(settings, null);
@@ -101,7 +107,7 @@ public class StorageProviderRegistry implements Closeable {
      * {@code EsqlPlugin} (where the boolean is forced to {@code false} when {@code DiscoveryNode.isStateless}).
      * Similarly, {@code localFileAccess} defaults to {@link LocalFileAccess#UNRESTRICTED} and does <b>not</b>
      * apply the stateless gate or the allowlist from {@code ExternalSourceSettings#LOCAL_ALLOWED_PATHS}.
-     * Production always goes through the five-argument constructor via {@code DataSourceModule}.
+     * Production always goes through the seven-argument constructor via {@code DataSourceModule}.
      */
     public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
         this(
@@ -129,6 +135,34 @@ public class StorageProviderRegistry implements Closeable {
         RetryScheduler retryScheduler,
         LocalFileAccess localFileAccess
     ) {
+        this(settings, credentials, managedIdentityEnabled, retryScheduler, localFileAccess, AdmissionTracker.NOOP);
+    }
+
+    public StorageProviderRegistry(
+        Settings settings,
+        @Nullable DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        RetryScheduler retryScheduler,
+        LocalFileAccess localFileAccess,
+        AdmissionTracker admissionTracker
+    ) {
+        this(settings, credentials, managedIdentityEnabled, retryScheduler, localFileAccess, admissionTracker, null);
+    }
+
+    /**
+     * @param threadContext the node's thread context, which async storage reads use to complete their listeners under the context of
+     *                      the thread that issued them; {@code null} (tests only) completes them on the completing thread's context
+     */
+    public StorageProviderRegistry(
+        Settings settings,
+        @Nullable DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        RetryScheduler retryScheduler,
+        LocalFileAccess localFileAccess,
+        AdmissionTracker admissionTracker,
+        @Nullable ThreadContext threadContext
+    ) {
+        this.threadContext = threadContext;
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.credentials = credentials;
         this.managedIdentityEnabled = managedIdentityEnabled;
@@ -136,6 +170,7 @@ public class StorageProviderRegistry implements Closeable {
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.concurrency = ExternalSourceSettings.blobStoreConcurrencyInfo(this.settings);
+        this.admissionTracker = admissionTracker == null ? AdmissionTracker.NOOP : admissionTracker;
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -172,7 +207,7 @@ public class StorageProviderRegistry implements Closeable {
      * an "SPI storage factory" -- a noun with no meaning outside this code. Follows the wording of
      * {@code ExternalSourceResolver}'s {@code UnsupportedSchemeException}, which states the same condition to
      * the same audience. {@code StorageManager} has a third wording for it, still divergent; collapsing all
-     * three onto one builder is esql-planning#1551.
+     * three onto one builder remains a follow-up.
      */
     private IllegalArgumentException unsupportedScheme(String scheme) {
         Set<String> known = new TreeSet<>(factories.keySet());
@@ -206,13 +241,19 @@ public class StorageProviderRegistry implements Closeable {
      * Framework-level WITH keys that are consumed by {@link FileSourceFactory} / format readers
      * and must not be forwarded to storage provider configurations. References the canonical
      * constants so adding/renaming a framework option in one place updates the filter here too.
+     * <p>
+     * {@link DefinitionVersion#CONFIG_KEY} is here because the provider cache keys on the whole
+     * config map: left in, it would fragment the client pool per dataset, since the version differs
+     * whenever any part of a dataset's definition does while the credentials the provider is built
+     * from may be identical.
      */
     static final Set<String> FRAMEWORK_KEYS = Set.of(
         FormatNameResolver.CONFIG_FORMAT,
         FormatNameResolver.CONFIG_READER,
         ErrorPolicy.CONFIG_MAX_ERRORS,
         ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
-        ErrorPolicy.CONFIG_ERROR_MODE
+        ErrorPolicy.CONFIG_ERROR_MODE,
+        DefinitionVersion.CONFIG_KEY
     );
 
     /**
@@ -268,7 +309,12 @@ public class StorageProviderRegistry implements Closeable {
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
                 Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
-                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
+                return new Configured<>(
+                    wrapProvider(raw.value(), normalizedScheme),
+                    raw.consumedKeys(),
+                    raw.identity(),
+                    raw.secretIdentity()
+                );
             });
         } catch (RuntimeException e) {
             throw e;
@@ -315,7 +361,7 @@ public class StorageProviderRegistry implements Closeable {
         StorageProvider bounded = "file".equals(scheme)
             ? provider
             : new ConcurrencyLimitedStorageProvider(provider, limiterForScheme(scheme));
-        return new RetryableStorageProvider(bounded, retryScheduler, this::retryPolicyForScope);
+        return new RetryableStorageProvider(bounded, retryScheduler, this::retryPolicyForScope, threadContext);
     }
 
     /**
@@ -327,13 +373,34 @@ public class StorageProviderRegistry implements Closeable {
         if ("file".equals(scheme) || concurrency.permits() <= 0) {
             return null;
         }
-        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(concurrency.permits()));
+        return allocators.computeIfAbsent(
+            scheme,
+            k -> new ConcurrencyBudgetAllocator(concurrency.permits(), QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, admissionTracker, k)
+        );
+    }
+
+    /**
+     * Live permit use per scheme that has created a limiter. Unlimited schemes are omitted.
+     * Values are {@code [available, max]}.
+     */
+    Map<String, int[]> permitSnapshots() {
+        Map<String, int[]> out = new java.util.TreeMap<>();
+        for (Map.Entry<String, ConcurrencyLimiter> entry : limiters.entrySet()) {
+            ConcurrencyLimiter limiter = entry.getValue();
+            if (limiter.isEnabled() == false) {
+                continue;
+            }
+            out.put(entry.getKey(), new int[] { limiter.availablePermits(), limiter.maxPermits() });
+        }
+        return out;
     }
 
     ConcurrencyLimiter limiterForScheme(String scheme) {
         return limiters.computeIfAbsent(
             scheme,
-            k -> concurrency.permits() <= 0 ? ConcurrencyLimiter.UNLIMITED : new ConcurrencyLimiter(k, concurrency)
+            k -> concurrency.permits() <= 0
+                ? ConcurrencyLimiter.UNLIMITED
+                : new ConcurrencyLimiter(k, concurrency, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, admissionTracker)
         );
     }
 

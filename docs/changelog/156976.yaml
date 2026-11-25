@@ -1,5 +1,5 @@
 pr: 156976
-summary: "ES|QL: `FIELD_EXTRACT` is generally available"
+summary: '`FIELD_EXTRACT` is generally available'
 area: ES|QL
 type: enhancement
 issues: []

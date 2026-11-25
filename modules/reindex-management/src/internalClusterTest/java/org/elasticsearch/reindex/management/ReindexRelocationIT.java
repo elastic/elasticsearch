@@ -337,7 +337,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             });
         }
 
-        shutdownNodeNameAndRelocate(nodeBName);
+        shutdownNodeNameAndRelocate(nodeBName, originalTaskIds.size());
 
         for (int slice = 0; slice < originalTaskIds.size(); slice++) {
             TaskId originalTaskId = originalTaskIds.get(slice);
@@ -466,7 +466,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         // Defer the destination's write so the source writes first.
         final CountDownLatch destWriteLatch = BlockTasksWritePlugin.deferWritesOnNode(destNodeName);
-        shutdownNodeNameAndRelocate(sourceNodeName);
+        shutdownNodeNameAndRelocate(sourceNodeName, 1);
 
         final GetResponse afterSourceWrite = getTasksDocument(originalTaskId);
         assertThat("version is 1 after source write", afterSourceWrite.getVersion(), is(1L));
@@ -519,7 +519,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         // Block .tasks writes on the source node so only the destination's write can succeed.
         BlockTasksWritePlugin.blockWritesOnNode(sourceNodeName);
 
-        shutdownNodeNameAndRelocate(sourceNodeName);
+        shutdownNodeNameAndRelocate(sourceNodeName, 1);
 
         final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
             originalTaskId,
@@ -674,14 +674,14 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         ((Map<String, Object>) taskResultMap.get("task")).remove("running_time_in_nanos");
     }
 
-    private void shutdownNodeNameAndRelocate(final String nodeName) throws Exception {
+    private void shutdownNodeNameAndRelocate(final String nodeName, final int reindexOperationCount) throws Exception {
         // testing assumption: .tasks should not exist yet — it's created when the task result is stored during relocation
         assertFalse(".tasks index should not exist before shutdown", indexExists(TaskResultsService.TASK_INDEX));
 
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        assertNoReindexMetricsOnSourceNode(nodeName);
+        assertNoReindexMetricsOnSourceNode(nodeName, reindexOperationCount);
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
@@ -1175,11 +1175,31 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             .orElseThrow();
     }
 
-    private void assertNoReindexMetricsOnSourceNode(final String nodeName) {
+    /// Metrics on the source node just after shutdown is requested.
+    private void assertNoReindexMetricsOnSourceNode(final String nodeName, final int reindexOperationCount) {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
-        assertThat(plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER), is(empty()));
-        assertThat(plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM), is(empty()));
+        final List<Measurement> completions = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER);
+        // Manual slicing is one task per slice, and a slice can finish in the window before shutdown relocates the rest,
+        // so some — but not all — operations may already have completed on the source.
+        // reindexOperationCount is 1 for a non-sliced, auto-sliced, or fixed-sliced reindex.
+        assertThat(
+            "source node [" + nodeName + "] completed every reindex operation before relocation",
+            completions,
+            hasSize(lessThan(reindexOperationCount))
+        );
+        completions.forEach(completion -> {
+            assertThat(completion.getLong(), equalTo(1L));
+            assertNull(completion.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE));
+            assertThat(completion.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(false));
+        });
+        final List<Measurement> durations = plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM);
+        assertThat(durations, hasSize(completions.size()));
+        durations.forEach(duration -> {
+            assertThat(duration.getLong(), greaterThanOrEqualTo(0L));
+            assertThat(duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(false));
+        });
+        // Relocation is counted on the destination, so the relocation counter must be empty.
         assertThat(
             "relocation metric should not be updated on the source node [" + nodeName + "]",
             plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER),

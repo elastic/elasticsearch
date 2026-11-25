@@ -275,7 +275,7 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
 
                         if (everyNodeTranslates) {
                             assertEquals(context + " applies the filter", filterCase.filteredIds(), result.ids());
-                            assertThat(context, result.warnings(), not(hasItem(containsString("was not applied"))));
+                            assertThat(context, result.warnings(), not(hasItem(containsString("Request filter not applied"))));
                         } else {
                             assertThat(
                                 context + " never returns fewer rows than the filter selects",
@@ -287,12 +287,7 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
                                 assertThat(
                                     context + " says the filter was not applied",
                                     result.warnings(),
-                                    hasItem(
-                                        allOf(
-                                            containsString("too old to evaluate the translated filter"),
-                                            containsString(PROJECTION_DATASET)
-                                        )
-                                    )
+                                    hasItem(allOf(containsString("a node is too old to evaluate it"), containsString(PROJECTION_DATASET)))
                                 );
                             }
                         }
@@ -424,13 +419,24 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
         Set<String> csvReaderNodes = csvReaderNodes(response);
         assertFalse("profile must contain a CsvReaderStatus", csvReaderNodes.isEmpty());
         assertTrue(
-            "round_robin must execute CSV scans on every old node; saw " + csvReaderNodes,
-            csvReaderNodes.containsAll(oldNodes.stream().map(EsqlDataSourceMixedClusterTestSupport.Node::name).toList())
+            "round_robin must execute CSV scans on every old node that runs external scans; saw " + csvReaderNodes,
+            csvReaderNodes.containsAll(scanningNodeNames(oldNodes))
         );
         assertTrue(
-            "round_robin must execute CSV scans on every current node; saw " + csvReaderNodes,
-            csvReaderNodes.containsAll(currentNodes.stream().map(EsqlDataSourceMixedClusterTestSupport.Node::name).toList())
+            "round_robin must execute CSV scans on every current node that runs external scans; saw " + csvReaderNodes,
+            csvReaderNodes.containsAll(scanningNodeNames(currentNodes))
         );
+    }
+
+    /**
+     * The nodes a round-robin scan is expected to reach. A stateless cluster's index nodes never get one, so they are left
+     * out rather than expected to read external data.
+     */
+    private static List<String> scanningNodeNames(List<EsqlDataSourceMixedClusterTestSupport.Node> nodes) {
+        return nodes.stream()
+            .filter(EsqlDataSourceMixedClusterTestSupport.Node::runsExternalScans)
+            .map(EsqlDataSourceMixedClusterTestSupport.Node::name)
+            .toList();
     }
 
     @SuppressWarnings("unchecked")

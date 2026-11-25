@@ -32,8 +32,8 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
@@ -45,12 +45,12 @@ public class MatrixVectorMultiplyBenchmark {
         VectorizationInfo.printOnce();
     }
 
-    @Param({ "SCALAR", "PANAMA" })
+    @Param({ "SCALAR", "PANAMA", "NATIVE" })
     VectorImplementation implementation;
 
     // ASH defaults are 10240 x 1024
     // also use an odd number to exercise the tails
-    @Param({ "192", "481", "768", "10240" })
+    @Param({ "192", "481", "768", "1024", "4096" })
     int m;
 
     @Param({ "192", "481", "768", "1024" })
@@ -63,18 +63,31 @@ public class MatrixVectorMultiplyBenchmark {
     private float[] vector;
     /** Result for matrixVectorMultiply: (m). */
     private float[] vectorResult;
+    /** A for int8MatrixVectorMultiply: (m x k). */
+    private byte[] aInt8;
+    /** V for int8MatrixVectorMultiply: (k). */
+    private byte[] vectorInt8;
+    /** Result for int8MatrixVectorMultiply: (m). */
+    private int[] vectorResultInt8;
 
     @Setup(Level.Trial)
     public void init() {
         impl = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false).getVectorUtilSupport();
             case PANAMA -> ESVectorizationProvider.lookup(true, false).getVectorUtilSupport();
+            case NATIVE -> ESVectorizationProvider.lookup(true, true).getVectorUtilSupport();
             default -> throw new AssertionError(implementation);
         };
         Random random = new Random();
         a = VectorTestUtils.randomFloatVector(random, m * k);
         vector = VectorTestUtils.randomFloatVector(random, k);
         vectorResult = new float[m];
+
+        aInt8 = new byte[m * k];
+        random.nextBytes(aInt8);
+        vectorInt8 = new byte[k];
+        random.nextBytes(vectorInt8);
+        vectorResultInt8 = new int[m];
     }
 
     /** C = A @ v, A is (m x k), v is (k), C is (m). */
@@ -82,5 +95,12 @@ public class MatrixVectorMultiplyBenchmark {
     public void matrixVectorMultiply(Blackhole bh) {
         impl.matrixVectorMultiply(a, m, k, vector, vectorResult);
         bh.consume(vectorResult);
+    }
+
+    /** C = A @ v in int8, A is (m x k), v is (k), C is (m). */
+    @Benchmark
+    public void int8MatrixVectorMultiply(Blackhole bh) {
+        impl.matrixVectorMultiply(aInt8, m, k, vectorInt8, vectorResultInt8);
+        bh.consume(vectorResultInt8);
     }
 }

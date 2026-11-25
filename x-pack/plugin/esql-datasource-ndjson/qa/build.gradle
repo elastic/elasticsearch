@@ -96,6 +96,20 @@ tasks.register('generateMultifileSplitNdjson_employees', JavaExec) {
 }
 generateStandaloneNdjsonTasks.add(tasks.named('generateMultifileSplitNdjson_employees'))
 
+// Static sparse NDJSON fixture: first record has emp_no and first_name only; second record also has
+// spin_id. Used by ndjson-declared-schema.csv-spec to pin the sampled-out declared-column overlay:
+// with schema_sample_size=1 the sample only sees record 1, so spin_id is absent from the inferred
+// schema. Declaring it under dynamic:true must be accepted (not rejected) after the fix.
+def sparseSpinIdNdjson = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures/standalone/sparse_spin_id.ndjson")
+tasks.register('generateSparseSpinIdNdjson') {
+  outputs.file(sparseSpinIdNdjson)
+  doLast {
+    sparseSpinIdNdjson.parentFile.mkdirs()
+    sparseSpinIdNdjson.text = '{"emp_no":1,"first_name":"Alice"}\n{"emp_no":2,"first_name":"Bob","spin_id":"B001"}\n'
+  }
+}
+generateStandaloneNdjsonTasks.add(tasks.named('generateSparseSpinIdNdjson'))
+
 tasks.register('generateStandaloneNdjsonFixtures') {
   dependsOn generateStandaloneNdjsonTasks
 }

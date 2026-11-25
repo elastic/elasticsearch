@@ -111,6 +111,21 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         return new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);
     }
 
+    public void testSizeMustBePositive() {
+        CompositeAggregationBuilder builder = new CompositeAggregationBuilder(
+            "name",
+            Collections.singletonList(new TermsValuesSourceBuilder("terms").field("field"))
+        );
+        int validSize = randomIntBetween(1, 100);
+        builder.size(validSize);
+        for (int size : new int[] { 0, randomIntBetween(Integer.MIN_VALUE, -1) }) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.size(size));
+            assertEquals("[size] must be greater than 0. Found [" + size + "] in [name]", e.getMessage());
+            assertEquals(validSize, builder.size());
+        }
+        assertEquals(1, builder.size(1).size());
+    }
+
     public void testSupportsParallelCollection() {
         assertTrue(
             new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(randomDateHistogramSourceBuilder()))

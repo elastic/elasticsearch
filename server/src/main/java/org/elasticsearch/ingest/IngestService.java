@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -61,6 +62,7 @@ import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -78,11 +80,13 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.time.Instant;
 import java.time.InstantSource;
@@ -1095,6 +1099,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param onFailure A callback executed when a document fails ingestion and does not need to be
      *                  persisted. Accepts the slot in the collection of requests that the document
      *                  occupies, and the exception that the document encountered.
+     * @param memoryAccountant Charged, once a document's pipelines finished, with the bytes by which they grew its source. If it rejects,
+     *                         the document is restored to its original source and fails with the rejection.
      * @param listener A callback executed once all documents have been processed.
      */
     public void executeBulkRequest(
@@ -1105,6 +1111,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Function<String, Boolean> resolveFailureStore,
         final TriConsumer<Integer, String, Exception> onStoreFailure,
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> onFailure,
+        final IngestMemoryAccountant memoryAccountant,
         final ActionListener<Void> listener
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
@@ -1206,7 +1213,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             }
                         );
 
-                        executePipelines(pipelines, indexRequest, ingestDocument, adaptedResolveFailureStore, documentListener);
+                        executePipelines(
+                            pipelines,
+                            indexRequest,
+                            ingestDocument,
+                            adaptedResolveFailureStore,
+                            memoryAccountant,
+                            documentListener
+                        );
                         assert actionRequest.index() != null;
 
                         i++;
@@ -1325,6 +1339,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
         final Function<String, Boolean> resolveFailureStore,
+        final IngestMemoryAccountant memoryAccountant,
         final ActionListener<IngestPipelinesExecutionResult> listener
     ) {
         assert pipelines.hasNext();
@@ -1341,19 +1356,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             // If `failureStoreResolution` is true, we store the failure. If it's false, the target is a data stream,
             // but it doesn't have the failure store enabled. If it's null, the target wasn't a data stream.
             Boolean failureStoreResolution = resolveFailureStore.apply(originalIndex);
-            if (failureStoreResolution != null && failureStoreResolution) {
+            // Failures for lack of capacity (429) are never redirected to the failure store, these should be retried by clients.
+            boolean capacityFailure = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)) == RestStatus.TOO_MANY_REQUESTS;
+            if (failureStoreResolution == null) {
+                listener.onFailure(e);
+            } else if (failureStoreResolution && capacityFailure == false) {
                 failureStoreMetrics.incrementFailureStore(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE);
                 listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
-            } else if (failureStoreResolution != null) {
-                // If this document targeted a data stream that didn't have the failure store enabled, we increment
-                // the rejected counter.
+            } else {
+                // If this document targeted a data stream that either didn't have the failure store enabled, or failed for lack of
+                // capacity, we increment the rejected counter.
                 // We also increment the total counter because this request will not reach the code that increments
                 // the total counter for non-rejected documents.
                 failureStoreMetrics.incrementTotal(originalIndex);
                 failureStoreMetrics.incrementRejected(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE, false);
-                listener.onResponse(IngestPipelinesExecutionResult.failWithoutStoringIn(originalIndex, e));
-            } else {
-                listener.onFailure(e);
+                if (failureStoreResolution && capacityFailure) {
+                    // failure store is enabled, but bypassed for a capacity failure to return 429
+                    listener.onFailure(e);
+                } else {
+                    // stamped with NOT_ENABLED
+                    listener.onResponse(IngestPipelinesExecutionResult.failWithoutStoringIn(originalIndex, e));
+                }
             }
         };
         final var project = state.metadata().projects().get(pipelines.projectId());
@@ -1508,13 +1531,32 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, memoryAccountant, listener);
                 } else {
                     /*
                      * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
                      * This is our chance to sample with both the original document and all changes.
                      */
+                    final BytesReference originalSource = indexRequest.indexSource().bytes();
+                    final XContentType originalContentType = indexRequest.getContentType();
+                    final long originalSourceLength = indexRequest.indexSource().byteLength();
                     updateIndexRequestSource(indexRequest, ingestDocument);
+                    /*
+                     * Charge how much the pipelines grew the source.
+                     * The original source is already accounted for in the admitted size and retained until the bulk completes. Not
+                     * charging for the original size twice (the full expanded copy) is a compromise to not risk rejecting too aggressively.
+                     */
+                    final long growth = indexRequest.indexSource().byteLength() - originalSourceLength;
+                    if (growth > 0) {
+                        try {
+                            memoryAccountant.add(growth);
+                        } catch (EsRejectedExecutionException rejection) {
+                            // revert the updated source to the original one to stop referencing the rejected expanded source
+                            indexRequest.source(originalSource, originalContentType);
+                            exceptionHandler.accept(rejection);
+                            return; // document failed!
+                        }
+                    }
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }

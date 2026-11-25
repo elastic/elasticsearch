@@ -31,6 +31,6 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'async_search'
+    include '_common', 'cluster', 'indices', 'index', 'async_search'
   }
 }

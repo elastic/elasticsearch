@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -33,6 +34,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -44,6 +46,17 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.INTERNAL)
 public class RestCatRecoveryAction extends AbstractCatAction {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        "index",
+        "detailed",
+        "active_only",
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
+    );
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_cat/recovery"), new Route(GET, "/_cat/recovery/{index}"));
@@ -52,6 +65,11 @@ public class RestCatRecoveryAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_recovery_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override
@@ -171,15 +189,15 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 );
                 t.addCell(state.getIndex().totalRecoverFiles());
                 t.addCell(state.getIndex().recoveredFileCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
+                t.addCell(RestTable.FormattedDouble.formatPercent1Decimal(state.getIndex().recoveredFilesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
                 t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalRecoverBytes()));
                 t.addCell(ByteSizeValue.ofBytes(state.getIndex().recoveredBytes()));
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
+                t.addCell(RestTable.FormattedDouble.formatPercent1Decimal(state.getIndex().recoveredBytesPercent()));
                 t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalBytes()));
                 t.addCell(state.getTranslog().totalOperations());
                 t.addCell(state.getTranslog().recoveredOperations());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));
+                t.addCell(RestTable.FormattedDouble.formatPercent1Decimal(state.getTranslog().recoveredPercent()));
                 t.endRow();
             }
         }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166329
+summary: Per-read factory for NDJSON/Parquet/ORC
+type: enhancement

@@ -315,6 +315,133 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    // Malformed documents.
+    public void testKnownInvalidDocumentsRejectedByBothParsers() {
+        int[] paddingsAndOffsets = { 0, 1, 7, 15, 16, 17, 31, 32, 33, 63, 64, 65 };
+        for (String json : SimdJsonTestDocuments.invalidDocumentsRejectedByBothParsers()) {
+            expectThrows(XContentParseException.class, () -> walkWithJackson(json));
+            expectThrows(JsonParsingException.class, () -> walkJson(json));
+
+            for (int padding : paddingsAndOffsets) {
+                expectThrows(JsonParsingException.class, () -> walkAndRecord(json, padding));
+            }
+            for (int offset : paddingsAndOffsets) {
+                expectThrows(JsonParsingException.class, () -> walkAndRecordAtOffset(json, offset));
+            }
+        }
+    }
+
+    /**
+     * All JSON values up to {@code depth} levels of nesting, built from a number, the empty object
+     * and the empty array. Each level adds arrays of one or two elements and objects of one or two
+     * fields of the previous level, so every combination of empty and non-empty containers nested
+     * in each other, in first and later positions, is covered.
+     */
+    private static List<String> generateValues(int depth) {
+        List<String> values = List.of("1", "{}", "[]");
+        for (int level = 0; level < depth; level++) {
+            List<String> next = new ArrayList<>(values);
+            for (String first : values) {
+                next.add("[" + first + "]");
+                next.add("{\"a\":" + first + "}");
+                for (String second : values) {
+                    next.add("[" + first + "," + second + "]");
+                    next.add("{\"a\":" + first + ",\"b\":" + second + "}");
+                }
+            }
+            values = next;
+        }
+        return values;
+    }
+
+    // Empty and non-empty objects and arrays nested in each other must parse the same as Jackson,
+    // with and without whitespace inside the empty containers.
+    public void testGeneratedNestedContainersAgreeWithJackson() throws IOException {
+        for (String value : generateValues(2)) {
+            String json = "{\"k\":" + value + "}";
+            assertParsersAgree(json);
+            assertParsersAgree(json.replace("{}", "{ }").replace("[]", "[ ]"));
+        }
+    }
+
+    // A comma directly before any closing brace or bracket is a trailing comma, wherever the container
+    // sits and whether or not it is empty. Both parsers must reject every such document.
+    public void testGeneratedTrailingCommaRejectedByBothParsers() {
+        for (String value : generateValues(2)) {
+            String json = "{\"k\":" + value + "}";
+            for (int i = 0; i < json.length(); i++) {
+                char c = json.charAt(i);
+                if (c != '}' && c != ']') {
+                    continue;
+                }
+                String mutated = json.substring(0, i) + "," + json.substring(i);
+                expectThrows(XContentParseException.class, "Jackson accepted " + mutated, () -> walkWithJackson(mutated));
+                expectThrows(JsonParsingException.class, "simdjson accepted " + mutated, () -> walkJson(mutated));
+            }
+        }
+    }
+
+    // Both parsers require at least one digit after '.' and after 'e'/'E', and phrase the
+    // rejection identically enough that the message can be compared directly (unlike
+    // testTrailingGarbageOrMissingDigitsRejectedByBothParsers below).
+    public void testEmptyFractionOrExponentRejectedByBothParsers() {
+        record Case(String json, String reason) {}
+        List<Case> cases = List.of(
+            new Case("{\"n\":1.}", "Decimal point not followed by a digit"),
+            new Case("{\"n\":1.e5}", "Decimal point not followed by a digit"),
+            new Case("{\"a\":[1.]}", "Decimal point not followed by a digit"),
+            new Case("{\"n\":1e}", "Exponent indicator not followed by a digit"),
+            new Case("{\"n\":1e+}", "Exponent indicator not followed by a digit"),
+            new Case("{\"n\":1e-}", "Exponent indicator not followed by a digit"),
+            new Case("{\"a\":[1e]}", "Exponent indicator not followed by a digit")
+        );
+        for (Case c : cases) {
+            XContentParseException jacksonEx = expectThrows(XContentParseException.class, () -> walkWithJackson(c.json()));
+            JsonParsingException simdEx = expectThrows(JsonParsingException.class, () -> walkJson(c.json()));
+            assertTrue("Jackson message: " + jacksonEx.getMessage(), jacksonEx.getMessage().contains(c.reason()));
+            assertTrue("simdjson message: " + simdEx.getMessage(), simdEx.getMessage().contains(c.reason()));
+        }
+    }
+
+    // Both parsers reject a number with no integer-part digits, and any trailing content after
+    // a number that isn't itself a structural character or whitespace - but with unrelated
+    // message wording (e.g. Jackson reports these relative to what it expected next, like a
+    // comma), so only rejection-by-both is checked here, not the message text.
+    public void testTrailingGarbageOrMissingDigitsRejectedByBothParsers() {
+        List<String> invalidDocuments = List.of(
+            "{\"n\":-}",
+            "{\"n\":-.5}",
+            "{\"n\":-e5}",
+            "{\"a\":[-]}",
+            "{\"n\":1.2.3}",
+            "{\"n\":1e5e6}",
+            "{\"n\":1-2}",
+            "{\"n\":12-3}",
+            "{\"n\":1foo}",
+            "{\"a\":[1.2.3]}",
+            "{\"a\":[1foo]}"
+        );
+        for (String json : invalidDocuments) {
+            expectThrows(XContentParseException.class, () -> walkWithJackson(json));
+            expectThrows(JsonParsingException.class, () -> walkJson(json));
+        }
+    }
+
+    // A byte between '9' and 'A' (':' to '?') directly after the digits is trailing garbage, wherever
+    // it falls relative to the 8-byte word the SWAR digit loop reads; both parsers must reject it
+    // (':' is structural, so it is rejected one step later, at the separator).
+    public void testNonDigitAfterDigitsRejectedByBothParsers() {
+        for (char junk : new char[] { ':', ';', '<', '=', '>', '?' }) {
+            for (int digits = 1; digits <= 9; digits++) {
+                String number = "1234567890".substring(0, digits) + junk;
+                for (String json : List.of("{\"n\":" + number + "}", "{\"n\":-" + number + ",\"m\":1}", "{\"a\":[1," + number + "]}")) {
+                    expectThrows(XContentParseException.class, () -> walkWithJackson(json));
+                    expectThrows(JsonParsingException.class, () -> walkJson(json));
+                }
+            }
+        }
+    }
+
     // Both parsers prefix leading-zero messages with a "[line:column]" location (see
     // SimdJsonDirectWalker#computeLineAndColumn).
     public void testLineNumberMatchesBothParsers() {
@@ -474,6 +601,36 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
 
     public void testScientificNotation() throws IOException {
         assertParsersAgree("{\"n\":1.5e10}");
+    }
+
+    // Doubles outside the range of binary64 are not errors in either parser: Jackson (and so
+    // XContentParser) rounds them to infinity or zero, and simdjson-java must do the same, however
+    // large the exponent. Exponents of 20 or more digits exceed a long (2^64 + 1 must not wrap to 1).
+    public void testOutOfRangeDoublesAgreeWithJackson() throws IOException {
+        List<String> numbers = List.of(
+            "1e309",
+            "1.5e309",
+            "1e400",
+            "-1e400",
+            "1e-400",
+            "-1e-400",
+            "4.9e-325",
+            "1e999999999",
+            "1e-999999999",
+            "1e99999999999999999999",
+            "1e-99999999999999999999",
+            "1e18446744073709551616",
+            "1e18446744073709551617",
+            "1e-18446744073709551617",
+            "1E+18446744073709551626",
+            "0e99999999999999999999",
+            "-0e99999999999999999999",
+            "1e000000000000000000000000005"
+        );
+        for (String number : numbers) {
+            assertParsersAgree("{\"n\":" + number + "}");
+            assertParsersAgree("{\"a\":[" + number + "," + number + "]}");
+        }
     }
 
     public void testZero() throws IOException {

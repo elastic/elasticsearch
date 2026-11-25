@@ -236,6 +236,26 @@ public interface PromqlBaseParserListener extends ParseTreeListener {
    */
   void exitIdentifier(PromqlBaseParser.IdentifierContext ctx);
   /**
+   * Enter a parse tree produced by {@link PromqlBaseParser#metricName}.
+   * @param ctx the parse tree
+   */
+  void enterMetricName(PromqlBaseParser.MetricNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link PromqlBaseParser#metricName}.
+   * @param ctx the parse tree
+   */
+  void exitMetricName(PromqlBaseParser.MetricNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link PromqlBaseParser#groupingLabel}.
+   * @param ctx the parse tree
+   */
+  void enterGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx);
+  /**
+   * Exit a parse tree produced by {@link PromqlBaseParser#groupingLabel}.
+   * @param ctx the parse tree
+   */
+  void exitGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx);
+  /**
    * Enter a parse tree produced by {@link PromqlBaseParser#evaluation}.
    * @param ctx the parse tree
    */

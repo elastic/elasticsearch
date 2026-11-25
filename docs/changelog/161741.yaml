@@ -1,0 +1,8 @@
+area: ES|QL
+issues:
+ - 161666
+ - 161664
+ - 161557
+pr: 161741
+summary: Prevent premature EOF on streaming chunks
+type: bug

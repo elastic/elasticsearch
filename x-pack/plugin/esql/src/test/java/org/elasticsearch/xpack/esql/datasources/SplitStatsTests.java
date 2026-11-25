@@ -359,6 +359,66 @@ public class SplitStatsTests extends ESTestCase {
         };
     }
 
+    /**
+     * A fold must key its result on the name strings its pieces already hold, not on copies of them.
+     * <p>
+     * Staging folds a stripe's pieces as it reads, so this runs once per join and the result is what the read
+     * then holds. A fold that re-derived the names would therefore hand every stripe of a read its own copy of
+     * the schema's column names, which is the per-record cost this change exists to remove, reappearing one
+     * level down.
+     * <p>
+     * Identity is the assertion rather than equality. The two were always equal, so {@code assertEquals} would
+     * pass whichever way the fold builds the name and would discriminate nothing. A piece holds the producer's
+     * own string because {@link SplitStats.Builder#addColumn} stores what {@code String.split} hands it, and
+     * {@code split} returns the original string itself for a name with no separator in it; the fold reaches that
+     * same string only by returning it from the dictionary instead of rebuilding it through a buffer.
+     * <p>
+     * The dotted column is here for the other half: the single-segment shortcut must not have broken the join
+     * that a multi-segment name still needs. Its segments are copied by {@code split} on both paths, so there is
+     * no identity to assert for it — only that it still resolves.
+     */
+    public void testAFoldKeepsThePiecesOwnColumnNameStrings() {
+        // Equal to "value" but a distinct object, as a name parsed out of a header buffer is. A literal here
+        // would be interned, the fold's rebuilt copy would NOT be, and the assertion would then pass for the
+        // wrong reason on one side and fail on the other; building it through a buffer is also what really
+        // happens to a header cell.
+        String parsed = new StringBuilder("value").toString();
+        assertNotSame("the fixture must not hand both sides one interned literal", "value", parsed);
+
+        SplitStats left = onePiece(parsed, 1L);
+        SplitStats right = onePiece(parsed, 2L);
+
+        // The positive control: the pieces really do carry the one object, so an identity failure below is the
+        // fold's doing and not the fixture's.
+        assertSame("a piece must hold the string it was built from", parsed, left.columnName(left.findColumn("value")));
+        assertSame("a piece must hold the string it was built from", parsed, right.columnName(right.findColumn("value")));
+
+        SplitStats folded = SplitStats.fold(List.of(left, right), false);
+        assertNotNull("two pieces of one stripe must fold", folded);
+
+        int flat = folded.findColumn("value");
+        assertTrue("the fold must keep the flat column", flat >= 0);
+        assertSame("a folded record must reference its pieces' name string, not a copy of it", parsed, folded.columnName(flat));
+
+        int dotted = folded.findColumn("nested.b");
+        assertTrue("the fold must keep the dotted column", dotted >= 0);
+        assertEquals("a dotted name must still be joined from its segments", "nested.b", folded.columnName(dotted));
+    }
+
+    /** One stripe piece: a flat column named {@code flatName} and a dotted one, both carrying {@code value}. */
+    private static SplitStats onePiece(String flatName, long value) {
+        SplitStats.Builder builder = new SplitStats.Builder().rowCount(1);
+        int flat = builder.addColumn(flatName);
+        builder.nullCount(flat, 0L);
+        builder.valueCount(flat, 1L);
+        builder.min(flat, value);
+        builder.max(flat, value);
+        int dotted = builder.addColumn("nested.b");
+        builder.nullCount(dotted, 0L);
+        builder.valueCount(dotted, 1L);
+        return builder.build();
+    }
+
     public void testBulkAddColumn() {
         SplitStats.Builder builder = new SplitStats.Builder().rowCount(500).sizeInBytes(10000);
         int ord = builder.addColumn("score", 5L, 0.0, 100.0, 2000);
@@ -724,6 +784,158 @@ public class SplitStatsTests extends ESTestCase {
         assertNull("Should return null when any split lacks stats", result);
     }
 
+    public void testResolveEffectiveStatsSingleSplitWithoutStatsDoesNotUseListingMetadata() {
+        FileSplit splitWithoutStats = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///nostat.parquet"),
+            0,
+            100,
+            "parquet",
+            Map.of(),
+            Map.of(),
+            null,
+            null
+        );
+        Map<String, Object> listing = new HashMap<>();
+        listing.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 2L);
+
+        var result = SplitStats.resolveEffectiveStats(List.of(splitWithoutStats), listing);
+        assertNull("Assigned split without stats must not fold the listing COUNT", result);
+    }
+
+    public void testResolveEffectiveStatsSingleSplitWithoutFileCountDoesNotUseListingMetadata() {
+        FileSplit splitWithoutStats = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///nostat.parquet"),
+            0,
+            100,
+            "parquet",
+            Map.of(),
+            Map.of(),
+            null,
+            null
+        );
+        Map<String, Object> listing = new HashMap<>();
+        listing.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+
+        var result = SplitStats.resolveEffectiveStats(List.of(splitWithoutStats), listing);
+        assertNull("Missing STATS_FILE_COUNT must not fold listing COUNT onto an assigned split", result);
+    }
+
+    public void testResolveEffectiveStatsRangeSplitDoesNotUseListingMetadata() {
+        FileSplit rangeSplit = unstattedFile(50, 50, Map.of());
+        var result = SplitStats.resolveEffectiveStats(List.of(rangeSplit), listingMetadata(1L, 1000L));
+        assertNull("A byte-range split must not fold the whole-file listing COUNT", result);
+    }
+
+    /**
+     * Head slice of a multi-split file starts at offset 0 ({@code isFirstInFile}). Listing
+     * {@code STATS_FILE_COUNT == 1} would otherwise fold the whole-file COUNT onto that slice;
+     * the tail then scans and FINAL double-counts.
+     */
+    public void testResolveEffectiveStatsHeadRangeSliceDoesNotFoldListingCount() {
+        Map<String, Object> listing = listingMetadata(1L, 1000L);
+        FileSplit head = unstattedFile(0, 50, Map.of(FileSplitProvider.RANGE_SPLIT_KEY, "true"));
+        assertTrue(
+            "offset-0 range slice is first-in-file but not last",
+            FileSplitProvider.isFirstInFile(head) && FileSplitProvider.isLastInFile(head) == false
+        );
+        assertTrue(SplitStats.refuseListingFallback(head, listing));
+        assertNull(SplitStats.resolveEffectiveStats(List.of(head), listing));
+    }
+
+    public void testRefuseListingFallbackPartialFileSliceVariants() {
+        Map<String, Object> listing = listingMetadata(1L, 1000L);
+
+        FileSplit headRange = unstattedFile(0, 50, Map.of(FileSplitProvider.RANGE_SPLIT_KEY, "true"));
+        assertRefusesListing("unstamped offset-0 range (Bogdan: head slice)", headRange, listing);
+
+        FileSplit headStamped = unstattedFile(
+            0,
+            50,
+            Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true", FileSplitProvider.RANGE_SPLIT_KEY, "true")
+        );
+        assertRefusesListing("stamped first range, no last", headStamped, listing);
+
+        FileSplit tail = unstattedFile(50, 50, Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true", FileSplitProvider.RANGE_SPLIT_KEY, "true"));
+        assertRefusesListing("tail range offset>0", tail, listing);
+
+        FileSplit mid = unstattedFile(25, 25, Map.of(FileSplitProvider.RANGE_SPLIT_KEY, "true"));
+        assertRefusesListing("mid-file range", mid, listing);
+
+        FileSplit compressedHead = unstattedFile(0, 50, Map.of(FileSplitProvider.COMPRESSED_OFFSET_SPLIT_KEY, "true"));
+        assertRefusesListing("compressed-offset head", compressedHead, listing);
+
+        FileSplit compressedTail = unstattedFile(
+            50,
+            50,
+            Map.of(FileSplitProvider.COMPRESSED_OFFSET_SPLIT_KEY, "true", FileSplitProvider.LAST_SPLIT_KEY, "true")
+        );
+        assertRefusesListing("compressed-offset tail", compressedTail, listing);
+
+        FileSplit macroHead = unstattedFile(0, 50, Map.of(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY, "true"));
+        assertRefusesListing("record-aligned macro head", macroHead, listing);
+
+        FileSplit macroTail = unstattedFile(
+            50,
+            50,
+            Map.of(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY, "true", FileSplitProvider.LAST_SPLIT_KEY, "true")
+        );
+        assertRefusesListing("record-aligned macro tail", macroTail, listing);
+    }
+
+    public void testRefuseListingFallbackWholeFileAllowsListingWhenFileCountMatches() {
+        Map<String, Object> listing = listingMetadata(1L, 1000L);
+
+        FileSplit unstamped = unstattedFile(0, 100, Map.of());
+        assertAllowsListing("unstamped whole file", unstamped, listing);
+
+        FileSplit stamped = unstattedFile(
+            0,
+            100,
+            Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true", FileSplitProvider.LAST_SPLIT_KEY, "true")
+        );
+        assertAllowsListing("stamped first+last whole file", stamped, listing);
+    }
+
+    public void testRefuseListingFallbackCoalescedPartialChildren() {
+        Map<String, Object> listing = listingMetadata(1L, 1000L);
+        FileSplit head = unstattedFile(0, 50, Map.of(FileSplitProvider.RANGE_SPLIT_KEY, "true"));
+        FileSplit tail = unstattedFile(50, 50, Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true", FileSplitProvider.RANGE_SPLIT_KEY, "true"));
+
+        CoalescedSplit headAndTail = new CoalescedSplit("parquet", List.of(head, tail));
+        assertRefusesListing("coalesced head+tail ranges of one file", headAndTail, listing);
+
+        FileSplit whole = unstattedFile(0, 100, Map.of());
+        CoalescedSplit mixed = new CoalescedSplit("parquet", List.of(whole, head));
+        assertRefusesListing("coalesced whole file plus range child", mixed, listing);
+
+        CoalescedSplit nested = new CoalescedSplit("parquet", List.of(new CoalescedSplit("parquet", List.of(head, tail))));
+        assertRefusesListing("nested coalesced range children", nested, listing);
+    }
+
+    public void testRefuseListingFallbackCoalescedWholeFileChildren() {
+        FileSplit fileA = unstattedFile(0, 100, Map.of());
+        FileSplit fileB = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///other.parquet"),
+            0,
+            100,
+            "parquet",
+            Map.of(),
+            Map.of(),
+            null,
+            null
+        );
+        CoalescedSplit both = new CoalescedSplit("parquet", List.of(fileA, fileB));
+        assertRefusesListing("two whole files vs listing of one", both, listingMetadata(1L, 1000L));
+        assertAllowsListing("two whole files vs listing of two", both, listingMetadata(2L, 2000L));
+
+        CoalescedSplit oneWhole = new CoalescedSplit("parquet", List.of(fileA));
+        assertAllowsListing("coalesced single whole file, listing file-count 1", oneWhole, listingMetadata(1L, 1000L));
+    }
+
     // --- mergedMin / mergedMax unit tests ---
 
     public void testMergedMinNullHandling() {
@@ -833,5 +1045,28 @@ public class SplitStatsTests extends ESTestCase {
     private static FileSplit fileSplitWithStats(SplitStats stats) {
         Map<String, Object> statsMap = stats.toMap();
         return new FileSplit("parquet", StoragePath.of("file:///test.parquet"), 0, 100, "parquet", Map.of(), Map.of(), null, statsMap);
+    }
+
+    private static FileSplit unstattedFile(long offset, long length, Map<String, Object> config) {
+        return new FileSplit("parquet", StoragePath.of("file:///ranged.parquet"), offset, length, "parquet", config, Map.of(), null, null);
+    }
+
+    private static Map<String, Object> listingMetadata(long fileCount, long rowCount) {
+        Map<String, Object> listing = new HashMap<>();
+        listing.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, fileCount);
+        return listing;
+    }
+
+    private static void assertRefusesListing(String label, ExternalSplit split, Map<String, Object> listing) {
+        assertTrue(label, SplitStats.refuseListingFallback(split, listing));
+        assertNull(label, SplitStats.resolveEffectiveStats(List.of(split), listing));
+    }
+
+    private static void assertAllowsListing(String label, ExternalSplit split, Map<String, Object> listing) {
+        assertFalse(label, SplitStats.refuseListingFallback(split, listing));
+        var result = SplitStats.resolveEffectiveStats(List.of(split), listing);
+        assertNotNull(label, result);
+        assertEquals(label, ((Number) listing.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue(), result.rowCount());
     }
 }

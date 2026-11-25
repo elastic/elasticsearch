@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.BytesSource;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -86,6 +87,16 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     public static final NodeFeature SIMULATE_IGNORED_FIELDS = new NodeFeature("simulate.ignored.fields");
 
+    // nothing to track for simulate
+    private static final IndexingPressure.CoordinatingExpansionTracker NOOP_EXPANSION_TRACKER =
+        new IndexingPressure.CoordinatingExpansionTracker() {
+            @Override
+            public void add(long bytes) {}
+
+            @Override
+            public void close() {}
+        };
+
     private final IndicesService indicesService;
     private final NamedXContentRegistry xContentRegistry;
     private final Set<IndexSettingProvider> indexSettingProviders;
@@ -122,6 +133,11 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         this.indicesService = indicesService;
         this.xContentRegistry = xContentRegistry;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+    }
+
+    @Override
+    protected IndexingPressure.CoordinatingExpansionTracker trackIngestExpansion(boolean forceExecution) {
+        return NOOP_EXPANSION_TRACKER;
     }
 
     @Override
@@ -201,12 +217,10 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     ) {
         final SourceToParse sourceToParse = new SourceToParse(
             request.id(),
-            request.source(),
-            request.getContentType(),
+            new BytesSource(request.source(), request.getContentType(), request.getIncludeSourceOnError()),
             request.routing(),
             request.getDynamicTemplates(),
             request.getDynamicTemplateParams(),
-            request.getIncludeSourceOnError(),
             XContentMeteringParserDecorator.NOOP,
             request.tsid()
         );

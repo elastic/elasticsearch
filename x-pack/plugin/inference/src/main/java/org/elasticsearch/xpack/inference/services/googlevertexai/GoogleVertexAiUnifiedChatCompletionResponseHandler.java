@@ -40,10 +40,15 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
     private static final GoogleVertexAiErrorParser ERROR_PARSER = new GoogleVertexAiErrorParser();
 
     private final ChatCompletionErrorResponseHandler chatCompletionErrorResponseHandler;
+    private final boolean excludeReasoning;
 
-    public GoogleVertexAiUnifiedChatCompletionResponseHandler(String requestType) {
+    /**
+     * @param excludeReasoning whether the caller asked for reasoning to be left out of the response.
+     */
+    public GoogleVertexAiUnifiedChatCompletionResponseHandler(String requestType, boolean excludeReasoning) {
         super(requestType, GoogleVertexAiCompletionResponseEntity::fromResponse, GoogleVertexAiErrorResponse::fromResponse, true);
         this.chatCompletionErrorResponseHandler = new ChatCompletionErrorResponseHandler(ERROR_PARSER);
+        this.excludeReasoning = excludeReasoning;
     }
 
     @Override
@@ -52,7 +57,8 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
 
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var googleVertexAiProcessor = new GoogleVertexAiUnifiedStreamingProcessor(
-            (m, e) -> chatCompletionErrorResponseHandler.buildMidStreamChatCompletionError(outboundRequest.getInferenceEntityId(), m, e)
+            (m, e) -> chatCompletionErrorResponseHandler.buildMidStreamChatCompletionError(outboundRequest.getInferenceEntityId(), m, e),
+            excludeReasoning
         );
 
         flow.subscribe(serverSentEventProcessor);

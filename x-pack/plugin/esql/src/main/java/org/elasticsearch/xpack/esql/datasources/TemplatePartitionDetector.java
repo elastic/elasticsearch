@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -99,8 +100,7 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
-        int columnCount = columnNames.size();
-
+        // Columns are known from the template, so one pass fills a String[] per column. No per-file map.
         // Every file must sit at the same directory depth. The template binds the last N directories before the
         // filename (placeholders and literals), so files at different depths bind different physical levels to the
         // same column: over data/2024/f1, data/2024/01/f2 and data/2024/01/15/f3 with template {year}, the three
@@ -108,86 +108,52 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         // Bailing to EMPTY is the same all-or-nothing stance HivePartitionDetector takes when its key sets disagree
         // across files. The cost is that a comma-separated list mixing prefixes of different depths loses template
         // detection even where the templated tail lines up; no partition columns is safe, a misbound one is not.
-        if (hasMixedDepth(files)) {
-            return PartitionMetadata.EMPTY;
-        }
-
-        List<Map<String, String>> allRawPartitions = new ArrayList<>();
-
-        for (StorageEntry entry : files) {
-            Map<String, String> partitions = extractByTemplate(entry.path());
-            if (partitions == null) {
+        int columnCount = columnNames.size();
+        int fileCount = files.size();
+        String[][] rawValues = new String[columnCount][fileCount];
+        boolean[] written = new boolean[columnCount];
+        int depth = -1;
+        for (int i = 0; i < fileCount; i++) {
+            StoragePath path = files.get(i).path();
+            int fileDepth = pathDepth(path);
+            if (depth == -1) {
+                depth = fileDepth;
+            } else if (fileDepth != depth) {
                 return PartitionMetadata.EMPTY;
             }
-            allRawPartitions.add(partitions);
-        }
-
-        LinkedHashMap<String, List<String>> columnValues = Maps.newLinkedHashMapWithExpectedSize(columnCount);
-        for (String col : columnNames) {
-            columnValues.put(col, new ArrayList<>());
-        }
-        for (Map<String, String> raw : allRawPartitions) {
-            for (Map.Entry<String, String> e : raw.entrySet()) {
-                columnValues.get(e.getKey()).add(e.getValue());
+            if (fillColumns(path, rawValues, i, written) == false) {
+                return PartitionMetadata.EMPTY;
             }
         }
 
         LinkedHashMap<String, DataType> partitionColumns = Maps.newLinkedHashMapWithExpectedSize(columnCount);
-        for (Map.Entry<String, List<String>> e : columnValues.entrySet()) {
-            partitionColumns.put(e.getKey(), HivePartitionDetector.inferType(e.getValue()));
-        }
-
-        LinkedHashMap<StoragePath, Map<String, Object>> filePartitionValues = Maps.newLinkedHashMapWithExpectedSize(files.size());
+        Object[][] valuesByColumn = new Object[columnCount][];
         HivePartitionDetector.CastInterner interner = new HivePartitionDetector.CastInterner();
-        for (int i = 0; i < files.size(); i++) {
-            Map<String, String> raw = allRawPartitions.get(i);
-            LinkedHashMap<String, Object> typed = Maps.newLinkedHashMapWithExpectedSize(columnCount);
-            for (Map.Entry<String, String> e : raw.entrySet()) {
-                typed.put(e.getKey(), HivePartitionDetector.castValue(e.getValue(), partitionColumns.get(e.getKey()), interner));
+        for (int c = 0; c < columnCount; c++) {
+            DataType type = HivePartitionDetector.inferType(Arrays.asList(rawValues[c]));
+            partitionColumns.put(columnNames.get(c), type);
+            Object[] column = new Object[fileCount];
+            String[] rawColumn = rawValues[c];
+            for (int i = 0; i < fileCount; i++) {
+                column[i] = HivePartitionDetector.castValue(rawColumn[i], type, interner);
             }
-            filePartitionValues.put(files.get(i).path(), typed);
+            valuesByColumn[c] = column;
         }
 
         // Only now is the rename true: the bail-outs above surface no partition column at all, and a notice raised
         // before them would ride the cached listing into every later run.
         ReservedPartitionNames.warnRenamed(renamedColumns, warningSink);
-        return new PartitionMetadata(partitionColumns, filePartitionValues);
-    }
-
-    /** Whether the files sit at differing directory depths, which makes last-N template binding inconsistent. */
-    private static boolean hasMixedDepth(List<StorageEntry> files) {
-        int depth = -1;
-        for (StorageEntry entry : files) {
-            int d = pathDepth(entry.path());
-            if (depth == -1) {
-                depth = d;
-            } else if (d != depth) {
-                return true;
-            }
-        }
-        return false;
+        return PartitionMetadata.columnar(partitionColumns, valuesByColumn, fileCount);
     }
 
     /**
      * Non-empty directory segments of a {@link StoragePath#path()} string, filename dropped.
-     * Extract and depth use this so the skip-empty / drop-filename cut cannot drift. Rewrite
-     * repeats the same cut on a {@code path.split("/")} array so it can edit slots in place.
+     * Delegates to {@link HivePartitionDetector#directorySegments} so the skip-empty / drop-filename
+     * cut cannot drift. Rewrite repeats the same cut on a {@code path.split("/")} array so it can
+     * edit slots in place.
      */
     public static List<String> directorySegments(String path) {
-        if (path == null || path.isEmpty()) {
-            return List.of();
-        }
-        List<String> nonEmpty = new ArrayList<>();
-        for (String segment : path.split("/")) {
-            if (segment.isEmpty() == false) {
-                nonEmpty.add(segment);
-            }
-        }
-        if (nonEmpty.isEmpty()) {
-            return List.of();
-        }
-        nonEmpty.remove(nonEmpty.size() - 1);
-        return nonEmpty;
+        return HivePartitionDetector.directorySegments(path);
     }
 
     /**
@@ -232,31 +198,52 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         return directorySegments(storagePath.path()).size();
     }
 
-    private Map<String, String> extractByTemplate(StoragePath storagePath) {
+    /**
+     * Writes this file's template column tokens into {@code rawValues}. A repeated placeholder must bind the
+     * same decoded value. Returns {@code false} when the path is shorter than the template, a literal does not
+     * match, or a repeated placeholder disagrees with itself.
+     */
+    private boolean fillColumns(StoragePath storagePath, String[][] rawValues, int fileIndex, boolean[] written) {
+        Arrays.fill(written, false);
         List<String> dirs = directorySegments(storagePath.path());
         if (dirs.size() < segments.size()) {
-            return null;
+            return false;
         }
         int startIdx = dirs.size() - segments.size();
-        LinkedHashMap<String, String> result = Maps.newLinkedHashMapWithExpectedSize(columnNames.size());
         for (int i = 0; i < segments.size(); i++) {
             String dir = dirs.get(startIdx + i);
             switch (segments.get(i)) {
                 case TemplateSegment.Literal(String value) -> {
                     if (value.equals(dir) == false) {
-                        return null;
+                        return false;
                     }
                 }
                 case TemplateSegment.Placeholder(String name) -> {
+                    int col = columnIndex(name);
                     String decoded = HivePartitionDetector.decodePartitionValue(dir);
-                    String previous = result.put(name, decoded);
-                    if (previous != null && previous.equals(decoded) == false) {
-                        return null;
+                    // A null token does not count as a previous binding: the map put in the old detector
+                    // overwrote it and only rejected a non-null value that disagreed.
+                    if (written[col]) {
+                        String previous = rawValues[col][fileIndex];
+                        if (previous != null && previous.equals(decoded) == false) {
+                            return false;
+                        }
                     }
+                    rawValues[col][fileIndex] = decoded;
+                    written[col] = true;
                 }
             }
         }
-        return result;
+        return true;
+    }
+
+    private int columnIndex(String name) {
+        for (int i = 0; i < columnNames.size(); i++) {
+            if (columnNames.get(i).equals(name)) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("template column [" + name + "] missing from column list");
     }
 
     /**
@@ -305,5 +292,214 @@ public final class TemplatePartitionDetector implements PartitionDetector {
 
     String template() {
         return template;
+    }
+
+    /**
+     * Whether {@code globPart} is a fixed-depth TEMPLATE walk shape: no {@code **}, every directory
+     * slot is either {@code *} or a glob-free literal, and at least one directory {@code *} remains.
+     * Alignment against the prefix is {@link #walkLayout}; this is only the glob-side gate.
+     */
+    public static boolean walkableGlob(String glob) {
+        if (glob == null || glob.isEmpty() || glob.contains("**")) {
+            return false;
+        }
+        String[] parts = glob.split("/");
+        if (parts.length < 2) {
+            return false;
+        }
+        boolean starDir = false;
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (isSimpleDirSegment(parts[i]) == false) {
+                return false;
+            }
+            if ("*".equals(parts[i])) {
+                starDir = true;
+            }
+        }
+        return starDir;
+    }
+
+    /**
+     * Maps remaining glob-directory levels onto {@code template} by the same right-alignment rewrite
+     * and {@link #columnValue} use. {@code null} when the glob is not a fixed-depth walk, the prefix
+     * plus glob cannot cover the template, or a glob literal disagrees with a template literal.
+     */
+    @Nullable
+    public static WalkLayout walkLayout(StoragePath prefix, String glob, String template) {
+        if (prefix == null || walkableGlob(glob) == false || template == null || template.isEmpty()) {
+            return null;
+        }
+        List<TemplateSegment> segments = parseTemplate(template);
+        if (hasPlaceholder(segments) == false) {
+            return null;
+        }
+        String[] globParts = glob.split("/");
+        int globDirCount = globParts.length - 1;
+        List<String> prefixDirs = nonEmptySegments(prefix.path());
+        int fullDirCount = prefixDirs.size() + globDirCount;
+        if (fullDirCount < segments.size()) {
+            return null;
+        }
+        int offset = fullDirCount - segments.size();
+        List<WalkLayout.Level> levels = new ArrayList<>(globDirCount);
+        Set<String> keys = new HashSet<>();
+        boolean placeholderLevel = false;
+        for (int i = 0; i < globDirCount; i++) {
+            int templateIdx = prefixDirs.size() + i - offset;
+            if (templateIdx < 0) {
+                levels.add(WalkLayout.Level.FREE);
+                continue;
+            }
+            switch (segments.get(templateIdx)) {
+                case TemplateSegment.Placeholder(String name) -> {
+                    if ("*".equals(globParts[i]) == false) {
+                        return null;
+                    }
+                    String surface = ReservedPartitionNames.surface(name);
+                    levels.add(WalkLayout.Level.placeholder(surface));
+                    keys.add(surface);
+                    placeholderLevel = true;
+                }
+                case TemplateSegment.Literal(String value) -> {
+                    if ("*".equals(globParts[i]) == false && value.equals(globParts[i]) == false) {
+                        return null;
+                    }
+                    if ("*".equals(globParts[i])) {
+                        levels.add(WalkLayout.Level.literal(value));
+                    } else {
+                        levels.add(WalkLayout.Level.globSpelled(globParts[i]));
+                    }
+                }
+            }
+        }
+        if (placeholderLevel == false) {
+            return null;
+        }
+        LinkedHashMap<String, String> prefixBindings = new LinkedHashMap<>();
+        for (int t = 0; t < segments.size(); t++) {
+            int fullIdx = offset + t;
+            if (fullIdx >= prefixDirs.size()) {
+                break;
+            }
+            String dir = prefixDirs.get(fullIdx);
+            switch (segments.get(t)) {
+                case TemplateSegment.Placeholder(String name) -> prefixBindings.put(
+                    ReservedPartitionNames.surface(name),
+                    HivePartitionDetector.decodePartitionValue(dir)
+                );
+                case TemplateSegment.Literal(String value) -> {
+                    if (value.equals(dir) == false) {
+                        return null;
+                    }
+                }
+            }
+        }
+        return new WalkLayout(List.copyOf(levels), Set.copyOf(keys), Map.copyOf(prefixBindings), offset, List.copyOf(segments));
+    }
+
+    private static boolean hasPlaceholder(List<TemplateSegment> segments) {
+        for (TemplateSegment segment : segments) {
+            if (segment instanceof TemplateSegment.Placeholder) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isSimpleDirSegment(String segment) {
+        if ("*".equals(segment)) {
+            return true;
+        }
+        for (char c : StoragePath.GLOB_METACHARACTERS) {
+            if (segment.indexOf(c) >= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Non-empty path segments, filename not dropped — a directory path keeps its last folder. */
+    static List<String> nonEmptySegments(String path) {
+        if (path == null || path.isEmpty()) {
+            return List.of();
+        }
+        List<String> nonEmpty = new ArrayList<>();
+        for (String segment : path.split("/")) {
+            if (segment.isEmpty() == false) {
+                nonEmpty.add(segment);
+            }
+        }
+        return nonEmpty;
+    }
+
+    /**
+     * Remaining glob-directory roles for a TEMPLATE walk. {@link #prefixBindings()} are placeholders
+     * already spelled in the listing prefix (exact-string splice); {@link #bindings(String)} adds
+     * folders listed so far, including the current directory.
+     */
+    public record WalkLayout(
+        List<Level> levels,
+        Set<String> placeholderKeys,
+        Map<String, String> prefixBindings,
+        int dirOffset,
+        List<TemplateSegment> segments
+    ) {
+        public Level level(int walkLevel) {
+            return levels.get(walkLevel);
+        }
+
+        public int depth() {
+            return levels.size();
+        }
+
+        /**
+         * Template placeholder bindings of a directory path, using this layout's right-align offset
+         * so a partial path does not bind the wrong slots.
+         */
+        public Map<String, String> bindings(String directoryPath) {
+            List<String> dirs = nonEmptySegments(directoryPath);
+            LinkedHashMap<String, String> into = new LinkedHashMap<>(prefixBindings);
+            for (int t = 0; t < segments.size(); t++) {
+                int fullIdx = dirOffset + t;
+                if (fullIdx >= dirs.size()) {
+                    break;
+                }
+                if (segments.get(t) instanceof TemplateSegment.Placeholder(String name)) {
+                    into.put(ReservedPartitionNames.surface(name), HivePartitionDetector.decodePartitionValue(dirs.get(fullIdx)));
+                }
+            }
+            return into;
+        }
+
+        /** One remaining glob-directory slot. */
+        public record Level(@Nullable String name, @Nullable String literal, boolean globSpelled) {
+            static final Level FREE = new Level(null, null, false);
+
+            static Level placeholder(String name) {
+                return new Level(name, null, false);
+            }
+
+            /** Template literal filled from a {@code *} glob slot: a sibling folder withdraws. */
+            static Level literal(String value) {
+                return new Level(null, value, false);
+            }
+
+            /** Glob already spelled this name: a sibling cannot match and is skipped. */
+            static Level globSpelled(String value) {
+                return new Level(null, value, true);
+            }
+
+            public boolean isPlaceholder() {
+                return name != null;
+            }
+
+            public boolean isLiteral() {
+                return literal != null;
+            }
+
+            public String decodedFolder(String folderName) {
+                return HivePartitionDetector.decodePartitionValue(folderName);
+            }
+        }
     }
 }

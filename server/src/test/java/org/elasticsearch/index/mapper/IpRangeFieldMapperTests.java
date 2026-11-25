@@ -8,8 +8,10 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -25,7 +27,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
@@ -200,6 +204,42 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         } else {
             output.put("lte", null);
         }
+    }
+
+    @Override
+    protected Tuple<Object, Object> randomInclusiveBounds() {
+        boolean ipv4 = randomBoolean();
+        InetAddress from;
+        InetAddress to;
+        do {
+            from = randomIp(ipv4);
+            to = randomIp(ipv4);
+        } while (from.equals(rangeType().minValue()) || to.equals(rangeType().maxValue()));
+        if (new BytesRef(InetAddressPoint.encode(from)).compareTo(new BytesRef(InetAddressPoint.encode(to))) > 0) {
+            InetAddress tmp = from;
+            from = to;
+            to = tmp;
+        }
+        return Tuple.tuple(InetAddresses.toAddrString(from), InetAddresses.toAddrString(to));
+    }
+
+    /**
+     * Doc values do not keep the CIDR notation, so a CIDR range comes back from {@code docvalue_fields} as its inclusive bounds while
+     * the {@code fields} API, which reads {@code _source}, returns the CIDR string.
+     */
+    public void testFetchCidrFromDocValues() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertThat(docValueFields(mapperService, "10.0.0.0/8", null), equalTo(List.of(Map.of("gte", "10.0.0.0", "lte", "10.255.255.255"))));
+        assertThat(
+            docValueFields(mapperService, "2001:db8::/32", null),
+            equalTo(List.of(Map.of("gte", "2001:db8::", "lte", "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff")))
+        );
+        assertThat(
+            docValueFields(mapperService, List.of("192.168.0.0/24", Map.of("gte", "10.0.0.1", "lte", "10.0.0.5")), null),
+            containsInAnyOrder(Map.of("gte", "192.168.0.0", "lte", "192.168.0.255"), Map.of("gte", "10.0.0.1", "lte", "10.0.0.5"))
+        );
+        // the fields API reads _source and keeps the CIDR notation
+        assertThat(FieldTypeTestCase.fetchSourceValue(mapperService.fieldType("field"), "10.0.0.0/8"), equalTo(List.of("10.0.0.0/8")));
     }
 
     @Override

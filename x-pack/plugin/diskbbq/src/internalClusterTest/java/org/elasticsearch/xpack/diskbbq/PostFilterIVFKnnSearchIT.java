@@ -46,10 +46,8 @@ import static org.hamcrest.Matchers.greaterThan;
  * Nested (block-join) vector fields deliberately stay on the pre-filter path
  * ({@code DenseVectorFieldType#canPostFilter}), so the nested case below asserts pre-filter behaviour.
  *
- * <p>Post-filtering is dormant by default ({@code index.dense_vector.post_filter_selectivity_threshold}
- * defaults to 1.0). Each index lowers it to {@code 0.7} so the ~0.8-selectivity filters below take the
- * post-filter path. That setting is {@link org.elasticsearch.common.settings.Setting.Property#PrivateIndex},
- * so {@link #forbidPrivateIndexSettings()} is overridden to {@code false} to allow setting it explicitly.
+ * <p>Each index pins {@code index.dense_vector.post_filter_selectivity_threshold} to {@code 0.7} so the
+ * ~0.8-selectivity filters below take the post-filter path regardless of the default.
  *
  * <p>{@code default_visit_percentage: 100} forces the IVF search to scan every centroid; combined with the
  * single force-merged segment (doc counts stay below the 384 vectors-per-cluster default, so one cluster is
@@ -93,13 +91,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey(), POST_FILTER_THRESHOLD)
             .build();
-    }
-
-    @Override
-    protected boolean forbidPrivateIndexSettings() {
-        // The post-filter selectivity threshold is a PrivateIndex setting; allow it to be set
-        // explicitly at index-creation time so these tests can lower it from the dormant default.
-        return false;
     }
 
     public void testIvfFloat() throws IOException {

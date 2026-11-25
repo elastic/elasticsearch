@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -65,6 +67,18 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
                 context,
                 (binary, counts) -> new MultiValuedBinaryWithSeparateCounts(warnings, counts, binary)
             );
+            case PLAIN -> {
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                if (binary == null) {
+                    yield ConstantNull.COLUMN_READER;
+                }
+                // A column answers from the lengths it stores. Anything else is read a document at a time.
+                if (binary.docValues() instanceof StringColumnSource columnar) {
+                    assert columnar.singleValued() : "field [" + fieldName + "] is mapped as bare values but its column holds payloads";
+                    yield new SingleValuedColumnar(warnings, binary, columnar);
+                }
+                yield new SingleValued(binary);
+            }
         };
     }
 
@@ -137,6 +151,40 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         }
     }
 
+    /** {@link SingleValued} over a string column, which stores byte lengths apart from its values. */
+    private static final class SingleValuedColumnar extends BlockDocValuesReader {
+        private final TrackingBinaryDocValues docValues;
+        private final StringColumnSource columnar;
+        private final ColumnarByteLengthPageReader pages;
+
+        SingleValuedColumnar(Warnings warnings, TrackingBinaryDocValues docValues, StringColumnSource columnar) {
+            super(null);
+            this.docValues = docValues;
+            this.columnar = columnar;
+            this.pages = new ColumnarByteLengthPageReader(warnings, docValues.breaker());
+        }
+
+        @Override
+        public int docId() {
+            return docValues.docValues().docID();
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            return pages.read(columnar, factory, docs, offset);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(pages, docValues);
+        }
+
+        @Override
+        public String toString() {
+            return "ByteLengthFromBytesRef.SingleValuedColumnar";
+        }
+    }
+
     private static final class MultiValuedBinaryWithSeparateCounts extends MultiValuedBinaryWithSeparateCountsLengthReader {
 
         MultiValuedBinaryWithSeparateCounts(Warnings warnings, TrackingNumericDocValues counts, TrackingBinaryDocValues values) {
@@ -163,6 +211,11 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         @Override
         int length(BytesRef bytesRef) {
             return bytesRef.length;
+        }
+
+        @Override
+        boolean countsBytes() {
+            return true;
         }
 
         @Override

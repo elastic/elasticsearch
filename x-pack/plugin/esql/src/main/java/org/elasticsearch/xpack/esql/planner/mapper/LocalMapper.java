@@ -13,15 +13,18 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -57,6 +60,10 @@ public class LocalMapper {
     private LocalMapper() {}
 
     public PhysicalPlan map(LogicalPlan p) {
+        return MapperUtils.stampOrigin(mapUnstamped(p), p);
+    }
+
+    private PhysicalPlan mapUnstamped(LogicalPlan p) {
 
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
@@ -95,6 +102,13 @@ public class LocalMapper {
             return external.toPhysicalExec();
         }
 
+        if (leaf instanceof EqlRelation) {
+            // EqlRelation is coordinator-local: it is never wrapped in a FragmentExec, so it must never reach the
+            // local (data-node) mapper. If it does, the never-fragmented invariant has broken; fail loud rather than
+            // silently planning a coordinator-only source on a data node.
+            throw new EsqlIllegalArgumentException("EQL source command cannot be planned on a data node");
+        }
+
         return MapperUtils.mapLeaf(leaf);
     }
 
@@ -106,7 +120,8 @@ public class LocalMapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+            boolean singlePass = aggregate instanceof TimeSeriesAggregate timeSeries && timeSeries.singlePass();
+            return MapperUtils.aggExec(aggregate, mappedChild, singlePass ? AggregatorMode.SINGLE : AggregatorMode.INITIAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {
@@ -137,7 +152,11 @@ public class LocalMapper {
         }
 
         if (unary instanceof TsInfo tsInfo) {
-            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL);
+            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL, tsInfo.limit());
+        }
+
+        if (unary instanceof Into into) {
+            return MapperUtils.mapIntoWrite(into, mappedChild);
         }
 
         //
@@ -187,7 +206,7 @@ public class LocalMapper {
             }
             // we want to do local physical planning on the lookup node eventually for the right side of the lookup join
             // so here we will wrap the logical plan with a FragmentExec and keep it as is
-            FragmentExec fragmentExec = new FragmentExec(binary.right());
+            FragmentExec fragmentExec = MapperUtils.stampOrigin(new FragmentExec(binary.right()), binary.right());
             return new LookupJoinExec(
                 join.source(),
                 left,

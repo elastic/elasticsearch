@@ -25,6 +25,8 @@
 bottomk(3, http_requests_total)
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. A `without` grouping clause is not yet supported.
+`without(...)`, such as `bottomk without (instance) (1, x)`, isn't supported yet. A `k` close to `Integer.MAX_VALUE` can trip {{es}}'s circuit breaker (the execution engine allocates a buffer sized to `k`, not to the number of matching series), whereas {{prom}} has no equivalent limit.
+:::

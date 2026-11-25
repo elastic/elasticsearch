@@ -1,0 +1,6 @@
+area: TSDB
+issues: []
+pr: 162151
+summary: Add minimum lifecycle telemetry to the data stream lifecycle and time series
+  telemetry
+type: enhancement

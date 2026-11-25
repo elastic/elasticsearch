@@ -13,12 +13,20 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -154,10 +162,45 @@ public class DirectIOCapableFlatVectorsFormatTests extends BaseDirectIOMergeTest
                 true,
                 false
             ),
+            // the bbq flat format can decline the write side too, see ES93BinaryQuantizedVectorsFormat#withBufferedMergeWrites;
+            // searches and merge reads of the sources keep direct I/O
+            new Case(
+                "bbq_hnsw buffered merge writes, on_disk_rescore, on_disk_merge",
+                odm -> hnswOverBufferedBBQ(true, odm),
+                true,
+                true,
+                true,
+                false
+            ),
             // as with int8_hnsw above, no getMergeInstance override, so the flat type's merges read the sources through the
             // page cache; bfloat16 is the element type with a raw writer of its own, float32's is the one the rows above drive
             new Case("flat bfloat16, on_disk_merge", odm -> new ES93FlatVectorFormat(ElementType.BFLOAT16, odm), true, false, false, true)
         ).map(c -> new Object[] { c }).toList();
+    }
+
+    /** An HNSW format over the bbq flat format with buffered merge writes. */
+    private static KnnVectorsFormat hnswOverBufferedBBQ(boolean useDirectIO, boolean onDiskMerge) {
+        FlatVectorsFormat flatVectorsFormat = ES93BinaryQuantizedVectorsFormat.withBufferedMergeWrites(
+            ElementType.FLOAT,
+            useDirectIO,
+            onDiskMerge
+        );
+        return new KnnVectorsFormat(ES93HnswBinaryQuantizedVectorsFormat.NAME) {
+            @Override
+            public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+                return new Lucene99HnswVectorsWriter(state, 16, 100, flatVectorsFormat, flatVectorsFormat.fieldsWriter(state), 1, null, 0);
+            }
+
+            @Override
+            public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+                return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
+            }
+
+            @Override
+            public int getMaxDimensions(String fieldName) {
+                return 4096;
+            }
+        };
     }
 
     private final Case testCase;

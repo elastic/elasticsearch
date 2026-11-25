@@ -107,4 +107,13 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
             .get();
         assertEquals(0, rsp.getIndices().size());
     }
+
+    public void testAutoCalibrationFlagSerialization() throws Exception {
+        IndicesSegmentsRequest request = new IndicesSegmentsRequest("test").withAutoCalibration(true);
+        assertTrue(copyWriteable(request, writableRegistry(), IndicesSegmentsRequest::new).isIncludeAutoCalibration());
+
+        assertFalse(
+            copyWriteable(new IndicesSegmentsRequest("test"), writableRegistry(), IndicesSegmentsRequest::new).isIncludeAutoCalibration()
+        );
+    }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.ShardResponseReservation;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,15 +37,18 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 import static org.elasticsearch.action.search.SearchTransportService.FETCH_ID_ACTION_NAME;
@@ -112,19 +116,22 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         // to count the bytes of the actual data-node round trip.
         private final LongConsumer requestBytesConsumer;
         private final LongConsumer resultBytesConsumer;
+        private final Consumer<Exception> onCoordinatorTrip;
 
         public Request(
             ShardFetchSearchRequest shardFetchRequest,
             DiscoveryNode dataNode,
             Map<String, String> headers,
             LongConsumer requestBytesConsumer,
-            LongConsumer resultBytesConsumer
+            LongConsumer resultBytesConsumer,
+            Consumer<Exception> onCoordinatorTrip
         ) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
             this.headers = headers;
             this.requestBytesConsumer = requestBytesConsumer;
             this.resultBytesConsumer = resultBytesConsumer;
+            this.onCoordinatorTrip = onCoordinatorTrip;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -134,6 +141,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             this.headers = in.readMap(StreamInput::readString);
             this.requestBytesConsumer = l -> {};
             this.resultBytesConsumer = l -> {};
+            this.onCoordinatorTrip = e -> {};
         }
 
         @Override
@@ -215,49 +223,21 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedTotalDocs, circuitBreaker);
+        responseStream.setCoordinatorTripListener(request.onCoordinatorTrip);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
-        // Listener that builds final result from accumulated chunks
+        // Listener that answers with the data node's classic hits, or with the hits it streamed
         ActionListener<FetchSearchResult> childListener = ActionListener.runAfter(ActionListener.wrap(dataNodeResult -> {
-            BytesReference lastChunkBytes = dataNodeResult.getLastChunkBytes();
-            int hitCount = dataNodeResult.getLastChunkHitCount();
-
-            // Process the embedded last chunk if present
-            if (lastChunkBytes != null && hitCount > 0) {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug(
-                        "Received final chunk [{}] for shard [{}]",
-                        hitCount,
-                        request.shardFetchRequest.getShardSearchRequest().shardId()
-                    );
-                }
-
-                long estimatedRetainedBytes = 0L;
-                try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
-                    for (int i = 0; i < hitCount; i++) {
-                        int position = in.readVInt();
-                        SearchHit hit = SearchHit.readFrom(in);
-                        estimatedRetainedBytes += hit.ramBytesUsed();
-                        responseStream.addHitWithSequence(hit, position);
-                    }
-                }
-                circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRetainedBytes, FetchPhaseResponseStream.FETCH_CHUNK_BREAKER_LABEL);
-                responseStream.trackBreakerBytes(estimatedRetainedBytes);
-            }
-
-            // Build final result from all accumulated hits
-            FetchSearchResult finalResult = responseStream.buildFinalResult(
-                dataNodeResult.getContextId(),
-                dataNodeResult.getSearchShardTarget(),
-                dataNodeResult.profileResult()
-            );
-            finalResult.setDirectoryMetrics(dataNodeResult.getDirectoryMetrics());
-
-            // Release the birth ref after passing ownership to the listener via consumeResult's incRef.
-            try {
-                listener.<FetchSearchResult>map(Response::new).onResponse(finalResult);
-            } finally {
-                finalResult.decRef();
+            // A streaming fetch returns its hits as chunks and leaves hits() empty. Non-empty hits mean the data node fell back to a
+            // classic fetch (for example, chunked fetch is disabled on that node or it has no connection to the coordinator), and
+            // its lastChunkBytes may lack positions, so the classic result is passed on as is.
+            SearchHits classicHits = dataNodeResult.hits();
+            if (classicHits != null && classicHits.getHits().length > 0) {
+                assert responseStream.isEmpty() : "data node returned classic hits for shard [" + shardId + "] after streaming chunks";
+                dataNodeResult.clearLastChunkBytes();
+                listener.<FetchSearchResult>map(Response::new).onResponse(dataNodeResult);
+            } else {
+                respondWithStreamedHits(dataNodeResult, responseStream, shardId, listener);
             }
         }, listener::onFailure), () -> Releasables.close(registration, responseStream::decRef));
 
@@ -286,6 +266,12 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 // the final FetchSearchResult bytes tracked by countingReader below.
                 responseStream.setChunkBytesConsumer(request.resultBytesConsumer);
             }
+            // The data node's result carries the last chunk, or all hits if it fell back to a classic fetch
+            final ShardResponseReservation reservation = new ShardResponseReservation(
+                circuitBreaker,
+                ShardResponseReservation.FETCH_BREAKER_LABEL,
+                request.onCoordinatorTrip
+            );
             transportService.sendRequest(
                 request.getDataNode(),
                 FETCH_ID_ACTION_NAME,
@@ -297,8 +283,67 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                         ? SearchTransportService.countingReader(FetchSearchResult::new, request.resultBytesConsumer)
                         : FetchSearchResult::new,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
-                )
+                ) {
+                    @Override
+                    public Releasable reserveResponseBytes(int bytes) {
+                        return reservation.reserve(bytes);
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        reservation.reportTrip();
+                        super.handleException(e);
+                    }
+                }
             );
+        }
+    }
+
+    /**
+     * Adds the hits of the last chunk embedded in the data node's result to those already streamed, and responds with all of
+     * them in their original order.
+     */
+    private void respondWithStreamedHits(
+        FetchSearchResult dataNodeResult,
+        FetchPhaseResponseStream responseStream,
+        ShardId shardId,
+        ActionListener<Response> listener
+    ) throws IOException {
+        BytesReference lastChunkBytes = dataNodeResult.getLastChunkBytes();
+        int hitCount = dataNodeResult.getLastChunkHitCount();
+
+        // Process the embedded last chunk if present
+        if (lastChunkBytes != null && hitCount > 0) {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Received final chunk [{}] for shard [{}]", hitCount, shardId);
+            }
+
+            long estimatedRetainedBytes = 0L;
+            try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
+                for (int i = 0; i < hitCount; i++) {
+                    int position = in.readVInt();
+                    SearchHit hit = SearchHit.readFrom(in);
+                    estimatedRetainedBytes += hit.ramBytesUsed();
+                    responseStream.addHitWithSequence(hit, position);
+                }
+            }
+            responseStream.chargeRetainedBytes(estimatedRetainedBytes);
+        }
+
+        // Build final result from all accumulated hits
+        FetchSearchResult finalResult = responseStream.buildFinalResult(
+            dataNodeResult.getContextId(),
+            dataNodeResult.getSearchShardTarget(),
+            dataNodeResult.profileResult()
+        );
+        finalResult.setDirectoryMetrics(dataNodeResult.getDirectoryMetrics());
+        responseStream.transferBreakerBytesTo(finalResult);
+
+        // Release the birth ref after passing ownership to the listener via consumeResult's incRef.
+        try {
+            listener.<FetchSearchResult>map(Response::new).onResponse(finalResult);
+        } finally {
+            finalResult.decRef();
         }
     }
 }

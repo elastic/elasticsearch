@@ -106,7 +106,9 @@ a:integer | b:integer | c:null | null:null | z:integer
 ;
 
 evalRowWithNull3
+required_capability: warn_null_misuse
 row a = 1, b = 2, x = round(null) | eval z = a+b+x;
+warning:Line 1:23: Expression [round(null)] always evaluates to NULL.
 
 a:integer | b:integer | x:null | z:integer
 1 | 2 | null | null
@@ -120,7 +122,9 @@ a:integer | b:integer | y:double
 ;
 
 evalRowWithRoundNullDecimals
+required_capability: warn_null_misuse
 row a = 1, b = 2 | eval y = round(-123.5, null);
+warning:Line 1:29: Expression [round(-123.5, null)] always evaluates to NULL.
 
 a:integer | b:integer | y:double
 1 | 2 | null
@@ -161,19 +165,25 @@ a:integer
 ;
 
 filterRow3
+required_capability: warn_null_misuse
 row a = 1 | eval b = a * null | where b > 10;
+warning:Line 1:22: Expression [a * null] always evaluates to NULL.
 
 a:integer | b:integer
 ;
 
 filterRow4
+required_capability: warn_null_misuse
 row a = 1 | eval b = null * 1 | where b > 10;
+warning:Line 1:22: Expression [null * 1] always evaluates to NULL.
 
 a:integer | b:integer
 ;
 
 filterRow5
+required_capability: warn_null_misuse
 row a = 1.0 | eval b = a * null | where b > 2.0;
+warning:Line 1:24: Expression [a * null] always evaluates to NULL.
 
 a:double | b:double
 ;
@@ -186,28 +196,36 @@ a:integer | b:integer | y:null
 ;
 
 evalRowWithNullsInRound
+required_capability: warn_null_misuse
 row a = 1, b = 2 | eval y = round(null, 3) + ROUND(a + b / 2);
+warning:Line 1:29: Expression [round(null, 3)] always evaluates to NULL.
 
 a:integer | b:integer | y:integer
 1 | 2 | null
 ;
 
 evalRowWithNullsInArithmethicOp
+required_capability: warn_null_misuse
 row a = 1, b = 2 | eval y = null + 3;
+warning:Line 1:29: Expression [null + 3] always evaluates to NULL.
 
 a:integer | b:integer | y:integer
 1 | 2 | null
 ;
 
 rowWithNullsInCount
+required_capability: warn_null_misuse
 row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = count(s);
+warning:Line 1:43: Expression [null + a] always evaluates to NULL.
 
 c:long
 0
 ;
 
 rowWithNullsInAvg
+required_capability: warn_null_misuse
 row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = avg(s);
+warning:Line 1:43: Expression [null + a] always evaluates to NULL.
 
 c:double
 null
@@ -262,7 +280,9 @@ avg:double | min(x):integer | max(x):integer | count(x):long | avg(x):double | a
 ;
 
 rowWithMultipleStatsOverNull
+required_capability: warn_null_misuse
 row x=1, y=2 | eval tot = null + y + x | stats c=count(tot), a=avg(tot), mi=min(tot), ma=max(tot), s=sum(tot);
+warning:Line 1:27: Expression [null + y] always evaluates to NULL.
 
 c:long | a:double |   mi:integer |  ma:integer | s:long
      0 |     null |         null |        null |   null
@@ -270,7 +290,10 @@ c:long | a:double |   mi:integer |  ma:integer | s:long
 
 
 min
+required_capability: warn_null_misuse
 row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats min(l), min(d), min(ln), min(dn);
+warning:Line 1:20: Expression [1 + null] always evaluates to NULL.
+warning:Line 1:33: Expression [1.0 + null] always evaluates to NULL.
 
 min(l):integer | min(d):double | min(ln):integer | min(dn):double
              1 |           1.0 |            null |           null
@@ -278,7 +301,10 @@ min(l):integer | min(d):double | min(ln):integer | min(dn):double
 
 
 sum
+required_capability: warn_null_misuse
 row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn);
+warning:Line 1:20: Expression [1 + null] always evaluates to NULL.
+warning:Line 1:33: Expression [1.0 + null] always evaluates to NULL.
 
 sum(l):long | sum(d):double | sum(ln):long | sum(dn):double
           1 |           1.0 |         null |           null

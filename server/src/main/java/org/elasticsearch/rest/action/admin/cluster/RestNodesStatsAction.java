@@ -18,8 +18,10 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -41,6 +43,23 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesStatsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_TIMEOUT_PARAM,
+        "level",
+        "groups",
+        "fields",
+        "completion_fields",
+        "fielddata_fields",
+        "include_segment_file_sizes",
+        "include_unloaded_segments"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(
+        SUPPORTED_QUERY_PARAMETERS,
+        "nodeId",
+        "metric",
+        "index_metric"
+    );
 
     private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("dense_vector_off_heap_stats");
 
@@ -86,6 +105,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metricNames = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
+        String indexMetric = request.param("index_metric");
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.setTimeout(getTimeout(request));
@@ -93,13 +113,13 @@ public class RestNodesStatsAction extends BaseRestHandler {
         nodesStatsRequest.setIncludeShardsStats(NodeStatsLevel.of(request, NodeStatsLevel.NODE) != NodeStatsLevel.NODE);
 
         if (metricNames.size() == 1 && metricNames.contains("_all")) {
-            if (request.hasParam("index_metric")) {
+            if (indexMetric != null) {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
                         "request [%s] contains index metrics [%s] but all stats requested",
                         request.path(),
-                        request.param("index_metric")
+                        indexMetric
                     )
                 );
             }
@@ -143,12 +163,12 @@ public class RestNodesStatsAction extends BaseRestHandler {
                     flags.clear();
                     // use a sorted set so the unrecognized parameters appear in a reliable sorted order
                     final Set<String> invalidIndexMetrics = new TreeSet<>();
-                    for (final String indexMetric : indexMetrics) {
-                        final Consumer<CommonStatsFlags> handler = FLAGS.get(indexMetric);
+                    for (final String im : indexMetrics) {
+                        final Consumer<CommonStatsFlags> handler = FLAGS.get(im);
                         if (handler != null) {
                             handler.accept(flags);
                         } else {
-                            invalidIndexMetrics.add(indexMetric);
+                            invalidIndexMetrics.add(im);
                         }
                     }
 
@@ -158,13 +178,13 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
                     nodesStatsRequest.indices(flags);
                 }
-            } else if (request.hasParam("index_metric")) {
+            } else if (indexMetric != null) {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
                         "request [%s] contains index metrics [%s] but indices stats not requested",
                         request.path(),
-                        request.param("index_metric")
+                        indexMetric
                     )
                 );
             }
@@ -201,7 +221,15 @@ public class RestNodesStatsAction extends BaseRestHandler {
         );
     }
 
-    private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");
+    private final Set<String> RESPONSE_PARAMS = Set.of(
+        "level",
+        "fields",
+        "fielddata_fields",
+        "completion_fields",
+        "groups",
+        "include_segment_file_sizes",
+        "include_unloaded_segments"
+    );
 
     @Override
     protected Set<String> responseParams() {
@@ -211,6 +239,16 @@ public class RestNodesStatsAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

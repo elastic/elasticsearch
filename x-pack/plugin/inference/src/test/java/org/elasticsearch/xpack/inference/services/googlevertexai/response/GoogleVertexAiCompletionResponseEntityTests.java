@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.response;
 
-import org.apache.http.HttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
@@ -76,5 +76,34 @@ public class GoogleVertexAiCompletionResponseEntityTests extends ESTestCase {
         assertThat(results.isStreaming(), is(false));
         assertThat(results.results().size(), is(1));
         assertThat(results.results().get(0).content(), is(responseText));
+    }
+
+    /**
+     * A candidate that ran out of output budget before producing any text (here, all of it spent thinking) has
+     * content without parts. It yields an empty result rather than a parse failure or a null content.
+     */
+    public void testFromResponse_CandidateWithoutParts_ReturnsEmptyResult() throws IOException {
+        var responseJson = """
+            {
+              "candidates": [ { "content": { "role": "model" }, "finishReason": "MAX_TOKENS" } ],
+              "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 0,
+                "totalTokenCount": 1010,
+                "thoughtsTokenCount": 1000
+              },
+              "modelVersion": "gemini-2.5-flash",
+              "responseId": "responseId"
+            }
+            """;
+
+        var parsedResults = GoogleVertexAiCompletionResponseEntity.fromResponse(
+            mock(OutboundRequest.class),
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        var results = (CompletionResults) parsedResults;
+        assertThat(results.results().size(), is(1));
+        assertThat(results.results().get(0).content(), is(""));
     }
 }

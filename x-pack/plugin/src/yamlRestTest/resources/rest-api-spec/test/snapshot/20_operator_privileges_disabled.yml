@@ -42,7 +42,7 @@ teardown:
         snapshot: test_snapshot_2
         wait_for_completion: true
         body: |
-          { "include_global_state": true, "indices": "-*" }
+          { "include_global_state": true, "indices": "-*", "feature_states": ["none"] }
 
   - match: { snapshot.snapshot: test_snapshot_2 }
   - match: { snapshot.state : SUCCESS }

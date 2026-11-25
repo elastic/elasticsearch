@@ -11,15 +11,19 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
+import org.elasticsearch.simdvec.BulkMask;
+import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 /**
  * Native scorer for quantized vectors, optimized for JDK 22+ with heap segment support.
- * All methods assume {@code NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS} and use
- * {@link MemorySegment#ofArray} directly (no arena copies).
+ * All methods assume {@code NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS}. The query is copied
+ * into a scorer-owned off-heap buffer (once per query change).
  *
  * <p>Subclasses provide only the native dot-product function and bit-scale constants;
  * the scoring logic (quantize, bulk, corrections) is handled by template methods here.
@@ -29,21 +33,13 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
 
     protected static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
-    private byte[] cachedQueryArray;
-    private MemorySegment cachedQuerySeg;
+    private final ScoringQuery.OffHeapCopy queryCopy = new ScoringQuery.OffHeapCopy();
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSeg;
+    private final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     NativeMemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
-    }
-
-    private MemorySegment querySegment(byte[] q) {
-        if (q != cachedQueryArray) {
-            cachedQueryArray = q;
-            cachedQuerySeg = MemorySegment.ofArray(q);
-        }
-        return cachedQuerySeg;
     }
 
     private MemorySegment scoresSegment(float[] scores) {
@@ -58,13 +54,13 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
 
     abstract void dotProductBulk(MemorySegment dataset, MemorySegment query, int length, int count, MemorySegment scores);
 
-    abstract void dotProductBulkWithOffsets(
+    abstract void dotProductBulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int dataLength,
         int dataStride,
-        MemorySegment offsets,
-        int offsetsCount,
+        int mask,
+        int count,
         MemorySegment scores
     );
 
@@ -73,33 +69,32 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
     abstract float indexBitScale();
 
     @Override
-    final long quantizeScore(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, scratch, segment -> dotProduct(segment, querySegment(q), length));
+    final long quantizeScore(ScoringQuery q) throws IOException {
+        return IndexInputUtils.withSlice(in, length, scratch, segment -> dotProduct(segment, queryCopy.segmentFor(q), length));
     }
 
     @Override
-    final boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
-        var qSeg = querySegment(q);
+    final boolean quantizeScoreBulk(ScoringQuery q, int count, float[] scores) throws IOException {
+        var qSeg = queryCopy.segmentFor(q);
         var sSeg = scoresSegment(scores);
         IndexInputUtils.withVoidSlice(in, (long) length * count, scratch, dSeg -> { dotProductBulk(dSeg, qSeg, length, count, sSeg); });
         return true;
     }
 
     @Override
-    final boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        var qSeg = querySegment(q);
-        var offsetsSeg = MemorySegment.ofArray(offsets);
-        var sSeg = scoresSegment(scores);
+    final boolean quantizeScoreBulkMasked(ScoringQuery q, int mask, float[] scores, int count) throws IOException {
+        var qSeg = queryCopy.segmentFor(q);
+        var scoresSegment = scoresScratch.apply(count * Float.BYTES);
         IndexInputUtils.withVoidSlice(in, (long) length * count, scratch, dSeg -> {
-            dotProductBulkWithOffsets(dSeg, qSeg, length, length, offsetsSeg, offsetsCount, sSeg);
+            dotProductBulkMasked(dSeg, qSeg, length, length, mask, count, scoresSegment);
         });
-        repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
+        MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0L, scores, 0, count);
         return true;
     }
 
     @Override
     final float scoreBulk(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -109,7 +104,7 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
         float[] scores,
         int bulkSize
     ) throws IOException {
-        var qSeg = querySegment(q);
+        var qSeg = queryCopy.segmentFor(q);
         var sSeg = scoresSegment(scores);
         long vectorBytes = (long) length * bulkSize;
         long correctionBytes = 16L * bulkSize;
@@ -133,27 +128,24 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
     }
 
     @Override
-    final float scoreBulkOffsets(
-        byte[] q,
+    final float scoreBulkMasked(
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        int mask,
         float[] scores,
         int count
     ) throws IOException {
-        var qSeg = querySegment(q);
-        var offsetsSeg = MemorySegment.ofArray(offsets);
-        var sSeg = scoresSegment(scores);
+        var qSeg = queryCopy.segmentFor(q);
+        var scoresSegment = scoresScratch.apply(count * Float.BYTES);
         long vectorBytes = (long) length * count;
         long correctionBytes = 16L * count;
         IndexInputUtils.withVoidSlice(in, vectorBytes + correctionBytes, scratch, seg -> {
-            dotProductBulkWithOffsets(seg, qSeg, length, length, offsetsSeg, offsetsCount, sSeg);
-            repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
+            dotProductBulkMasked(seg, qSeg, length, length, mask, count, scoresSegment);
             ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,
                 seg.asSlice(vectorBytes, correctionBytes),
@@ -166,13 +158,13 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
                 queryBitScale(),
                 indexBitScale(),
                 centroidDp,
-                sSeg
+                scoresSegment
             );
         });
         float maxScore = Float.NEGATIVE_INFINITY;
-        for (int i = 0, offsetIdx = 0; i < count; i++) {
-            if (offsetIdx < offsetsCount && offsets[offsetIdx] == i) {
-                offsetIdx++;
+        for (int i = 0; i < count; i++) {
+            if (BulkMask.isSelected(mask, i)) {
+                scores[i] = scoresSegment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 if (scores[i] > maxScore) maxScore = scores[i];
             } else {
                 scores[i] = 0.0f;

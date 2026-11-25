@@ -111,6 +111,11 @@ public final class KeyValueReader {
         return new String(data, dataStart + 4, len, StandardCharsets.UTF_8);
     }
 
+    /** The payload length in bytes of the current variable-length value, read from its length prefix without decoding it. */
+    public int valueLength() {
+        return ByteUtils.readIntLE(data, dataStart);
+    }
+
     /**
      * Creates a child {@link KeyValueReader} reader over the current value's payload.
      * The current value must be of type KEY_VALUE.

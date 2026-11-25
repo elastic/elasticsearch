@@ -9,7 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+
+import java.util.function.Predicate;
 
 /**
  * Holds context used when merging mappings.
@@ -20,51 +23,74 @@ public final class MapperMergeContext {
 
     private final MapperBuilderContext mapperBuilderContext;
     private final ParseFieldLimits fieldLimits;
-
-    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, ParseFieldLimits fieldLimits) {
-        this.mapperBuilderContext = mapperBuilderContext;
-        this.fieldLimits = fieldLimits;
-    }
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
     /**
      * The root context, to be used when merging a tree of mappers
      */
-    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason, long newFieldsBudget) {
-        return root(
-            isSourceSynthetic,
-            isDataStream,
-            mergeReason,
-            ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)),
-            false,
-            false
-        );
-    }
-
-    /**
-     * The root context, to be used when merging a tree of mappers in a strict columnar index
-     */
-    public static MapperMergeContext root(
+    static MapperMergeContext root(
         boolean isSourceSynthetic,
         boolean isDataStream,
         MergeReason mergeReason,
         ParseFieldLimits fieldLimits,
         boolean isStrictColumnar,
-        boolean isSourceColumnarStored
+        boolean isSourceColumnarStored,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return new MapperMergeContext(
             MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason, isStrictColumnar, isSourceColumnarStored),
-            fieldLimits
+            fieldLimits,
+            clusterSupportsFeature
         );
     }
 
     /**
-     * Creates a new {@link MapperMergeContext} from a {@link MapperBuilderContext}
+     * Creates a new {@link MapperMergeContext} from a {@link MapperBuilderContext}.
+     *
      * @param mapperBuilderContext the {@link MapperBuilderContext} for this {@link MapperMergeContext}
      * @param newFieldsBudget limits how many fields can be added during the merge process
+     * @param clusterSupportsFeature the cluster feature check
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
-    public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long newFieldsBudget) {
-        return new MapperMergeContext(mapperBuilderContext, ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)));
+    static MapperMergeContext fromBuilderContext(
+        MapperBuilderContext mapperBuilderContext,
+        long newFieldsBudget,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        return new MapperMergeContext(
+            mapperBuilderContext,
+            ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)),
+            clusterSupportsFeature
+        );
+    }
+
+    private MapperMergeContext(
+        MapperBuilderContext mapperBuilderContext,
+        ParseFieldLimits fieldLimits,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        this.mapperBuilderContext = mapperBuilderContext;
+        this.fieldLimits = fieldLimits;
+        this.clusterSupportsFeature = clusterSupportsFeature;
+    }
+
+    /**
+     * Creates a context over the same {@link MapperBuilderContext} and feature predicate with an unlimited, independent field budget.
+     */
+    public MapperMergeContext withUnlimitedParseFieldLimitsBudget() {
+        return withUnlimitedParseFieldLimitsBudget(mapperBuilderContext);
+    }
+
+    /**
+     * Creates a context over the given {@link MapperBuilderContext} with this context's feature predicate and an unlimited,
+     * independent field budget.
+     */
+    public MapperMergeContext withUnlimitedParseFieldLimitsBudget(MapperBuilderContext mapperBuilderContext) {
+        return new MapperMergeContext(
+            mapperBuilderContext,
+            ParseFieldLimits.withBudget(NewFieldsBudget.dropping(Long.MAX_VALUE)),
+            clusterSupportsFeature
+        );
     }
 
     /**
@@ -84,7 +110,14 @@ public final class MapperMergeContext {
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
     MapperMergeContext createChildContext(MapperBuilderContext childContext) {
-        return new MapperMergeContext(childContext, fieldLimits);
+        return new MapperMergeContext(childContext, fieldLimits, clusterSupportsFeature);
+    }
+
+    /**
+     * Returns {@code true} if all nodes in the cluster support {@code feature}.
+     */
+    public boolean clusterHasFeature(NodeFeature feature) {
+        return clusterSupportsFeature.test(feature);
     }
 
     public MapperBuilderContext getMapperBuilderContext() {

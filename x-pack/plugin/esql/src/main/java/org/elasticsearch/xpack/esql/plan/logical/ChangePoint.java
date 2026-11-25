@@ -53,7 +53,8 @@ public class ChangePoint extends UnaryPlan
         PostAnalysisVerificationAware,
         SortPreserving,
         LicenseAware,
-        ExecutesOn.Coordinator {
+        ExecutesOn.Coordinator,
+        DocPreserving {
 
     private final Attribute value;
     private final Attribute key;
@@ -61,7 +62,7 @@ public class ChangePoint extends UnaryPlan
     private final Attribute targetPvalue;
     private final List<Expression> groupings;
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public ChangePoint(
         Source source,

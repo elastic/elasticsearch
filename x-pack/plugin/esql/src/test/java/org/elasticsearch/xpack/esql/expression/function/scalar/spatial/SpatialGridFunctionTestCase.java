@@ -77,6 +77,25 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     }
 
     /**
+     * Total number of grid cells each thread in {@link #testEvaluateInManyThreads} may compute for a shape. Computing cells
+     * costs a few microseconds per cell and a shape can produce up to {@link SpatialGridFunction#MAX_GRID_CELLS} cells per row,
+     * so the default iteration count can run past the suite timeout on a loaded CI agent. Shapes with few cells keep the
+     * default iteration count.
+     */
+    private static final int MANY_THREADS_CELL_BUDGET = 1_000_000;
+
+    @Override
+    protected int evaluateInManyThreadsCountMax() {
+        int countMax = super.evaluateInManyThreadsCountMax();
+        if (DataType.isSpatialShape(testCase.getData().getFirst().type()) == false) {
+            return countMax;
+        }
+        // Test cases derived by the framework, such as the null-input ones, do not carry a cell count, so assume the worst.
+        int cells = testCase.extra() instanceof Integer cellCount ? cellCount : SpatialGridFunction.MAX_GRID_CELLS;
+        return Math.clamp(MANY_THREADS_CELL_BUDGET / Math.max(cells, 1), 100, countMax);
+    }
+
+    /**
      * Adds test case suppliers for a spatial grid function.
      *
      * <p>The {@code expectedValue} and {@code expectedValueWithBounds} functions accept a
@@ -94,8 +113,10 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     ) {
         for (DataType spatialType : dataTypes) {
             TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType, false);
-            // Limit precision for geo_shape to avoid generating millions of cells for complex geometries
-            int maxPrecision = spatialType == GEO_SHAPE ? 4 : 8;
+            // Limit precision for geo_shape to avoid generating millions of cells for complex geometries. Points go up to 12,
+            // the only geohash precision whose long cell ids can be negative, so the -1 out-of-bounds sentinel is exercised
+            // alongside valid negative ids.
+            int maxPrecision = spatialType == GEO_SHAPE ? 4 : 12;
             for (boolean literalPrecision : List.of(true)) {
                 // TODO: add 'false' case once we support non-literal precision
                 String testName = spatialType.typeName() + (literalPrecision ? " with literal precision" : " with precision");
@@ -116,7 +137,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                         getFunctionClassName() + evaluatorName,
                         gridType,
                         equalTo(expected)
-                    );
+                    ).withExtra(cellCount(expected));
                     if (warnings.isEmpty() == false) {
                         tc = tc.withWarning("Line 1:1 [source]: " + warnings.get(0));
                     }
@@ -142,7 +163,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                         startsWith(getFunctionClassName() + evaluatorName),
                         gridType,
                         equalTo(boundedExpected)
-                    );
+                    ).withExtra(cellCount(boundedExpected));
                     if (warnings.isEmpty() == false) {
                         tc = tc.withWarning("Line 1:1 [source]: " + warnings.get(0));
                     }
@@ -150,6 +171,10 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                 }));
             }
         }
+    }
+
+    private static int cellCount(Object expected) {
+        return expected instanceof List<?> cells ? cells.size() : 1;
     }
 
     private static final FunctionAppliesTo geoShapeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);

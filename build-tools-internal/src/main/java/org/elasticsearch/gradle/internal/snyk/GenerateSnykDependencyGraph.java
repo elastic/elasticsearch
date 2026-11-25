@@ -13,22 +13,21 @@ import groovy.json.JsonOutput;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.inject.Inject;
 
@@ -50,7 +49,7 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
         "monitorGraph",
         true
     );
-    private final Property<Configuration> configuration;
+    private final ListProperty<String> dependencyEdges;
     private final Property<String> gradleVersion;
     private final RegularFileProperty outputFile;
     private final Property<String> projectName;
@@ -61,7 +60,7 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
 
     @Inject
     public GenerateSnykDependencyGraph(ObjectFactory objectFactory) {
-        configuration = objectFactory.property(Configuration.class);
+        dependencyEdges = objectFactory.listProperty(String.class).empty();
         gradleVersion = objectFactory.property(String.class);
         outputFile = objectFactory.fileProperty();
         projectName = objectFactory.property(String.class);
@@ -88,16 +87,9 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
     }
 
     private Map<String, Object> generateGradleGraphPayload() {
-        Set<ResolvedDependency> firstLevelModuleDependencies = configuration.get()
-            .getResolvedConfiguration()
-            .getFirstLevelModuleDependencies();
         SnykDependencyGraphBuilder builder = new SnykDependencyGraphBuilder(gradleVersion.get());
         String effectiveProjectPath = projectPath.get();
-        builder.walkGraph(
-            (effectiveProjectPath.equals(":") ? projectName.get() : effectiveProjectPath),
-            version.get(),
-            firstLevelModuleDependencies
-        );
+        builder.walkGraph((effectiveProjectPath.equals(":") ? projectName.get() : effectiveProjectPath), version.get(), dependencyGraph());
         return Map.of(
             "meta",
             FIXED_META_DATA,
@@ -120,9 +112,20 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
         return Map.of("remoteUrl", remoteUrl.get(), "branch", getGitRevision().get());
     }
 
-    @InputFiles
-    public Property<Configuration> getConfiguration() {
-        return configuration;
+    @Input
+    public ListProperty<String> getDependencyEdges() {
+        return dependencyEdges;
+    }
+
+    private Map<String, List<String>> dependencyGraph() {
+        LinkedHashMap<String, List<String>> graph = new LinkedHashMap<>();
+        dependencyEdges.get().forEach(edge -> {
+            int separator = edge.indexOf("->");
+            String parentNodeId = edge.substring(0, separator);
+            String childNodeId = edge.substring(separator + 2);
+            graph.computeIfAbsent(parentNodeId, ignored -> new ArrayList<>()).add(childNodeId);
+        });
+        return graph;
     }
 
     @OutputFile

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 
 import java.io.BufferedInputStream;
@@ -65,7 +66,7 @@ final class NdJsonRecordSplitter implements RecordSplitter {
     }
 
     IOException recordTooLargeException() {
-        return new IOException("NDJSON line exceeded external_max_record_size [" + maxRecordBytes + "]");
+        return new IOException("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]");
     }
 
     private int findLastRecordBoundaryByForwardScan(byte[] buf, int offset, int length) {

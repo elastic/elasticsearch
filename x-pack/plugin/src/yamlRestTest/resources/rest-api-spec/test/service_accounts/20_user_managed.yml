@@ -114,11 +114,9 @@ teardown:
         namespace: apps
         service: worker_1
   - length: { '': 1 }
-  - match:
-      "apps/worker_1":
-        type: user_managed
-        roles: ["user_managed_monitor"]
-        enabled: true
+  - match: { "apps/worker_1.type": user_managed }
+  - match: { "apps/worker_1.roles": ["user_managed_monitor"] }
+  - match: { "apps/worker_1.enabled": true }
 
   - do:
       security.get_service_accounts:
@@ -326,12 +324,10 @@ teardown:
       security.get_service_accounts:
         namespace: apps
         service: worker_1
-  - match:
-      "apps/worker_1":
-        type: user_managed
-        roles: ["user_managed_monitor"]
-        enabled: true
-        description: "Monitors the apps"
+  - match: { "apps/worker_1.type": user_managed }
+  - match: { "apps/worker_1.roles": ["user_managed_monitor"] }
+  - match: { "apps/worker_1.enabled": true }
+  - match: { "apps/worker_1.description": "Monitors the apps" }
 
   # The description means nothing to Elasticsearch: authenticating as the account does not surface it.
   - do:

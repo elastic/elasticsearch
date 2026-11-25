@@ -271,12 +271,12 @@ public class BlobCacheMetricsTests extends ESTestCase {
         );
     }
 
-    public void testFutureDatedTimestampRecordsNegativeAge() {
+    public void testFutureDatedTimestampRecordsZeroAge() {
         long now = fakeNowMillis.get();
         metrics.recordRead(now + 1_000);
         List<Measurement> readAges = ageMeasurements(BLOB_CACHE_READ_AGE);
         assertThat(readAges, hasSize(1));
-        assertEquals(TimeRangeBucket.toHours(-1_000), readAges.getFirst().getDouble(), 0.0);
+        assertEquals(0.0, readAges.getFirst().getDouble(), 0.0);
     }
 
     public void testSentinelsOmittedFromHistogramsAndTotalsRemainUnattributed() {
@@ -359,6 +359,39 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertThat(measurements.getFirst().getLong(), is((long) first));
         assertThat(measurements.getLast().getLong(), is((long) second));
         assertThat(measurements.getFirst().attributes().isEmpty(), is(true));
+    }
+
+    public void testNoop() {
+        BlobCacheMetrics.NOOP.recordRead(randomLong());
+        BlobCacheMetrics.NOOP.recordMiss(randomLong());
+        assertThat(BlobCacheMetrics.NOOP.readCount(), is(0L));
+        assertThat(BlobCacheMetrics.NOOP.missCount(), is(0L));
+
+        BlobCacheMetrics.NOOP.recordBypassRead();
+        assertThat(BlobCacheMetrics.NOOP.readCount(), is(0L));
+        assertThat(BlobCacheMetrics.NOOP.missCount(), is(0L));
+
+        // Other recording methods delegate to MeterRegistry.NOOP. No state to assert, but must not throw
+        BlobCacheMetrics.NOOP.recordCachePopulationMetrics(
+            randomIdentifier() + ".fdt",
+            randomIntBetween(1, 1000),
+            randomNonNegativeLong(),
+            randomFrom(BlobCacheMetrics.CachePopulationReason.values()),
+            randomFrom(CachePopulationSource.values())
+        );
+        BlobCacheMetrics.NOOP.recordEpochChange();
+        BlobCacheMetrics.NOOP.recordEvictedRegionMaxFreq(1);
+        BlobCacheMetrics.NOOP.recordPrefetch(randomFrom(BlobCacheMetrics.PrefetchResult.values()));
+        BlobCacheMetrics.NOOP.recordEvictionScan(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomFrom(BlobCacheMetrics.EvictionScanMode.values()),
+            randomFrom(BlobCacheMetrics.EvictionScanOutcome.values())
+        );
+        BlobCacheMetrics.NOOP.recordLockAcquire(randomNonNegativeLong(), randomFrom(BlobCacheMetrics.LockAcquireSite.values()));
+
+        assertThat(BlobCacheMetrics.NOOP.readCount(), is(0L));
+        assertThat(BlobCacheMetrics.NOOP.missCount(), is(0L));
     }
 
     private static void assertEvictionScanAttributes(

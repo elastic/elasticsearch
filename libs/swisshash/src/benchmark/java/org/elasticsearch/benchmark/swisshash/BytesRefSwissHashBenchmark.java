@@ -76,7 +76,7 @@ public class BytesRefSwissHashBenchmark {
 
         BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
+        NoopCircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         swiss = SwissHashFactory.getInstance().newBytesRefSwissHash(recycler, breaker, bigArrays);
         legacy = new BytesRefHash(1, bigArrays);
     }

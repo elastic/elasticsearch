@@ -393,10 +393,21 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     @Override
+    public Object jsonPropertyValue(Object property) {
+        // The same as nodeString shows: the plan JSON must not reveal the bucket and prefix either
+        return sourcePath.equals(property) ? StoragePath.objectName(sourcePath) : property;
+    }
+
+    @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        // sourcePath is a user-supplied external location (S3 URI / file / table path) — opaque
-        // free-form content; redact under anonymization. sourceType is a low-cardinality format enum.
-        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType()).append("]");
+        // Only the object name (last path segment) is included; bucket, prefix, and full URI are
+        // always omitted. sourceType is a low-cardinality format enum, never redacted.
+        sb.append(nodeName())
+            .append("[")
+            .append(mapper.location(StoragePath.objectName(sourcePath)))
+            .append("][")
+            .append(sourceType())
+            .append("]");
         NodeUtils.toString(sb, output, format, mapper);
     }
 

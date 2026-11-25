@@ -144,7 +144,7 @@ public class GoogleAiStudioService extends SenderService<GoogleAiStudioModel> {
         if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
 
             var updatedServiceSettings = new GoogleAiStudioEmbeddingsServiceSettings(
                 serviceSettings.modelId(),

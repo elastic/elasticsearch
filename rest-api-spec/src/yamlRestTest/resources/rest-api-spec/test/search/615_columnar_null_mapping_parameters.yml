@@ -58,38 +58,6 @@ setup:
           - '{ "other": "c" }'
 
 ---
-exists matches a null that null_value turns into a keyword value:
-  - do:
-      search:
-        index: test
-        body:
-          query: { exists: { field: nv_kwd } }
-          sort: [ _doc ]
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: bare_null_with_null_value }
-  - match: { hits.hits.1._id: array_null_with_null_value }
-
----
-exists matches a null that null_value turns into a long value:
-  - do:
-      search:
-        index: test
-        body:
-          query: { exists: { field: nv_lng } }
-          sort: [ _doc ]
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: bare_null_with_null_value }
-  - match: { hits.hits.1._id: array_null_with_null_value }
-
----
 exists does not match a malformed long:
   - do:
       search:

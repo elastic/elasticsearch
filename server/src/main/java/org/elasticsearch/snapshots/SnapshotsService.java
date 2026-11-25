@@ -1942,6 +1942,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 <<<<<<< HEAD
     protected void doStart() {
 =======
+
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             if (event.localNodeMaster()) {

@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.service.MasterService;
 
 public interface ClusterStateTaskListener {
-<<<<<<< HEAD
+    <<<<<<<HEAD
     /**
      * A callback for when task execution fails. May receive a {@link NotMasterException} if this node stopped being the master before this
      * task was executed or a {@link ProcessClusterEventTimeoutException} if the task timed out before it was executed. If the task fails
@@ -28,8 +28,7 @@ public interface ClusterStateTaskListener {
      * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
      * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
-=======
-    /// A callback for when the execution of a [ClusterState] update task submitted to the [org.elasticsearch.cluster.service.MasterService]
+    =======/// A callback for when the execution of a [ClusterState] update task submitted to the [org.elasticsearch.cluster.service.MasterService]
     /// fails.
     ///
     /// Tasks may themselves fail during execution, either by throwing an exception rather than returning an updated [ClusterState] or
@@ -66,6 +65,8 @@ public interface ClusterStateTaskListener {
     /// Implementations of this callback must not throw exceptions: an exception thrown here is logged by the master service at `ERROR`
     /// level and otherwise ignored, except in tests where it raises an [AssertionError]. If log-and-ignore is the right behaviour then
     /// implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
+    >>>>>>>
+    f88eae50e4ac (Detect re-election without no-master state (#166747))
+
     void onFailure(Exception e);
 }

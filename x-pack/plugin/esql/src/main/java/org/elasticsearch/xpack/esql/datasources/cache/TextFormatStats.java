@@ -20,11 +20,10 @@ import java.util.OptionalLong;
 /**
  * Builds a {@link SourceStatistics} for the line-oriented text-format readers (CSV / TSV / NDJSON).
  * <p>
- * Despite the parameter's name, what {@link #build} is handed is a measurement the current read just
- * made, not a record read back from the cache: every caller is on the publish side, and the two that
- * pass {@code Optional.empty()} are cold resolution. With a measurement the row count and the
- * per-column statistics are published, plus stream-derived {@code bytesRead} fed into
- * {@code sizeInBytes} when {@code StorageObject.length()} was unknown at metadata resolution.
+ * {@link #build} publishes the row count and the per-column statistics of a measurement the current
+ * read just made, plus stream-derived {@code bytesRead} fed into {@code sizeInBytes} when
+ * {@code StorageObject.length()} was unknown at metadata resolution. An empty measurement is cold
+ * resolution and publishes neither.
  */
 public final class TextFormatStats {
 
@@ -34,7 +33,7 @@ public final class TextFormatStats {
     private TextFormatStats() {}
 
     public static SourceStatistics build(
-        Optional<ExternalStats.Stats> cachedStats,
+        Optional<ExternalStats.Stats> measurement,
         OptionalLong lengthDerivedSizeInBytes,
         List<Attribute> schema,
         int maxExtremumBytes
@@ -42,8 +41,8 @@ public final class TextFormatStats {
         OptionalLong rowCount;
         OptionalLong sizeInBytes;
         Map<String, SourceStatistics.ColumnStatistics> columns;
-        if (cachedStats.isPresent()) {
-            ExternalStats.Stats s = cachedStats.get();
+        if (measurement.isPresent()) {
+            ExternalStats.Stats s = measurement.get();
             rowCount = OptionalLong.of(s.rowCount());
             sizeInBytes = lengthDerivedSizeInBytes.isPresent() ? lengthDerivedSizeInBytes : s.bytesRead();
             columns = buildColumns(s.columns(), schema, maxExtremumBytes);

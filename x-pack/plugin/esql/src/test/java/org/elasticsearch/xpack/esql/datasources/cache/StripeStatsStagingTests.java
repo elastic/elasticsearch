@@ -693,9 +693,9 @@ public class StripeStatsStagingTests extends ESTestCase {
     /**
      * The width is applied to each piece before the pieces fold, not once the stripe is whole. Two pieces of one
      * stripe hold local minima {@code a} and {@code alpha}; at four bytes the second publishes no minimum, and a
-     * piece carrying values that offers no minimum poisons the fold, so the stripe serves none. Were the width
-     * applied at publication the fold would still see {@code alpha}, take {@code a} as the smaller of the two and
-     * publish it -- a minimum over the bytes one piece read, offered as the stripe's.
+     * piece carrying values that offers no minimum poisons the fold, so the stripe serves none. Folding first
+     * would serve {@code a} here and is equally correct -- the cap comes first so that the staging area, which
+     * holds a piece until the query ends, never holds a value the read would go on to withhold.
      */
     public void testTheWidthIsAppliedBeforeThePiecesFold() {
         assertEquals("the default folds both pieces' minima", new BytesRef("a"), foldedMin(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES));

@@ -249,6 +249,40 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MATCH, classify(greaterThanOf(name, of("aaron")), stats));
     }
 
+    /**
+     * A withheld text extremum leaves the column with one end, which
+     * {@code esql.external.cache.stats.max_extremum_size} makes routine. Every predicate that reads the
+     * extrema must stay AMBIGUOUS, and each literal below is chosen so that a classifier reading only the
+     * end it has would answer MATCH or MISS instead -- a MISS would drop a split that can match.
+     */
+    public void testAOneSidedTextExtremumStaysAmbiguous() {
+        ReferenceAttribute note = referenceAttribute("note", DataType.KEYWORD);
+        SplitStats withMin = oneSidedNote("alice", null);
+        SplitStats withMax = oneSidedNote(null, "charlie");
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(greaterThanOrEqualOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(equalsOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(in(note, of("aaron")), withMin));
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(lessThanOrEqualOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(equalsOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(in(note, of("delta")), withMax));
+    }
+
+    /** A 100-row {@code note} column with no nulls, publishing only the end that is not {@code null}. */
+    private static SplitStats oneSidedNote(Object min, Object max) {
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int col = builder.addColumn("note", 0L, min, max, -1);
+        builder.valueCount(col, 100);
+        return builder.build();
+    }
+
     // --- Or ---
 
     public void testOrBothMatch() {

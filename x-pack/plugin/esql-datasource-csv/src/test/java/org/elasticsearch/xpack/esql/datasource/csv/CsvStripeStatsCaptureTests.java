@@ -662,7 +662,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    /** Reads {@code bytes} through the CSV stripe rail at {@code maxExtremumBytes} and reconciles to metadata. */
+    /** Reads {@code bytes} through the CSV stripe path at {@code maxExtremumBytes} and reconciles to metadata. */
     private Map<String, Object> stripeMetadata(byte[] bytes, int maxExtremumBytes) throws Exception {
         StorageObject o = memoryObject(bytes);
         FormatReadContext ctx = FormatReadContext.builder()

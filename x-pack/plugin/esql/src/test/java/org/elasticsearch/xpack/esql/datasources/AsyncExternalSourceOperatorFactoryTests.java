@@ -6274,8 +6274,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * One case per rail the factory dispatches to. A dropped {@code .statsMaxExtremumBytes(…)} compiles and
-     * reverts to the default, so each case passes a width that is not the default.
+     * One case per path the factory dispatches to.
      */
     public void testTheConfiguredExtremumWidthReachesTheSliceQueueLeaf() throws Exception {
         WidthCapturingReader reader = new WidthCapturingReader(false);
@@ -6354,7 +6353,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
-    /** Records every {@link FormatReadContext} a rail hands it, and reports the native-async mode that rail needs. */
+    /** Records every {@link FormatReadContext} handed to it, and reports the native-async mode that path needs. */
     private static class WidthCapturingReader implements NoConfigFormatReader {
         private final List<FormatReadContext> contexts = new ArrayList<>();
         private final boolean nativeAsync;

@@ -103,6 +103,59 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
     }
 
     /**
+     * The same over uncompressed files with parallelism pinned, which segments through
+     * {@code ParallelParsingCoordinator}. Without the pragma this path is taken only when the runner has
+     * more than one processor, so the width it forwards would go uncovered on a one-processor runner.
+     */
+    public void testTheSettingReachesTheParallelSegmentedRead() throws Exception {
+        assumeTrue("the segmented read is reached by pinning external_parsing_parallelism, a snapshot-only pragma", canUseQueryPragmas());
+        Path dir = createTempDir();
+        for (int i = 0; i < FILE_COUNT; i++) {
+            Files.writeString(dir.resolve("part" + i + ".csv"), "id,tag\n" + i + ",tag-" + i + "\n");
+        }
+        String dataset = registerLocalFileDataset("narrow_width_segmented", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
+
+        String expectedTagMin = "tag-0";
+        String expectedTagMax = "tag-" + (FILE_COUNT - 1);
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(id), MAX(id)").pragmas(PARALLEL_PARSE),
+                TimeValue.timeValueMinutes(5)
+            )
+        ) {
+            assertThat("the harvesting read scans", response.documentsFound(), equalTo((long) FILE_COUNT));
+        }
+
+        // The control, for the reason it is the control in the test above.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(id), MAX(id)").pragmas(PARALLEL_PARSE),
+                TimeValue.timeValueMinutes(5)
+            )
+        ) {
+            assertThat("a numeric extremum is served warm, so the record is cached", response.documentsFound(), equalTo(0L));
+        }
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag)").pragmas(PARALLEL_PARSE),
+                TimeValue.timeValueMinutes(5)
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat("the answer is still correct, by scanning", rows.get(0).get(0), equalTo(expectedTagMin));
+            assertThat("the answer is still correct, by scanning", rows.get(0).get(1), equalTo(expectedTagMax));
+            assertThat(
+                "the segmented read withholds it too, so this scans where the default serves",
+                response.documentsFound(),
+                equalTo((long) FILE_COUNT)
+            );
+        }
+    }
+
+    /**
      * The same over gzipped files, which stream through {@code StreamingParallelParsingCoordinator}. The
      * pragma forces that path on a one-processor runner.
      */

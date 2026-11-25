@@ -85,11 +85,8 @@ public class TextFormatStatsTests extends ESTestCase {
     }
 
     /**
-     * Every carrier a harvest can produce, read off the {@code of(DataType)} table in
-     * {@code ColumnStatTypeSupport}: {@code INTEGER} holds an {@code Integer}, {@code LONG}/{@code DATETIME}/
-     * {@code DATE_NANOS} a {@code Long}, {@code DOUBLE} a {@code Double}, {@code BOOLEAN} a {@code Boolean},
-     * and {@code KEYWORD}/{@code TEXT}/{@code IP} a {@link BytesRef}. The cap reads {@link BytesRef#length},
-     * so only the last of those can reach it, and an encoded address is 16 bytes and stays under the default.
+     * One case per carrier {@code ColumnStatsAccumulator} can emit. The cap reads {@link BytesRef#length}, so
+     * only a {@link BytesRef} can reach it; the rest have no width to exceed.
      */
     public void testEveryHarvestedCarrierSurvivesTheCap() {
         BytesRef address = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.1")));
@@ -127,6 +124,17 @@ public class TextFormatStatsTests extends ESTestCase {
      * The width is {@code esql.external.cache.stats.max_extremum_size}, not a constant. The same value is
      * published at the default and withheld under a narrower setting, so the setting is what decides.
      */
+    /** The cap reads the stored width, so a setting under 16 withholds an encoded address like any other value. */
+    public void testAWidthBelowSixteenWithholdsAnEncodedAddress() {
+        BytesRef address = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.1")));
+
+        Map<String, Object> published = publish(1, Map.of("ip", new ExternalStats.ColumnStats(0, 1, address, address)), 15);
+
+        assertNull("an address is withheld at fifteen bytes", SourceStatisticsSerializer.extractColumnMin(published, "ip"));
+        assertNull("an address is withheld at fifteen bytes", SourceStatisticsSerializer.extractColumnMax(published, "ip"));
+        assertEquals("and its counts survive", (Long) 1L, SourceStatisticsSerializer.extractColumnValueCount(published, "ip"));
+    }
+
     public void testANarrowerWidthWithholdsWhatTheDefaultPublishes() {
         BytesRef value = keyword(64);
 
@@ -222,9 +230,8 @@ public class TextFormatStatsTests extends ESTestCase {
     /**
      * The fold's poison is per extremum, not per column. One read of a column published a narrow minimum and
      * withheld an oversized maximum; the fold must still serve the minimum, folded against the other read's,
-     * while marking only the maximum unservable. Without this case a fold that dropped a column's valid
-     * minimum whenever its maximum was withheld would pass every other case here, because they withhold both
-     * ends of the same column.
+     * while marking only the maximum unservable. Every other case here withholds both ends, so a fold that
+     * dropped a valid minimum whenever the maximum was withheld would pass them all.
      */
     public void testTheFoldPoisonsOnlyTheWithheldEndOfAColumn() {
         BytesRef lower = new BytesRef("aaaa");

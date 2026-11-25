@@ -46,7 +46,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -1248,129 +1247,86 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         }
     }
 
-    public void testCustomMaxOperationSizeSetting() {
-        final long operationSize = 4_000_000L;
-        final Settings tenPercent = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "10%").build();
-        assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(tenPercent, operationSize), equalTo(40_000_000L));
-
-        final Settings absolute = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "50mb").build();
-        assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(absolute, operationSize), equalTo(0L));
-    }
-
-    public void testCeilingRoundsUp() {
-        final long operationSize = 1_000L;
-        final Settings fifteenPercent = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "15%").build();
-        // ceil(1000 * 100 / 15) = 6667
-        assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(fifteenPercent, operationSize), equalTo(6_667L));
-    }
-
-    public void testZeroPercentLimitRequiresNoHeap() {
-        final Settings zeroPercent = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "0%").build();
-        assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(zeroPercent, 4_000_000L), equalTo(0L));
-    }
-
-    // If a heap requirement is sent through bigger than what the master is computing, then we must default to the larger value
-    public void testLargerLegacyHeapReplacesRawSize() {
+    public void testValidIndexingHeapIgnoresRawOperationSize() {
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
         final long operationSize = 1_000L;
         timed.updateLargestIndexingOperationSize(operationSize);
-
-        final var raw = timed.getValidIndexingOperationsHeapMemoryRequirements();
-        assertNotNull(raw);
-        assertThat(raw.minimumRequiredHeapInBytes(), equalTo(operationSize * 10));
-        assertThat(
-            raw.validUntil(),
-            equalTo(now.get() + StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos())
-        );
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(operationSize));
+        assertNull(timed.getValidIndexingOperationsHeapMemoryRequirements());
 
         final long legacyHeap = operationSize * 10 + 5_000L;
         timed.updateIndexingOperationsHeapMemoryRequirements(legacyHeap);
-        final var merged = timed.getValidIndexingOperationsHeapMemoryRequirements();
-        assertNotNull(merged);
-        assertThat(merged.minimumRequiredHeapInBytes(), equalTo(legacyHeap));
+        final var published = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(published);
+        assertThat(published.minimumRequiredHeapInBytes(), equalTo(legacyHeap));
+        assertThat(
+            published.validUntil(),
+            equalTo(now.get() + StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos())
+        );
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(operationSize));
     }
 
-    // Two heap numbers can be stored at once, one from the raw operation size, and one from the old heap message, each with its own
-    // expiry. This test checks that the bigger number keeps the expiry that came with it. It does not borrow the later expiry
-    // from subsequent changing heap requirements. So if the raw size produced the bigger heap first, that earlier deadline stays even
-    // after a smaller old-style heap estimate arrives.
-    public void testWinnerKeepsItsOwnDeadline() {
+    public void testLegacyHeapKeepsItsDeadlineWhenRawSizeArrives() {
         final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
         final AtomicLong now = new AtomicLong(0L);
-        final StatelessMemoryMetricsService rawWins = new StatelessMemoryMetricsService(now::get, clusterService);
-        rawWins.updateLargestIndexingOperationSize(10_000L);
-        final long rawDeadline = rawWins.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
+        final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
+        timed.updateIndexingOperationsHeapMemoryRequirements(100_000L);
+        final long legacyDeadline = timed.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
         now.set(1_000L);
-        rawWins.updateIndexingOperationsHeapMemoryRequirements(1_000L);
-        final var rawWinner = rawWins.getValidIndexingOperationsHeapMemoryRequirements();
-        assertNotNull(rawWinner);
-        assertThat(rawWinner.minimumRequiredHeapInBytes(), equalTo(100_000L));
-        assertThat(rawWinner.validUntil(), equalTo(rawDeadline));
-
-        final StatelessMemoryMetricsService legacyWins = new StatelessMemoryMetricsService(now::get, clusterService);
-        now.set(0L);
-        legacyWins.updateIndexingOperationsHeapMemoryRequirements(100_000L);
-        final long legacyDeadline = legacyWins.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
-        now.set(1_000L);
-        legacyWins.updateLargestIndexingOperationSize(100L);
-        final var legacyWinner = legacyWins.getValidIndexingOperationsHeapMemoryRequirements();
-        assertNotNull(legacyWinner);
-        assertThat(legacyWinner.minimumRequiredHeapInBytes(), equalTo(100_000L));
-        assertThat(legacyWinner.validUntil(), equalTo(legacyDeadline));
+        timed.updateLargestIndexingOperationSize(100L);
+        final var published = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(published);
+        assertThat(published.minimumRequiredHeapInBytes(), equalTo(100_000L));
+        assertThat(published.validUntil(), equalTo(legacyDeadline));
         assertThat(legacyDeadline, equalTo(validityNanos));
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(100L));
     }
 
-    // The same as {@link testWinnerKeepsItsOwnDeadline} but the other order. A small heap arrives first. A bigger one arrives later,
-    // and the test checks that the expiry moves to the later update, the one that produced the bigger heap. It does not stay stuck
-    // on the earlier, smaller value.
-    public void testWinningDeadlineIsKeptWhenThatSourceIsPublishedSecond() {
-        final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
+    public void testLaterRawSizeDoesNotReplaceLegacyHeap() {
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
         timed.updateIndexingOperationsHeapMemoryRequirements(1_000L);
         final long earlierDeadline = timed.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
         now.set(1_000L);
         timed.updateLargestIndexingOperationSize(10_000L);
-        final var winner = timed.getValidIndexingOperationsHeapMemoryRequirements();
-        assertNotNull(winner);
-        assertThat(winner.minimumRequiredHeapInBytes(), equalTo(100_000L));
-        assertThat(winner.validUntil(), equalTo(now.get() + validityNanos));
-        assertThat(winner.validUntil(), greaterThan(earlierDeadline));
+        final var published = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(published);
+        assertThat(published.minimumRequiredHeapInBytes(), equalTo(1_000L));
+        assertThat(published.validUntil(), equalTo(earlierDeadline));
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(10_000L));
     }
 
-    // If two estimates are equal, then we need to ensure the deadline gets bumped, as technically the second update is >= the first
-    public void testEqualHeapsKeepTheLaterDeadline() {
+    public void testLegacyPublishDeadlineIsIndependentOfRawSize() {
         final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
         timed.updateLargestIndexingOperationSize(1_000L);
         now.set(5_000L);
         timed.updateIndexingOperationsHeapMemoryRequirements(10_000L);
-        final var merged = timed.getValidIndexingOperationsHeapMemoryRequirements();
-        assertNotNull(merged);
-        assertThat(merged.minimumRequiredHeapInBytes(), equalTo(10_000L));
-        assertThat(merged.validUntil(), equalTo(now.get() + validityNanos));
+        final var published = timed.getValidIndexingOperationsHeapMemoryRequirements();
+        assertNotNull(published);
+        assertThat(published.minimumRequiredHeapInBytes(), equalTo(10_000L));
+        assertThat(published.validUntil(), equalTo(now.get() + validityNanos));
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(1_000L));
     }
 
-    // Similar to {@link testEqualHeapsKeepTheLaterDeadline}, but no legacy heap is involved
     public void testRepublishingTheSameOperationExtendsItsExpiry() {
         final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
         final long operationSize = 2_000L;
         timed.updateLargestIndexingOperationSize(operationSize);
-        final long firstDeadline = timed.getValidIndexingOperationsHeapMemoryRequirements().validUntil();
+        assertNull(timed.getValidIndexingOperationsHeapMemoryRequirements());
 
         now.set(validityNanos / 2);
         timed.updateLargestIndexingOperationSize(operationSize);
-        final var republished = timed.getValidIndexingOperationsHeapMemoryRequirements();
-        assertNotNull(republished);
-        assertThat(republished.validUntil(), equalTo(now.get() + validityNanos));
-        assertThat(republished.validUntil(), greaterThan(firstDeadline));
 
-        now.set(firstDeadline + 1);
+        now.set(validityNanos + 1);
         assertThat(timed.largestRecentIndexingOpSize(), equalTo(operationSize));
+
+        now.set(validityNanos / 2 + validityNanos + 1);
+        assertThat(timed.largestRecentIndexingOpSize(), equalTo(0L));
     }
 
     public void testExpiredOperationIsReplaced() {

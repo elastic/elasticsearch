@@ -40,7 +40,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
@@ -386,28 +385,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return largestOperation.operationSizeInBytes();
     }
 
-    /**
-     * Heap an indexing node needs in order to accept an operation of {@code operationSizeInBytes}
-     */
-    static long heapRequiredForOperation(Settings nodeSettings, long operationSizeInBytes) {
-        // The configured indexing-pressure cap, as text
-        final String configured = nodeSettings.get(IndexingPressure.MAX_OPERATION_SIZE.getKey());
-        // No explicit value means use the setting's default, which is a percentage.
-        final String limit = configured == null ? IndexingPressure.MAX_OPERATION_SIZE.getDefaultRaw(nodeSettings) : configured;
-        if (limit.endsWith("%") == false) {
-            return 0L;
-        }
-        // The number before the % sign. "10%" becomes 10.
-        final double percent = Double.parseDouble(limit.substring(0, limit.length() - 1));
-        // A 0% cap would divide by zero. Treat it as no heap requirement.
-        if (percent == 0d) {
-            return 0L;
-        }
-        // Heap required so that this operation is that percent of the heap. E.g a 4MB operation that cannot use more than 10% of the heap
-        // has 40MB returned to the autoscaler
-        return (long) Math.ceil(operationSizeInBytes * 100.0d / percent);
-    }
-
     public long mergeMemoryEstimation() {
         if (mergeMemoryEstimateEnabled == false) {
             return 0;
@@ -702,32 +679,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     /**
      * Returns the current indexing operations heap memory requirements if they are still valid (not expired),
-     * or {@code null} if they are expired or not set. When a raw operation and a legacy heap are both valid, the
-     * returned deadline is the one belonging to the larger heap.
-     *
-     * NB: This is kind of messy code, but its lifespan will be only for a single serverless release (ie a single rolling upgrade)
-     * and will then be cleaned up in the follow up PR
+     * or {@code null} if they are expired or not set.
      */
     public IndexingOperationsMemoryRequirements getValidIndexingOperationsHeapMemoryRequirements() {
-        final long now = relativeTimeInNanos();
-        final var legacy = indexingOperationsHeapMemoryRequirementsRef.get();
-        final boolean legacyValid = legacy != null && legacy.validUntil() >= now;
-        final var raw = largestIndexingOperationRef.get();
-        final boolean rawValid = raw != null && raw.validUntil() >= now;
-        if (legacyValid == false && rawValid == false) {
+        var reqs = indexingOperationsHeapMemoryRequirementsRef.get();
+        if (reqs == null || reqs.validUntil() < relativeTimeInNanos()) {
             return null;
         }
-        if (rawValid == false) {
-            return legacy;
-        }
-        final long converted = heapRequiredForOperation(clusterService.getSettings(), raw.operationSizeInBytes());
-        if (legacyValid == false || converted > legacy.minimumRequiredHeapInBytes()) {
-            return new IndexingOperationsMemoryRequirements(converted, raw.validUntil());
-        }
-        if (legacy.minimumRequiredHeapInBytes() > converted) {
-            return legacy;
-        }
-        return new IndexingOperationsMemoryRequirements(converted, Math.max(legacy.validUntil(), raw.validUntil()));
+        return reqs;
     }
 
     private record LargestIndexingOperation(long operationSizeInBytes, long validUntil) implements Comparable<LargestIndexingOperation> {

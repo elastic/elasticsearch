@@ -1555,7 +1555,8 @@ public final class GlobExpander {
             folderRange,
             maxDirectoryListings,
             null,
-            false
+            false,
+            null
         );
     }
 
@@ -1577,6 +1578,48 @@ public final class GlobExpander {
         int maxDirectoryListings,
         @Nullable PartitionPruningWalk.WalkResult precomputedWalk,
         boolean walkComputed
+    ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            cancelled,
+            allowRewrite,
+            folderRange,
+            maxDirectoryListings,
+            precomputedWalk,
+            walkComputed,
+            null
+        );
+    }
+
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        boolean allowRewrite,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings,
+        @Nullable PartitionPruningWalk.WalkResult precomputedWalk,
+        boolean walkComputed,
+        @Nullable WalkDiagnostics precomputedWalkDiagnostics
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -1653,12 +1696,14 @@ public final class GlobExpander {
         // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
         // would prune again and undo the rejection.
         boolean suppressValueFilter = false;
+        WalkDiagnostics walkDiagnostics = precomputedWalkDiagnostics;
         if (walkComputed || wouldWalk(prefix, glob, hints, partitionConfig, folderRange)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
             PartitionPruningWalk.WalkResult walk;
             if (walkComputed) {
                 walk = precomputedWalk;
             } else {
+                AtomicReference<WalkDiagnostics> diagnosticsOut = new AtomicReference<>();
                 try {
                     walk = PartitionPruningWalk.tryWalk(
                         provider,
@@ -1673,7 +1718,8 @@ public final class GlobExpander {
                         maxListedObjects,
                         maxDirectoryListings,
                         cancelled,
-                        walkPathTemplate(partitionConfig)
+                        walkPathTemplate(partitionConfig),
+                        diagnosticsOut
                     );
                 } catch (DiscoveredFilesLimitException e) {
                     // Walk cannot stop at the file-set bound: the collector throws once matched.size()
@@ -1683,6 +1729,14 @@ public final class GlobExpander {
                         throw e;
                     }
                     walk = null;
+                }
+                walkDiagnostics = diagnosticsOut.get();
+            }
+            if (walk == null && (walkDiagnostics == null || walkDiagnostics.stopReason() != WalkDiagnostics.StopReason.FINISHED)) {
+                if (walkDiagnostics != null) {
+                    logger.debug("Walk of [{}] withdrew: {}", pattern, walkDiagnostics.describe());
+                } else {
+                    logger.debug("Walk of [{}] withdrew", pattern);
                 }
             }
             // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
@@ -1837,7 +1891,7 @@ public final class GlobExpander {
             while (cancelled.getAsBoolean() == false && globKeptCount < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
-                checkListedObjectsLimit(listed, maxListedObjects);
+                checkListedObjectsLimit(listed, maxListedObjects, walkDiagnostics);
                 String entryPath = entry.path().toString();
                 String relativePath;
                 if (entryPath.startsWith(prefixStr)) {
@@ -1870,7 +1924,7 @@ public final class GlobExpander {
                             continue;
                         }
                         globKeptCount++;
-                        fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                        fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles, walkDiagnostics);
                     } else {
                         // Matched what the user asked for and was dropped anyway. Keep the first one so the notice
                         // can name a concrete file and the entry responsible; "some files were excluded" on its own
@@ -2322,6 +2376,7 @@ public final class GlobExpander {
             if (walkMatcher.enumerateKeys(maxGlobExpansion) == null
                 && wouldWalk(storagePath.patternPrefix(), storagePath.globPart(), hints, partitionConfig, folderRange)) {
                 FileMetadataFilter walkFileHints = FileMetadataFilter.resolve(hints);
+                AtomicReference<WalkDiagnostics> diagnosticsOut = new AtomicReference<>();
                 PartitionPruningWalk.tryWalkAsync(
                     provider,
                     storagePath.patternPrefix(),
@@ -2359,7 +2414,8 @@ public final class GlobExpander {
                                     folderRange,
                                     maxDirectoryListings,
                                     walk,
-                                    true
+                                    true,
+                                    diagnosticsOut.get()
                                 )
                             );
                         }
@@ -2386,7 +2442,8 @@ public final class GlobExpander {
                                         folderRange,
                                         maxDirectoryListings,
                                         null,
-                                        true
+                                        true,
+                                        diagnosticsOut.get()
                                     )
                                 );
                                 return;
@@ -2394,7 +2451,8 @@ public final class GlobExpander {
                             listener.onFailure(e);
                         }
                     },
-                    walkPathTemplate(partitionConfig)
+                    walkPathTemplate(partitionConfig),
+                    diagnosticsOut
                 );
                 return;
             }
@@ -3152,9 +3210,20 @@ public final class GlobExpander {
         @Nullable StorageEntry anchor,
         int maxDiscoveredFiles
     ) {
+        return addOrStashAnchor(entry, fileHints, matched, anchor, maxDiscoveredFiles, null);
+    }
+
+    private static StorageEntry addOrStashAnchor(
+        StorageEntry entry,
+        FileMetadataFilter fileHints,
+        List<StorageEntry> matched,
+        @Nullable StorageEntry anchor,
+        int maxDiscoveredFiles,
+        @Nullable WalkDiagnostics walk
+    ) {
         if (fileHints.isEmpty() || fileHints.matches(entry)) {
             matched.add(entry);
-            checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+            checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles, walk);
             return anchor;
         }
         return anchor != null ? anchor : entry;
@@ -3598,14 +3667,22 @@ public final class GlobExpander {
      * listing can be re-checked after a live cap drop without expanding again.
      */
     public static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
+        checkDiscoveredFilesLimit(discoveredCount, maxDiscoveredFiles, null);
+    }
+
+    static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles, @Nullable WalkDiagnostics walk) {
         if (discoveredCount > maxDiscoveredFiles) {
-            throw new DiscoveredFilesLimitException(discoveredCount, maxDiscoveredFiles);
+            throw new DiscoveredFilesLimitException(discoveredCount, maxDiscoveredFiles, walk);
         }
     }
 
     static void checkListedObjectsLimit(int listedCount, int maxListedObjects) {
+        checkListedObjectsLimit(listedCount, maxListedObjects, null);
+    }
+
+    static void checkListedObjectsLimit(int listedCount, int maxListedObjects, @Nullable WalkDiagnostics walk) {
         if (listedCount > maxListedObjects) {
-            throw new ListedObjectsLimitException(listedCount, maxListedObjects);
+            throw new ListedObjectsLimitException(listedCount, maxListedObjects, walk);
         }
     }
 

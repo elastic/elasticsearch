@@ -30,9 +30,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -44,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Hint-narrowed enumeration of a partition tree: the tree is walked level by level via
@@ -360,6 +363,40 @@ final class PartitionPruningWalk {
         BooleanSupplier cancelled,
         @Nullable String pathTemplate
     ) throws IOException {
+        return tryWalk(
+            provider,
+            prefix,
+            matcher,
+            nameFilter,
+            hints,
+            maxDiscoveredFiles,
+            glob,
+            folderRange,
+            fileKeep,
+            maxListedObjects,
+            maxDirectoryListings,
+            cancelled,
+            pathTemplate,
+            null
+        );
+    }
+
+    static WalkResult tryWalk(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        BooleanSupplier cancelled,
+        @Nullable String pathTemplate,
+        @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut
+    ) throws IOException {
         return walk(
             provider,
             prefix,
@@ -373,7 +410,8 @@ final class PartitionPruningWalk {
             maxListedObjects,
             maxDirectoryListings,
             cancelled,
-            pathTemplate
+            pathTemplate,
+            diagnosticsOut
         );
     }
 
@@ -441,6 +479,46 @@ final class PartitionPruningWalk {
         ActionListener<WalkResult> listener,
         @Nullable String pathTemplate
     ) {
+        tryWalkAsync(
+            provider,
+            prefix,
+            matcher,
+            nameFilter,
+            hints,
+            maxDiscoveredFiles,
+            glob,
+            folderRange,
+            fileKeep,
+            maxListedObjects,
+            maxDirectoryListings,
+            cancelled,
+            concurrency,
+            executor,
+            listener,
+            pathTemplate,
+            null
+        );
+    }
+
+    static void tryWalkAsync(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<WalkResult> listener,
+        @Nullable String pathTemplate,
+        @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut
+    ) {
         WalkSession session;
         try {
             session = new WalkSession(
@@ -456,7 +534,8 @@ final class PartitionPruningWalk {
                 maxListedObjects,
                 maxDirectoryListings,
                 cancelled,
-                pathTemplate
+                pathTemplate,
+                diagnosticsOut
             );
         } catch (RuntimeException e) {
             listener.onFailure(e);
@@ -497,7 +576,8 @@ final class PartitionPruningWalk {
         int maxListedObjects,
         int maxDirectoryListings,
         BooleanSupplier cancelled,
-        @Nullable String pathTemplate
+        @Nullable String pathTemplate,
+        @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut
     ) throws IOException {
         return new WalkSession(
             provider,
@@ -512,7 +592,8 @@ final class PartitionPruningWalk {
             maxListedObjects,
             maxDirectoryListings,
             cancelled,
-            pathTemplate
+            pathTemplate,
+            diagnosticsOut
         ).runSequential();
     }
 
@@ -1077,8 +1158,12 @@ final class PartitionPruningWalk {
         private final Set<String> pending = new HashSet<>();
         private final Set<String> seenKeys = new HashSet<>();
         private final Set<String> prunedColumns = new HashSet<>();
+        private final Set<String> unhintedSeenKeys = new LinkedHashSet<>();
+        private final Set<String> unprunedHintedKeys = new LinkedHashSet<>();
         private final List<StoragePath> prunedDirs = new ArrayList<>();
         private final Map<String, List<String>> seenValues = new LinkedHashMap<>();
+        private final @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut;
+        private @Nullable WalkDiagnostics.StopReason stopReason;
         private boolean anyLevelHinted;
         private int walkLevel;
         private List<StoragePath> dirs;
@@ -1113,7 +1198,8 @@ final class PartitionPruningWalk {
             int maxListedObjects,
             int maxDirectoryListings,
             BooleanSupplier cancelled,
-            @Nullable String pathTemplate
+            @Nullable String pathTemplate,
+            @Nullable AtomicReference<WalkDiagnostics> diagnosticsOut
         ) {
             this.provider = provider;
             this.hints = hints;
@@ -1121,6 +1207,7 @@ final class PartitionPruningWalk {
             this.maxDirectoryListings = maxDirectoryListings;
             this.cancelled = cancelled;
             this.finishMode = FINISH_MODE.get();
+            this.diagnosticsOut = diagnosticsOut;
             this.collector = new Collector(
                 prefix.toString(),
                 matcher,
@@ -1128,7 +1215,8 @@ final class PartitionPruningWalk {
                 maxDiscoveredFiles,
                 fileKeep,
                 maxListedObjects,
-                folderRange
+                folderRange,
+                this::snapshot
             );
             WalkLayout layout = pathTemplate == null ? null : TemplatePartitionDetector.walkLayout(prefix, glob, pathTemplate);
             this.declineWalk = pathTemplate != null && layout == null;
@@ -1159,12 +1247,13 @@ final class PartitionPruningWalk {
                 }
             }
             this.dirs = List.of(prefix);
+            publish(null);
         }
 
         @Nullable
         WalkResult runSequential() throws IOException {
             if (declineWalk) {
-                return null;
+                return withdraw(WalkDiagnostics.StopReason.DECLINED_LAYOUT);
             }
             while (dirs.isEmpty() == false) {
                 if (cancelled.getAsBoolean()) {
@@ -1175,26 +1264,95 @@ final class PartitionPruningWalk {
                 }
                 StorageChildren[] listed = listChildrenSequential(provider, dirs, listings, cancelled);
                 if (listed == null) {
-                    return null;
+                    return withdraw(WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                 }
                 ClassifiedLevel level = classifyListed(listed);
                 if (applyPeeksIfNeeded(level) == false) {
-                    return null;
+                    return withdraw(WalkDiagnostics.StopReason.PEEK_BUDGET);
                 }
                 WalkResult done = applyClassified(level);
                 if (done != null || level.continueWalk == false) {
                     return done;
                 }
             }
-            return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+            return finished();
         }
 
         void runAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
             if (declineWalk) {
-                listener.onResponse(null);
+                withdrawAsync(listener, WalkDiagnostics.StopReason.DECLINED_LAYOUT);
                 return;
             }
             advanceAsync(concurrency, executor, listener);
+        }
+
+        @Nullable
+        private WalkResult withdraw(WalkDiagnostics.StopReason reason) {
+            publish(reason);
+            return null;
+        }
+
+        private void withdrawAsync(ActionListener<WalkResult> listener, WalkDiagnostics.StopReason reason) {
+            publish(reason);
+            listener.onResponse(null);
+        }
+
+        private WalkResult finished() {
+            publish(WalkDiagnostics.StopReason.FINISHED);
+            return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+        }
+
+        private void publish(@Nullable WalkDiagnostics.StopReason reason) {
+            if (reason != null) {
+                this.stopReason = reason;
+            }
+            if (diagnosticsOut != null) {
+                diagnosticsOut.set(snapshot());
+            }
+        }
+
+        private WalkDiagnostics snapshot() {
+            boolean atCeiling = listings.get() >= maxDirectoryListings || listings.get() + dirs.size() > maxDirectoryListings;
+            return new WalkDiagnostics(
+                stopReason,
+                listings.get(),
+                maxDirectoryListings,
+                atCeiling,
+                walkLevel,
+                frontierKey(),
+                sortedCopy(pending),
+                List.copyOf(unhintedSeenKeys),
+                List.copyOf(unprunedHintedKeys),
+                sortedCopy(prunedColumns)
+            );
+        }
+
+        @Nullable
+        private String frontierKey() {
+            if (templateLayout != null && walkLevel < templateLayout.depth()) {
+                WalkLayout.Level role = templateLayout.level(walkLevel);
+                return role.isPlaceholder() ? role.name() : role.literal();
+            }
+            if (dirs.isEmpty() == false) {
+                String key = PartitionValueMatcher.folderKey(dirs.get(0).objectName());
+                if (key != null) {
+                    return key;
+                }
+            }
+            String lastUnhinted = null;
+            for (String key : unhintedSeenKeys) {
+                lastUnhinted = key;
+            }
+            return lastUnhinted;
+        }
+
+        private static List<String> sortedCopy(Set<String> keys) {
+            if (keys.isEmpty()) {
+                return List.of();
+            }
+            List<String> list = new ArrayList<>(keys);
+            Collections.sort(list);
+            return List.copyOf(list);
         }
 
         private void advanceAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
@@ -1208,7 +1366,7 @@ final class PartitionPruningWalk {
                     @Override
                     public void onResponse(StorageChildren[] listed) {
                         if (listed == null) {
-                            listener.onResponse(null);
+                            withdrawAsync(listener, WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                             return;
                         }
                         ClassifiedLevel level;
@@ -1227,7 +1385,7 @@ final class PartitionPruningWalk {
                                     return;
                                 }
                                 if (peekOk == false) {
-                                    listener.onResponse(null);
+                                    withdrawAsync(listener, WalkDiagnostics.StopReason.PEEK_BUDGET);
                                     return;
                                 }
                                 WalkResult done;
@@ -1387,7 +1545,8 @@ final class PartitionPruningWalk {
         }
 
         private WalkResult finishSurvivors() throws IOException {
-            return PartitionPruningWalk.finishSurvivors(
+            publish(WalkDiagnostics.StopReason.FINISHED);
+            WalkResult result = PartitionPruningWalk.finishSurvivors(
                 collector,
                 provider,
                 dirs,
@@ -1398,6 +1557,20 @@ final class PartitionPruningWalk {
                 finishMode,
                 templateLayout != null
             );
+            if (result != null) {
+                return result;
+            }
+            if (prunedColumns.isEmpty()) {
+                return withdraw(
+                    listings.get() + dirs.size() > maxDirectoryListings
+                        ? WalkDiagnostics.StopReason.CEILING
+                        : WalkDiagnostics.StopReason.NOTHING_PRUNED
+                );
+            }
+            if (finishMode == FinishMode.ALWAYS_FLAT) {
+                return withdraw(WalkDiagnostics.StopReason.ALWAYS_FLAT);
+            }
+            return withdraw(WalkDiagnostics.StopReason.CHEAPER_TO_FINISH);
         }
 
         /**
@@ -1416,12 +1589,12 @@ final class PartitionPruningWalk {
         @Nullable
         private WalkResult afterListingsStop() throws IOException {
             if (dirs.isEmpty()) {
-                return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+                return finished();
             }
             if (pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings) {
                 return finishSurvivors();
             }
-            return anyLevelHinted ? finishSurvivors() : null;
+            return anyLevelHinted ? finishSurvivors() : withdraw(WalkDiagnostics.StopReason.UNHINTED_LEVEL);
         }
 
         /**
@@ -1521,15 +1694,21 @@ final class PartitionPruningWalk {
                 pending.remove(key);
                 List<PartitionFilterHint> keyHints = PartitionValueMatcher.hintsFor(key, hints);
                 if (keyHints.isEmpty()) {
+                    unhintedSeenKeys.add(key);
                     continue;
                 }
                 hintedLevel = true;
                 boolean[] matches = PartitionValueMatcher.matchesFolders(values, keyHints);
+                boolean anyMiss = false;
                 for (int j = 0; j < matches.length; j++) {
                     if (matches[j] == false) {
                         keep[group.getValue().get(j)] = false;
                         prunedColumns.add(key);
+                        anyMiss = true;
                     }
+                }
+                if (anyMiss == false) {
+                    unprunedHintedKeys.add(key);
                 }
             }
             if (folderRange != null && shapedDirs.isEmpty() == false) {
@@ -1571,7 +1750,7 @@ final class PartitionPruningWalk {
         private WalkResult applyClassified(ClassifiedLevel level) throws IOException {
             if (level.withdraw) {
                 dirs = List.of();
-                return null;
+                return withdraw(WalkDiagnostics.StopReason.STRAY);
             }
             List<StoragePath> newPeeks = null;
             for (int i = 0; i < level.keep.length; i++) {
@@ -1590,7 +1769,7 @@ final class PartitionPruningWalk {
             if (level.identityLevel) {
                 if (laterPlaceholder() && advancePendingPeeks(templateLayout.level(walkLevel)) == false) {
                     level.continueWalk = false;
-                    return null;
+                    return withdraw(WalkDiagnostics.StopReason.PEEK_BUDGET);
                 }
                 for (StorageEntry file : level.levelFiles) {
                     collector.add(file);
@@ -1615,7 +1794,7 @@ final class PartitionPruningWalk {
                 }
                 if (anyLevelHinted == false) {
                     dirs = List.of();
-                    return null;
+                    return withdraw(WalkDiagnostics.StopReason.UNHINTED_LEVEL);
                 }
                 return finishSurvivors();
             }
@@ -1701,6 +1880,7 @@ final class PartitionPruningWalk {
         private final int maxListedObjects;
         @Nullable
         private final FolderRangePredicate folderRange;
+        private final Supplier<WalkDiagnostics> diagnostics;
         private final List<StorageEntry> matched = new ArrayList<>();
         @Nullable
         private StorageEntry fileKeepStash;
@@ -1717,7 +1897,8 @@ final class PartitionPruningWalk {
             int maxDiscoveredFiles,
             @Nullable Predicate<StorageEntry> fileKeep,
             int maxListedObjects,
-            @Nullable FolderRangePredicate folderRange
+            @Nullable FolderRangePredicate folderRange,
+            Supplier<WalkDiagnostics> diagnostics
         ) {
             this.prefixStr = prefixStr;
             this.matcher = matcher;
@@ -1726,6 +1907,7 @@ final class PartitionPruningWalk {
             this.fileKeep = fileKeep;
             this.maxListedObjects = maxListedObjects;
             this.folderRange = folderRange;
+            this.diagnostics = diagnostics;
         }
 
         void add(StorageEntry entry) {
@@ -1735,7 +1917,9 @@ final class PartitionPruningWalk {
                 return; // directory placeholder key, skipped as in the flat listing
             }
             listed++;
-            GlobExpander.checkListedObjectsLimit(listed, maxListedObjects);
+            if (listed > maxListedObjects) {
+                GlobExpander.checkListedObjectsLimit(listed, maxListedObjects, diagnostics.get());
+            }
             if (matcher.matches(relativePath) == false) {
                 return;
             }
@@ -1759,7 +1943,9 @@ final class PartitionPruningWalk {
                 return;
             }
             matched.add(entry);
-            GlobExpander.checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+            if (matched.size() > maxDiscoveredFiles) {
+                GlobExpander.checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles, diagnostics.get());
+            }
         }
 
         void addRecursively(StorageProvider provider, StoragePath dir) throws IOException {

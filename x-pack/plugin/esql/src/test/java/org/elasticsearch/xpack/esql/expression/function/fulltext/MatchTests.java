@@ -139,6 +139,46 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
         );
     }
 
+    /**
+     * A union field converted to {@code long}, with a conversion for each of the types it is mapped as. Some of them don't convert
+     * their type: a cast over them is {@code null} in the indices that map it.
+     */
+    private static FieldAttribute longUnionField(DataType... branchSourceTypes) {
+        Map<DataType, Expression> byType = new HashMap<>();
+        for (DataType sourceType : branchSourceTypes) {
+            byType.put(sourceType, new ToLong(Source.EMPTY, plainField("field", sourceType)));
+        }
+        return new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new CompactMultiTypeEsField("field", DataType.LONG, true, byType, EsField.TimeSeriesFieldType.NONE, null)
+        );
+    }
+
+    /**
+     * Where a union field's conversion is {@code null}, the field must not be searched through the field the index maps: it has
+     * values that the cast doesn't have.
+     */
+    public void testUnionFieldWithAConversionThatDoesNotConvertIsRuntimeSearch() {
+        Match match = new Match(
+            Source.EMPTY,
+            longUnionField(DataType.KEYWORD, DataType.IP),
+            new Literal(Source.EMPTY, new BytesRef("1"), DataType.KEYWORD),
+            null
+        );
+        assertTrue("a union field with a conversion that is null can't be searched as the field", match.isRuntimeSearch());
+    }
+
+    public void testUnionFieldWithConversionsThatConvertIsNotRuntimeSearch() {
+        Match match = new Match(
+            Source.EMPTY,
+            longUnionField(DataType.KEYWORD, DataType.LONG),
+            new Literal(Source.EMPTY, new BytesRef("1"), DataType.KEYWORD),
+            null
+        );
+        assertFalse("a union field whose conversions all convert is searched through the field", match.isRuntimeSearch());
+    }
+
     private static FieldAttribute plainField(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }

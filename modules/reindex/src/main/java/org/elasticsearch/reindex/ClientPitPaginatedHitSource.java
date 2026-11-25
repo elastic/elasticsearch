@@ -162,7 +162,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
                 }
                 Response response = wrapSearchResponse(searchResponse, getCachedTotalHits());
                 try {
-                    ClientHit.reserveHeldPage(
+                    reserveHeldPage(
                         circuitBreaker,
                         breakerLabel,
                         accountingThresholdBytes.getAsLong(),

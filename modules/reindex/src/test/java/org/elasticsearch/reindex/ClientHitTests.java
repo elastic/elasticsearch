@@ -152,7 +152,7 @@ public class ClientHitTests extends ESTestCase {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(1));
         AtomicBoolean coordinatorChargeReleased = new AtomicBoolean();
         try {
-            ClientHit.reserveHeldPage(breaker, "test", 0, () -> () -> coordinatorChargeReleased.set(true), page);
+            PaginatedHitSource.reserveHeldPage(breaker, "test", 0, () -> () -> coordinatorChargeReleased.set(true), page);
             assertFalse(coordinatorChargeReleased.get());
             page.closeBodyReleasable();
             assertTrue(coordinatorChargeReleased.get());

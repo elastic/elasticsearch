@@ -803,9 +803,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         action.start();
         assertBusy(() -> assertNotNull(client.lastSearch.get()));
 
-        // Two ~600kb sources, so the page reaches the default memory_accounting_threshold
+        // Two sources that only together reach the memory_accounting_threshold the dummy action uses, so the page is charged
+        int sourceChars = Math.toIntExact(new ReindexSettings().getMemoryAccountingThresholdInBytes() / 2 + 1);
         SearchHit[] hitArray = IntStream.range(0, 2).mapToObj(i -> {
-            SearchHit h = new SearchHit(i, "id").sourceRef(new BytesArray("{\"f\":\"" + "x".repeat(600_000) + "\"}"));
+            SearchHit h = new SearchHit(i, "id").sourceRef(new BytesArray("{\"f\":\"" + "x".repeat(sourceChars) + "\"}"));
             h.sortValues(new Object[] { 0L, "id" }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
             return h;
         }).toArray(SearchHit[]::new);
@@ -995,9 +996,11 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertEquals(0, chargeReleases.get());
 
         if (randomBoolean()) {
+            // The next batch takes the rest of the page; its cleanup releases the charge
             response.consumeRemainingHits();
             response.releaseChargeIfConsumed();
         } else {
+            // The task finishes before the rest of the page is used
             response.releaseRemainingHits();
         }
         assertEquals(1, chargeReleases.get());

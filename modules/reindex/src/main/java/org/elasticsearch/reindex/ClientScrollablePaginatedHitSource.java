@@ -123,7 +123,7 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
                 }
                 Response response = wrapSearchResponse(searchResponse);
                 try {
-                    ClientHit.reserveHeldPage(
+                    reserveHeldPage(
                         circuitBreaker,
                         breakerLabel,
                         accountingThresholdBytes.getAsLong(),

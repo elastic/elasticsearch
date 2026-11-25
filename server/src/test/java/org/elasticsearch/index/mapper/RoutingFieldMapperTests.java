@@ -27,7 +27,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexSettings;
@@ -277,6 +279,38 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 assertEquals(List.of("abcd"), valueFetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()));
             }
         );
+    }
+
+    /**
+     * A slice-enabled index requires routing by default, and its mapping source must say so on its own: {@link MappingMetadata}
+     * derives {@code routingRequired} from the source alone when it is read back from disk, and the cluster state shares mappings
+     * between indices by the hash of their source, so a plain index with the same fields must not end up with the same source
+     * (see https://github.com/elastic/elasticsearch/issues/167192).
+     */
+    public void testSliceEnabledSerializesRequiredRouting() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        Settings sliced = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService slicedService = createMapperService(
+            sliced,
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+        );
+        MapperService plainService = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
+        assertTrue(slicedService.documentMapper().routingFieldMapper().required());
+        assertFalse(plainService.documentMapper().routingFieldMapper().required());
+
+        CompressedXContent slicedSource = slicedService.documentMapper().mappingSource();
+        CompressedXContent plainSource = plainService.documentMapper().mappingSource();
+        assertThat(slicedSource.string(), containsString("\"_routing\":{\"required\":true}"));
+        assertThat(plainSource.string(), not(containsString("_routing")));
+        assertThat(slicedSource.getSha256(), not(equalTo(plainSource.getSha256())));
+
+        // read back from the source alone, as after a restart
+        assertTrue(new MappingMetadata(slicedSource).routingRequired());
+        assertFalse(new MappingMetadata(plainSource).routingRequired());
+
+        // the serialized mapping parses back to the same source
+        assertThat(createMapperService(sliced, slicedSource.string()).documentMapper().mappingSource(), equalTo(slicedSource));
     }
 
     public void testSliceEnabledWritesRoutingOnNestedDocuments() throws Exception {

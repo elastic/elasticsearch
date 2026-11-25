@@ -93,6 +93,7 @@ public final class SearchFeatures implements FeatureSpecification {
      * {@code TransportVersion} {@code search_query_cpu}, so nodes that do not have it report no value.
      */
     public static final NodeFeature RECENT_SEARCH_CPU = new NodeFeature("search.stats.recent_search_cpu");
+    public static final NodeFeature INTERVALS_ANY_OF_REWRITE = new NodeFeature("search.intervals.any_of_rewrite");
     /**
      * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
      * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
@@ -207,7 +208,8 @@ public final class SearchFeatures implements FeatureSpecification {
                 PROFILE_RESCORE,
                 SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE,
                 RECENT_SEARCH_WAITING,
-                RECENT_SEARCH_CPU
+                RECENT_SEARCH_CPU,
+                INTERVALS_ANY_OF_REWRITE
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

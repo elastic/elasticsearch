@@ -477,6 +477,39 @@ setup:
   - match: { hits.hits.1._id:  "5" }
 
 ---
+"Test any_of rewrite false keeps the disjunction whole":
+  - requires:
+      cluster_features: [ "search.intervals.any_of_rewrite" ]
+      reason: "Support for rewrite in the any_of interval rule required"
+  # With the default rewrite, the query is split into "the big wolf" and "the big bad wolf" and matches both documents.
+  # With rewrite false, the any_of returns the minimal interval "big", so "the big bad wolf" has a gap and no match.
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "the"
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: "big"
+                          - match:
+                              query: "big bad"
+                        rewrite: false
+                    - match:
+                        query: "wolf"
+                  max_gaps: 0
+                  ordered: true
+
+  - match: { hits.total.value: 1   }
+  - match: { hits.hits.0._id:  "6" }
+
+---
 "Test regexp":
   - requires:
       capabilities:

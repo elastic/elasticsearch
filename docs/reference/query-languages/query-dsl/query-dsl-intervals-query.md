@@ -262,6 +262,11 @@ The `any_of` rule returns intervals produced by any of its sub-rules.
 `filter`
 :   (Optional, [interval filter](#interval_filter) rule object) Rule used to filter returned intervals.
 
+`rewrite`
+:   (Optional, Boolean) If `true`, a parent rule that is sensitive to gaps, such as `all_of` with `max_gaps` or `ordered`, splits this rule into one query per sub-rule, so that a shorter sub-rule does not hide a longer one at the same position (see [Minimization](#interval-minimization)). Defaults to `true`.
+
+    When `any_of` rules with many sub-rules of different lengths are combined, the number of queries is the product of their sizes, which can make the search slow. Set `rewrite` to `false` to keep the `any_of` as a single query. This is much faster, but can miss a match when the match of one sub-rule lies inside the match of another, for example `big` and `big bad`: the shorter sub-rule is always tried first, so the longer one never counts. For example, an ordered `all_of` with `max_gaps: 0` over `the`, `any_of` [`big`, `big bad`], and `wolf` matches `the big wolf` but not `the big bad wolf` when `rewrite` is `false`. Sub-rules that do not overlap, such as `wolf` and `sly fox`, are not affected.
+
 
 ## `filter` rule parameters [interval_filter]
 

@@ -122,7 +122,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     static IntervalsSourceProvider.Disjunction createRandomDisjunction(int depth, boolean useScripts) {
         int orCount = randomInt(3) + 1;
         List<IntervalsSourceProvider> orSources = createRandomSourceList(depth, useScripts, orCount);
-        return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1, useScripts));
+        return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1, useScripts), randomBoolean());
     }
 
     static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {
@@ -411,6 +411,60 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             Intervals.notContaining(Intervals.or(Intervals.term("one"), Intervals.term("two")), Intervals.term("three"))
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
+    }
+
+    /**
+     * By default, {@code all_of} with {@code max_gaps} splits an {@code any_of} whose alternatives have different lengths into one
+     * clause per alternative. {@code "rewrite": false} keeps the {@code any_of} as a single disjunction under the gap-sensitive rule.
+     */
+    public void testOrIntervalRewrite() throws IOException {
+        String jsonTemplate = """
+            {
+              "intervals": {
+                "%s": {
+                  "all_of": {
+                    "ordered": false,
+                    "max_gaps": 3,
+                    "intervals": [
+                      {
+                        "any_of": {
+                          "intervals": [
+                            { "match": { "query": "one" } },
+                            { "match": { "query": "two three" } }
+                          ]%s
+                        }
+                      },
+                      { "match": { "query": "four" } }
+                    ]
+                  }
+                }
+              }
+            }""";
+        IntervalsSource one = Intervals.term("one");
+        IntervalsSource twoThree = Intervals.unordered(Intervals.term("two"), Intervals.term("three"));
+        IntervalsSource four = Intervals.term("four");
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(Strings.format(jsonTemplate, TEXT_FIELD_NAME, ""));
+        Query expected = expectedQuery(TEXT_FIELD_NAME, Intervals.maxgaps(3, Intervals.unordered(Intervals.or(one, twoThree), four)));
+        assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
+        assertThat(
+            builder.toQuery(createSearchExecutionContext()).toString(),
+            equalTo(
+                expectedQuery(
+                    TEXT_FIELD_NAME,
+                    Intervals.or(
+                        Intervals.maxgaps(3, Intervals.unordered(one, four)),
+                        Intervals.maxgaps(3, Intervals.unordered(twoThree, four))
+                    )
+                ).toString()
+            )
+        );
+
+        builder = (IntervalQueryBuilder) parseQuery(Strings.format(jsonTemplate, TEXT_FIELD_NAME, ",\n\"rewrite\": false"));
+        expected = expectedQuery(TEXT_FIELD_NAME, Intervals.maxgaps(3, Intervals.unordered(Intervals.or(false, one, twoThree), four)));
+        assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
+        // The disjunction stays whole inside the single MAXGAPS clause
+        assertThat(builder.toQuery(createSearchExecutionContext()).toString(), containsString("or(UNORDERED(two,three),one)"));
     }
 
     public void testCombineInterval() throws IOException {

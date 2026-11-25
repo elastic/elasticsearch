@@ -31,14 +31,18 @@ public class DisjunctionIntervalsSourceProviderTests extends AbstractXContentSer
     protected Disjunction mutateInstance(Disjunction instance) {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
-        if (randomBoolean()) {
-            subSources = subSources == null ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1) : null;
-        } else {
-            filter = filter == null
+        boolean rewrite = instance.getRewrite();
+        switch (randomInt(2)) {
+            case 0 -> subSources = subSources == null
+                ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1)
+                : null;
+            case 1 -> filter = filter == null
                 ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
                 : FilterIntervalsSourceProviderTests.mutateFilter(filter);
+            case 2 -> rewrite = rewrite == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new Disjunction(subSources, filter);
+        return new Disjunction(subSources, filter, rewrite);
     }
 
     @Override

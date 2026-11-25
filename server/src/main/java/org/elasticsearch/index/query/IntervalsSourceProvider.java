@@ -317,17 +317,34 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static final String NAME = "any_of";
 
+        private static final TransportVersion INTERVALS_ANY_OF_REWRITE = TransportVersion.fromName("intervals_any_of_rewrite");
+
         private final List<IntervalsSourceProvider> subSources;
         private final IntervalFilter filter;
+        private final boolean rewrite;
 
         public Disjunction(List<IntervalsSourceProvider> subSources, IntervalFilter filter) {
+            this(subSources, filter, true);
+        }
+
+        /**
+         * @param rewrite when {@code true} (the default), an enclosing rule that is sensitive to gaps, such as {@code all_of} with
+         *                {@code max_gaps}, splits this disjunction into one clause per alternative, so that a shorter alternative
+         *                cannot hide a longer one at the same position. With many alternatives of different lengths on several sides
+         *                of such a rule, the number of clauses is the product of their counts. {@code false} keeps the disjunction
+         *                as a single clause, which is much cheaper, but can miss a match that only the longer of two overlapping
+         *                alternatives satisfies.
+         */
+        public Disjunction(List<IntervalsSourceProvider> subSources, IntervalFilter filter, boolean rewrite) {
             this.subSources = subSources;
             this.filter = filter;
+            this.rewrite = rewrite;
         }
 
         public Disjunction(StreamInput in) throws IOException {
             this.subSources = in.readNamedWriteableCollectionAsList(IntervalsSourceProvider.class);
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
+            this.rewrite = in.getTransportVersion().supports(INTERVALS_ANY_OF_REWRITE) ? in.readBoolean() : true;
         }
 
         @Override
@@ -336,7 +353,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             for (IntervalsSourceProvider provider : subSources) {
                 sources.add(provider.getSource(ctx, fieldType));
             }
-            IntervalsSource source = Intervals.or(sources.toArray(new IntervalsSource[0]));
+            IntervalsSource source = Intervals.or(rewrite, sources);
             if (filter == null) {
                 return source;
             }
@@ -355,12 +372,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Disjunction that = (Disjunction) o;
-            return Objects.equals(subSources, that.subSources) && Objects.equals(filter, that.filter);
+            return rewrite == that.rewrite && Objects.equals(subSources, that.subSources) && Objects.equals(filter, that.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(subSources, filter);
+            return Objects.hash(subSources, filter, rewrite);
         }
 
         @Override
@@ -372,6 +389,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public void writeTo(StreamOutput out) throws IOException {
             out.writeNamedWriteableCollection(subSources);
             out.writeOptionalWriteable(filter);
+            if (out.getTransportVersion().supports(INTERVALS_ANY_OF_REWRITE)) {
+                out.writeBoolean(rewrite);
+            }
+            // An older node runs the default rewrite, which matches a superset of the documents, only more slowly.
         }
 
         @Override
@@ -387,6 +408,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (filter != null) {
                 builder.field("filter", filter);
             }
+            if (rewrite == false) {
+                builder.field("rewrite", false);
+            }
             return builder.endObject();
         }
 
@@ -394,7 +418,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private static final ConstructingObjectParser<Disjunction, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
             List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>) args[0];
             IntervalFilter filter = (IntervalFilter) args[1];
-            return new Disjunction(subSources, filter);
+            Boolean rewrite = (Boolean) args[2];
+            return new Disjunction(subSources, filter, rewrite == null || rewrite);
         });
         static {
             PARSER.declareObjectArray(
@@ -403,6 +428,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 new ParseField("intervals")
             );
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> IntervalFilter.fromXContent(p), new ParseField("filter"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("rewrite"));
         }
 
         public static Disjunction fromXContent(XContentParser parser) throws IOException {
@@ -415,6 +441,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         IntervalFilter getFilter() {
             return filter;
+        }
+
+        boolean getRewrite() {
+            return rewrite;
         }
     }
 

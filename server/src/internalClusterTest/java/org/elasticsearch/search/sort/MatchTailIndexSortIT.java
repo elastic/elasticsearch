@@ -27,6 +27,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -170,6 +171,30 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
         assertNoFailures(indicesAdmin().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
 
         assertAscSortTimestamps(5, List.of(1000L, 1001L, 1002L, 1003L, 1004L));
+    }
+
+    /** The tail holds the smallest timestamps, but the post filter rejects them. */
+    public void testPostFilter() {
+        createSegment(3000);
+        assertSameAsWithoutMatchTail(
+            query -> prepareSearch(INDEX).setQuery(query)
+                .setPostFilter(termQuery("keep", true))
+                .addSort("@timestamp", SortOrder.ASC)
+                .setTrackTotalHits(true)
+                .setSize(5)
+        );
+    }
+
+    /** With a minimum score the collector counts the hits, so it must see every document. */
+    public void testMinScore() {
+        createSegment(3000);
+        assertSameAsWithoutMatchTail(
+            query -> prepareSearch(INDEX).setQuery(query)
+                .setMinScore(0.5f)
+                .addSort("@timestamp", SortOrder.ASC)
+                .setTrackTotalHits(true)
+                .setSize(5)
+        );
     }
 
     /** Terminate after collects the first documents of the segment, not its tail. */

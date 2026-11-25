@@ -20,6 +20,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
+import org.junit.After;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -76,12 +78,24 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
         return plugins;
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey(), -1)
-            .build();
+    @Before
+    public void chooseByCost() {
+        updateClusterSettings(Settings.builder().put(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey(), -1));
+    }
+
+    @After
+    public void resetThreshold() {
+        updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
+    }
+
+    public void testDefaultThresholdUsesHashJoinAboveLimit() {
+        updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
+        createEvents("events", null, "type=keyword,index=false");
+
+        QueryResult result = query("events", MANY_VALUES, getPragmas());
+
+        assertThat(result.matches(), equalTo((long) MANY_VALUES));
+        assertThat("a hash join reads every row", result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
     }
 
     public void testManyValuesOnIndexedFieldArePushedToLucene() {

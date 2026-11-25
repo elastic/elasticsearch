@@ -22,8 +22,8 @@ public class Utf8ValueTests extends ESTestCase {
         Utf8Value value = Utf8Value.of(source, offset, length);
         assertEquals(length, value.maxLength());
 
-        byte[] dst = new byte[between(0, 50) + value.maxLength() + Utf8Value.PADDING];
-        int dstOffset = between(0, dst.length - value.maxLength() - Utf8Value.PADDING);
+        byte[] dst = new byte[between(0, 50) + value.maxLength()];
+        int dstOffset = between(0, dst.length - value.maxLength());
         assertEquals(length, value.copyTo(dst, dstOffset));
         assertArrayEquals(Arrays.copyOfRange(source, offset, offset + length), Arrays.copyOfRange(dst, dstOffset, dstOffset + length));
     }

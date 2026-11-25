@@ -21,6 +21,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -52,6 +53,21 @@ public final class EscfColumnBuilder implements Releasable {
         MERGE,
         /** Format: split scalar and array into a {@link EscfColumnKind#UNION}, preserving per-row shape. */
         SPLIT
+    }
+
+    /**
+     * Holds the padding reserved past each string written with {@link Utf8Value#copyTo}.
+     * This is a separate class so that it is initialized lazily, and only when simdjson is enabled
+     * (the {@code byte[]} paths never do).
+     */
+    static final class StringPadding {
+        /**
+         * Only values copied by simdjson need padding ({@link SimdJsonSupport#DESTINATION_PADDING}),
+         * and those only exist when {@link EscfEncoder#isSimdEnabled()}.
+         */
+        static final int BYTES = EscfEncoder.isSimdEnabled() ? SimdJsonSupport.DESTINATION_PADDING : 0;
+
+        private StringPadding() {}
     }
 
     /** Sentinel for an array column whose child kind has not yet been resolved (only empty arrays / no element seen). */
@@ -1030,18 +1046,25 @@ public final class EscfColumnBuilder implements Releasable {
 
         /**
          * Writes {@code value} to {@code out} and returns its length. The value goes straight into the stream's current page
-         * when {@link Utf8Value#maxLength()} plus {@link Utf8Value#PADDING} fits there, and through a scratch buffer otherwise.
+         * when {@link Utf8Value#maxLength()} plus {@link StringPadding#BYTES} fits there, and through a scratch buffer otherwise.
          */
         final int writeString(RecyclerBytesStreamOutput out, Utf8Value value) {
-            final int reserve = value.maxLength() + Utf8Value.PADDING;
+            final int reserve = value.maxLength() + StringPadding.BYTES;
             final BytesRef page = out.tryGetPageForWrite(reserve);
             if (page != null) {
                 final int length = value.copyTo(page.bytes, page.offset);
                 out.unreserve(reserve - length);
                 return length;
             }
-            // Cross-page: write to a temp buffer, use the existing writeBytes route (which handles
-            // cross-page correctly).
+            return writeStringAcrossPages(out, value, reserve);
+        }
+
+        /**
+         * Write to a temp buffer and use the existing writeBytes route (which handles cross-page correctly)
+         *
+         * <p>Kept out of {@link #writeString} so that its common path stays small enough for C2 to inline.
+         */
+        private int writeStringAcrossPages(RecyclerBytesStreamOutput out, Utf8Value value, int reserve) {
             if (stringScratch == null || stringScratch.length < reserve) {
                 stringScratch = new byte[ArrayUtil.oversize(reserve, Byte.BYTES)];
             }

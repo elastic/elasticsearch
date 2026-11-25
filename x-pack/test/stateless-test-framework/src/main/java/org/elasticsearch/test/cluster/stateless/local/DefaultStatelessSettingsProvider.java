@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.cluster.local.DefaultSettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec;
 
@@ -82,7 +83,7 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
 
     /// How recoveries are throttled in the test cluster.
     ///
-    /// - `MASTER`: master only, with its pre-DNRT default limits.
+    /// - `MASTER`: master only, with its pre-DNRT default limits, and randomized heap-based primary recovery limits.
     /// - `DNRT`: DNRT with random limits, the master does not throttle.
     private enum RecoveryThrottlingMode {
         MASTER,
@@ -103,8 +104,7 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
                 // Keep the pre-DNRT serverless default master-side throttling and leave DNRT unbounded
                 settings.put("cluster.routing.allocation.node_concurrent_recoveries", "32");
                 settings.put("cluster.routing.allocation.node_initial_primaries_recoveries", "6");
-                settings.put("cluster.routing.allocation.min_heap_required_for_concurrent_primary_recoveries", "2560mb");
-                settings.put("cluster.routing.allocation.concurrent_primary_recoveries_per_heap_gb", "1.5");
+                settings.putAll(heapBasedPrimaryRecoverySettings(random));
                 settings.put("cluster.routing.allocation.cluster_concurrent_rebalance", "2");
                 settings.putAll(UNBOUNDED_DATA_NODE_RECOVERY_SETTINGS);
             }
@@ -118,5 +118,26 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
         }
         settings.put("indices.recovery.gates.enabled", "false");
         return Map.copyOf(settings);
+    }
+
+    /// Randomized heap-based primary recovery limits matching effective limits for production nodes.
+    ///
+    /// The master limits concurrent primary recoveries per node based on the node's heap, and production nodes have
+    /// between 1GB and 31GB of heap, far more than test nodes. The production defaults are scaled by the ratio between
+    /// the simulated production heap and the actual test node heap, so that a test node gets the same limit as the
+    /// simulated production node.
+    private static Map<String, String> heapBasedPrimaryRecoverySettings(Random random) {
+        final long testNodeHeapBytes = ByteSizeValue.parseBytesSizeValue(System.getProperty("tests.heap.size", "512m"), "tests.heap.size")
+            .getBytes();
+        final ByteSizeValue simulatedHeap = ByteSizeValue.ofGb(random.nextInt(1, 32));
+        final double heapRatio = (double) simulatedHeap.getBytes() / testNodeHeapBytes;
+        LOGGER.info("Simulating production node heap [{}] for heap-based primary recovery limits", simulatedHeap);
+
+        return Map.of(
+            "cluster.routing.allocation.min_heap_required_for_concurrent_primary_recoveries",
+            (long) (ByteSizeValue.ofMb(2560).getBytes() / heapRatio) + "b",
+            "cluster.routing.allocation.concurrent_primary_recoveries_per_heap_gb",
+            String.valueOf(1.5 * heapRatio)
+        );
     }
 }

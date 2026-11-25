@@ -20,7 +20,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;
@@ -90,7 +90,7 @@ public final class InternalSettingsPlugin extends Plugin {
         );
         // The stateless plugin registers these itself, and a setting cannot be registered twice.
         if (stateless == false) {
-            settings.addAll(DataNodeRecoveryThrottlingSettings.settings());
+            settings.addAll(DataNodeRecoveryThrottlingLimits.settings());
             settings.addAll(
                 List.of(
                     RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,

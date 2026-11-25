@@ -12,10 +12,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.IncomingRecoveryLimits;
 
 import java.util.List;
 import java.util.Map;
@@ -38,16 +36,14 @@ public class TargetRelocationSlotsEstimator {
         -1
     );
 
-    private volatile int maxConcurrentNonCriticalRecoveries;
+    private final DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits;
     private volatile boolean masterThrottlingDisabled;
 
-    public TargetRelocationSlotsEstimator(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
-            clusterSettings,
-            nodeSettings,
-            maxHeap,
-            limits -> this.maxConcurrentNonCriticalRecoveries = limits.maxConcurrentNonCriticalRecoveries()
-        );
+    public TargetRelocationSlotsEstimator(
+        ClusterSettings clusterSettings,
+        DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits
+    ) {
+        this.dataNodeRecoveryThrottlingLimits = dataNodeRecoveryThrottlingLimits;
         this.masterThrottlingDisabled = masterThrottlingDisabled(clusterSettings::get);
         clusterSettings.addSettingsUpdateConsumer(
             settings -> this.masterThrottlingDisabled = masterThrottlingDisabled(setting -> setting.get(settings)),
@@ -64,7 +60,7 @@ public class TargetRelocationSlotsEstimator {
     /// the relocations of a shutting-down node at once. So the settings are trusted only when the cluster state agrees, see
     /// [SearchShardRelocations#hasPendingRelocationsOnShuttingDownNodes].
     public int knownAvailableSlots(final ClusterState state, final int relocationsInFlight) {
-        final int maxRecoveries = maxConcurrentNonCriticalRecoveries;
+        final int maxRecoveries = dataNodeRecoveryThrottlingLimits.incomingRecoveryLimits().maxConcurrentNonCriticalRecoveries();
         return dataNodeRecoveryThrottlingEnabled(maxRecoveries)
             && SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state) == false
                 ? maxRecoveries
@@ -74,7 +70,7 @@ public class TargetRelocationSlotsEstimator {
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not
     /// throttle, see [#masterThrottlingDisabled]. The data node settings are only registered by the stateless plugin, and are unbounded by
     /// default. While the master throttles, the cluster state shows only the relocations it has started, whatever the data node limit is.
-    // TODO: move to DataNodeRecoveryThrottlingSettings (elastic/elasticsearch-team#5653)
+    // TODO: move to DataNodeRecoveryThrottlingLimits (elastic/elasticsearch-team#5653)
     private boolean dataNodeRecoveryThrottlingEnabled(int maxRecoveries) {
         return maxRecoveries < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries() && masterThrottlingDisabled;
     }

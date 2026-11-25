@@ -17,12 +17,11 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
@@ -107,12 +106,11 @@ public class SearchRecoveryTimeoutCalculationService {
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
-        Settings nodeSettings,
-        ByteSizeValue maxHeap,
+        DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits,
         TelemetryProvider telemetryProvider
     ) {
         this.relocationSourceShutdownTimeouts = new RelocationSourceShutdownTimeouts(
-            new TargetRelocationSlotsEstimator(clusterSettings, nodeSettings, maxHeap),
+            new TargetRelocationSlotsEstimator(clusterSettings, dataNodeRecoveryThrottlingLimits),
             new ShutdownWarmingDeadline(clusterSettings),
             cacheService,
             threadPool,

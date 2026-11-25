@@ -26,6 +26,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -189,8 +190,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 cacheService,
                 threadPool,
                 clusterSettings,
-                onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO,
+                new DataNodeRecoveryThrottlingLimits(clusterSettings, onlyRole(DiscoveryNodeRole.SEARCH_ROLE), ByteSizeValue.ZERO),
                 TelemetryProvider.NOOP
             )
         ) {
@@ -767,8 +767,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 cacheService,
                 threadPool,
                 clusterSettings,
-                onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO,
+                new DataNodeRecoveryThrottlingLimits(clusterSettings, onlyRole(DiscoveryNodeRole.SEARCH_ROLE), ByteSizeValue.ZERO),
                 TelemetryProvider.NOOP
             ) {
                 @Override

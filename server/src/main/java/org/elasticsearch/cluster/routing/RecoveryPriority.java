@@ -180,7 +180,7 @@ public enum RecoveryPriority implements Writeable {
     /// of unassigned shards added for performance reasons, reshard split target primaries (whose source keeps serving
     /// the whole index until the handoff), and snapshot restores (whose index is expected to be unavailable until they
     /// complete, which may take a long time) are non-critical. Note that non-critical recoveries
-    /// are subject to additional throttling (see [org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings]).
+    /// are subject to additional throttling (see [org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits]).
     ///
     /// All the critical priorities must rank above all the non-critical ones, which
     /// [org.elasticsearch.indices.recovery.ThrottlingRecoveryService] relies on when dispatching queued recoveries.

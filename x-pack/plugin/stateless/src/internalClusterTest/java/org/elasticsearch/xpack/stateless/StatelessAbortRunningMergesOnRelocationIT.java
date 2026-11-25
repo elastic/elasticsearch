@@ -33,7 +33,7 @@ import org.elasticsearch.index.engine.MergeEventListener;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -112,7 +112,7 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
         final var sourceNode = startMasterAndIndexNode(
             nodeSettings().put("thread_pool." + ThreadPool.Names.MERGE + ".max", MAX_CONCURRENT_RUNNING_MERGES)
                 // A single outgoing relocation slot, the second relocation will be queued behind the first one.
-                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
                 .build()
         );

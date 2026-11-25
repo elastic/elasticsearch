@@ -33,7 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
@@ -135,14 +135,17 @@ public class TargetRelocationSlotsEstimatorTests extends ESTestCase {
     }
 
     private static TargetRelocationSlotsEstimator newEstimator(ClusterSettings clusterSettings, Settings nodeSettings) {
-        return new TargetRelocationSlotsEstimator(clusterSettings, nodeSettings, ByteSizeValue.ofGb(1));
+        return new TargetRelocationSlotsEstimator(
+            clusterSettings,
+            new DataNodeRecoveryThrottlingLimits(clusterSettings, nodeSettings, ByteSizeValue.ofGb(1))
+        );
     }
 
     /// The master leaves the throttling of the relocations to the data nodes, as with data node recovery throttling, plus the data node
     /// limit on the incoming recoveries.
     private static Settings dataNodeLimit(int limit) {
         return Settings.builder()
-            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), limit)
+            .put(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), limit)
             .build();
     }
 
@@ -157,7 +160,7 @@ public class TargetRelocationSlotsEstimatorTests extends ESTestCase {
             )
         );
         if (dataNodeSettingsRegistered) {
-            registeredSettings.addAll(DataNodeRecoveryThrottlingSettings.settings());
+            registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
         }
         final var withMasterUnthrottled = Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)

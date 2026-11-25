@@ -20,10 +20,6 @@ import java.util.function.Function;
  */
 public final class EscfLongArrayIterator extends EscfNumericArrayIterator {
 
-    /** The bounds Jackson range-checks a fractional number against before narrowing it; outside them it fails. */
-    private static final double MIN_LONG_AS_DOUBLE = Long.MIN_VALUE;
-    private static final double MAX_LONG_AS_DOUBLE = Long.MAX_VALUE;
-
     private long value;
 
     private EscfLongArrayIterator(EscfColumn column, Function<String, ? extends RuntimeException> onUnsupported) {
@@ -58,8 +54,7 @@ public final class EscfLongArrayIterator extends EscfNumericArrayIterator {
     }
 
     private long truncate(double d) {
-        // A bare cast would saturate instead of failing.
-        if (d < MIN_LONG_AS_DOUBLE || d > MAX_LONG_AS_DOUBLE) {
+        if (EscfNumbers.isInLongRange(d) == false) {
             throw unsupported("element [" + d + "] is out of range for a long");
         }
         return (long) d;

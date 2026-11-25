@@ -290,3 +290,50 @@ FROM flattened_paths_keyword
 id:keyword | zone:keyword
 k1         | L
 ;
+
+// Rule 3: a node can have a value and children. The EVAL replaces the value at [attributes]; the children that the index
+// provides stay, as the mapped [attributes.host] of another index does in nonMapValueReplacesOnlyItsName.
+childrenStayWhenAValueReplacesTheirMap
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| EVAL attributes = "x"
+| KEEP id, attributes, attributes.host
+| SORT id
+;
+
+id:keyword | attributes:keyword | attributes.host:keyword
+f1         | x                  | a
+f2         | x                  | c
+;
+
+// Rule 4: DROP names the one node [attributes]; its children stay
+childrenStayWhenTheirMapIsDropped
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| DROP attributes
+| WHERE attributes.host == "a"
+| KEEP id
+;
+
+id:keyword
+f1
+;
+
+// Rule 4: a pattern can keep children without their map
+childrenKeptWithoutTheirMap
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| KEEP id, attributes.h*
+| WHERE attributes.host == "a"
+| KEEP id
+;
+
+id:keyword
+f1
+;

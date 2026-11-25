@@ -48,12 +48,21 @@ setup:
   - match: { error.reason: "/(?s).*Unknown.column.\\[attrs.host\\].*/" }
 
 ---
-'dropping the map takes its keys with it':
+'DROP of the map names one node, its children stay':
+  - do:
+      esql.query:
+        body:
+          query: 'SET map_types=true; FROM flat | DROP attrs | WHERE attrs.host == "a" | LIMIT 10'
+  - length: { columns: 1 }
+  - length: { values: 1 }
+
+---
+'DROP of the tree removes the children':
   - do:
       catch: bad_request
       esql.query:
         body:
-          query: 'SET map_types=true; FROM flat | DROP attrs | WHERE attrs.host == "a" | LIMIT 10'
+          query: 'SET map_types=true; FROM flat | DROP attrs* | WHERE attrs.host == "a" | LIMIT 10'
   - match: { error.type: verification_exception }
   - match: { error.reason: "/(?s).*Unknown.column.\\[attrs.host\\].*/" }
 

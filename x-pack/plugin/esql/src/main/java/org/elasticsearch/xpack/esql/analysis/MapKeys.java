@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -64,11 +65,13 @@ import java.util.Set;
  *     ({@code KEEP attrs.foo}, {@code RENAME attrs.foo AS f}, {@code STATS … BY attrs.foo}) makes the key a child column.</li>
  *     <li><b>Children follow their map.</b> Writing a map at a name replaces everything under that name, whichever command writes it:
  *     {@code EVAL}, {@code LOOKUP JOIN}, {@code ENRICH}, {@code RENAME}. Renaming a map renames its child columns with it.
- *     Writing a value that is not a map replaces only that name.</li>
- *     <li><b>{@code KEEP} and {@code DROP} take their patterns literally.</b> They select columns by name and do not change the value
- *     of a map. A key is readable where its map is in the output and no {@code KEEP} or {@code DROP} since the map entered the query
- *     has excluded the key's name: {@code KEEP attrs} closes the map, {@code KEEP attrs*} keeps it open. Dropping a map takes its
- *     keys with it; its child columns that remain are plain columns.</li>
+ *     Writing a value that is not a map replaces only the value at that name: a node can have a value and children, and the
+ *     children that a source provided stay.</li>
+ *     <li><b>{@code KEEP} and {@code DROP} take their patterns literally.</b> They select nodes by name and do not change the value
+ *     of a map. {@code KEEP attrs} and {@code DROP attrs} name the one node {@code attrs}; {@code attrs*} names the tree. A child is
+ *     readable until a {@code KEEP} or {@code DROP} excludes its name: {@code KEEP attrs} closes the map, {@code KEEP attrs*} keeps
+ *     it open, and after {@code DROP attrs} the children that a source provided are still there, as a mapped field under that
+ *     name is. Only a key that is read from a value needs that value to be in the output.</li>
  *     <li><b>Sources merge node by node.</b> In a union of indices or subqueries a map column holds whichever map a row has, and a
  *     child column resolves its type conflicts as any field does. Where maps are at two levels under a name ({@code attrs} in one
  *     index and {@code attrs.foo} in another), each row reads {@code attrs.foo.bar} from the nearest map it has: the result is the
@@ -176,12 +179,14 @@ public final class MapKeys {
                 maps.add(column);
             }
         }
-        if (maps.isEmpty()) {
-            // a key needs its map
-            return null;
-        }
         if (hidden != null && isOpen(input, hidden, name)) {
+            // A child that the source provided is a node of its own: it stays when a value that is not a map is written at the
+            // name above it (rule 3), and when the map is dropped while a pattern still keeps the child (rule 4)
             return hidden;
+        }
+        if (maps.isEmpty()) {
+            // a key that is read from the value needs that value
+            return null;
         }
         maps.removeIf(map -> isOpen(input, map, name) == false);
         if (maps.isEmpty()) {
@@ -434,6 +439,10 @@ public final class MapKeys {
                     result = new ArrayList<>(resolved);
                 }
                 result.add(attribute);
+                // A pattern that matches only hidden children matches something: it is not the unmatched pattern that the
+                // resolution of the KEEP left behind for the verifier
+                String name = attribute.name();
+                result.removeIf(e -> e.resolved() == false && e instanceof UnresolvedAttribute && Regex.simpleMatch(e.name(), name));
             }
         }
         return result == null ? resolved : result;

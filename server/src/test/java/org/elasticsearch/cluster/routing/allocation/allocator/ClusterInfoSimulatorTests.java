@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
 import org.elasticsearch.cluster.NodeHeapEstimates;
 import org.elasticsearch.cluster.NodeHeapMetrics;
+import org.elasticsearch.cluster.NodeSearchCapacity;
+import org.elasticsearch.cluster.SearchCopyDemand;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -1048,6 +1050,42 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         assertThat(simulator.getClusterInfo().getNodeHeapMetrics().isEmpty(), equalTo(true));
     }
 
+    public void testSearchLoadMetricsAreUnchangedBySimulation() {
+        final String nodeId = "node-0";
+        final ShardId shardId = new ShardId("my-index", "_na_", 0);
+        final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of(
+            new ClusterInfo.NodeAndShard(nodeId, shardId),
+            new SearchCopyDemand(1.5d, 2.5d)
+        );
+        final Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of(nodeId, new NodeSearchCapacity(4.0d, 8.0d));
+        final ClusterInfo initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(nodeId, new DiskUsageBuilder(1000, 1000))
+            .searchCopyDemands(searchCopyDemands)
+            .nodeSearchCapacities(nodeSearchCapacities)
+            .build();
+
+        final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(index, false))
+            .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId)).build())
+            .build();
+        final var newPrimary = shardRoutingBuilder(shardId, nodeId, true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
+        final ClusterInfoSimulator simulator = new ClusterInfoSimulator(
+            createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY)
+        );
+        simulator.simulateShardStarted(newPrimary);
+
+        final ClusterInfo simulated = simulator.getClusterInfo();
+        assertThat(simulated.getSearchCopyDemands(), equalTo(searchCopyDemands));
+        assertThat(simulated.getNodeSearchCapacities(), equalTo(nodeSearchCapacities));
+    }
+
     private static ClusterState clusterStateWithRoles(
         String indexName,
         Map<String, Set<DiscoveryNodeRole>> rolesByNodeId,
@@ -1115,6 +1153,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         private final Map<NodeAndPath, ReservedSpace> reservedSpace = new HashMap<>();
         private final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = new HashMap<>();
         private final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = new HashMap<>();
+        private Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of();
+        private Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of();
 
         public ClusterInfoTestBuilder withNode(String name, DiskUsageBuilder diskUsageBuilderBuilder) {
             leastAvailableSpaceUsage.put(name, diskUsageBuilderBuilder.toDiskUsage(name));
@@ -1163,6 +1203,16 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             return this;
         }
 
+        public ClusterInfoTestBuilder searchCopyDemands(Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands) {
+            this.searchCopyDemands = searchCopyDemands;
+            return this;
+        }
+
+        public ClusterInfoTestBuilder nodeSearchCapacities(Map<String, NodeSearchCapacity> nodeSearchCapacities) {
+            this.nodeSearchCapacities = nodeSearchCapacities;
+            return this;
+        }
+
         public ClusterInfo build() {
             return ClusterInfo.builder()
                 .leastAvailableSpaceUsage(leastAvailableSpaceUsage)
@@ -1171,6 +1221,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 .reservedSpace(reservedSpace)
                 .nodeCacheSizeAndCommitments(nodeCacheSizeAndCommitments)
                 .shardCacheRequirements(shardCacheRequirements)
+                .searchCopyDemands(searchCopyDemands)
+                .nodeSearchCapacities(nodeSearchCapacities)
                 .build();
         }
     }

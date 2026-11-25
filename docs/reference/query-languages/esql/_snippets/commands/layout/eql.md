@@ -134,10 +134,17 @@ that position follows as `line l:c of the EQL query`. The engine's message is ke
 line 1:1: EQL query failed: line 1:15 of the EQL query: Unknown column [process.nam], did you mean any of [process.name, process.pid]?
 ```
 
+When the EQL engine finds several problems, each is listed on its own line:
+
+```txt
+line 1:1: EQL query failed with 2 problems:
+    line 1:15 of the EQL query: Unknown column [process.nam], did you mean any of [process.name, process.pid]?
+    line 1:38 of the EQL query: Unknown column [zzz]
+```
+
 When the EQL command is in the body of a view, the {{esql}} position names the view, as `line l:c (in view [v])`.
-A failure that is not about the EQL query, such as a shard failure when [partial results](#partial-results) are not
-allowed, is returned unchanged. When the EQL command targets only a single remote cluster, an error from that
-cluster is returned as the EQL engine reports it.
+An error from the EQL engine of a remote cluster has the same form. A failure that is not about the EQL
+query, such as a shard failure when [partial results](#partial-results) are not allowed, is returned unchanged.
 
 ## Metadata [metadata]
 
@@ -295,3 +302,8 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\"" WIT
   view named in it, alone or alongside other targets, is rejected with an error that suggests `FROM <view>`
   instead, and a wildcard does not match views. A view whose *body* is an EQL command is supported and read
   with `FROM <view>`.
+* **Nested fields cannot be searched.** As with `_eql/search`, the EQL query cannot search a
+  [`nested`](/reference/query-languages/eql/eql-syntax.md#eql-nested-fields) field or its sub-fields. The command can
+  reuse the field list {{esql}} resolved, which leaves out nested fields. When it does, a query that names one fails
+  with a different error than `_eql/search` returns, and one named with the optional `?` syntax is treated as
+  missing instead of failing the query.

@@ -124,9 +124,6 @@ public final class EqlRequests {
             throw new ParsingException(source, "cannot parse EQL query [{}]: {}{}", query, position, e.getErrorMessage());
         } catch (QlClientException e) {
             throw new ParsingException(source, "cannot parse EQL query [{}]: {}", query, e.getMessage());
-        } catch (RuntimeException e) {
-            // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
-            throw new ParsingException(source, "cannot parse EQL query [{}]", query);
         }
         EqlRelation.Mode mode = switch (shape.mode()) {
             case EVENT -> EqlRelation.Mode.EVENT;

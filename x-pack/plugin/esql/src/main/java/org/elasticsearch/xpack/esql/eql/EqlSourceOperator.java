@@ -12,12 +12,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
@@ -32,11 +34,15 @@ import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlClientException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -72,6 +78,10 @@ public class EqlSourceOperator extends SourceOperator {
     }
 
     private static final int MAX_REPORTED_FAILURES = 5;
+    private static final Pattern FOUND_PROBLEMS = Pattern.compile("Found \\d+ problems?\\R");
+    private static final Pattern PROBLEM_START = Pattern.compile("^(?=line -?\\d{1,9}:-?\\d{1,9}: )", Pattern.MULTILINE);
+    private static final Pattern LEADING_POSITION = Pattern.compile("line (-?\\d{1,9}):(-?\\d{1,9}): ");
+    private static final Pattern EQL_POSITION = Pattern.compile("line (\\d+):(\\d+):");
 
     private final DriverContext driverContext;
     private final Client client;
@@ -151,9 +161,13 @@ public class EqlSourceOperator extends SourceOperator {
                 blocked.onResponse(null);
             }
         }, e -> {
-            failure = located(e);
-            driverContext.removeAsyncAction();
-            blocked.onResponse(null);
+            failure = e;
+            try {
+                failure = located(e);
+            } finally {
+                driverContext.removeAsyncAction();
+                blocked.onResponse(null);
+            }
         }));
         maybeWarnDefaultSize();
     }
@@ -185,23 +199,64 @@ public class EqlSourceOperator extends SourceOperator {
     }
 
     private Exception located(Exception e) {
-        if (!(ExceptionsHelper.unwrapCause(e) instanceof QlClientException cause)) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        List<String> problems;
+        if (cause instanceof QlClientException clientError) {
+            problems = problems(clientError);
+        } else if (cause instanceof NotSerializableExceptionWrapper remote && remote.status() == RestStatus.BAD_REQUEST) {
+            // A remote cluster's EQL client error arrives as text only: EQL's exceptions are not registered for the wire.
+            String prefix = remote.getExceptionName() + ": ";
+            String message = remote.getMessage();
+            problems = problemsFromText(message.startsWith(prefix) ? message.substring(prefix.length()) : message);
+        } else {
             return e;
         }
-        String reason = switch (cause) {
-            case EqlClientException eql when eql.problems().isEmpty() == false -> eql.problems()
-                .stream()
-                .map(problem -> inEqlQuery(problem.line(), problem.column(), problem.message()))
-                .collect(Collectors.joining("; "));
-            case ParsingException p -> inEqlQuery(p.getLineNumber(), p.getColumnNumber(), p.getErrorMessage());
-            case QlClientException other -> other.getMessage();
-        };
         String location = source.viewName() == null
             ? Strings.format("line %s:%s: ", source.lineNumber(), source.columnNumber())
             : Strings.format("line %s:%s (in view [%s]): ", source.lineNumber(), source.columnNumber(), source.viewName());
-        VerificationException locatedFailure = new VerificationException(location + "EQL query failed: " + reason);
+        // Clients such as Kibana read every "line L:C:" as a position in the ES|QL query, so EQL's own must not keep that form.
+        problems = problems.stream().map(p -> EQL_POSITION.matcher(p).replaceAll("line $1:$2 of the EQL query:")).toList();
+        String reason = problems.size() == 1
+            ? ": " + problems.getFirst()
+            : problems.stream()
+                .map(p -> "\n    " + p.replace("\n", "\n    "))
+                .collect(Collectors.joining("", " with " + problems.size() + " problems:", ""));
+        VerificationException locatedFailure = new VerificationException(location + "EQL query failed" + reason);
         locatedFailure.addSuppressed(cause);
         return locatedFailure;
+    }
+
+    private static List<String> problems(QlClientException cause) {
+        return switch (cause) {
+            case EqlClientException eql when eql.problems().isEmpty() == false -> eql.problems()
+                .stream()
+                .map(problem -> inEqlQuery(problem.line(), problem.column(), problem.message()))
+                .toList();
+            case org.elasticsearch.xpack.eql.parser.ParsingException p -> List.of(
+                inEqlQuery(p.getLineNumber(), p.getColumnNumber(), p.getErrorMessage())
+            );
+            case ParsingException p -> List.of(inEqlQuery(p.getLineNumber(), p.getColumnNumber(), p.getErrorMessage()));
+            case QlClientException other -> problemsFromText(Objects.requireNonNullElse(other.getMessage(), ""));
+        };
+    }
+
+    private static List<String> problemsFromText(String text) {
+        Matcher header = FOUND_PROBLEMS.matcher(text);
+        if (header.lookingAt() == false) {
+            return List.of(problemFromText(text));
+        }
+        // A problem's message can span lines, so only a line that starts with a position starts the next problem.
+        return Arrays.stream(PROBLEM_START.split(text.substring(header.end())))
+            .map(problem -> problemFromText(problem.stripTrailing()))
+            .toList();
+    }
+
+    private static String problemFromText(String problem) {
+        Matcher position = LEADING_POSITION.matcher(problem);
+        if (position.lookingAt() == false) {
+            return problem;
+        }
+        return inEqlQuery(Integer.parseInt(position.group(1)), Integer.parseInt(position.group(2)), problem.substring(position.end()));
     }
 
     private static String inEqlQuery(int line, int column, String message) {

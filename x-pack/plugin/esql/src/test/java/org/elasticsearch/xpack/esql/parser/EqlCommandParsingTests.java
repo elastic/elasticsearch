@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -22,6 +24,8 @@ import org.elasticsearch.xpack.ql.QlClientException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -181,13 +185,29 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testInternalEqlParserFailureIsNotShownToTheUser() {
+    public void testInternalEqlParserFailureIsAServerError() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
         RuntimeException failure = expectThrows(RuntimeException.class, () -> EqlQueryIntrospection.inspect("process where x like null"));
         assertThat(failure, not(instanceOf(QlClientException.class)));
-        ParsingException e = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where x like null\""));
-        assertThat(e.getErrorMessage(), equalTo("cannot parse EQL query [process where x like null]"));
+        RuntimeException e = expectThrows(RuntimeException.class, () -> query("EQL logs-* \"process where x like null\""));
+        assertThat(e, instanceOf(failure.getClass()));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    public void testEqlParseErrorsKeepTheEsqlPositionAsTheOnlyMarker() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        for (String eql : List.of("process where", "sample by c [a where true] ![b where true]", "process where x like \"\\u{01}\"")) {
+            QueryParams params = new QueryParams(List.of(paramAsConstant("q", eql)));
+            ParsingException e = expectThrows(ParsingException.class, () -> query("EQL logs-* ?q", params));
+            assertOnlyMarkerIsAtTheStart(e.getMessage());
+        }
+    }
+
+    private static void assertOnlyMarkerIsAtTheStart(String message) {
+        List<Integer> markers = Pattern.compile("line \\d+:\\d+:").matcher(message).results().map(MatchResult::start).toList();
+        assertThat(message, markers, equalTo(List.of(0)));
     }
 
     private static String expectedEqlParserError(String eql, String position) {

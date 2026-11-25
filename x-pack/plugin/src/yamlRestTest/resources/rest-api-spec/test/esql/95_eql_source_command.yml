@@ -270,7 +270,7 @@ setup:
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
       warnings:
-        - "Line 1:1: Mapped field [join_keys] is shadowed by the EQL command's column of the same name; access it with JSON_EXTRACT on METADATA _source if the document stores it"
+        - "Line 1:1: Mapped field [join_keys] is shadowed by the EQL command's column of the same name; read it with FROM, or with JSON_EXTRACT on METADATA _source if the document stores it"
       esql.query:
         body:
           query: 'EQL eql_join_keys "sequence by pid [process where true] [network where true]" METADATA _source WITH {"size": 1} | EVAL mapped = JSON_EXTRACT(_source, "join_keys") | KEEP _sequence_stage, join_keys, mapped | SORT _sequence_stage'
@@ -309,7 +309,7 @@ setup:
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
       warnings:
-        - "Line 1:1 (in view [eql_join_keys_view]): Mapped field [join_keys] is shadowed by the EQL command's column of the same name; access it with JSON_EXTRACT on METADATA _source if the document stores it"
+        - "Line 1:1 (in view [eql_join_keys_view]): Mapped field [join_keys] is shadowed by the EQL command's column of the same name; read it with FROM, or with JSON_EXTRACT on METADATA _source if the document stores it"
       esql.query:
         body:
           query: 'FROM eql_join_keys_view | KEEP _sequence_stage, join_keys | SORT _sequence_stage'

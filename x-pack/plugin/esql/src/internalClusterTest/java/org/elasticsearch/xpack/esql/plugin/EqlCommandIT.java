@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -383,6 +384,23 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), startsWith("line 1:1: EQL query failed: line 1:"));
         assertThat(e.getMessage(), containsString(" of the EQL query: "));
         assertThat(e.getMessage(), containsString("[between]"));
+    }
+
+    public void testSeveralEqlProblemsAreListedOnePerLine() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("EQL " + INDEX + " \"process where process.nam == \\\"x\\\" and zzz == 1\"").close()
+        );
+        assertThat(e.getMessage(), startsWith("line 1:1: EQL query failed with 2 problems:\n"));
+        String unknownProcessNam = "Unknown column [process.nam], did you mean any of [process.name, process.pid]?";
+        assertThat(e.getMessage(), containsString("\n    line 1:15 of the EQL query: " + unknownProcessNam));
+        assertThat(e.getMessage(), containsString("\n    line 1:38 of the EQL query: Unknown column [zzz]"));
+    }
+
+    public void testEqlEngineBugIsAServerError() {
+        Exception e = expectThrows(Exception.class, () -> run("EQL " + INDEX + " \"process where process.name like null\"").close());
+        assertThat(ExceptionsHelper.unwrap(e, NullPointerException.class), notNullValue());
+        assertThat(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
 
     public void testEventQueryReportsALostShard() throws Exception {

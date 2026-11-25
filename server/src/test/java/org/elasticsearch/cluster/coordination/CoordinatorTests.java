@@ -2232,7 +2232,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
             final long acceptedVersion = dataNode.persistedState.getLastAcceptedState().version();
 
-            // closing the node discards the pending write
+            // closing the node discards the pending write; we don't care here whether it sent the PublishResponse without waiting for this
             dataNode.close();
             final ClusterNode restartedNode = dataNode.restartedNode(
                 // sometimes modify the metadata to trigger a rewrite on startup, ensuring that we don't write the published state

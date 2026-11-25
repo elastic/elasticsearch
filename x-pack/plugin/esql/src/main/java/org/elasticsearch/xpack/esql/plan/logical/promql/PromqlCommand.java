@@ -643,9 +643,13 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         // https://github.com/elastic/elasticsearch/issues/145308
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
-                    if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
+                    // With the label container functions operands that cannot share one aggregate join as independent pipelines.
+                    if (containerFunctions == false
+                        && hasSourceBackedExpression(binaryOperator.left())
+                        && hasSourceBackedExpression(binaryOperator.right())) {
                         verifySourceBackedOperands(failures, binaryOperator);
-                    } else if (binaryOperator instanceof VectorBinarySet == false
+                    } else if (containerFunctions == false
+                        && binaryOperator instanceof VectorBinarySet == false
                         && binaryOperator.match() == VectorMatch.NONE
                         && (pairsCountValuesWithRawOperand(binaryOperator.left(), binaryOperator.right())
                             || pairsCountValuesWithRawOperand(binaryOperator.right(), binaryOperator.left()))) {
@@ -662,6 +666,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     // different offsets. `or` (UNION) translates to independent branches, so per-branch offsets
                     // are fine and excluded here.
                     if (binaryOperator instanceof VectorBinarySet == false
+                        && containerFunctions == false
                         && hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
                         && collectAllOffsetsForBranch(binaryOperator).size() > 1) {
@@ -827,7 +832,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     /**
      * Whether {@code countValues} contains a {@code count_values} aggregation and {@code other} is a vector without a
-     * concrete label set. Such an operator translates as a join, which matches operands on their label columns.
+     * concrete label set. Without the label container functions such an operator translates as a join, which matches
+     * operands on their label columns; with them it matches on the operands' label containers.
      */
     private static boolean pairsCountValuesWithRawOperand(LogicalPlan countValues, LogicalPlan other) {
         return CountValuesAggregate.usesCountValues(countValues)
@@ -1115,7 +1121,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * carry no data window and are excluded. More than one distinct value within a merged binary operator is
      * unsupported (see the verifier guard).
      */
-    private static Set<Duration> collectAllOffsetsForBranch(LogicalPlan plan) {
+    public static Set<Duration> collectAllOffsetsForBranch(LogicalPlan plan) {
         Set<Duration> offsets = new HashSet<>();
         for (Selector selector : plan.collect(Selector.class)) {
             if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {

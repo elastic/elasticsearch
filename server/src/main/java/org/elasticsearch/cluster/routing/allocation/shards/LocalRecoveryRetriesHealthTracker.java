@@ -9,13 +9,13 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.node.tracker.HealthTracker;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 
 import java.util.HashMap;
@@ -29,14 +29,14 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
     // failedAllocations – but, at time of writing, the former is reset by direct cancellation and the latter is not.
     // See elastic/elasticsearch-team#5557
 
-    private final IndicesService indicesService;
+    private final ClusterService clusterService;
     private final Supplier<IndicesClusterStateService> indicesClusterStateService;
 
     public LocalRecoveryRetriesHealthTracker(
-        IndicesService indicesService,
+        ClusterService clusterService,
         Supplier<IndicesClusterStateService> indicesClusterStateService
     ) {
-        this.indicesService = indicesService;
+        this.clusterService = clusterService;
         this.indicesClusterStateService = indicesClusterStateService;
     }
 
@@ -47,17 +47,18 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
                 + "update and so cannot happen before node construction (and hence the injector) completes";
         IndicesClusterStateService clusterStateService = indicesClusterStateService.get();
 
+        ClusterState state = clusterService.state();
+        RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+        if (localRoutingNode == null) {
+            return LocalRecoveryRetriesHealthInfo.EMPTY;
+        }
+
         Map<ShardAllocationId, Integer> localRetriesByRecovery = new HashMap<>();
-        for (IndexService indexService : indicesService) {
-            for (IndexShard shard : indexService) {
-                // The retry count is retained after the recovery completes, but the health indicator only reads the retry count for shards
-                // which are not active in the routing table, so only those need to be reported:
-                ShardRouting routing = shard.routingEntry();
-                if (routing.active() == false) {
-                    int localRetries = clusterStateService.getLocalRecoveryRetryCount(routing);
-                    if (localRetries > 0) {
-                        localRetriesByRecovery.put(ShardAllocationId.fromRouting(routing), localRetries);
-                    }
+        for (ShardRouting routing : localRoutingNode) {
+            if (routing.active() == false) {
+                int localRetries = clusterStateService.getLocalRecoveryRetryCount(routing);
+                if (localRetries > 0) {
+                    localRetriesByRecovery.put(ShardAllocationId.fromRouting(routing), localRetries);
                 }
             }
         }

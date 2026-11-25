@@ -9,22 +9,24 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardAllocationId;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.node.HealthInfoTests;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-import static java.util.stream.Collectors.groupingBy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -36,72 +38,45 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         assertThat(determineHealth(Map.of()), equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
     }
 
-    public void testShardsWithLocalRetriesAreReportedSameIndex() {
-        ShardId shardId1 = randomShardId();
-        ShardId shardId2 = new ShardId(shardId1.getIndex(), shardId1.id() + 1);
-        var shard1 = shard(shardId1, ShardRoutingState.INITIALIZING);
-        var shard2 = shard(shardId2, ShardRoutingState.INITIALIZING);
-        int retries1 = randomIntBetween(1, 10);
-        int retries2 = randomIntBetween(1, 10);
-
-        var health = determineHealth(Map.of(shard1, retries1, shard2, retries2));
-
-        assertThat(
-            health.localRetries(),
-            equalTo(
-                Map.of(
-                    ShardAllocationId.fromRouting(shard1.routingEntry()),
-                    retries1,
-                    ShardAllocationId.fromRouting(shard2.routingEntry()),
-                    retries2
-                )
-            )
-        );
-    }
-
-    public void testShardsWithLocalRetiesAreReportedDifferentIndices() {
-        var shard1 = shard(randomShardId(), ShardRoutingState.INITIALIZING);
-        var shard2 = shard(randomShardId(), ShardRoutingState.INITIALIZING);
-        int retries1 = randomIntBetween(1, 10);
-        int retries2 = randomIntBetween(1, 10);
-
-        var health = determineHealth(Map.of(shard1, retries1, shard2, retries2));
-
-        assertThat(
-            health.localRetries(),
-            equalTo(
-                Map.of(
-                    ShardAllocationId.fromRouting(shard1.routingEntry()),
-                    retries1,
-                    ShardAllocationId.fromRouting(shard2.routingEntry()),
-                    retries2
-                )
-            )
-        );
-    }
-
     public void testShardsWithoutLocalRetriesAreOmitted() {
-        var shardWithoutRetries = shard(randomShardId(), ShardRoutingState.INITIALIZING);
-        var shardWithRetries = shard(randomShardId(), ShardRoutingState.INITIALIZING);
-        int retries = randomIntBetween(1, 10);
-
-        LocalRecoveryRetriesHealthInfo health = determineHealth(Map.of(shardWithoutRetries, 0, shardWithRetries, retries));
-
-        assertThat(health.localRetries(), equalTo(Map.of(ShardAllocationId.fromRouting(shardWithRetries.routingEntry()), retries)));
+        var routing = routing(randomShardId(), ShardRoutingState.INITIALIZING);
+        assertThat(determineHealth(Map.of(routing, 0)), equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
     }
 
+    public void testShardsWithLocalRetriesAreReported() {
+        var routing1 = routing(randomShardId(), ShardRoutingState.INITIALIZING);
+        var routing2 = routing(randomShardId(), ShardRoutingState.INITIALIZING);
+        int retries1 = randomIntBetween(1, 10);
+        int retries2 = randomIntBetween(1, 10);
+
+        var health = determineHealth(Map.of(routing1, retries1, routing2, retries2));
+
+        assertThat(
+            health.localRetries(),
+            equalTo(Map.of(ShardAllocationId.fromRouting(routing1), retries1, ShardAllocationId.fromRouting(routing2), retries2))
+        );
+    }
+
+    /// Tracker must only report on inactive shards.
     public void testShardsWhichAreActiveAreOmitted() {
-        var inactive = shard(randomShardId(), ShardRoutingState.INITIALIZING);
-        var active = shard(randomShardId(), ShardRoutingState.STARTED);
-        int retriesInactive = randomIntBetween(1, 10);
+        var active = routing(randomShardId(), ShardRoutingState.STARTED);
 
-        var health = determineHealth(Map.of(active, randomIntBetween(1, 10), inactive, retriesInactive));
+        var health = determineHealth(Map.of(active, randomIntBetween(1, 10)));
 
-        assertThat(health.localRetries(), equalTo(Map.of(ShardAllocationId.fromRouting(inactive.routingEntry()), retriesInactive)));
+        assertThat(health, equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
+    }
+
+    /// The local node may not be in the routing table at all (non-data node, or not
+    /// yet joined), in which case there's nothing to report rather than a null pointer.
+    public void testNoLocalRoutingNodeReportsNothing() {
+        var service = mock(IndicesClusterStateService.class);
+        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(null), () -> service);
+
+        assertThat(tracker.determineCurrentHealth(), equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
     }
 
     public void testSetBuilder() {
-        var tracker = new LocalRecoveryRetriesHealthTracker(indicesService(List.of()), () -> mock(IndicesClusterStateService.class));
+        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(List.of()), () -> mock(IndicesClusterStateService.class));
         var builder = mock(UpdateHealthInfoCacheAction.Request.Builder.class);
         var health = new LocalRecoveryRetriesHealthInfo(Map.of(HealthInfoTests.randomShardAllocationId(), randomIntBetween(1, 10)));
 
@@ -110,39 +85,40 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         verify(builder).localRecoveryRetriesHealthInfo(health);
     }
 
-    private static LocalRecoveryRetriesHealthInfo determineHealth(Map<IndexShard, Integer> shardsWithRetries) {
+    private static LocalRecoveryRetriesHealthInfo determineHealth(Map<ShardRouting, Integer> routingsWithRetries) {
         var service = mock(IndicesClusterStateService.class);
-        shardsWithRetries.forEach((shard, retries) -> when(service.getLocalRecoveryRetryCount(shard.routingEntry())).thenReturn(retries));
-        var tracker = new LocalRecoveryRetriesHealthTracker(indicesService(List.copyOf(shardsWithRetries.keySet())), () -> service);
+        routingsWithRetries.forEach((routing, retries) -> when(service.getLocalRecoveryRetryCount(routing)).thenReturn(retries));
+        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService(List.copyOf(routingsWithRetries.keySet())), () -> service);
         return tracker.determineCurrentHealth();
     }
 
-    /// Creates an [IndicesService] containing one [IndexService] per distinct index among `shards`, grouping
-    /// each shard under its own `ShardRouting#index`.
+    /// Creates a [ClusterService] whose [ClusterState#getRoutingNodes] resolves the local node to a [RoutingNode]
+    /// iterating over [routings], or to no [RoutingNode] at all when `routings` is null.
     ///
-    /// Mocks are used for [IndicesService], [IndexService] and [IndexShard] because constructing real ones needs a
-    /// full node (or at least a data path, analysis registry, and engine factory), and the tracker only uses them
-    /// as containers to iterate over and to get a shard's routing entry.
-    private static IndicesService indicesService(List<IndexShard> shards) {
-        var indexServices = shards.stream()
-            .collect(groupingBy(shard -> shard.routingEntry().index()))
-            .values()
-            .stream()
-            .map(shardsInIndex -> {
-                var indexService = mock(IndexService.class);
-                when(indexService.iterator()).thenAnswer(invocation -> shardsInIndex.iterator());
-                return indexService;
-            })
-            .toList();
-        var indicesService = mock(IndicesService.class);
-        when(indicesService.iterator()).thenAnswer(invocation -> indexServices.iterator());
-        return indicesService;
+    /// Mocks are used because [ClusterState] and friends are plain data holders that only need to answer a
+    /// handful of calls here -- the tracker only reads the local node's shard routings from them.
+    private static ClusterService clusterService(List<ShardRouting> routings) {
+        String localNodeId = randomAlphaOfLength(8);
+        var routingNodes = mock(RoutingNodes.class);
+        if (routings == null) {
+            when(routingNodes.node(localNodeId)).thenReturn(null);
+        } else {
+            var routingNode = mock(RoutingNode.class);
+            when(routingNode.iterator()).thenAnswer(invocation -> routings.iterator());
+            when(routingNodes.node(localNodeId)).thenReturn(routingNode);
+        }
+        var discoveryNodes = mock(DiscoveryNodes.class);
+        when(discoveryNodes.getLocalNodeId()).thenReturn(localNodeId);
+        var state = mock(ClusterState.class);
+        when(state.getRoutingNodes()).thenReturn(routingNodes);
+        when(state.nodes()).thenReturn(discoveryNodes);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        return clusterService;
     }
 
-    private static IndexShard shard(ShardId shardId, ShardRoutingState routingState) {
-        var shard = mock(IndexShard.class);
-        when(shard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(8), true, routingState));
-        return shard;
+    private static ShardRouting routing(ShardId shardId, ShardRoutingState routingState) {
+        return TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(8), true, routingState);
     }
 
     private static ShardId randomShardId() {

@@ -1446,7 +1446,6 @@ class NodeConstruction {
                 repositoriesService,
                 fileSettingsHealthTracker,
                 projectResolver,
-                indicesService,
                 indicesClusterStateServiceRef::get
             )
         );
@@ -1684,7 +1683,6 @@ class NodeConstruction {
         RepositoriesService repositoriesService,
         FileSettingsHealthTracker fileSettingsHealthTracker,
         ProjectResolver projectResolver,
-        IndicesService indicesService,
         Supplier<IndicesClusterStateService> indicesClusterStateService
     ) {
 
@@ -1723,7 +1721,7 @@ class NodeConstruction {
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService, projectResolver),
             fileSettingsHealthTracker,
-            new LocalRecoveryRetriesHealthTracker(indicesService, indicesClusterStateService)
+            new LocalRecoveryRetriesHealthTracker(clusterService, indicesClusterStateService)
         );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);

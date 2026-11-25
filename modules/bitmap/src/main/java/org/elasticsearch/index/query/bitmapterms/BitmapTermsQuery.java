@@ -17,7 +17,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -31,11 +30,10 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
-import org.elasticsearch.search.internal.ExecutionCharge;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 
 /**
  * A query that matches documents whose numeric field value is present in a bitmap, for fields that
@@ -59,7 +57,7 @@ import java.util.Objects;
  * Only non-negative values are supported; the caller must validate this before constructing the
  * query.
  */
-public class BitmapTermsQuery extends Query implements Accountable, ExecutionCharge.Accountable {
+public class BitmapTermsQuery extends Query implements Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BitmapTermsQuery.class);
 
@@ -73,7 +71,7 @@ public class BitmapTermsQuery extends Query implements Accountable, ExecutionCha
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        return new ConstantScoreWeight(this, boost) {
+        return new ChargingConstantScoreWeight(this, boost) {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 if (values.isEmpty()) {
@@ -113,7 +111,7 @@ public class BitmapTermsQuery extends Query implements Accountable, ExecutionCha
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), terms);
-                        collectDocs(result, new TermMerge(terms.iterator()));
+                        collectDocs(result, new TermMerge(terms.iterator()), builderCharger(context));
                         return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }
 
@@ -178,32 +176,13 @@ public class BitmapTermsQuery extends Query implements Accountable, ExecutionCha
      * precede {@code term(V2)}'s. Nor is the missing value visible to {@link StreamingDocIdIterator#skipTo}, which
      * reads doc values rather than the sort key: {@link NumericDocValues#advanceExact} simply reports
      * false for such a document and the skip is declined.
+     * <p>
+     * Only the collecting path's {@link DocIdSetBuilder} is charged to the breaker. The streaming path is charged nothing, although its
+     * scorer keeps one terms enum and one reused postings enum for its whole life. That is the per-clause state a term query keeps too,
+     * which no query charges to the breaker: the clause limit bounds it instead ({@code SearchUtils#calculateMaxClauseValue}).
      */
     private boolean canStream(LeafReader reader, Terms terms) throws IOException {
         return SegmentSort.ascendingBy(reader, field) && singleValued(terms);
-    }
-
-    @Override
-    public ExecutionCharge executionCharge() {
-        return new ExecutionCharge(this::collectedBytesForLeaf, BitmapTermsQueryBuilder.NAME);
-    }
-
-    /**
-     * Only the collecting path allocates in proportion to the segment, a {@link DocIdSetBuilder} grown by the {@code docFreq} of every
-     * matching term. Which terms match takes the merge scan to tell, so the bound is the postings of every term, which on most segments
-     * reserves a full bit set, held until the leaf is done.
-     * <p>
-     * The streaming path is charged nothing, although its scorer keeps one terms enum and one reused postings enum for its whole life.
-     * That is the per-clause state a term query keeps too, which no query charges to the breaker: the clause limit bounds it instead
-     * ({@code SearchUtils#calculateMaxClauseValue}).
-     */
-    private long collectedBytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException {
-        LeafReader reader = ctx.reader();
-        Terms terms = reader.terms(field);
-        if (terms == null || canStream(reader, terms)) {
-            return 0L;
-        }
-        return new DocIdSetBuilderCostEstimator(terms.getSumDocFreq(), reader.maxDoc()).estimate();
     }
 
     /** Every document with this field carries exactly one value, so no document repeats across terms. */
@@ -224,11 +203,13 @@ public class BitmapTermsQuery extends Query implements Accountable, ExecutionCha
     }
 
     /** Collects every matching term's postings, which the builder then puts in doc order. */
-    private static void collectDocs(DocIdSetBuilder result, TermMerge merge) throws IOException {
+    private static void collectDocs(DocIdSetBuilder result, TermMerge merge, LongConsumer charger) throws IOException {
         PostingsEnum postings = null;
         while (merge.nextMatch()) {
+            int docFreq = merge.docFreq();
+            charger.accept(docFreq);
             postings = merge.postings(postings);
-            result.grow(merge.docFreq()).add(postings);
+            result.grow(docFreq).add(postings);
         }
     }
 

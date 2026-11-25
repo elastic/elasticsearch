@@ -18,7 +18,6 @@ import org.apache.lucene.index.PointValues.IntersectVisitor;
 import org.apache.lucene.index.PointValues.PointTree;
 import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -33,11 +32,10 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
-import org.elasticsearch.search.internal.ExecutionCharge;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 
 /**
  * A query that matches documents whose numeric field value is present in a bitmap, for fields
@@ -63,7 +61,7 @@ import java.util.Objects;
  * byte-wise comparison reproduces signed numeric order, while the bitmap iterates in unsigned order.
  * The two agree only while every bitmap value is non-negative.
  */
-public class BitmapBKDQuery extends Query implements Accountable, ExecutionCharge.Accountable {
+public class BitmapBKDQuery extends Query implements Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BitmapBKDQuery.class);
 
@@ -88,7 +86,7 @@ public class BitmapBKDQuery extends Query implements Accountable, ExecutionCharg
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        return new ConstantScoreWeight(this, boost) {
+        return new ChargingConstantScoreWeight(this, boost) {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 LeafReader reader = context.reader();
@@ -139,7 +137,7 @@ public class BitmapBKDQuery extends Query implements Accountable, ExecutionCharg
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), pointValues);
-                        pointValues.intersect(new CollectingMergePointVisitor(result));
+                        pointValues.intersect(new CollectingMergePointVisitor(result, builderCharger(context)));
                         return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }
 
@@ -176,35 +174,14 @@ public class BitmapBKDQuery extends Query implements Accountable, ExecutionCharg
      * than collected. Under an ascending index sort they do; single-valued only, which is what
      * {@code size() == getDocCount()} says, since index sort places a multi-valued document by one of its
      * values and another of them can sit in a far later cell while the document sits early.
+     * <p>
+     * Only the collecting path's {@link DocIdSetBuilder} is charged to the breaker. The streaming path is charged nothing, although its
+     * scorer keeps a fixed amount for its whole life: one BKD leaf block of doc ids and the point tree cursor's scratch, about 7 KB at
+     * the default 512 points per leaf. That is per-clause scorer state, like a term query's postings buffers, which no query charges to
+     * the breaker: the clause limit bounds it instead, budgeting 16 KB per clause ({@code SearchUtils#calculateMaxClauseValue}).
      */
     private boolean streams(LeafReader reader, PointValues pointValues) {
         return SegmentSort.ascendingBy(reader, field) && pointValues.size() == pointValues.getDocCount();
-    }
-
-    @Override
-    public ExecutionCharge executionCharge() {
-        return new ExecutionCharge(this::collectedBytesForLeaf, BitmapTermsQueryBuilder.NAME);
-    }
-
-    /**
-     * Only the collecting path allocates in proportion to the segment, a {@link DocIdSetBuilder} that the tree walk grows by every cell
-     * it visits whole and every leaf it crosses, regardless of whether the leaf's points match. So {@link #estimateCost} bounds nothing
-     * here, and the bound is all of the field's points instead. On most segments that reserves a full bit set, held until the leaf is
-     * done.
-     * <p>
-     * The streaming path is charged nothing, although its scorer keeps a fixed amount for its whole life: one BKD leaf block of doc ids
-     * and the point tree cursor's scratch, about 7 KB at the default 512 points per leaf. That is per-clause scorer state, like a term
-     * query's postings buffers, which no query charges to the breaker: the clause limit bounds it instead, budgeting 16 KB per clause
-     * ({@code SearchUtils#calculateMaxClauseValue}). {@link PointValues} does not expose the leaf size either, so a safe reservation
-     * would have to assume the largest leaf the codec writes, several times what the scorer keeps.
-     */
-    private long collectedBytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException {
-        LeafReader reader = ctx.reader();
-        PointValues pointValues = reader.getPointValues(field);
-        if (pointValues == null || streams(reader, pointValues)) {
-            return 0L;
-        }
-        return new DocIdSetBuilderCostEstimator(pointValues.size(), reader.maxDoc()).estimate();
     }
 
     /**
@@ -360,14 +337,17 @@ public class BitmapBKDQuery extends Query implements Accountable, ExecutionCharg
      */
     private class CollectingMergePointVisitor extends MergePointVisitor {
         private final DocIdSetBuilder result;
+        private final LongConsumer charger;
         private DocIdSetBuilder.BulkAdder adder;
 
-        CollectingMergePointVisitor(DocIdSetBuilder result) {
+        CollectingMergePointVisitor(DocIdSetBuilder result, LongConsumer charger) {
             this.result = result;
+            this.charger = charger;
         }
 
         @Override
         public void grow(int count) {
+            charger.accept(count);
             adder = result.grow(count);
         }
 

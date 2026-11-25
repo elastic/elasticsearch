@@ -20,32 +20,45 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
+import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
+import org.elasticsearch.lucene.search.cost.FixedBitSetCost;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.ExecutionCharge;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Searches with both bitmap queries through a {@link ContextIndexSearcher} with a request breaker, and checks that the
- * {@code DocIdSetBuilder} of the collecting path is charged under {@code bitmap_terms} and released, and that the
+ * {@code DocIdSetBuilder} of the collecting path is charged under {@code bitmap_terms} as it grows and released, and that the
  * streaming path charges nothing.
  */
 public class BitmapExecutionBreakerTests extends ESTestCase {
@@ -54,6 +67,11 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
     private static final String TERM_FIELD = "t";
     private static final int NUM_DOCS = 4096;
     private static final int SEGMENTS = 4;
+    /**
+     * Enough documents that the bound for growing the builder by one 512-point leaf block stays sparse: it does while four times the
+     * total, plus slack, is within {@code maxDoc >>> 7}.
+     */
+    private static final int DISTINCT_DOCS = 300_000;
 
     private static final FieldType INDEX_TERMS_TYPE;
 
@@ -79,6 +97,11 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         assertChargesThenReleases(POINT_FIELD, termsQuery());
     }
 
+    /** {@link BoostQuery} creates its child's weight itself and returns it as is, so the searcher still sees the charging weight. */
+    public void testChargedUnderBoostQuery() throws IOException {
+        assertChargesThenReleases(null, new BoostQuery(randomFrom(pointsQuery(), termsQuery()), 2f));
+    }
+
     public void testPointsStreamingPathChargesNothing() throws IOException {
         assertChargesNothing(POINT_FIELD, pointsQuery());
     }
@@ -94,14 +117,58 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
                 CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> count(reader, query, breaker));
                 assertThat(e.getMessage(), containsString(BitmapTermsQueryBuilder.NAME));
             }
-            assertThat("a tripped reservation must not leak onto the breaker", breaker.getUsed(), equalTo(0L));
+            assertThat("a tripped charge must not leak onto the breaker", breaker.getUsed(), equalTo(0L));
         }
     }
 
     /**
-     * Every segment collects, so each leaf charges its own reservation. The searcher scores the leaves one after another, so if each
-     * leaf releases its charge once it is scored, the peak is the largest single reservation rather than their sum, and nothing is
-     * left for {@link ContextIndexSearcher#close} to release.
+     * One value, on a field where every document has its own, matches one document. Each clause must be charged for the sparse set
+     * it builds rather than for a full bit set: the terms clause for exactly that document's posting, the points clause for the one
+     * leaf block the value falls in. What the scorer keeps must still fit in the charge.
+     */
+    public void testSelectiveClauseIsChargedForASparseSet() throws IOException {
+        int value = between(0, DISTINCT_DOCS - 1);
+        try (Directory directory = newDirectory(); DirectoryReader reader = indexDistinctValues(directory)) {
+            LeafReaderContext leaf = reader.leaves().getFirst();
+            long fullBitSet = FixedBitSetCost.bytes(reader.maxDoc());
+            Query terms = new BitmapTermsQuery(TERM_FIELD, IntBitmap.bitmapOf(value));
+            Query points = new BitmapBKDQuery(POINT_FIELD, IntBitmap.bitmapOf(value));
+            for (Query query : List.of(terms, points)) {
+                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+                try (ContextIndexSearcher searcher = newSearcher(reader, breaker)) {
+                    Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    DocIdSetIterator iterator = weight.scorerSupplier(leaf).get(Long.MAX_VALUE).iterator();
+                    long charged = breaker.getUsed();
+                    assertThat(query.toString(), charged, allOf(greaterThan(0L), lessThan(fullBitSet)));
+                    if (query == terms) {
+                        assertThat(
+                            "the terms clause is charged for its posting alone",
+                            charged,
+                            equalTo(new DocIdSetBuilderCostEstimator(1, reader.maxDoc()).estimate())
+                        );
+                    }
+                    assertThat("the set stays sparse: " + query, iterator, not(instanceOf(BitSetIterator.class)));
+                    assertThat("the set fits in the charge: " + query, RamUsageTester.ramUsed(iterator), lessThanOrEqualTo(charged));
+                }
+                assertThat(count(reader, query, new TrackingCircuitBreaker(-1L)), equalTo(1));
+            }
+        }
+    }
+
+    /** No term in the dictionary is in the bitmap, so the terms clause builds nothing and is not charged. */
+    public void testTermsClauseMatchingNoTermChargesNothing() throws IOException {
+        Query query = new BitmapTermsQuery(TERM_FIELD, IntBitmap.bitmapOf(2, 3, 1 << 20));
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, null)) {
+            assertThat(count(reader, query, breaker), equalTo(0));
+        }
+        assertFalse(breaker.wasCalled());
+    }
+
+    /**
+     * Every segment collects half its documents, so each leaf's builder turns dense on its first grow and the leaf is charged a full
+     * bit set. The searcher scores the leaves one after another, so if each leaf releases its charge once it is scored, the peak is
+     * the largest single leaf's charge rather than their sum, and nothing is left for {@link ContextIndexSearcher#close} to release.
      */
     private void assertChargesThenReleases(String sortField, Query query) throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
@@ -109,9 +176,9 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
             assertThat("the peak tells leaves apart only if there are several", reader.leaves().size(), equalTo(SEGMENTS));
             long largestLeafCharge = 0;
             for (LeafReaderContext leaf : reader.leaves()) {
-                largestLeafCharge = Math.max(largestLeafCharge, reservation(query, leaf));
+                int maxDoc = leaf.reader().maxDoc();
+                largestLeafCharge = Math.max(largestLeafCharge, new DocIdSetBuilderCostEstimator(maxDoc, maxDoc).estimate());
             }
-            assertThat("the collecting path must charge the set it builds: " + query, largestLeafCharge, greaterThan(0L));
             try (ContextIndexSearcher searcher = newSearcher(reader, breaker)) {
                 assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(NUM_DOCS / 2));
                 assertThat("each leaf must release its charge once it is scored, not on close", breaker.getUsed(), equalTo(0L));
@@ -126,11 +193,6 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
             assertThat(count(reader, query, breaker), equalTo(NUM_DOCS / 2));
         }
         assertFalse("the streaming path builds no doc id set: " + query, breaker.wasCalled());
-    }
-
-    /** What the query's estimator reserves on {@code leaf}, which is what the leaf is charged. */
-    private static long reservation(Query query, LeafReaderContext leaf) throws IOException {
-        return ((ExecutionCharge.Accountable) query).executionCharge().estimator().bytesForLeaf(leaf, null, Long.MAX_VALUE);
     }
 
     /** Matches the documents with value 0, half of them, so the collecting path builds a bit set. */
@@ -155,21 +217,38 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         }
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int docId = 0; docId < NUM_DOCS; docId++) {
-                int value = docId % 2;
-                Document doc = new Document();
-                doc.add(new IntPoint(POINT_FIELD, value));
-                doc.add(new SortedNumericDocValuesField(POINT_FIELD, value));
-                byte[] term = new byte[Integer.BYTES];
-                NumericUtils.intToSortableBytes(value, term, 0);
-                doc.add(new Field(TERM_FIELD, new BytesRef(term), INDEX_TERMS_TYPE));
-                doc.add(new SortedNumericDocValuesField(TERM_FIELD, value));
-                writer.addDocument(doc);
+                writer.addDocument(doc(docId % 2));
                 if ((docId + 1) % (NUM_DOCS / SEGMENTS) == 0) {
                     writer.flush();
                 }
             }
         }
         return DirectoryReader.open(directory);
+    }
+
+    /**
+     * One segment of {@link #DISTINCT_DOCS} documents, each with its own value, its doc id, in both fields. The codec is pinned so that
+     * BKD leaf blocks hold 512 points: random codecs use blocks of up to 2048, and one of those would already be charged as dense.
+     */
+    private DirectoryReader indexDistinctValues(Directory directory) throws IOException {
+        try (IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
+            for (int docId = 0; docId < DISTINCT_DOCS; docId++) {
+                writer.addDocument(doc(docId));
+            }
+            writer.forceMerge(1);
+        }
+        return DirectoryReader.open(directory);
+    }
+
+    private static Document doc(int value) {
+        Document doc = new Document();
+        doc.add(new IntPoint(POINT_FIELD, value));
+        doc.add(new SortedNumericDocValuesField(POINT_FIELD, value));
+        byte[] term = new byte[Integer.BYTES];
+        NumericUtils.intToSortableBytes(value, term, 0);
+        doc.add(new Field(TERM_FIELD, new BytesRef(term), INDEX_TERMS_TYPE));
+        doc.add(new SortedNumericDocValuesField(TERM_FIELD, value));
+        return doc;
     }
 
     /**

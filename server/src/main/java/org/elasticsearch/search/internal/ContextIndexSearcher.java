@@ -352,10 +352,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 timer.stop();
                 profiler.pollLastElement();
             }
-            return chargingExecutionMemory(query, new ProfileWeight(query, innerWeight, profile));
+            return chargingExecutionMemory(query, innerWeight, new ProfileWeight(query, innerWeight, profile));
         }
         // The charging weight sits below the query cache, so a leaf served from the cache is not charged.
-        final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
+        final Weight created = query.createWeight(this, scoreMode, boost);
+        final Weight weight = chargingExecutionMemory(query, created, created);
         final QueryCache queryCache = getQueryCache();
         if (scoreMode.needsScores() == false && queryCache != null) {
             return queryCache.doCache(chargingCachePopulation(weight), getQueryCachingPolicy());
@@ -375,12 +376,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return new QueryCacheBreakerWeight(this, weight);
     }
 
-    /** Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker. */
-    private Weight chargingExecutionMemory(Query query, Weight weight) {
+    /**
+     * Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker.
+     * {@code created} is the weight {@code query} created, which {@code weight} may wrap, e.g. for profiling.
+     */
+    private Weight chargingExecutionMemory(Query query, Weight created, Weight weight) {
         if (executionAccounting.breaker() == null) {
             return weight;
         }
-        final ExecutionCharge charge = ExecutionCharge.forQuery(query);
+        final ExecutionCharge charge;
+        if (created instanceof ExecutionCharge.AccountableWeight accountable) {
+            // The weight may charge through the charger from now on, so its leaves must be released from the first one.
+            executionAccounting.ensureCreated();
+            charge = accountable.executionCharge(this::chargeLeaf);
+        } else {
+            charge = ExecutionCharge.forQuery(query);
+        }
         if (charge == null) {
             return weight;
         }

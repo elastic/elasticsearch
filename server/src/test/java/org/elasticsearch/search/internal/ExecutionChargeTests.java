@@ -34,16 +34,10 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
-import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -157,39 +151,6 @@ public class ExecutionChargeTests extends ESTestCase {
         }
     }
 
-    public void testAccountable() throws IOException {
-        long bytes = randomLongBetween(0, Long.MAX_VALUE);
-        Query accountable = new AccountableQuery(bytes, true);
-        // Cost 0 routes IndexOrDocValuesQuery to its index side; the estimator never builds the scorer.
-        ScorerSupplier scorer = new ScorerSupplier() {
-            @Override
-            public Scorer get(long leadCost) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long cost() {
-                return 0L;
-            }
-        };
-        for (Query query : new Query[] {
-            accountable,
-            new BoostQuery(accountable, 2f),
-            new IndexOrDocValuesQuery(accountable, SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 1, 10)) }) {
-            ExecutionCharge charge = ExecutionCharge.forQuery(query);
-            assertThat("no charge for " + query, charge, notNullValue());
-            assertThat(charge.label(), equalTo(AccountableQuery.LABEL));
-            assertThat(charge.estimator().bytesForLeaf(null, scorer, Long.MAX_VALUE), equalTo(bytes));
-        }
-    }
-
-    public void testAccountableWithoutCharge() {
-        Query accountable = new AccountableQuery(randomNonNegativeLong(), false);
-        assertNotCharged(accountable);
-        assertNotCharged(new BoostQuery(accountable, 2f));
-        assertNotCharged(new IndexOrDocValuesQuery(accountable, SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 1, 10)));
-    }
-
     public void testNotCharged() {
         assertNotCharged(new TermQuery(new Term(FIELD, "a")));
         assertNotCharged(MatchAllDocsQuery.INSTANCE);
@@ -216,49 +177,5 @@ public class ExecutionChargeTests extends ESTestCase {
 
     private static void assertNotCharged(Query query) {
         assertThat("unexpected charge for " + query, ExecutionCharge.forQuery(query), nullValue());
-    }
-
-    /**
-     * Charges a fixed size for every leaf, so the charge can be told apart from any built-in estimator's, or declines to be charged
-     * at all.
-     */
-    private static final class AccountableQuery extends Query implements ExecutionCharge.Accountable {
-        static final String LABEL = "accountable-execution";
-
-        private final long bytes;
-        private final boolean charged;
-
-        AccountableQuery(long bytes, boolean charged) {
-            this.bytes = bytes;
-            this.charged = charged;
-        }
-
-        @Override
-        public ExecutionCharge executionCharge() {
-            return charged ? new ExecutionCharge((ctx, scorer, leadCost) -> bytes, LABEL) : null;
-        }
-
-        @Override
-        public void visit(QueryVisitor visitor) {
-            visitor.visitLeaf(this);
-        }
-
-        @Override
-        public String toString(String field) {
-            return "AccountableQuery(" + bytes + ", " + charged + ")";
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof AccountableQuery accountableQuery) {
-                return sameClassAs(obj) && bytes == accountableQuery.bytes && charged == accountableQuery.charged;
-            }
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(classHash(), bytes, charged);
-        }
     }
 }

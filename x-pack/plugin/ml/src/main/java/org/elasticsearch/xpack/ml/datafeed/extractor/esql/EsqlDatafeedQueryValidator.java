@@ -62,12 +62,10 @@ public class EsqlDatafeedQueryValidator {
     private static final String DESCRIBE = "\n| DESCRIBE";
     /**
      * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. The param names are not
-     * bound by extraction, so a user query that references them fails the probe, as it would without these params. The filter uses
-     * {@code ==} rather than {@code IN}: ES|QL evaluates a keyword {@code IN} through a comparison that loads the version field
-     * plugin classes, which a node may not have.
+     * bound by extraction, so a user query that references them fails the probe, as it would without these params.
      */
     private static final String DESCRIBE_REQUIRED_COLUMNS = DESCRIBE
-        + "\n| WHERE name == ?describeTimeColumn OR name == ?describeCountColumn\n| LIMIT 2";
+        + "\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2";
 
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
@@ -249,17 +247,23 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * With {@code skip_unavailable=true}, ES|QL skips an unreachable remote or one that matches no index instead of failing. When
-     * no source can be described, the response has no DESCRIBE rows and only a placeholder column, even if a cluster reports
-     * {@code SUCCESSFUL}. Returns the skipped or failed clusters in that case. Returns an empty list when the response has the DESCRIBE
-     * columns, so that a missing required column is reported as such.
+     * no source can be described, the response has no DESCRIBE rows. It has either only a placeholder column, or the DESCRIBE columns
+     * with no rows. The local cluster can report {@code SUCCESSFUL} next to a skipped remote, so a placeholder column alone is enough.
+     * With the DESCRIBE columns, a cluster that ran the query means a source was described, so empty rows are a missing required
+     * column and not an unavailable source. Returns the skipped or failed clusters when no source could be described, and an empty
+     * list otherwise.
      */
     private static List<String> unavailableClustersWithoutDescription(EsqlQueryResponse response) {
-        if (response.response().rows().iterator().hasNext() || hasDescribeColumns(response.response().columns())) {
+        if (response.response().rows().iterator().hasNext()) {
             return List.of();
         }
-        return response.response()
-            .clusters()
-            .stream()
+        List<EsqlClusterInfo> clusters = response.response().clusters();
+        boolean anyClusterRanQuery = clusters.stream()
+            .anyMatch(c -> c.status() == EsqlClusterInfo.Status.SUCCESSFUL || c.status() == EsqlClusterInfo.Status.PARTIAL);
+        if (hasDescribeColumns(response.response().columns()) && anyClusterRanQuery) {
+            return List.of();
+        }
+        return clusters.stream()
             .filter(c -> c.status() == EsqlClusterInfo.Status.SKIPPED || c.status() == EsqlClusterInfo.Status.FAILED)
             .map(EsqlClusterInfo::clusterAlias)
             .toList();

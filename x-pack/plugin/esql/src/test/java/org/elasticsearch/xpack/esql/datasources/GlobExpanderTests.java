@@ -6121,6 +6121,266 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse("year=2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
     }
 
+    /**
+     * Two walk-eligible comma globs share one directory-listing ceiling. Giving each path its own copy of the
+     * cap would issue about twice as many {@code listChildren} as the node setting allows.
+     */
+    public void testCommaSeparatedWalksShareOneDirectoryListingCeiling() throws IOException {
+        List<StorageEntry> tree = twoAccountMonthTree();
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        String one = "s3://bucket/a/year=*/month=*/*.parquet";
+        String both = one + ",s3://bucket/b/year=*/month=*/*.parquet";
+
+        TreeStubProvider single = new TreeStubProvider(tree);
+        FileList oneAccount = GlobExpander.expand(
+            one,
+            single,
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE
+        );
+        int oneCost = single.childListedPrefixes.size();
+        assertThat("the fixture must actually walk", oneCost, greaterThan(1));
+        assertEquals(5, oneAccount.fileCount());
+
+        // Leftover 0 after the first account. oneCost+1 still lists /b/ then finishSurvivors
+        // unpruned months. Skip the later glob instead.
+        int ceiling = oneCost;
+        TreeStubProvider shared = new TreeStubProvider(tree);
+        FileList union = GlobExpander.expand(
+            both,
+            shared,
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            () -> false,
+            null,
+            ceiling
+        );
+        assertCommaSharesDirectoryCeiling(union, shared, oneCost, ceiling);
+    }
+
+    /**
+     * The async comma path walks each glob segment and agrees with the synchronous union.
+     */
+    public void testCommaSeparatedAsyncWalkMatchesSync() throws Exception {
+        List<StorageEntry> tree = twoAccountMonthTree();
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        TreeStubProvider asyncProvider = assertAsyncMatchesSync(
+            "s3://bucket/a/year=*/month=*/*.parquet,s3://bucket/b/year=*/month=*/*.parquet",
+            tree,
+            hints,
+            MAX
+        );
+        assertThat("each account prefix must be walked", asyncProvider.childListedPrefixes.size(), greaterThan(1));
+        assertThat(asyncProvider.childListedPrefixes, hasItem("s3://bucket/a/"));
+        assertThat(asyncProvider.childListedPrefixes, hasItem("s3://bucket/b/"));
+    }
+
+    /**
+     * Comma expansion on a real executor still shares the directory-listing ceiling.
+     */
+    public void testCommaSeparatedAsyncWalkSharesOneDirectoryListingCeiling() throws Exception {
+        List<StorageEntry> tree = twoAccountMonthTree();
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        String both = "s3://bucket/a/year=*/month=*/*.parquet,s3://bucket/b/year=*/month=*/*.parquet";
+
+        TreeStubProvider single = new TreeStubProvider(tree);
+        GlobExpander.expand(
+            "s3://bucket/a/year=*/month=*/*.parquet",
+            single,
+            hints,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE
+        );
+        int oneCost = single.childListedPrefixes.size();
+        int ceiling = oneCost;
+
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            FileList union = expandSync(
+                both,
+                provider,
+                hints,
+                HIVE_ON,
+                MAX,
+                MAX,
+                MAX,
+                MAX,
+                4,
+                () -> false,
+                PlanningMemory.NONE,
+                ceiling,
+                pool
+            );
+            assertCommaSharesDirectoryCeiling(union, provider, oneCost, ceiling);
+        } finally {
+            terminate(pool);
+        }
+    }
+
+    /**
+     * A file-set bound still walks when hints can prune: FIRST_FILE_WINS must not prefix-drain the dataset.
+     * The bound then keeps the first matching files.
+     */
+    public void testBoundedListingWalksAndKeepsTheFileBound() throws Exception {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2024/b.parquet", 100),
+            entry("s3://bucket/data/year=2025/c.parquet", 100)
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList result = expandSync("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX, MAX, 1, 4, () -> false);
+
+        assertThat("the bound must not skip the walk", provider.childListedPrefixes, hasItem("s3://bucket/data/"));
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
+        assertTrue(result.isTruncated());
+        assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2025")));
+        assertAsyncMatchesSync("s3://bucket/data/**", tree, hints, 1);
+    }
+
+    /**
+     * Trust checks run on the full walked set. Truncating first hid {@code month=abc} past a bound of 1,
+     * looked like a type narrowing, and fell through to an unfiltered prefix that kept {@code year=2023}.
+     */
+    public void testBoundedWalkTrustsFullMatchedSetBeforeTruncating() throws Exception {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/year=2023/month=01/a.parquet", 100),
+            entry("s3://bucket/data/year=2024/month=01/b.parquet", 100),
+            entry("s3://bucket/data/year=2024/month=abc/c.parquet", 100)
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024));
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList result = expandSync("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX, MAX, 1, 4, () -> false);
+
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/month=01/b.parquet", result.path(0).toString());
+        assertTrue(result.isTruncated());
+        assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2023")));
+    }
+
+    /**
+     * The walk collector throws once matched files exceed {@code max_discovered_files}. A file-set bound
+     * must still return the first matching files rather than fail FIRST_FILE_WINS on a large pruned set.
+     */
+    public void testBoundedWalkDiscoveryCapFallsBackToBoundedDrain() throws Exception {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2024/b.parquet", 100),
+            entry("s3://bucket/data/year=2024/c.parquet", 100),
+            entry("s3://bucket/data/year=2025/d.parquet", 100)
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList result = expandSync("s3://bucket/data/**", provider, hints, HIVE_ON, 2, MAX, MAX, 1, 4, () -> false);
+
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
+        assertTrue(result.isTruncated());
+        assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2025")));
+    }
+
+    /**
+     * Same discovery-cap fallback through {@link GlobExpander#expand}: concurrency-4 async never enters
+     * the synchronous {@code tryWalk} catch.
+     */
+    public void testBoundedWalkDiscoveryCapFallsBackOnSyncExpand() throws IOException {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2024/b.parquet", 100),
+            entry("s3://bucket/data/year=2024/c.parquet", 100),
+            entry("s3://bucket/data/year=2025/d.parquet", 100)
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            hints,
+            HIVE_ON,
+            2,
+            MAX,
+            MAX,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
+        assertTrue(result.isTruncated());
+        assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2025")));
+    }
+
+    /**
+     * Glob segments that complete on the calling thread must stay in the comma loop. Recursing per
+     * segment overflows the metadata worker on a long list.
+     */
+    public void testCommaSeparatedSyncCompletionsDoNotRecursePerSegment() throws Exception {
+        List<StorageEntry> tree = List.of(entry("s3://bucket/data/f.parquet", 100));
+        int segments = 200;
+        StringBuilder pathList = new StringBuilder();
+        for (int i = 0; i < segments; i++) {
+            if (i > 0) {
+                pathList.append(',');
+            }
+            pathList.append("s3://bucket/data/*.parquet");
+        }
+        FileList result = expandSync(pathList.toString(), new TreeStubProvider(tree), null, HIVE_ON, MAX, MAX, MAX, MAX, 1, () -> false);
+        assertEquals(segments, result.fileCount());
+    }
+
+    private static void assertCommaSharesDirectoryCeiling(FileList union, TreeStubProvider shared, int oneCost, int ceiling) {
+        assertThat(
+            "comma segments must not each get a fresh copy of the ceiling",
+            shared.childListedPrefixes.size(),
+            lessThanOrEqualTo(ceiling)
+        );
+        assertThat(shared.childListedPrefixes.size(), lessThan(2 * oneCost));
+        assertEquals(
+            "the first account's walk completed under the shared ceiling",
+            5,
+            paths(union).stream().filter(p -> p.contains("/a/year=") && p.contains("month=06")).count()
+        );
+        assertEquals(
+            "later glob must not finishSurvivors the prefix when the directory cap is spent",
+            0,
+            paths(union).stream().filter(p -> p.contains("/b/") && p.contains("month=07")).count()
+        );
+        assertThat(
+            "leftover 0 skips the later glob instead of listing its prefix",
+            shared.childListedPrefixes,
+            not(hasItem("s3://bucket/b/"))
+        );
+    }
+
+    private static List<StorageEntry> twoAccountMonthTree() {
+        List<StorageEntry> tree = new ArrayList<>();
+        for (String account : List.of("a", "b")) {
+            for (int y = 2020; y <= 2024; y++) {
+                for (int m = 1; m <= 12; m++) {
+                    tree.add(entry(String.format(Locale.ROOT, "s3://bucket/%s/year=%d/month=%02d/f.parquet", account, y, m), 100));
+                }
+            }
+        }
+        return tree;
+    }
+
     // -- Parallel prefix fan-out --
 
     /**
@@ -6973,6 +7233,38 @@ public class GlobExpanderTests extends ESTestCase {
         BooleanSupplier isCancelled,
         PlanningMemory memory
     ) throws Exception {
+        return expandSync(
+            pattern,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            listingBound,
+            concurrency,
+            isCancelled,
+            memory,
+            3_000,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+    }
+
+    private static FileList expandSync(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        int listingBound,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        PlanningMemory memory,
+        int maxDirectoryListings,
+        Executor fanOutExecutor
+    ) throws Exception {
         PlainActionFuture<FileList> future = new PlainActionFuture<>();
         GlobExpander.expandAsync(
             pattern,
@@ -6986,8 +7278,10 @@ public class GlobExpanderTests extends ESTestCase {
             memory,
             concurrency,
             isCancelled,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            future
+            fanOutExecutor,
+            future,
+            null,
+            maxDirectoryListings
         );
         try {
             return future.get();
@@ -7599,7 +7893,7 @@ public class GlobExpanderTests extends ESTestCase {
             entry("s3://bucket/data/year=2026/c.parquet", 100)
         );
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
-        // Walk is skipped when extents.boundsFileSet(); childrenUnsupported forces the flat path the bound takes.
+        // childrenUnsupported forces the flat path the bound takes when the walk withdraws.
         TreeStubProvider below = new TreeStubProvider(tree);
         below.childrenUnsupported = true;
         FileList truncated = GlobExpander.expand(
@@ -8131,9 +8425,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A range filter cannot splice the prefix. Under a bound the walk is skipped, so the first page may keep
-     * nothing: {@code listed} hits the bound before the matching key. The empty truncated listing must retry
-     * unbounded, or FIRST_FILE_WINS (which now passes value filters here) would miss files past the prefix.
+     * A range filter cannot splice the prefix. This provider does not list children, so the walk withdraws
+     * and the first page may keep nothing: {@code listed} hits the bound before the matching key. The empty
+     * truncated listing must retry unbounded, or FIRST_FILE_WINS (which now passes value filters here) would
+     * miss files past the prefix.
      */
     public void testBoundedRangeFilterMatchingPastTheBoundRelistsInFull() throws IOException {
         List<StorageEntry> listing = List.of(

@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 167495
+summary: Don't expand dots in `exponential_histogram` values
+type: bug

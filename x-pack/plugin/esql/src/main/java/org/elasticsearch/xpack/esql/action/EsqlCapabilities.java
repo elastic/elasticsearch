@@ -5121,6 +5121,17 @@ public class EsqlCapabilities {
          */
         PARTIALLY_UNMAPPED_CONFLICT_INDEX_COUNT,
 
+        /**
+         * A cast, or a type conversion function, whose input has a type it can't convert is {@code null} with a warning instead of
+         * failing the query: {@code ip_field::long}, {@code (a + 1)::ip}, {@code true::ip} or {@code TO_DEGREES("1")}. Conversions that
+         * need the input's type to know their own result ({@code TO_GAUGE}, {@code TO_COUNTER}), or a constant
+         * ({@code TO_DATEPERIOD}, {@code TO_TIMEDURATION}), and {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)}, keep failing.
+         * Invalid options and other arguments still fail. Union fields, and fields of a type ES|QL doesn't support, are
+         * handled by the changes that build on this one. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/144400">#144400</a>.
+         */
+        LENIENT_CAST,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

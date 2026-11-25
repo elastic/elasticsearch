@@ -14,23 +14,44 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 
-public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
+/**
+ * Moves every sort key that is not an attribute into an {@link Eval} below the sort: the execution planner sorts by a channel.
+ * {@link TopNBy} is covered too, since PromQL builds it directly rather than from an {@link OrderBy}.
+ */
+public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<UnaryPlan> {
     private static int counter = 0;
 
     @Override
-    protected LogicalPlan rule(OrderBy orderBy) {
-        int size = orderBy.order().size();
+    protected LogicalPlan rule(UnaryPlan plan) {
+        if (plan instanceof OrderBy orderBy) {
+            return replace(orderBy, orderBy.order(), (child, order) -> new OrderBy(orderBy.source(), child, order));
+        }
+        if (plan instanceof TopNBy topNBy) {
+            return replace(
+                topNBy,
+                topNBy.order(),
+                (child, order) -> new TopNBy(topNBy.source(), child, order, topNBy.limitPerGroup(), topNBy.groupings())
+            );
+        }
+        return plan;
+    }
+
+    private static LogicalPlan replace(UnaryPlan sort, List<Order> orders, BiFunction<LogicalPlan, List<Order>, LogicalPlan> withOrder) {
+        int size = orders.size();
         List<Alias> evals = new ArrayList<>(size);
         List<Order> newOrders = new ArrayList<>(size);
 
         for (int i = 0; i < size; i++) {
-            var order = orderBy.order().get(i);
+            var order = orders.get(i);
             if (order.child() instanceof Attribute == false) {
                 var name = rawTemporaryName("order_by", String.valueOf(i), String.valueOf(counter++));
                 var eval = new Alias(order.child().source(), name, order.child(), null, true);
@@ -41,10 +62,10 @@ public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.Optim
             }
         }
         if (evals.isEmpty()) {
-            return orderBy;
+            return sort;
         } else {
-            var newOrderBy = new OrderBy(orderBy.source(), new Eval(orderBy.source(), orderBy.child(), evals), newOrders);
-            return new Project(orderBy.source(), newOrderBy, orderBy.output());
+            var newSort = withOrder.apply(new Eval(sort.source(), sort.child(), evals), newOrders);
+            return new Project(sort.source(), newSort, sort.output());
         }
     }
 }

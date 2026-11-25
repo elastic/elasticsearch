@@ -69,3 +69,95 @@
     - match: { tokens.2.token: "g" }
     - match: { tokens.3.token: "h" }
 
+
+---
+"condition wrapping updateable synonyms loads and reloads them":
+    - do:
+        synonyms.put_synonym:
+          id: condition_set
+          body:
+            synonyms_set:
+              - id: r1
+                synonyms: "foo => bar"
+
+    - do:
+        indices.create:
+          index: condition_synonyms
+          body:
+            settings:
+              index:
+                analysis:
+                  filter:
+                    syn:
+                      type: synonym
+                      synonyms_set: condition_set
+                      updateable: true
+                    cond:
+                      type: condition
+                      filter: [ "syn" ]
+                      script:
+                        source: "true"
+                  analyzer:
+                    a:
+                      tokenizer: standard
+                      filter: [ "cond" ]
+            mappings:
+              properties:
+                f:
+                  type: text
+                  analyzer: standard
+                  search_analyzer: a
+
+    - do:
+        indices.analyze:
+          index: condition_synonyms
+          body:
+            analyzer: a
+            text: foo
+    - match: { tokens.0.token: bar }
+
+    - do:
+        synonyms.put_synonym_rule:
+          set_id: condition_set
+          rule_id: r1
+          body:
+            synonyms: "foo => baz"
+
+    - do:
+        indices.analyze:
+          index: condition_synonyms
+          body:
+            analyzer: a
+            text: foo
+    - match: { tokens.0.token: baz }
+
+---
+"condition wrapping updateable synonyms is rejected at index time":
+    - do:
+        catch: bad_request
+        indices.create:
+          index: condition_synonyms_index_time
+          body:
+            settings:
+              index:
+                analysis:
+                  filter:
+                    syn:
+                      type: synonym
+                      synonyms: [ "foo => bar" ]
+                      updateable: true
+                    cond:
+                      type: condition
+                      filter: [ "syn" ]
+                      script:
+                        source: "true"
+                  analyzer:
+                    a:
+                      tokenizer: standard
+                      filter: [ "cond" ]
+            mappings:
+              properties:
+                f:
+                  type: text
+                  analyzer: a
+    - match: { error.root_cause.0.reason: "analyzer [a] contains filters [cond] that are not allowed to run in index time mode." }

@@ -14,7 +14,9 @@ import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -24,7 +26,9 @@ import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -35,9 +39,12 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
 
     private final AnalysisPredicateScript.Factory factory;
     private final List<String> filterNames;
+    // Older indices keep treating the wrapped filters as usable at index time, so their mappings still validate.
+    private final boolean inheritAnalysisMode;
 
     ScriptedConditionTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, ScriptService scriptService) {
         super(name);
+        this.inheritAnalysisMode = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.CONDITION_FILTER_INHERITS_ANALYSIS_MODE);
 
         Settings scriptSettings = settings.getAsSettings("script");
         Script script = Script.parse(scriptSettings);
@@ -79,6 +86,8 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         List<TokenFilterFactory> filters = new ArrayList<>();
         List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
         boolean degraded = false;
+        AnalysisMode mode = AnalysisMode.ALL;
+        Set<String> resourceNames = new HashSet<>();
         for (String filter : filterNames) {
             TokenFilterFactory tff = allFilters.apply(filter);
             if (tff == null) {
@@ -90,8 +99,12 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             filters.add(tff);
             existingChain.add(tff);
             degraded |= tff.isDegraded();
+            mode = mode.merge(tff.getAnalysisMode());
+            resourceNames.addAll(tff.getResourceNames());
         }
         final boolean anyDegraded = degraded;
+        final AnalysisMode analysisMode = inheritAnalysisMode ? mode : AnalysisMode.ALL;
+        final Set<String> resources = inheritAnalysisMode ? Set.copyOf(resourceNames) : Set.of();
 
         return new TokenFilterFactory() {
             @Override
@@ -113,6 +126,16 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             @Override
             public boolean isDegraded() {
                 return anyDegraded;
+            }
+
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return analysisMode;
+            }
+
+            @Override
+            public Set<String> getResourceNames() {
+                return resources;
             }
         };
     }

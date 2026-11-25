@@ -46,21 +46,32 @@ public class SearchLoadConstraintSettingsTests extends ESTestCase {
     }
 
     public void testCpuThresholdFollowsClusterSettingUpdates() {
-        final ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+        final double initialThreshold = randomDoubleBetween(0.0, 1.0, false);
+        final boolean setAtConstruction = randomBoolean();
+        final ClusterSettings clusterSettings = setAtConstruction
+            ? ClusterSettings.createBuiltInClusterSettings(cpuThresholdSettings(initialThreshold))
+            : ClusterSettings.createBuiltInClusterSettings();
         final SearchLoadConstraintSettings settings = new SearchLoadConstraintSettings(clusterSettings);
-        assertThat(settings.getCpuThreshold(), equalTo(0.9));
+        if (setAtConstruction == false) {
+            assertThat(settings.getCpuThreshold(), equalTo(0.9));
+            clusterSettings.applySettings(cpuThresholdSettings(initialThreshold));
+        }
+        assertThat(settings.getCpuThreshold(), equalTo(initialThreshold));
 
-        clusterSettings.applySettings(Settings.builder().put(SEARCH_LOAD_CPU_THRESHOLD_SETTING.getKey(), 0.8).build());
-        assertThat(settings.getCpuThreshold(), equalTo(0.8));
+        final double updatedThreshold = randomDoubleBetween(0.0, 1.0, false);
+        clusterSettings.applySettings(cpuThresholdSettings(updatedThreshold));
+        assertThat(settings.getCpuThreshold(), equalTo(updatedThreshold));
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(Settings.builder().put(SEARCH_LOAD_CPU_THRESHOLD_SETTING.getKey(), 0.0).build())
-        );
-        assertThat(settings.getCpuThreshold(), equalTo(0.8));
+        final double invalidThreshold = randomFrom(0.0, -0.1, 1.01, Double.NaN);
+        expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(cpuThresholdSettings(invalidThreshold)));
+        assertThat(settings.getCpuThreshold(), equalTo(updatedThreshold));
     }
 
     private static double cpuThreshold(String value) {
         return SEARCH_LOAD_CPU_THRESHOLD_SETTING.get(Settings.builder().put(SEARCH_LOAD_CPU_THRESHOLD_SETTING.getKey(), value).build());
+    }
+
+    private static Settings cpuThresholdSettings(double value) {
+        return Settings.builder().put(SEARCH_LOAD_CPU_THRESHOLD_SETTING.getKey(), value).build();
     }
 }

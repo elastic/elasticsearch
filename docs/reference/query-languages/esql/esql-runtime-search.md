@@ -282,8 +282,9 @@ not BM25:
 These scores are added to `_score` like any other search's, so in a query that also searches indexed fields they add
 to BM25 scores, which are on a different scale.
 
-A runtime search after `FORK` or a `FROM` with subqueries filters rows but does not contribute to `_score` unless
-it can be pushed into the branches. Refer to [#161746](https://github.com/elastic/elasticsearch/issues/161746).
+A runtime search after `FORK` or a subquery `FROM` adds to `_score` when the branches carry the metadata `_score`.
+If any branch computes its own `_score`, for example with `EVAL _score = ...`, the merged column is user-defined
+and gets no score added. Rows from a branch that dropped `_score` stay `null`.
 
 #### When a runtime search score is visible [esql-runtime-search-scoring-visibility]
 

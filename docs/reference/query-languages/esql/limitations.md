@@ -225,11 +225,6 @@ Runtime search has these limitations:
   whether a search runs at runtime, because a runtime search only adds its score once it runs. For details, refer to
   [When a runtime search score is visible](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring-visibility)
   and [this `_score` issue](https://github.com/elastic/elasticsearch/issues/160809).
-* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A runtime search after a
-  [`FORK`](/reference/query-languages/esql/commands/fork.md) or a `FROM` with
-  [subqueries](/reference/query-languages/esql/esql-subquery.md) filters rows, but doesn't contribute to
-  `_score` unless it can be pushed into the branches
-  ([#161746](https://github.com/elastic/elasticsearch/issues/161746)).
 * {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The `analyzer` options of `TO_TEXT`, `MATCH` and
   `MATCH_PHRASE` only accept built-in analyzers and analyzers provided by plugins, not custom analyzers defined in
   an index's settings. Refer to

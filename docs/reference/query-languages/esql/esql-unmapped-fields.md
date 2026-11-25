@@ -94,7 +94,7 @@ Mapped fields are returned as columns as usual. Every unmapped field is returned
 - **Partially mapped fields behave as in `LOAD`.** Where a field is mapped in some of the queried indices only, {{esql}} reads it from the mapping where it exists and from `_source` where it doesn't, as long as the value can be converted to the type of the field. For a field whose type has no implicit conversion from `keyword`, such as `text`, the column is `null` for the documents of an index that doesn't map it, and a warning says so. For the documents of an index that doesn't map the field, the field stays part of `_unmapped_fields` either way, with its value from `_source`.
 
 :::{note}
-`_unmapped_fields` isn't a reserved name. If your query already has a column named `_unmapped_fields`, because it refers to it, creates it, or a view outputs it, that column is used instead and the unmapped fields aren't returned in it.
+`_unmapped_fields` isn't a reserved name. If your query already has a column named `_unmapped_fields`, because the query refers to or creates it, or because a view outputs it, that column is used instead and the unmapped fields aren't returned in it.
 :::
 
 `LOAD_ALL` is a technical preview. For what it doesn't support yet, and what it costs, refer to [Limitations specific to `LOAD_ALL`](#esql-unmapped-fields-load-all-limitations).

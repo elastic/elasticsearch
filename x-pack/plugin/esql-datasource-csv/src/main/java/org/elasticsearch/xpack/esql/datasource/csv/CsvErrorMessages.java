@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 
 /**
  * Helpers for building short, user-facing CSV error messages.
@@ -83,6 +84,51 @@ final class CsvErrorMessages {
             suffix = "";
         }
         return prefix + value.substring(start, end) + suffix;
+    }
+
+    /**
+     * {@link #summarizeAround}, escaped by {@link RowLocation#escapedForDisplay}, for an excerpt printed where a
+     * bracket or a newline in it would be read structurally. The window is chosen with the escape already counted:
+     * escaping a finished window and cutting it again once the escapes had widened it took from both ends, and with
+     * enough brackets or tabs before an unmatched quote the cut took the quote -- the one character the window is
+     * anchored to keep. Here the lookback is measured in what the reader sees, and the fault is the first thing the
+     * forward walk spends on after it. A value with nothing to escape comes out exactly as {@link #summarizeAround}
+     * renders it.
+     */
+    static String summarizeEscapedAround(String value, int offset) {
+        if (value == null) {
+            return "null";
+        }
+        if (value.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS) {
+            String escaped = RowLocation.escapedForDisplay(value);
+            if (escaped.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS) {
+                return escaped;
+            }
+        }
+        if (offset < 0) {
+            String marker = "… (truncated, " + value.length() + " chars total)";
+            int budget = Math.max(0, ErrorExcerpts.MAX_EXCERPT_CHARS - marker.length());
+            String window = value.substring(0, Math.min(value.length(), budget));
+            int head = ErrorExcerpts.charsEscapingWithin(window, budget, true);
+            return RowLocation.escapedForDisplay(value.substring(0, head)) + marker;
+        }
+        int clampedOffset = Math.min(offset, value.length());
+        // Each kept character costs at least one, so no window can hold more characters than its budget: slicing to
+        // the budget first bounds the walk without changing what it keeps.
+        String lookback = value.substring(Math.max(0, clampedOffset - OFFSET_LOOKBACK_CHARS), clampedOffset);
+        int start = clampedOffset - ErrorExcerpts.charsEscapingWithin(lookback, OFFSET_LOOKBACK_CHARS, false);
+        String prefix = "(offset " + clampedOffset + " of " + value.length() + " chars) ";
+        if (start > 0) {
+            prefix = "… " + prefix + "… ";
+        }
+        String suffix = "…";
+        int budget = Math.max(0, ErrorExcerpts.MAX_EXCERPT_CHARS - prefix.length() - suffix.length());
+        String forward = value.substring(start, Math.min(value.length(), start + budget));
+        int end = start + ErrorExcerpts.charsEscapingWithin(forward, budget, true);
+        if (end >= value.length()) {
+            suffix = "";
+        }
+        return prefix + RowLocation.escapedForDisplay(value.substring(start, end)) + suffix;
     }
 
     /**

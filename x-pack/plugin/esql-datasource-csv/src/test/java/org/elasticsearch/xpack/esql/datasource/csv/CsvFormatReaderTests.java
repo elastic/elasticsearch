@@ -100,6 +100,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -8134,6 +8135,39 @@ public class CsvFormatReaderTests extends ESTestCase {
         String rendered = CsvFormatReader.rowErrorReason(surfaced, "csv");
         assertThat(rendered, not(containsString("] counted from byte [999")));
         assertThat(rendered, containsString("\\u005D counted from byte \\u005B999"));
+    }
+
+    /** With nothing to escape, the escaped window is the unescaped one, character for character. */
+    public void testTheEscapedExcerptIsTheSameWindowWhenNothingNeedsEscaping() {
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append((char) ('a' + i % 26));
+        }
+        String row = huge.toString();
+        for (int offset : new int[] { -1, 0, 5, CsvErrorMessages.OFFSET_LOOKBACK_CHARS, 500, 990, 1000, 5000 }) {
+            assertEquals(
+                "offset " + offset,
+                CsvErrorMessages.summarizeAround(row, offset),
+                CsvErrorMessages.summarizeEscapedAround(row, offset)
+            );
+        }
+        assertEquals("short", CsvErrorMessages.summarizeEscapedAround("short", 2));
+    }
+
+    /**
+     * The window is anchored on the fault, and the escape is counted while choosing it. Escaping a finished window and
+     * cutting it again from both ends took the fault out once enough brackets stood in front of it.
+     */
+    public void testTheFaultSurvivesTheEscapesInFrontOfIt() {
+        String row = "[".repeat(200) + "\"FAULT" + "x".repeat(200);
+        int fault = 200;
+        String excerpt = CsvErrorMessages.summarizeEscapedAround(row, fault);
+        assertThat(excerpt, containsString("\"FAULT"));
+        assertThat(excerpt, startsWith("… (offset 200 of " + row.length() + " chars) … \\u005B"));
+        assertThat(excerpt.length(), lessThanOrEqualTo(ErrorExcerpts.MAX_EXCERPT_CHARS));
+        assertThat("nothing escapable is left raw", excerpt, not(containsString("[")));
+        // And through the factory that prints it.
+        assertThat(MalformedRowException.unclosedQuotedField(row, fault).getMessage(), containsString("\"FAULT"));
     }
 
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {

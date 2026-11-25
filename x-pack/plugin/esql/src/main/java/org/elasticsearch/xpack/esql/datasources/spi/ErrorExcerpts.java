@@ -112,8 +112,11 @@ public final class ErrorExcerpts {
      * walk is over the value, so nothing past the two windows is ever escaped, and a window that would end
      * between the halves of a surrogate pair gives the orphan up: a lone surrogate encodes to no UTF-8 sequence,
      * so keeping it spends a position in the cap to show the reader whatever each channel substitutes for it.
+     * <p>
+     * Public for a caller that has to choose its own window, as the CSV reader's fault-centred excerpt does, and so
+     * cannot take {@link #summarizeEscaped}'s two ends.
      */
-    private static int charsEscapingWithin(String value, int budget, boolean fromStart) {
+    public static int charsEscapingWithin(String value, int budget, boolean fromStart) {
         int taken = 0;
         int spent = 0;
         while (taken < value.length()) {

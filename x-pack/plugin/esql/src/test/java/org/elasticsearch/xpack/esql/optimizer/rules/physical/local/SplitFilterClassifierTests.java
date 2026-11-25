@@ -293,10 +293,12 @@ public class SplitFilterClassifierTests extends ESTestCase {
     /**
      * A withheld text extremum leaves the column with one end, which
      * {@code esql.external.cache.stats.max_extremum_size} makes routine. The classifier stays AMBIGUOUS on
-     * every predicate that reads the extrema, and that is a deliberate conservatism rather than a safety
-     * requirement: for each literal below the one end present would in fact decide soundly. What the cases
-     * pin is the behaviour the docs promise -- a withheld end costs the short-circuit -- so an optimisation
-     * that started deciding from a single end would have to change this test and say why.
+     * every predicate that reads the extrema, for two different reasons. In the first group the end present
+     * would decide each literal soundly, so AMBIGUOUS is a deliberate conservatism rather than a safety
+     * requirement, and what those cases pin is the behaviour the docs promise -- a withheld end costs the
+     * short-circuit -- so an optimisation that started deciding from a single end would have to change them
+     * and say why. In the last two the end present settles nothing, so AMBIGUOUS is the only sound answer
+     * and any such optimisation still has to return it.
      */
     public void testAOneSidedTextExtremumStaysAmbiguous() {
         ReferenceAttribute note = referenceAttribute("note", DataType.KEYWORD);
@@ -315,6 +317,9 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(AMBIGUOUS, classify(lessThanOrEqualOf(note, of("delta")), withMax));
         assertEquals(AMBIGUOUS, classify(equalsOf(note, of("delta")), withMax));
         assertEquals(AMBIGUOUS, classify(in(note, of("delta")), withMax));
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("zulu")), withMin));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("aaron")), withMax));
     }
 
     /** A 100-row {@code note} column with no nulls, publishing only the end that is not {@code null}. */

@@ -27,7 +27,6 @@ import java.util.zip.GZIPOutputStream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * That {@code esql.external.cache.stats.max_extremum_size} reaches the read that applies it: five-byte values
@@ -118,13 +117,14 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
         // rides in a column the queries never project, so `tag` stays five bytes against the four-byte setting.
         StringBuilder csv = new StringBuilder("id,tag,pad\n");
         String pad = "p".repeat(512);
-        for (int row = 0; csv.length() < 3 * 1024 * 1024; row++) {
-            csv.append(row).append(",tag-").append(row % 10).append(',').append(pad).append('\n');
+        int rowsWritten = 0;
+        while (csv.length() < 3 * 1024 * 1024) {
+            csv.append(rowsWritten).append(",tag-").append(rowsWritten % 10).append(',').append(pad).append('\n');
+            rowsWritten++;
         }
         Files.writeString(dir.resolve("big.csv"), csv.toString());
         String dataset = registerLocalFileDataset("narrow_width_segmented", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
 
-        long rowCount;
         try (
             var response = run(
                 syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(id), MAX(id)").pragmas(PARALLEL_PARSE),
@@ -133,8 +133,7 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
         ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.size(), equalTo(1));
-            assertThat("the harvesting read scans", response.documentsFound(), greaterThan(0L));
-            rowCount = response.documentsFound();
+            assertThat("the harvesting read scans every row", response.documentsFound(), equalTo((long) rowsWritten));
         }
 
         // The control, for the reason it is the control in the test above.
@@ -158,9 +157,9 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
             assertThat("the answer is still correct, by scanning", rows.get(0).get(0), equalTo("tag-0"));
             assertThat("the answer is still correct, by scanning", rows.get(0).get(1), equalTo("tag-9"));
             assertThat(
-                "the per-segment read withholds it too, so this scans where a published extremum would serve",
+                "the per-segment read withholds it too, so this scans every row where a published extremum would serve",
                 response.documentsFound(),
-                equalTo(rowCount)
+                equalTo((long) rowsWritten)
             );
         }
     }

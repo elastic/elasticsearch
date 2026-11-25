@@ -32,8 +32,8 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
  * indexed by those ordinals), and have the compaction threshold applied here once they are emitted.
  *
  * <p>Both paths use the same scheme: one bit per dictionary entry marks the referenced ones, and the
- * new ordinal of an entry is its rank among them. That keeps the relative dictionary order, so the
- * group order produced by hashing does not change.
+ * new ordinal of an entry is its rank among them. That keeps the retained entries in their original
+ * relative dictionary order.
  */
 final class OrdinalCompaction {
 
@@ -123,6 +123,9 @@ final class OrdinalCompaction {
             if ((long) referenced * 2 > dictionarySize) {
                 return source;
             }
+            if (compactPayloadIsMostlyDictionary(dictionary, marked)) {
+                return source;
+            }
             Block result = referenced == 0
                 ? blockFactory.newConstantNullBlock(positions)
                 : buildCompacted(ordinals, dictionary, marked, rankBase, referenced, blockFactory);
@@ -131,6 +134,20 @@ final class OrdinalCompaction {
         } finally {
             breaker.addWithoutBreaking(-scratchBytes);
         }
+    }
+
+    /** Whether the marked entries contain more than half of the source dictionary's payload bytes. */
+    private static boolean compactPayloadIsMostlyDictionary(BytesRefVector dictionary, long[] marked) {
+        long referencedBytes = 0;
+        BytesRef scratch = new BytesRef();
+        for (int w = 0; w < marked.length; w++) {
+            for (long bits = marked[w]; bits != 0; bits &= bits - 1) {
+                int ord = (w << 6) + Long.numberOfTrailingZeros(bits);
+                referencedBytes += dictionary.getBytesRef(ord, scratch).length;
+            }
+        }
+        long dictionaryBytes = dictionary.estimateTotalValueBytes();
+        return referencedBytes > dictionaryBytes - referencedBytes;
     }
 
     private static Block buildCompacted(

@@ -148,6 +148,7 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
                     assertTrue("compaction=" + compaction, block.asVector().isConstant());
                     assertValues(block, "e00005", "e00005", "e00005", "e00005");
                 }
+                assertEquals("constant detection must not allocate mark scratch", 0, breaker.getUsed());
             }
         }
     }
@@ -553,6 +554,21 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
         assertEquals(0, trackingBreaker.getUsed());
     }
 
+    /** A few entries holding most of the payload share the chunk dictionary instead of copying it per batch. */
+    public void testWideReferencedEntriesKeepSharedDictionary() {
+        String[] dict = entries(8);
+        dict[0] = "x".repeat(4096);
+        ColumnDescriptor desc = column(false);
+        PageReader pages = pageReader(dictionaryPage(dict), dictionaryDataPage(false, 0, 1, 0, 1, 0, 1));
+        try (PageColumnReader reader = new PageColumnReader(pages, desc, info(desc), null)) {
+            try (BytesRefBlock block = (BytesRefBlock) reader.readBatch(6, blockFactory)) {
+                assertDictionarySize(block, dict.length);
+                assertValues(block, dict[0], dict[1], dict[0], dict[1], dict[0], dict[1]);
+            }
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
     /**
      * With every emitted block closed and the reader still open, the breaker holds exactly the
      * compaction scratch (four lanes of {@code long[W]}, an {@code int[W]}, and a {@code BytesRef[D]});
@@ -594,6 +610,41 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
             CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> reader.readBatch(4, blockFactory));
             assertSame(e, ParquetReadFailures.wrap(e, "Failed to read Parquet column"));
             assertEquals(0, breaker.getUsed());
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
+    /** Compact dictionary payload arrays are reserved before allocation and refunded when that reservation trips. */
+    public void testCompactDictionaryReservationTripPropagates() {
+        ColumnDescriptor desc = column(false);
+        PageReader pages = pageReader(dictionaryPage(entries(8)), dictionaryDataPage(false, 1, 2, 1, 2));
+        try (PageColumnReader reader = new PageColumnReader(pages, desc, info(desc), null)) {
+            breaker.tripOn(PageColumnReader.COMPACT_DICTIONARY_LABEL);
+            expectThrows(CircuitBreakingException.class, () -> reader.readBatch(4, blockFactory));
+            assertEquals(PageColumnReader.compactionScratchBytes(8), breaker.getUsed());
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
+    /** Repaired UTF-8 bytes retained in the per-reader sanitized-entry cache stay charged until close. */
+    public void testRepairedDictionaryEntriesAreChargedUntilClose() {
+        byte[][] dict = {
+            "zero".getBytes(StandardCharsets.UTF_8),
+            { (byte) 0xFF },
+            "ok".getBytes(StandardCharsets.UTF_8),
+            "three".getBytes(StandardCharsets.UTF_8),
+            "four".getBytes(StandardCharsets.UTF_8),
+            "five".getBytes(StandardCharsets.UTF_8),
+            "six".getBytes(StandardCharsets.UTF_8),
+            "seven".getBytes(StandardCharsets.UTF_8) };
+        ColumnDescriptor desc = column(false);
+        PageReader pages = pageReader(dictionaryPage(dict), dictionaryDataPage(false, 1, 2, 1, 2));
+        long repairedBytes = RamUsageEstimator.shallowSizeOf(new BytesRef()) + RamUsageEstimator.sizeOf(new byte[3]);
+        try (PageColumnReader reader = new PageColumnReader(pages, desc, info(desc), null)) {
+            try (BytesRefBlock block = (BytesRefBlock) reader.readBatch(4, blockFactory)) {
+                assertValues(block, "\uFFFD", "ok", "\uFFFD", "ok");
+            }
+            assertEquals(PageColumnReader.compactionScratchBytes(dict.length) + repairedBytes, breaker.getUsed());
         }
         assertEquals(0, breaker.getUsed());
     }
@@ -715,6 +766,16 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
         try (BytesRefBlock smallDictionary = ordinalBlock(entries(2), manyValues)) {
             assertSame(smallDictionary, OrdinalCompaction.compact(smallDictionary, blockFactory));
             assertFalse(smallDictionary.isReleased());
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
+    public void testCompactKeepsDictionaryWhenReferencedEntriesHoldMostPayloadBytes() {
+        String[] dictionary = entries(8);
+        dictionary[0] = "x".repeat(4096);
+        try (BytesRefBlock source = ordinalBlock(dictionary, 0, 1, 0, 1)) {
+            assertSame(source, OrdinalCompaction.compact(source, blockFactory));
+            assertFalse(source.isReleased());
         }
         assertEquals(0, breaker.getUsed());
     }
@@ -962,6 +1023,13 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
         return new DictionaryPage(BytesInput.from(out.toByteArray()), entries.length, Encoding.PLAIN_DICTIONARY);
     }
 
+    /** A PLAIN-encoded dictionary page whose entries may contain malformed UTF-8. */
+    private static DictionaryPage dictionaryPage(byte[]... entries) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writePlainBinaries(out, entries);
+        return new DictionaryPage(BytesInput.from(out.toByteArray()), entries.length, Encoding.PLAIN_DICTIONARY);
+    }
+
     /** A V1 dictionary-encoded data page; a {@code null} index is a null slot (optional columns only). */
     private static DataPageV1 dictionaryDataPage(boolean optional, Integer... indices) {
         try {
@@ -1032,6 +1100,17 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
                 byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
                 BytesUtils.writeIntLittleEndian(out, bytes.length);
                 out.write(bytes);
+            }
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static void writePlainBinaries(ByteArrayOutputStream out, byte[][] values) {
+        try {
+            for (byte[] value : values) {
+                BytesUtils.writeIntLittleEndian(out, value.length);
+                out.write(value);
             }
         } catch (IOException e) {
             throw new AssertionError(e);

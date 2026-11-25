@@ -616,8 +616,16 @@ public class BlockFactory {
     }
 
     public BytesRefVector newDirectBytesRefVector(byte[] bytes, int[] startOffsets, int positionCount) {
+        return newDirectBytesRefVector(bytes, startOffsets, positionCount, 0L);
+    }
+
+    /**
+     * Wraps preallocated bytes and offsets, accounting for any bytes the caller already charged.
+     * The returned vector owns the complete breaker charge, including {@code preAdjustedBytes}.
+     */
+    public BytesRefVector newDirectBytesRefVector(byte[] bytes, int[] startOffsets, int positionCount, long preAdjustedBytes) {
         var v = new DirectBytesRefVector(bytes, startOffsets, positionCount, this);
-        adjustBreaker(v.ramBytesUsed());
+        adjustBreaker(v.ramBytesUsed() - preAdjustedBytes);
         return v;
     }
 

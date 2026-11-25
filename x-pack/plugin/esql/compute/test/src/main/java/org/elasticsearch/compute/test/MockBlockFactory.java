@@ -502,8 +502,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public BytesRefVector newDirectBytesRefVector(byte[] bytes, int[] startOffsets, int positionCount) {
-        var v = super.newDirectBytesRefVector(bytes, startOffsets, positionCount);
+    public BytesRefVector newDirectBytesRefVector(byte[] bytes, int[] startOffsets, int positionCount, long preAdjustedBytes) {
+        var v = super.newDirectBytesRefVector(bytes, startOffsets, positionCount, preAdjustedBytes);
         track(v, trackDetail());
         return v;
     }

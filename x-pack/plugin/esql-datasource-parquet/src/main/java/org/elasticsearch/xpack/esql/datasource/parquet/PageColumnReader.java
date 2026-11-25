@@ -168,15 +168,21 @@ final class PageColumnReader implements Releasable {
     /** Skip this many mark passes after a batch references more than half of the dictionary. */
     static final int SHARED_BACKOFF_BATCHES = 4;
 
+    /** Circuit breaker label for compact dictionary payload and offset arrays. */
+    static final String COMPACT_DICTIONARY_LABEL = "parquet compact dictionary";
+
     /** Remaining compaction-eligible batches whose mark pass is skipped after a mostly-referenced batch. */
     private int sharedDictionaryBackoff;
+    /** Raw payload bytes in the chunk dictionary, computed lazily for the byte-based compaction threshold. */
+    private long dictionaryPayloadBytes = -1;
 
     /**
      * Compaction scratch of a reader with {@link #ordinalCompaction} on: {@link #MARK_LANES} bitsets of
      * one bit per dictionary entry ({@code referencedEntries}, lane-major; lane 0 holds the merged marks),
      * the per-word prefix sums of the marked bits ({@code rankBase}), and the sanitized dictionary
-     * entries, filled lazily ({@code sanitizedEntries}). Allocated on the first mark pass, sized once
-     * (a reader reads a single column chunk, so the dictionary never changes), charged to
+     * entries, filled lazily ({@code sanitizedEntries}). The arrays are allocated on the first mark
+     * pass and sized once (a reader reads a single column chunk, so the dictionary never changes);
+     * repaired UTF-8 payloads are added to the charge as they are cached. Everything is charged to
      * {@link #scratchBreaker} and released in {@link #close()}.
      */
     private long[] referencedEntries;
@@ -510,7 +516,9 @@ final class PageColumnReader implements Releasable {
                 }
                 int runLength = runEnd - runStart;
 
-                chunks.add(coerceOnce ? decodeBatchAs(fileType, runLength, blockFactory, false) : readBatchUncompacted(runLength, blockFactory));
+                chunks.add(
+                    coerceOnce ? decodeBatchAs(fileType, runLength, blockFactory, false) : readBatchUncompacted(runLength, blockFactory)
+                );
                 cursor += runLength;
                 runStart = runEnd;
             }
@@ -1636,23 +1644,29 @@ final class PageColumnReader implements Releasable {
         }
         int nullCount = nulls == null ? 0 : nulls.popCount();
         boolean noNulls = nullCount == 0;
+        if (noNulls) {
+            int constantOrdinal = detectConstantOrdinal(ordinals, produced);
+            if (constantOrdinal >= 0) {
+                return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
+            }
+        }
         if (compact == false) {
-            return constantOrSharedOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+            return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
         }
         int values = produced - nullCount;
         if (sharedDictionaryBackoff > 0) {
             sharedDictionaryBackoff--;
-            return constantOrSharedOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+            return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
         }
         if ((long) dict.length * SKIP_DICTIONARY_RATIO <= values) {
-            return constantOrSharedOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+            return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
         }
         int referenced = markReferencedEntries(ordinals, nulls, produced, dict.length, blockFactory.breaker());
-        if (referenced == 1 && noNulls) {
-            // All-equal indices: emit a constant block to skip the ordinal indirection.
-            return blockFactory.newConstantBytesRefBlockWith(sanitizedEntry(dict, ordinals[0]), produced);
-        }
         if ((long) referenced * 2 > dict.length) {
+            sharedDictionaryBackoff = SHARED_BACKOFF_BATCHES;
+            return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+        }
+        if (compactPayloadIsMostlyDictionary(dict, referencedEntries, rankBase.length)) {
             sharedDictionaryBackoff = SHARED_BACKOFF_BATCHES;
             return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
         }
@@ -1663,15 +1677,21 @@ final class PageColumnReader implements Releasable {
         return compactOrdinalBlock(ordinals, nulls, produced, dict, referenced, blockFactory);
     }
 
-    /** Detects a constant batch without allocating mark scratch, otherwise shares the chunk dictionary. */
-    private Block constantOrSharedOrdinalBlock(int[] ordinals, WordMask nulls, int produced, BytesRef[] dict, BlockFactory blockFactory) {
-        if (nulls == null || nulls.isEmpty()) {
-            int constantOrdinal = detectConstantOrdinal(ordinals, produced);
-            if (constantOrdinal >= 0) {
-                return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
+    /** Whether the marked entries contain more than half of the chunk dictionary's raw payload bytes. */
+    private boolean compactPayloadIsMostlyDictionary(BytesRef[] dict, long[] marked, int words) {
+        long referencedBytes = 0;
+        for (int w = 0; w < words; w++) {
+            for (long bits = marked[w]; bits != 0; bits &= bits - 1) {
+                referencedBytes += dict[(w << 6) + Long.numberOfTrailingZeros(bits)].length;
             }
         }
-        return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+        if (dictionaryPayloadBytes < 0) {
+            dictionaryPayloadBytes = 0;
+            for (BytesRef entry : dict) {
+                dictionaryPayloadBytes += entry.length;
+            }
+        }
+        return referencedBytes > dictionaryPayloadBytes - referencedBytes;
     }
 
     /** Wraps the batch's ordinals around the chunk dictionary, shared with the other batches of the chunk. */
@@ -1746,19 +1766,33 @@ final class PageColumnReader implements Releasable {
                 totalBytes += sanitizedEntry(dict, (w << 6) + Long.numberOfTrailingZeros(bits)).length;
             }
         }
-        byte[] bytes = new byte[Math.toIntExact(totalBytes)];
-        int[] offsets = new int[referenced + 1];
-        int entry = 0;
-        int position = 0;
-        for (int w = 0; w < words; w++) {
-            for (long bits = marked[w]; bits != 0; bits &= bits - 1) {
-                BytesRef value = sanitizedEntries[(w << 6) + Long.numberOfTrailingZeros(bits)];
-                System.arraycopy(value.bytes, value.offset, bytes, position, value.length);
-                position += value.length;
-                offsets[++entry] = position;
+        int byteCount = Math.toIntExact(totalBytes);
+        long preAdjustedBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + totalBytes) + RamUsageEstimator
+            .alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) (referenced + 1) * Integer.BYTES);
+        CircuitBreaker breaker = blockFactory.breaker();
+        breaker.addEstimateBytesAndMaybeBreak(preAdjustedBytes, COMPACT_DICTIONARY_LABEL);
+        boolean success = false;
+        try {
+            byte[] bytes = new byte[byteCount];
+            int[] offsets = new int[referenced + 1];
+            int entry = 0;
+            int position = 0;
+            for (int w = 0; w < words; w++) {
+                for (long bits = marked[w]; bits != 0; bits &= bits - 1) {
+                    BytesRef value = sanitizedEntries[(w << 6) + Long.numberOfTrailingZeros(bits)];
+                    System.arraycopy(value.bytes, value.offset, bytes, position, value.length);
+                    position += value.length;
+                    offsets[++entry] = position;
+                }
+            }
+            BytesRefVector result = blockFactory.newDirectBytesRefVector(bytes, offsets, referenced, preAdjustedBytes);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                breaker.addWithoutBreaking(-preAdjustedBytes);
             }
         }
-        return blockFactory.newDirectBytesRefVector(bytes, offsets, referenced);
     }
 
     /**
@@ -1769,6 +1803,11 @@ final class PageColumnReader implements Releasable {
         BytesRef sanitized = sanitizedEntries[ord];
         if (sanitized == null) {
             sanitized = Utf8Sanitizer.sanitize(dict[ord]);
+            if (sanitized != dict[ord]) {
+                long retainedBytes = RamUsageEstimator.shallowSizeOf(sanitized) + RamUsageEstimator.sizeOf(sanitized.bytes);
+                scratchBreaker.addEstimateBytesAndMaybeBreak(retainedBytes, OrdinalCompaction.SCRATCH_LABEL);
+                scratchBytes += retainedBytes;
+            }
             sanitizedEntries[ord] = sanitized;
         }
         return sanitized;

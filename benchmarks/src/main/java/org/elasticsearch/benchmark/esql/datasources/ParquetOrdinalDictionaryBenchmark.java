@@ -34,10 +34,13 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -296,6 +299,7 @@ public class ParquetOrdinalDictionaryBenchmark {
                 TransitionLayout transition = transitionLayout(layout);
                 int rowCount = transition == null ? SELF_TEST_ROW_COUNT : (transition.sparseStartBatch() + 1) * BATCH_SIZE;
                 bench.setup(rowCount);
+                bench.assertReaderOutputShape(rowCount);
                 for (String consumer : Utils.possibleValues(ParquetOrdinalDictionaryBenchmark.class, "consumer")) {
                     bench.consumer = consumer;
                     int result = bench.readColumn();
@@ -308,6 +312,51 @@ public class ParquetOrdinalDictionaryBenchmark {
                 throw new AssertionError("[" + layout + "] failed", e);
             }
         }
+    }
+
+    /** Verifies that compacting layouts still reach the ordinal-reader path the benchmark targets. */
+    private void assertReaderOutputShape(int rowCount) throws IOException {
+        int fullDictionarySize = distinctValues(layout, rowCount);
+        boolean sawCompactDictionary = false;
+        try (CloseableIterator<Page> pages = open(blockFactory)) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    OrdinalBytesRefBlock ordinal = ((BytesRefBlock) page.getBlock(0)).asOrdinals();
+                    if (ordinal == null || ordinal.getDictionaryVector().getPositionCount() >= fullDictionarySize) {
+                        continue;
+                    }
+                    sawCompactDictionary = true;
+                    int dictionarySize = ordinal.getDictionaryVector().getPositionCount();
+                    BitSet referenced = new BitSet(dictionarySize);
+                    IntBlock ordinals = ordinal.getOrdinalsBlock();
+                    for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                        if (ordinals.isNull(p) == false) {
+                            referenced.set(ordinals.getInt(ordinals.getFirstValueIndex(p)));
+                        }
+                    }
+                    if (referenced.cardinality() != dictionarySize) {
+                        throw new AssertionError(
+                            "["
+                                + layout
+                                + "] emitted a compact dictionary with unreferenced entries: "
+                                + referenced.cardinality()
+                                + "/"
+                                + dictionarySize
+                        );
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        if (expectsCompaction(layout) && sawCompactDictionary == false) {
+            throw new AssertionError("[" + layout + "] did not emit a compact ordinal dictionary");
+        }
+    }
+
+    private static boolean expectsCompaction(String layout) {
+        return layout.equals("large_clustered") || layout.equals("d1000_w250") || layout.equals("d2000_w200");
     }
 
     /** Layouts named {@code d<D>_w<W>}: D dictionary entries, each batch draws from a window of W of them. */

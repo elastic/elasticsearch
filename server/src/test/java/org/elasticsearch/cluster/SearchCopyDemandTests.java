@@ -48,9 +48,9 @@ public class SearchCopyDemandTests extends AbstractWireSerializingTestCase<Searc
         assertThat(zero.threadDemand(), equalTo(0d));
     }
 
-    public void testSearchCopyDemandRejectsNonFiniteOrNegative() {
+    public void testRejectsInvalidValues() {
         final double valid = randomNonNegativeDouble();
-        for (double rejected : new double[] { Double.NaN, Double.POSITIVE_INFINITY, -1d }) {
+        for (double rejected : new double[] { Double.NaN, Double.POSITIVE_INFINITY, randomDoubleBetween(Double.NEGATIVE_INFINITY, 0.0d, true) }) {
             final double invalid = rejected;
             final AssertionError cpuError = expectThrows(AssertionError.class, () -> new SearchCopyDemand(invalid, valid));
             assertThat(cpuError.getMessage(), containsString("cpuDemand must be finite and non-negative"));

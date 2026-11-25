@@ -8,18 +8,25 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -28,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
 
 public class IpFieldTypeTests extends FieldTypeTestCase {
@@ -162,6 +170,80 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     .build()
             ),
             ft.termsQuery(Arrays.asList("::42", "::2/16"), MOCK_CONTEXT)
+        );
+    }
+
+    public void testTermsQueryDocValuesOnly() {
+        MappedFieldType sortedSet = new IpFieldMapper.IpFieldType("field", false, true);
+        MappedFieldType binary = binaryDocValuesOnlyFieldType(false);
+        MappedFieldType binaryArrayOrder = binaryDocValuesOnlyFieldType(true);
+
+        List<BytesRef> encoded = List.of(
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::2"))),
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7")))
+        );
+        for (List<?> values : List.of(
+            Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("192.168.1.7")),
+            Arrays.asList("::2", "192.168.1.7"),
+            Arrays.asList(new BytesRef("::2"), new BytesRef("192.168.1.7"))
+        )) {
+            assertEquals(SortedSetDocValuesField.newSlowSetQuery("field", encoded), sortedSet.termsQuery(values, MOCK_CONTEXT));
+            assertEquals(
+                new ScanningBinaryDocValuesTermInSetQuery("field", encoded, SEPARATE_COUNT),
+                binary.termsQuery(values, MOCK_CONTEXT)
+            );
+            assertEquals(
+                new ScanningBinaryDocValuesTermInSetQuery("field", encoded, ARRAY_ORDER_INLINE_NULL),
+                binaryArrayOrder.termsQuery(values, MOCK_CONTEXT)
+            );
+        }
+
+        for (MappedFieldType ft : List.of(sortedSet, binary, binaryArrayOrder)) {
+            assertEquals(
+                new ConstantScoreQuery(
+                    new BooleanQuery.Builder().add(ft.termQuery("::42", MOCK_CONTEXT), Occur.SHOULD)
+                        .add(ft.termQuery("::2/16", MOCK_CONTEXT), Occur.SHOULD)
+                        .build()
+                ),
+                ft.termsQuery(Arrays.asList("::42", "::2/16"), MOCK_CONTEXT)
+            );
+        }
+    }
+
+    public void testTermsQueryDocValuesOnlyMatchesDocuments() throws IOException {
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field", false, true);
+        String[] ips = { "::1", "::2", "::3", "10.0.0.1", "10.0.0.2", "2001:db8::2:1" };
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (String ip : ips) {
+                Document doc = new Document();
+                doc.add(new SortedSetDocValuesField("field", new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ip)))));
+                writer.addDocument(doc);
+            }
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertEquals(0, searcher.count(ft.termsQuery(List.of(), MOCK_CONTEXT)));
+                assertEquals(2, searcher.count(ft.termsQuery(List.of("::2", "10.0.0.1", "10.0.0.9"), MOCK_CONTEXT)));
+                assertEquals(1, searcher.count(ft.termsQuery(List.of("2001:db8::2:1", "2001:db8::2:1"), MOCK_CONTEXT)));
+                assertEquals(0, searcher.count(ft.termsQuery(List.of("::9", "10.9.9.9"), MOCK_CONTEXT)));
+            }
+        }
+    }
+
+    private static MappedFieldType binaryDocValuesOnlyFieldType(boolean arrayOrder) {
+        return new IpFieldMapper.IpFieldType(
+            "field",
+            IndexType.points(false, true),
+            false,
+            null,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            true,
+            false,
+            arrayOrder,
+            IndexVersion.current(),
+            null
         );
     }
 

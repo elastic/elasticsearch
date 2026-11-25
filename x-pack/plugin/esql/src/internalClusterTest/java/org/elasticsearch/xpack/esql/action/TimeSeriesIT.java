@@ -1608,10 +1608,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 )
         );
         ensureGreen(index);
-        indexPromqlSample(index, "m1", "1", 2.0);
-        indexPromqlSample(index, "m1", "+Inf", 4.0);
-        indexPromqlSample(index, "m2", "1", 6.0);
-        indexPromqlSample(index, "m2", "+Inf", 8.0);
+        indexHistogramSample(index, "m1", "1", 2.0);
+        indexHistogramSample(index, "m1", "+Inf", 4.0);
+        indexHistogramSample(index, "m2", "1", 6.0);
+        indexHistogramSample(index, "m2", "+Inf", 8.0);
         refresh(index);
         String query = "PROMQL index="
             + index
@@ -1626,7 +1626,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private void indexPromqlSample(String index, String name, String le, double tx) {
+    private void indexHistogramSample(String index, String name, String le, double tx) {
         client().prepareIndex(index)
             .setSource("@timestamp", PROMQL_QUERY_TIME, "cluster", "prod", "host", "a", "__name__", name, "le", le, "tx", tx)
             .get();

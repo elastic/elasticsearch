@@ -4038,7 +4038,7 @@ f1         | a
 f2         | c
 ;
 
-// The view outputs the flattened columns [attrs] and [attrs.sub]. A name under both reads the more specific one first.
+// The view outputs the flattened columns [attrs] and [attrs.sub]. A name under both is read, per row, from the nearest one the row has.
 flattenedKeyOfViewColumnsAtTwoLevels
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich

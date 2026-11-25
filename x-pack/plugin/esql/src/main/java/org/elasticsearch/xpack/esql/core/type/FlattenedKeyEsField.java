@@ -25,8 +25,9 @@ import java.util.Map;
  *     <li><b>A view is index-like and answers from its output.</b> The query reads a view as it would read an index that stores the
  *     view's output. So {@code attrs.foo} above a view is the view's column of that name if it has one, and otherwise the key
  *     {@code foo} of the view's {@code flattened} column {@code attrs}, read from the value with {@code FIELD_EXTRACT}. It never
- *     reaches fields that the view does not output. When several flattened columns of the view are above the name, the most
- *     specific one is read first. {@code unmapped_fields} stops at a view, so above it the name can only be a key.</li>
+ *     reaches fields that the view does not output. When flattened columns of the view are at two levels above the name,
+ *     each row reads from the nearest one it has a value for. {@code unmapped_fields} stops at a view, so above it the name can
+ *     only be a key.</li>
  *     <li><b>A key is a column like any other.</b> A key that the query names is a column of its source's output. A command replaces
  *     exactly the names it brings in, so {@code LOOKUP JOIN} and {@code ENRICH} bring in a key of their {@code flattened} fields only
  *     where no column of that name exists. This is also what keeps queries that are valid without keys unchanged.</li>

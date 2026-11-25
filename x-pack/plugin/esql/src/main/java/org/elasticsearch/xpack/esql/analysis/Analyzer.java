@@ -2065,8 +2065,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *     <li>otherwise the key {@code foo} of the view's {@code flattened} column {@code attrs}, read from that column's value:
          *     {@code EVAL attrs.foo = FIELD_EXTRACT(attrs, "foo")} atop the view branch, so the key is a column of the view like the
          *     key of a flattened field is a column of its index;</li>
-         *     <li>the most specific one first when several flattened columns of the view are above the name: for {@code attrs.foo.bar}
-         *     the key {@code bar} of {@code attrs.foo}, then the key {@code foo.bar} of {@code attrs}.</li>
+         *     <li>when the view outputs flattened columns at two levels above the name, each row reads from the nearest one it has a
+         *     value for: {@code attrs.foo.bar} is the key {@code bar} of {@code attrs.foo} where a row has that column, and the key
+         *     {@code foo.bar} of {@code attrs} otherwise, which is the union of both.</li>
          * </ul>
          * This happens when the view branch is resolved and before the commands that read it are, so that those commands see the key
          * as they see any column of the view. Nothing else in a query carries keys: a renamed or copied flattened column has none, and a
@@ -2110,15 +2111,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (roots.isEmpty()) {
                     continue;
                 }
-                // most specific first
+                // per row, the nearest flattened column that the row has a value for
                 roots.sort(Comparator.comparing((Attribute root) -> root.name().length()).reversed());
                 Source source = view.source();
-                List<Expression> reads = new ArrayList<>(roots.size());
-                for (Attribute root : roots) {
+                Expression read = null;
+                for (int i = roots.size() - 1; i >= 0; i--) {
+                    Attribute root = roots.get(i);
                     String path = name.substring(root.name().length() + 1);
-                    reads.add(new FieldExtract(source, root, Literal.keyword(source, path), true));
+                    Expression key = new FieldExtract(source, root, Literal.keyword(source, path), true);
+                    read = read == null ? key : new Case(source, new IsNotNull(source, root), List.of(key, read));
                 }
-                Expression read = reads.size() == 1 ? reads.get(0) : new Coalesce(source, reads.get(0), reads.subList(1, reads.size()));
                 keys.add(new Alias(source, name, read));
             }
             return keys;

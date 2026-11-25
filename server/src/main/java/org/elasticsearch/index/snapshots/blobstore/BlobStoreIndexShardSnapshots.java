@@ -274,8 +274,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 // taking snapshots at once; the resulting metadata won't be readable because snapshotName is an object key, so we'd best
                 // just not even write it.
                 //
-                // Failing here may leave a partially-written object (e.g. in a FsRepository) but that's ok, nothing is going to read that
-                // object. It will eventually be cleaned up by the next delete operation which touches this shard.
+                // Failing here may leave a partially-written object but that's ok, nothing is going to read that object (e.g. in a
+                // `FsRepository` it's either a `pending-*` file or an `index-${UUID}` with a fresh UUID). Some later operation (e.g.
+                // deleting the snapshot with the duplicate name) will clean up the leftovers.
                 throw new IllegalStateException("duplicate snapshot name [" + snapshotName + "]");
             }
             builder.startObject(snapshotName);

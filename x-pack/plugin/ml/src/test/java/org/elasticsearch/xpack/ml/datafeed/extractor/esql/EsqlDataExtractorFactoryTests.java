@@ -126,7 +126,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         assertThat(factory.timeBucketMillis(), equalTo(0L));
         assertThat(
             runner.queries,
-            equalTo(List.of(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name == ?describeTimeColumn OR name == ?describeCountColumn\n| LIMIT 2"))
+            equalTo(List.of(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2"))
         );
         assertThat(runner.params, equalTo(describeParams(TIME_FIELD, TIME_FIELD)));
     }

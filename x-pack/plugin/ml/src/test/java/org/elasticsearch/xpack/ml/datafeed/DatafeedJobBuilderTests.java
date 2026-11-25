@@ -300,7 +300,19 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
-    public void testBuildGivenEsqlFactoryWithTimeBucketAndRestartShouldAdvanceLatestRecordTimePastTheBucketFromDescribe() throws Exception {
+    public void testBuildGivenEsqlBucketShorterThanGroupingIntervalShouldResumeAfterTheGroupingIntervalBucket() throws Exception {
+        // The extractor floors the resume point on the 1 hour grouping_interval, so resuming 30 minutes in would re-read the bucket.
+        long hour = TimeValue.timeValueHours(1).millis();
+        assertEsqlRestartOffset(TimeValue.timeValueMinutes(30).millis(), TimeValue.timeValueHours(1), 9 * hour, 9 * hour + hour - 1);
+    }
+
+    public void testBuildGivenEsqlBucketLongerThanGroupingIntervalShouldResumeAfterTheDescribeBucket() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        assertEsqlRestartOffset(2 * hour, TimeValue.timeValueHours(1), 10 * hour, 10 * hour + 2 * hour - 1);
+    }
+
+    private void assertEsqlRestartOffset(long timeBucketMillis, TimeValue groupingInterval, long recordStamp, long expectedLastEndTimeMs)
+        throws Exception {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
@@ -310,28 +322,23 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
         datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
         datafeed.setSourceTimeField("@timestamp");
-        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
+        datafeed.setGroupingInterval(groupingInterval);
         datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
-
-        long hour = TimeValue.timeValueHours(1).millis();
-        long halfHour = TimeValue.timeValueMinutes(30).millis();
-        long recordStamp = 9 * hour;
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
-            // The factory bucket (30 minutes, from DESCRIBE) wins over the 1 hour grouping_interval.
-            assertThat(datafeedJob.lastEndTimeMs(), equalTo(recordStamp + halfHour - 1));
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(expectedLastEndTimeMs));
             wasHandlerCalled.set(true);
         });
 
         DatafeedContext datafeedContext = new DatafeedContext(
             datafeed.build(),
             jobBuilder.build(),
-            new RestartTimeInfo(8 * hour, recordStamp, true),
+            new RestartTimeInfo(recordStamp - TimeValue.timeValueHours(1).millis(), recordStamp, true),
             new DatafeedTimingStats(jobBuilder.getId())
         );
 
-        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, halfHour, datafeedJobHandler);
+        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, timeBucketMillis, datafeedJobHandler);
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 

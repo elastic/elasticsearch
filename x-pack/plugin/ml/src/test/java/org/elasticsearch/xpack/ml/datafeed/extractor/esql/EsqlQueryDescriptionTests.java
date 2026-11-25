@@ -47,6 +47,17 @@ public class EsqlQueryDescriptionTests extends ESTestCase {
         assertThat(description.columnIntervals(), equalTo(Map.of("ts", "1 hour")));
     }
 
+    public void testTimeZonesShouldBeKeptOnlyForColumnsThatReportOne() {
+        EsqlQueryDescription description = EsqlQueryDescription.from(
+            response(
+                List.of("name", "type", "interval", "time_zone"),
+                List.of(Arrays.asList("ts", "date", "1 day", "Europe/Berlin"), Arrays.asList("host", "keyword", null, null))
+            )
+        );
+
+        assertThat(description.columnTimeZones(), equalTo(Map.of("ts", "Europe/Berlin")));
+    }
+
     public void testMissingIntervalColumnShouldMeanNoIntervals() {
         EsqlQueryDescription description = EsqlQueryDescription.from(response(List.of("name", "type"), List.of(List.of("ts", "date"))));
 

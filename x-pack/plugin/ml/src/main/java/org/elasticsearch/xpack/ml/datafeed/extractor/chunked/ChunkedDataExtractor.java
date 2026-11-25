@@ -98,9 +98,10 @@ public class ChunkedDataExtractor implements DataExtractor {
             // existing shrink path splits it.
             // Realtime costs one query per cycle only in the steady state, where window == frequency == singleChunkSpan. The first
             // cycle after lookback and late cycles have window > frequency, take the summary path below and cost two queries.
-            // A manual chunking_config.time_span smaller than the frequency is not applied to windows <= singleChunkSpan;
-            // truncation shrinking still caps rows.
-            chunkSpan = context.end() - currentStart;
+            long window = context.end() - currentStart;
+            chunkSpan = context.chunkSpan() != null
+                ? Math.min(window, context.timeAligner().alignToCeil(context.chunkSpan().getMillis()))
+                : window;
             currentEnd = currentStart;
             esqlSizing.captureInitialChunkSpan(chunkSpan);
             LOGGER.debug("[{}] Chunked search configured: single chunk of {} ms, no summary", context.jobId(), chunkSpan);

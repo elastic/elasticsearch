@@ -445,11 +445,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     /**
-     * ES|QL datafeeds build their extractor factory on the task node, where it runs the single {@code | DESCRIBE}. Creating the
-     * factory here only for validation would run a second one on every start, so the start action skips it.
+     * An ES|QL datafeed that is not in cross-project mode already ran its {@code | DESCRIBE} in {@link #resolveRemoteSources}. Creating
+     * the factory here too would run a second one on every start. In cross-project mode that probe is skipped, so the factory
+     * creation is the only start-time validation and a failure reaches the caller instead of removing the task later.
      */
-    static boolean skipsFactoryValidation(DatafeedConfig effectiveDatafeed) {
-        return effectiveDatafeed.getEsqlQuery() != null;
+    static boolean skipsFactoryValidation(DatafeedConfig effectiveDatafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        return effectiveDatafeed.getEsqlQuery() != null && skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider) == false;
     }
 
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
@@ -467,7 +468,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeed.getCloudInternalCredential() != null
         );
 
-        if (skipsFactoryValidation(effectiveDatafeed)) {
+        if (skipsFactoryValidation(effectiveDatafeed, crossProjectModeDecider)) {
             persistentTasksService.sendStartRequest(
                 MlTasks.datafeedTaskId(params.getDatafeedId()),
                 MlTasks.DATAFEED_TASK_NAME,

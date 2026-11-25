@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.After;
 import org.junit.Before;
@@ -220,7 +223,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
             verify(builder).filter(any(RangeQueryBuilder.class));
             verify(builder).params(List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER)));
             verify(builder).allowPartialResults(false);
-            verify(builder).executionMetadata(ExecutionMetadata.NEVER);
+            verify(builder).executionMetadata(ExecutionMetadata.CCS_ONLY);
             // The concrete builder lives in x-pack-esql, which is deliberately absent from the ML test classpath.
             // Its core interface has no indicesOptions API, so this production next() path cannot send one.
             assertThat(
@@ -638,17 +641,84 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("expected date value"));
     }
 
-    public void testNullMinMaxButNonZeroTotalHitsShouldReturnNoData() {
+    public void testNullMinMaxButNonZeroTotalHitsShouldFailLikeTheDataQuery() {
         RecordingSyncQuery extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
         extractor.enqueueRows(
             List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
             List.of(Arrays.asList(null, null, 5L))
         );
 
-        DataExtractor.DataSummary summary = extractor.getSummary();
+        Exception e = expectThrows(Exception.class, extractor::getSummary);
 
-        assertThat(summary.hasData(), is(false));
-        assertThat(summary.totalHits(), equalTo(5L));
+        assertThat(e.getMessage(), containsString(TIME_FIELD));
+    }
+
+    public void testNullMinMaxWithZeroTotalHitsShouldReturnNoData() {
+        RecordingSyncQuery extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueRows(
+            List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
+            List.of(Arrays.asList(null, null, 0L))
+        );
+
+        assertThat(extractor.getSummary().hasData(), is(false));
+    }
+
+    public void testSkippedRemoteClusterShouldFailTheDataQueryAndExposeClusterStates() {
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueResponse(
+            wrapResponse(
+                mockEsqlResponse(
+                    List.of(column(TIME_FIELD, DATE)),
+                    singleRow(isoAtEpochMillis(1500L)),
+                    List.of(
+                        new EsqlClusterInfo(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS, "logs", EsqlClusterInfo.Status.SUCCESSFUL),
+                        new EsqlClusterInfo("east", "logs", EsqlClusterInfo.Status.SKIPPED)
+                    )
+                )
+            )
+        );
+
+        expectThrows(ResourceNotFoundException.class, extractor::next);
+
+        assertThat(
+            extractor.getLinkedClusterStates(),
+            equalTo(List.of(new LinkedClusterState("east", LinkedClusterState.Status.SKIPPED, null, 0L)))
+        );
+    }
+
+    public void testSkippedRemoteClusterShouldFailTheSummary() {
+        RecordingSyncQuery extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueResponse(
+            wrapResponse(
+                mockEsqlResponse(
+                    List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
+                    singleRow(isoAtEpochMillis(1500L), isoAtEpochMillis(2500L), 3L),
+                    List.of(new EsqlClusterInfo("east", "logs", EsqlClusterInfo.Status.SKIPPED))
+                )
+            )
+        );
+
+        expectThrows(ResourceNotFoundException.class, extractor::getSummary);
+    }
+
+    public void testSuccessfulRemoteClusterShouldBeExposedAsAvailable() throws IOException {
+        RecordingSyncQuery extractor = createExtractor(1000L, 2000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueResponse(
+            wrapResponse(
+                mockEsqlResponse(
+                    List.of(column(TIME_FIELD, DATE)),
+                    singleRow(isoAtEpochMillis(1500L)),
+                    List.of(new EsqlClusterInfo("east", "logs", EsqlClusterInfo.Status.SUCCESSFUL))
+                )
+            )
+        );
+
+        DataExtractor.Result result = extractor.next();
+
+        assertThat(
+            result.linkedClusterStates(),
+            equalTo(List.of(new LinkedClusterState("east", LinkedClusterState.Status.AVAILABLE, null, 0L)))
+        );
     }
 
     private RecordingSyncQuery createExtractor(long start, long end, String esqlQuery, String timeField) {
@@ -718,10 +788,15 @@ public class EsqlDataExtractorTests extends ESTestCase {
         return List.of(Arrays.asList(columnValues));
     }
 
-    @SuppressWarnings("unchecked")
     private EsqlResponse mockEsqlResponse(List<ColumnInfo> columns, List<List<Object>> rows) {
+        return mockEsqlResponse(columns, rows, List.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    private EsqlResponse mockEsqlResponse(List<ColumnInfo> columns, List<List<Object>> rows, List<EsqlClusterInfo> clusters) {
         EsqlResponse response = mock(EsqlResponse.class);
         doReturn(columns).when(response).columns();
+        doReturn(clusters).when(response).clusters();
         when(response.rows()).thenReturn((Iterable<Iterable<Object>>) (Iterable<?>) rows);
         return response;
     }
@@ -801,6 +876,10 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         DataExtractor.DataSummary getSummary() {
             return extractor.getSummary();
+        }
+
+        List<LinkedClusterState> getLinkedClusterStates() {
+            return extractor.getLinkedClusterStates();
         }
 
         void cancel() {

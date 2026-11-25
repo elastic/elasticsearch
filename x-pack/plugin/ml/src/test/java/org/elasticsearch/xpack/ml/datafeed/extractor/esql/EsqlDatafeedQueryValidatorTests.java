@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -108,6 +109,26 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(failure.getMessage(), containsString("calendar interval [" + interval + "]"));
         }
+    }
+
+    public void testBucketInATimeZoneOtherThanUtcShouldFailValidation() {
+        Exception failure = assertValidationFails(harness(row("@timestamp", "date", "1 day", "Europe/Berlin")), validation());
+
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("time zone [Europe/Berlin]"));
+    }
+
+    public void testBucketWithoutReportedTimeZoneShouldPassValidation() {
+        assertValidationSucceeds(harness(row("@timestamp", "date", "1 day", null)), validation());
+    }
+
+    public void testUnknownIntervalUnitShouldFailValidationWithoutCallingItCalendar() {
+        Exception failure = assertValidationFails(harness(row("@timestamp", "date", "1 fortnight")), validation());
+
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.getMessage(), containsString("does not support this interval"));
+        assertThat(failure.getMessage(), not(containsString("calendar")));
     }
 
     public void testFixedIntervalMillisShouldParseDescribeIntervals() {
@@ -916,7 +937,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.response.hasReferences(), is(false));
     }
 
-    private static final List<String> DESCRIBE_COLUMNS = List.of("name", "type", "role", "field", "origin", "interval");
+    private static final List<String> DESCRIBE_COLUMNS = List.of("name", "type", "role", "field", "origin", "interval", "time_zone");
 
     /** A DESCRIBE row: name and type are the columns the validator reads, the rest are reported but ignored. */
     private static List<Object> row(String name, String type) {
@@ -924,7 +945,11 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     private static List<Object> row(String name, String type, String interval) {
-        return Arrays.asList(name, type, null, null, "computed", interval);
+        return row(name, type, interval, interval == null ? null : "UTC");
+    }
+
+    private static List<Object> row(String name, String type, String interval, String timeZone) {
+        return Arrays.asList(name, type, null, null, "computed", interval, timeZone);
     }
 
     @SafeVarargs

@@ -25,6 +25,9 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
+import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 
@@ -212,6 +215,43 @@ public final class DataExtractorUtils {
                 "[{}] remote clusters out of [{}] were skipped when performing datafeed search",
                 clusterResponse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
                 clusterResponse.getTotal()
+            );
+        }
+    }
+
+    /**
+     * Per-cluster state of an ES|QL response, for the remote clusters only. Empty when the response has no cluster metadata, which is
+     * the case for a query that ran on the local cluster only.
+     */
+    public static List<LinkedClusterState> extractLinkedClusterStates(EsqlResponse response) {
+        List<LinkedClusterState> result = new ArrayList<>();
+        for (EsqlClusterInfo cluster : response.clusters()) {
+            String alias = cluster.clusterAlias();
+            if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) || alias.equals(ProjectRoutingResolver.ORIGIN)) {
+                continue;
+            }
+            LinkedClusterState.Status status = switch (cluster.status()) {
+                case SUCCESSFUL, RUNNING, PARTIAL -> LinkedClusterState.Status.AVAILABLE;
+                case SKIPPED -> LinkedClusterState.Status.SKIPPED;
+                case FAILED -> LinkedClusterState.Status.FAILED;
+            };
+            result.add(new LinkedClusterState(alias, status, null, 0L));
+        }
+        return List.copyOf(result);
+    }
+
+    /**
+     * Check whether an ES|QL query skipped remote clusters, as {@link #checkForSkippedClusters(SearchResponse)} does for a search.
+     * @throws ResourceNotFoundException if any remote cluster was skipped, as this could cause anomalies to be spuriously detected.
+     */
+    public static void checkForSkippedClusters(EsqlResponse response) {
+        List<EsqlClusterInfo> clusters = response.clusters();
+        long skipped = clusters.stream().filter(c -> c.status() == EsqlClusterInfo.Status.SKIPPED).count();
+        if (skipped > 0) {
+            throw new ResourceNotFoundException(
+                "[{}] remote clusters out of [{}] were skipped when performing datafeed search",
+                skipped,
+                clusters.size()
             );
         }
     }

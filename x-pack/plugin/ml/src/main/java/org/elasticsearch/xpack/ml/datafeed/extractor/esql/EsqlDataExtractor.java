@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,6 +63,7 @@ public class EsqlDataExtractor implements DataExtractor {
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private final EsqlSyncQueryRunner syncQueryRunner;
     private boolean hasNext = true;
+    private volatile List<LinkedClusterState> lastLinkedClusterStates = List.of();
     private volatile boolean isCancelled = false;
     private final AtomicReference<Task> inFlightQueryTask = new AtomicReference<>();
 
@@ -122,8 +125,31 @@ public class EsqlDataExtractor implements DataExtractor {
         try (EsqlQueryResponse response = runQueryWithSingleRetry(summaryQuery, buildTimeFilter(), timeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
-            return parseSummaryResponse(response.response());
+            recordAndCheckClusters(response.response());
+            DataSummary summary = parseSummaryResponse(response.response());
+            if (summary.totalHits() > 0 && summary.earliestTime() == null) {
+                // Every output row has a null time. Fail as the data query does instead of reporting an empty window.
+                EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow(
+                    context.jobId(),
+                    context.emittedTimeField(),
+                    null,
+                    context.start(),
+                    context.end()
+                );
+            }
+            return summary;
         }
+    }
+
+    /** Remembers the remote cluster states for {@link #getLinkedClusterStates}, then fails when a remote cluster was skipped. */
+    private void recordAndCheckClusters(EsqlResponse response) {
+        lastLinkedClusterStates = DataExtractorUtils.extractLinkedClusterStates(response);
+        DataExtractorUtils.checkForSkippedClusters(response);
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     private QueryBuilder buildTimeFilter() {
@@ -169,6 +195,7 @@ public class EsqlDataExtractor implements DataExtractor {
             Optional<InputStream> data = Optional.empty();
             long rowCount = 0L;
             EsqlResponse esqlResponse = response.response();
+            recordAndCheckClusters(esqlResponse);
             List<? extends ColumnInfo> columns = esqlResponse.columns();
             // Runtime extraction has no datafeed id for column-check messages.
             Map<String, String> columnTypes = columns.stream()
@@ -205,7 +232,7 @@ public class EsqlDataExtractor implements DataExtractor {
             if (rowCount > 0) {
                 data = Optional.of(out.bytes().streamInput());
             }
-            return new Result(searchInterval, data, List.of(), rowCount);
+            return new Result(searchInterval, data, lastLinkedClusterStates, rowCount);
         }
     }
 
@@ -215,7 +242,7 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private EsqlQueryResponse executeDefaultSyncQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
         return execute(
-            EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting(), ExecutionMetadata.NEVER)
+            EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting(), ExecutionMetadata.CCS_ONLY)
         );
     }
 

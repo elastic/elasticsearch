@@ -59,6 +59,8 @@ public class EsqlDatafeedQueryValidator {
         this.queryRunner = queryRunner;
     }
 
+    /** How {@code DESCRIBE} names the default time zone of a bucketed column. */
+    private static final String UTC = "UTC";
     private static final String LIMIT_ZERO = "LIMIT 0";
     private static final String DESCRIBE = "DESCRIBE";
     /**
@@ -295,7 +297,7 @@ public class EsqlDatafeedQueryValidator {
         if (unavailable.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(
-                    Messages.DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE,
+                    Messages.DATAFEED_ESQL_CLUSTERS_UNAVAILABLE,
                     esqlDatafeedSubject(datafeedId),
                     unavailable,
                     summaryCountField == null ? List.of(timeField) : List.of(timeField, summaryCountField)
@@ -326,17 +328,25 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * The length of the interval {@code description} reports for {@code timeField}, or 0 when the column is not bucketed. Fails for a
-     * calendar interval, which has no fixed length.
+     * calendar interval, which has no fixed length, for an interval this parser does not know, and for a bucket that is not in UTC.
      */
     static long timeBucketMillis(EsqlQueryDescription description, String timeField, @Nullable String datafeedId) {
         String interval = description.columnIntervals().get(timeField);
         if (interval == null) {
             return 0;
         }
+        String timeZone = description.columnTimeZones().get(timeField);
+        if (timeZone != null && UTC.equals(timeZone) == false) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_TIME_BUCKET_NOT_UTC, esqlDatafeedSubject(datafeedId), timeField, timeZone)
+            );
+        }
         return fixedIntervalMillis(interval).orElseThrow(
             () -> ExceptionsHelper.badRequestException(
                 Messages.getMessage(
-                    Messages.DATAFEED_ESQL_TIME_BUCKET_CALENDAR_INTERVAL,
+                    isCalendarUnit(interval)
+                        ? Messages.DATAFEED_ESQL_TIME_BUCKET_CALENDAR_INTERVAL
+                        : Messages.DATAFEED_ESQL_TIME_BUCKET_UNSUPPORTED_INTERVAL,
                     esqlDatafeedSubject(datafeedId),
                     timeField,
                     interval
@@ -345,11 +355,18 @@ public class EsqlDatafeedQueryValidator {
         );
     }
 
+    private static boolean isCalendarUnit(String interval) {
+        String[] parts = interval.trim().split(" +");
+        String unit = parts[parts.length - 1];
+        unit = unit.endsWith("s") ? unit.substring(0, unit.length() - 1) : unit;
+        return unit.equals("month") || unit.equals("quarter") || unit.equals("year");
+    }
+
     /**
      * Parses an interval as {@code DESCRIBE} writes it, {@code <size> <unit>} with a plural unit when the size is not 1, for example
      * {@code 1 hour} or {@code 90 minutes}. Empty for a calendar interval ({@code month}, {@code quarter}, {@code year}) or a unit
-     * this parser does not know, because its length depends on the date. A {@code day} or {@code week} is fixed because ES|QL
-     * datafeeds bucket in UTC.
+     * this parser does not know, because its length depends on the date. A {@code day} or {@code week} is fixed because
+     * {@link #timeBucketMillis} rejects a bucket that is not in UTC.
      */
     static OptionalLong fixedIntervalMillis(String interval) {
         String[] parts = interval.trim().split(" +");

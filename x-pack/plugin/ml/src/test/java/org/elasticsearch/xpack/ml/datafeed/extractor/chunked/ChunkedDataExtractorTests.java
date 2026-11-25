@@ -1142,6 +1142,32 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
+    public void testEsqlWindowWithinSingleChunkSpanShouldHonorManualChunkSpanWithoutSummary() throws IOException {
+        chunkSpan = TimeValue.timeValueSeconds(100);
+        long start = 0L;
+        long end = 300_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(
+            dataExtractorFactory,
+            createEsqlContext(start, end, ESQL_GROUPING_INTERVAL_MILLIS, 300_000L)
+        );
+        InputStream first = mock(InputStream.class);
+        InputStream second = mock(InputStream.class);
+        InputStream third = mock(InputStream.class);
+        stubChunk(0L, 100_000L, first);
+        stubChunk(100_000L, 200_000L, second);
+        stubChunk(200_000L, 300_000L, third);
+
+        assertNextStream(extractor, first);
+        assertNextStream(extractor, second);
+        assertNextStream(extractor, third);
+        assertNoMoreData(extractor);
+
+        verify(dataExtractorFactory, times(1)).newExtractor(0L, 100_000L);
+        verify(dataExtractorFactory, times(1)).newExtractor(100_000L, 200_000L);
+        verify(dataExtractorFactory, times(1)).newExtractor(200_000L, 300_000L);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
     public void testEsqlWindowEmptyWithinSingleChunkSpanShouldFinishWithoutFurtherQueries() throws IOException {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(

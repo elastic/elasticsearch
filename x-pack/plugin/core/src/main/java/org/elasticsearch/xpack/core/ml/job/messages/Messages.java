@@ -48,8 +48,14 @@ public final class Messages {
     public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
     public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
     public static final String DATAFEED_ESQL_TIME_BUCKET_CALENDAR_INTERVAL =
-        "{0} time column [{1}] is bucketed by the calendar interval [{2}], which has no fixed length. "
+        "{0} time column [{1}] is bucketed by the calendar interval [{2}]. A calendar interval has no fixed length. "
             + "Use a fixed interval such as [1 hour] or [1 day].";
+    public static final String DATAFEED_ESQL_TIME_BUCKET_UNSUPPORTED_INTERVAL =
+        "{0} time column [{1}] is bucketed by the interval [{2}]. ML does not support this interval. "
+            + "Use a fixed interval such as [1 hour] or [1 day].";
+    public static final String DATAFEED_ESQL_TIME_BUCKET_NOT_UTC =
+        "{0} time column [{1}] is bucketed in the time zone [{2}]. ML requires the time zone UTC. "
+            + "Remove the time zone setting from the query.";
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "
             + "project [{1}] in the final ES|QL output.";
@@ -109,8 +115,8 @@ public final class Messages {
     public static final String DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS =
         "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
-    public static final String DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE =
-        "Cannot start {0} because ES|QL skipped the clusters {1} and returned none of the required columns {2}. "
+    public static final String DATAFEED_ESQL_CLUSTERS_UNAVAILABLE =
+        "{0} cannot run because ES|QL skipped the clusters {1} and returned none of the required columns {2}. "
             + "Make sure that the clusters are connected, that the indices in the query exist on them, "
             + "and that the query returns the required columns.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =

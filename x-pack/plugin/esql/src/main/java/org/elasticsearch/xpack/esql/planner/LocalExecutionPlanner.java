@@ -328,6 +328,7 @@ public class LocalExecutionPlanner {
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final Settings settings;
+    private final boolean crossProjectEnabled;
     private final Configuration configuration;
     private final Supplier<ExchangeSource> exchangeSourceSupplier;
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
@@ -421,6 +422,7 @@ public class LocalExecutionPlanner {
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.settings = settings;
+        this.crossProjectEnabled = new CrossProjectModeDecider(settings).crossProjectEnabled();
         this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
@@ -2629,10 +2631,9 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = new Layout.Builder();
         layout.append(eqlSource.output());
         assert executionInfo != null : "an EQL source is planned on the coordinator, which has the execution info";
-        boolean crossProject = new CrossProjectModeDecider(settings).crossProjectEnabled();
         String[] pattern = Strings.splitStringByCommaToArray(eqlSource.indices());
-        String[] indices = EqlRequests.searchableIndices(pattern, executionInfo, crossProject);
-        Set<String> searchedClusters = EqlRequests.searchedClusters(indices, executionInfo.clusterAliases(), crossProject);
+        String[] indices = EqlRequests.searchableIndices(pattern, executionInfo, crossProjectEnabled);
+        Set<String> searchedClusters = EqlRequests.searchedClusters(indices, executionInfo.clusterAliases(), crossProjectEnabled);
         EqlSearchRequest request = indices.length == 0 ? null : eqlRequest(eqlSource, indices);
         return PhysicalOperation.fromSource(
             new EqlSourceOperator.Factory(

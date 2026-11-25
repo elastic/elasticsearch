@@ -272,6 +272,30 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    public void testRemoteClusterSkippedByAnInSubqueryIsNotSearchedByTheMainQuery() throws Exception {
+        setupUserEvents();
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        try {
+            makeRemoteUnavailableToEqlFieldCapsOnly();
+            String query = "FROM "
+                + BOTH_USER_EVENTS
+                + " | WHERE user NOT IN (EQL "
+                + REMOTE_USER_EVENTS
+                + " \""
+                + PROCESSES
+                + "\" | KEEP user) | KEEP user";
+            try (EsqlQueryResponse resp = runQuery(EsqlQueryRequest.syncEsqlQueryRequest(query))) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of("carol"), List.of("carol"))));
+                assertSkipped(resp, query);
+                assertThat(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1).getTotalShards(), equalTo(0));
+                assertThat(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER).getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            }
+        } finally {
+            clearRemoteRules();
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        }
+    }
+
     private static long carolEvents(String eql) {
         return eql.equals(PROCESSES) ? 1L : 2L;
     }

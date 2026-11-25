@@ -193,7 +193,10 @@ public final class EqlRequests {
             return Strings.EMPTY_ARRAY;
         }
         List<String> searchable = new ArrayList<>(List.of(indices));
-        skipped.stream().sorted().forEach(cluster -> searchable.add("-" + cluster + ":*"));
+        skipped.sort(null);
+        for (String cluster : skipped) {
+            searchable.add("-" + cluster + ":*");
+        }
         return searchable.toArray(String[]::new);
     }
 

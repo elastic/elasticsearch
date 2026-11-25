@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -110,7 +111,12 @@ public class EqlSession {
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             if (cluster.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
                 // A cluster skipped because all its shards failed already reports them as shard failures of the search.
-                List<ShardSearchFailure> failures = cluster.getFailures().stream().filter(failure -> failure.shard() == null).toList();
+                List<ShardSearchFailure> failures = new ArrayList<>();
+                for (ShardSearchFailure failure : cluster.getFailures()) {
+                    if (failure.shard() == null) {
+                        failures.add(failure);
+                    }
+                }
                 if (failures.isEmpty() == false || cluster.getFailures().isEmpty()) {
                     skippedClusters.putIfAbsent(clusterAlias, failures);
                 }

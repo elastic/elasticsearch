@@ -33,4 +33,4 @@ After defining what the dataset reads and how to interpret it, [create and manag
 
 Reference the dataset by name in the {{esql}} `FROM` command. To learn how queries discover files and reduce the amount of external data read, refer to [Query data with {{esql}} Data Federation](esql-data-federation-querying.md).
 
-For Amazon VPC Flow Logs, CloudTrail, and Application Load Balancer logs, refer to [Query AWS logs](esql-data-federation-aws-logs.md).
+For Amazon VPC Flow Logs, CloudTrail, and Application Load Balancer logs, refer to [](esql-data-federation-aws-logs.md).

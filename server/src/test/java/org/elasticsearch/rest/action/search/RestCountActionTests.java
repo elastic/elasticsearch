@@ -20,7 +20,6 @@ import java.util.Map;
 public class RestCountActionTests extends RestActionTestCase {
 
     public void testApplyRoutingOrSliceWithPathMultiSlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/tenant-a,tenant-b/_count")
             .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a,tenant-b"))
@@ -33,7 +32,6 @@ public class RestCountActionTests extends RestActionTestCase {
     }
 
     public void testApplyRoutingOrSliceRejectsRoutingAndSliceTogether() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/tenant-a/_count")
             .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a", "routing", "r1"))
@@ -44,19 +42,5 @@ public class RestCountActionTests extends RestActionTestCase {
             () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
         );
         assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
-    }
-
-    public void testApplyRoutingOrSliceRejectsSliceWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/my-index/tenant-a/_count")
-            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a"))
-            .build();
-        SearchRequest countRequest = new SearchRequest();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
-        );
-        assertEquals("request does not support [_slice]", e.getMessage());
     }
 }

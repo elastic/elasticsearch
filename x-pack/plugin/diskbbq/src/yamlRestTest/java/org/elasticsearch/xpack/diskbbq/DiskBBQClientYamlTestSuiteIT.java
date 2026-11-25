@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -23,7 +22,6 @@ public class DiskBBQClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("diskbbq")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.SLICE_INDEXING)
         .build();
 
     public DiskBBQClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

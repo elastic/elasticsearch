@@ -21,11 +21,8 @@ public class IndexFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
         // SLICE_INDEXING gates slice-routing support (e.g. reindex source/dest [_slice]) and must be advertised by real nodes, not only
-        // in the test framework, so it is published here when the feature flag is enabled.
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            return Set.of(SLICE_INDEXING);
-        }
-        return Set.of();
+        // in the test framework.
+        return Set.of(SLICE_INDEXING);
     }
 
     public static final NodeFeature LOGSDB_NO_HOST_NAME_FIELD = new NodeFeature("index.logsdb_no_host_name_field");

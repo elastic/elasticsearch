@@ -110,7 +110,6 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static SearchExecutionContext sliceEnabledMockContext() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         when(context.allowExpensiveQueries()).thenReturn(true);
         Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();

@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -286,7 +285,6 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     public void testBulkSliceRequestParamMappedToRouting() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         AtomicBoolean bulkCalled = new AtomicBoolean(false);
         try (var threadPool = createThreadPool()) {
             final var verifyingClient = new NoOpNodeClient(threadPool) {
@@ -326,7 +324,6 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     public void testBulkSliceMetadataMappedToRouting() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         AtomicBoolean bulkCalled = new AtomicBoolean(false);
         try (var threadPool = createThreadPool()) {
             final var verifyingClient = new NoOpNodeClient(threadPool) {
@@ -363,7 +360,6 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     public void testBulkTopLevelSliceRejectsItemRoutingOverride() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
@@ -394,7 +390,6 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     public void testBulkSliceAndRoutingParamsAreMutuallyExclusive() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
@@ -425,7 +420,6 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     public void testBulkSliceParamRejectedWhenInvalid() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")

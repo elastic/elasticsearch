@@ -1155,7 +1155,6 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
      */
     private static SearchExecutionContext sliceContext(boolean sliceEnabled, SliceSelection slices) {
         if (sliceEnabled) {
-            assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         }
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), sliceEnabled).build();

@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.not;
 public class SliceKeyFieldMapperTests extends MapperServiceTestCase {
 
     private Settings sliceEnabledSettings() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         return Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
     }
 

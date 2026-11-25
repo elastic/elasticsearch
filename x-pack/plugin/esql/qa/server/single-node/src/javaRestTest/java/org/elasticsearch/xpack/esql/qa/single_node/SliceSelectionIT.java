@@ -15,7 +15,6 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -60,7 +59,7 @@ public class SliceSelectionIT extends ESRestTestCase {
     private static final int ALL_DOCS = NEAR_DOCS + FAR_DOCS + OTHER_DOCS;
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(c -> c.feature(FeatureFlag.SLICE_INDEXING));
+    public static ElasticsearchCluster cluster = Clusters.testCluster();
 
     @Override
     protected String getTestRestCluster() {

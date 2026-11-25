@@ -44,7 +44,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -65,11 +64,6 @@ import static org.hamcrest.Matchers.not;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2)
 public class SliceCompositeIdIT extends ESIntegTestCase {
-
-    @Before
-    public void requireSliceFeatureFlag() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

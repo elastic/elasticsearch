@@ -13,11 +13,11 @@ import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 
-public final class ESNextAshBBQVectorsScorer implements AshScorer<ScoringQuery> {
+public final class ES970AshBBQVectorsScorer implements AshScorer<ScoringQuery> {
 
     private final BBQDotProduct dotProduct;
 
-    public ESNextAshBBQVectorsScorer(BBQDotProduct dotProduct) {
+    public ES970AshBBQVectorsScorer(BBQDotProduct dotProduct) {
         this.dotProduct = dotProduct;
     }
 

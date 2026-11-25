@@ -56,10 +56,10 @@ public interface VectorScorerFactory {
     ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
     /** Create a new {@link AshScorer} for the ASH float-query path. */
-    AshScorer<float[]> newESNextAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException;
+    AshScorer<float[]> newES970AshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException;
 
     /** Create a new {@link AshScorer} for the ASH integer-query path. */
-    AshScorer<ScoringQuery> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+    AshScorer<ScoringQuery> newES970AshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException;
 
     ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)

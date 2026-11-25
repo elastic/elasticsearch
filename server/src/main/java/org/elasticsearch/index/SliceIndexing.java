@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 
@@ -31,7 +30,6 @@ public final class SliceIndexing {
     /** Slice identifier name used everywhere: request-side (path segment, per-item body field, msearch header)
      * and as the document metadata field / script-context name. */
     public static final String FIELD_NAME = "_slice";
-    public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");
     public static final TransportVersion REINDEX_DEST_ROUTING_PROVENANCE_VERSION = TransportVersion.fromName(
         "reindex_dest_routing_provenance"
@@ -177,9 +175,6 @@ public final class SliceIndexing {
     public static ParsedRouting parseRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
         final String slice = request.param(FIELD_NAME);
-        if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
-        }
         if (slice != null) {
             validateUserSliceValue(slice);
         }
@@ -202,9 +197,6 @@ public final class SliceIndexing {
     public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request, boolean sliceSupported) {
         final String routing = request.param("routing");
         if (sliceSupported && request.hasParam(FIELD_NAME)) {
-            if (SLICE_FEATURE_FLAG.isEnabled() == false) {
-                throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
-            }
             if (routing != null) {
                 throw new IllegalArgumentException("[routing] is not allowed together with [" + FIELD_NAME + "]");
             }
@@ -236,9 +228,6 @@ public final class SliceIndexing {
      * Also used for the {@code _slice} in an {@code _msearch} metadata line, which is likewise a body-supplied value.
      */
     public static ParsedRouting parsePitSearchSlice(String slice) {
-        if (SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
-        }
         return parseSearchPathSlice(slice);
     }
 
@@ -255,9 +244,6 @@ public final class SliceIndexing {
     public static ParsedRouting parseParamRoutingOrSliceWithProvenance(RestRequest request) {
         final String routing = request.param("routing");
         final String slice = request.param(FIELD_NAME);
-        if (slice != null && SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
-        }
         if (slice != null && routing != null) {
             throw new IllegalArgumentException("[routing] is not allowed together with [" + FIELD_NAME + "]");
         }

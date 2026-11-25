@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -39,8 +38,6 @@ import static org.hamcrest.Matchers.hasSize;
 public class SliceIndexingPitIT extends ESIntegTestCase {
 
     public void testPitSearchOnSliceEnabledIndex() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         String index = "slice-pit-source";
         assertAcked(
             prepareCreate(index).setSettings(
@@ -82,8 +79,6 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
     }
 
     public void testOpenPitWithSliceScopesShards() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         String index = "slice-pit-open";
         assertAcked(
             prepareCreate(index).setSettings(
@@ -126,8 +121,6 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
      * that contains the slice routing, leaving documents on other shards inaccessible.
      */
     public void testOpenPitWithSliceOnlyAffectsMatchingShard() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         String index = "slice-pit-single-shard";
         assertAcked(
             prepareCreate(index).setSettings(

@@ -280,8 +280,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSliceEnabledWritesRoutingOnNestedDocuments() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         Settings settings = Settings.builder()
             .put(getIndexSettings())
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
@@ -313,8 +311,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
      * The slice filter of the search execution context matches the root and nested documents of the selected slices only.
      */
     public void testSliceFilterMatchesSelectedSlices() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         Settings settings = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("n");
@@ -377,8 +373,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
      * scanning {@code _routing} doc values laid out in hash order.
      */
     public void testSliceFilterUsesIndexSortScorer() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         Settings settings = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
@@ -435,8 +429,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSliceEnabledIncludeInParentDoesNotDuplicateRootRouting() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         Settings settings = Settings.builder()
             .put(getIndexSettings())
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)

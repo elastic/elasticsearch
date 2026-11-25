@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.HashSet;
@@ -97,9 +96,7 @@ public class CreateIndexCapabilities {
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
         caps.add(DOC_VALUES_ON_FAILURE_CAPABILITY);
         caps.add(VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY);
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            caps.add(SLICE_INDEXING_CAPABILITY);
-        }
+        caps.add(SLICE_INDEXING_CAPABILITY);
         caps.add(INDEX_SORT_EXPRESSION_CAPABILITY);
         if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
             caps.add(DYNAMIC_FLATTENED_CAPABILITY);

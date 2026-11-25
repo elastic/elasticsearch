@@ -110,9 +110,6 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     }
 
     private static void requireSliceRoutingWhenEnabled(ProjectState state, TermVectorsRequest request, String concreteIndex) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         final boolean sliceEnabled = Optional.ofNullable(state.metadata().index(concreteIndex))
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);

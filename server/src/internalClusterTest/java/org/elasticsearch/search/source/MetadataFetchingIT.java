@@ -13,7 +13,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -198,8 +197,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
     }
 
     public void testFetchSliceField() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.slice.enabled", true)));
         ensureGreen();
 

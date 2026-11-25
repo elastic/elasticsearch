@@ -67,7 +67,6 @@ public class SliceIndexingTests extends ESTestCase {
     }
 
     public void testParseRoutingOrSliceReturnsSliceWhenPresent() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("_slice", "s1")).build();
         SliceIndexing.ParsedRouting parsed = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
         assertThat(parsed.routing(), equalTo("s1"));
@@ -75,7 +74,6 @@ public class SliceIndexingTests extends ESTestCase {
     }
 
     public void testParseRoutingOrSliceRejectsWhenBothPresent() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("routing", "r1", "_slice", "s1")).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -84,18 +82,7 @@ public class SliceIndexingTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
     }
 
-    public void testParseRoutingOrSliceRejectsSliceWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("_slice", "s1")).build();
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> SliceIndexing.parseRoutingOrSliceWithProvenance(request)
-        );
-        assertThat(ex.getMessage(), containsString("request does not support [_slice]"));
-    }
-
     public void testParseRoutingOrSliceFromPathSlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/tenant-a/_doc/1")
             .withParams(Map.of("index", "my-index", "id", "1", "_slice", "tenant-a"))
             .build();
@@ -112,7 +99,6 @@ public class SliceIndexingTests extends ESTestCase {
     }
 
     public void testParseSearchRoutingFromPathSlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/tenant-a/_search")
             .withParams(Map.of("index", "my-index", "_slice", "tenant-a"))
             .build();
@@ -122,7 +108,6 @@ public class SliceIndexingTests extends ESTestCase {
     }
 
     public void testParseSearchRoutingFromMultiSlicePath() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/tenant-a,tenant-b/_search")
             .withParams(Map.of("index", "my-index", "_slice", "tenant-a,tenant-b"))
             .build();
@@ -136,7 +121,6 @@ public class SliceIndexingTests extends ESTestCase {
      * slice that is not one is no restriction at all.
      */
     public void testParseSearchRoutingRejectsInvalidPathSlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         for (String slice : new String[] { "_all", "_reserved", "tenant a", "tenant-a,_all" }) {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/" + slice + "/_search")
                 .withParams(Map.of("index", "my-index", "_slice", slice))
@@ -150,7 +134,6 @@ public class SliceIndexingTests extends ESTestCase {
     }
 
     public void testParseSearchRoutingFromPathSliceWithMultiIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/index-a,index-b/tenant-a/_search")
             .withParams(Map.of("index", "index-a,index-b", "_slice", "tenant-a"))
             .build();
@@ -160,7 +143,6 @@ public class SliceIndexingTests extends ESTestCase {
     }
 
     public void testParseSearchRoutingRejectsPathSliceWithRouting() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/tenant-a/_search")
             .withParams(Map.of("index", "my-index", "_slice", "tenant-a", "routing", "r1"))
             .build();
@@ -172,7 +154,6 @@ public class SliceIndexingTests extends ESTestCase {
     }
 
     public void testParseSearchRoutingFromSliceParam() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_search")
             .withParams(Map.of("index", "my-index", "_slice", "tenant-a"))
             .build();

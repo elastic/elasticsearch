@@ -1247,24 +1247,21 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testAshFallingBackToOsqKeepsDefaultBits() throws IOException {
         assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
 
-        // ASH is not available without experimental features or on indices created before it, so an ASH mapping is
-        // written with an OSQ format at the ASH default bits. Query time must use the same bits rather than the dims tier.
-        IndexVersion preAshVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE);
-        List<Tuple<IndexVersion, Settings>> fallbacks = List.of(
-            Tuple.tuple(IndexVersion.current(), EXPERIMENTAL_FEATURES_DISABLED),
-            Tuple.tuple(preAshVersion, EXPERIMENTAL_FEATURES_ENABLED)
-        );
-        for (Tuple<IndexVersion, Settings> fallback : fallbacks) {
-            for (int dims : new int[] { 384, 1024, 3072 }) {
-                String message = "version [" + fallback.v1() + "] dims [" + dims + "]";
-                MapperService mapperService = createMapperService(fallback.v1(), fallback.v2(), ashMapping(dims, null, null));
-                var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
-                assertFalse(message, indexOptions.usesAshFormat());
-                assertNull(message, indexOptions.getBits());
-                assertEquals(message, 2, indexOptions.resolve(null).bits());
-                assertEquals(message, 2, indexOptions.resolve(dims).bits());
-                assertEquals(message, 1.5f, indexOptions.resolve(dims).rescoreVector().oversample(), 0f);
-            }
+        // ASH is not available without experimental features, so an ASH mapping is written with an OSQ format at the
+        // ASH default bits. Query time must use the same bits rather than the dims tier.
+        for (int dims : new int[] { 384, 1024, 3072 }) {
+            String message = "dims [" + dims + "]";
+            MapperService mapperService = createMapperService(
+                IndexVersion.current(),
+                EXPERIMENTAL_FEATURES_DISABLED,
+                ashMapping(dims, null, null)
+            );
+            var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
+            assertFalse(message, indexOptions.usesAshFormat());
+            assertNull(message, indexOptions.getBits());
+            assertEquals(message, 2, indexOptions.resolve(null).bits());
+            assertEquals(message, 2, indexOptions.resolve(dims).bits());
+            assertEquals(message, 1.5f, indexOptions.resolve(dims).rescoreVector().oversample(), 0f);
         }
 
         MapperService ashService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(3072, null, null));
@@ -1406,6 +1403,89 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .indexOptions(indexOptions)
                 .build(b)
         );
+    }
+
+    public void testBBQDiskByteRejectedOnPre97Index() throws IOException {
+        IndexVersion preByteVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISKBBQ_ES970_FORMAT);
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                preByteVersion,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("element_type", "byte")
+                        .field("dims", 8)
+                        .field("index", true)
+                        .field("similarity", "dot_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[element_type] [byte] is not supported with index type [bbq_disk]"));
+        assertThat(e.getMessage(), containsString("on indices created before version"));
+    }
+
+    public void testBBQDiskByteAcceptedOn97Index() throws IOException {
+        MapperService mapperService = createMapperService(
+            IndexVersions.DISKBBQ_ES970_FORMAT,
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("element_type", "byte")
+                    .field("dims", 8)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .endObject()
+            )
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertEquals(ElementType.BYTE, mapper.fieldType().getElementType());
+    }
+
+    public void testBBQDiskAshRejectedOnPre97Index() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+        IndexVersion preAshVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISKBBQ_ES970_FORMAT);
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                preAshVersion,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 64)
+                        .field("index", true)
+                        .field("similarity", "max_inner_product")
+                        .startObject("index_options")
+                        .field("type", "bbq_disk")
+                        .field("quantization_type", "ash")
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("quantization_type 'ash' is not supported on indices created before version"));
+    }
+
+    public void testBBQDiskAshAcceptedOn97Index() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+        MapperService mapperService = createMapperService(
+            IndexVersions.DISKBBQ_ES970_FORMAT,
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 64)
+                    .field("index", true)
+                    .field("similarity", "max_inner_product")
+                    .startObject("index_options")
+                    .field("type", "bbq_disk")
+                    .field("quantization_type", "ash")
+                    .endObject()
+            )
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType()
+            .getIndexOptions();
+        assertEquals(DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH, indexOptions.getQuantizationType());
     }
 
     public void testRescoreVectorForNonQuantized() {

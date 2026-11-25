@@ -23,7 +23,7 @@ FILLNULL fill_value ON columns
 `columns`
 :   A comma-separated list of column names and wildcard patterns to fill, for example `gender`, `a, b`, or `*_name`. Use `*` to target every column.
 
-    `*` targets only the query's own columns; it never targets metadata columns such as `_index` or `_score`, even when the data comes from an ordinary [`FROM`](/reference/query-languages/esql/commands/from.md). Name a metadata column explicitly to target it.
+    A bare `*` targets only the query's own columns; it never targets metadata columns such as `_index` or `_score`, even when the data comes from an ordinary [`FROM`](/reference/query-languages/esql/commands/from.md). This exclusion applies only to bare `*`: to target a metadata column, name it, or use a wildcard pattern that matches it, such as `_ind*` for `_index`.
 
 ## Description
 
@@ -33,11 +33,11 @@ A literal `fill_value` is applied to every targeted column whose type it fits. A
 
 `DEFAULT` fills each targeted column with a default for its type: `0` for numeric types, an empty string for `keyword` and `text`, and `false` for `boolean`. Other types have no default and are left unchanged, with a warning. Some of them can still be filled with an explicit value even though they have no default: `datetime`, `date_nanos`, `ip`, and `version` accept a string. The rest — spatial types such as `geo_point`, ranges, histograms, counter fields, and `aggregate_metric_double` — cannot be filled at all, neither by `DEFAULT` nor by an explicit value.
 
-Targeting works the same for named columns, wildcard patterns, and `*`, and listing `*` together with a name or pattern still targets every column. A column that resolves but whose type the value does not fit is skipped with a warning rather than failing the query. A target that does not resolve is different: an unknown column name, or a wildcard pattern that matches no column, fails the query with a verification error, even when `*` is listed alongside it.
+Targeting works the same for named columns, wildcard patterns, and `*`, and listing `*` together with a name or pattern still targets every column. A column that resolves but whose type the value does not fit is skipped with a warning rather than failing the query. A target that does not resolve is different: an unknown column name, or a wildcard pattern that matches no column, fails the query with a verification error, even when `*` is listed alongside it. This assumes the default handling of unmapped fields; if [`SET unmapped_fields`](/reference/query-languages/esql/esql-unmapped-fields.md) is set to `LOAD` or `LOAD_ALL`, a name that is absent from the mapping resolves as an unmapped column instead of failing, and `FILLNULL` can fill it.
 
 When `ON *` runs after a union of sources, such as a multi-index or subquery [`FROM`](/reference/query-languages/esql/commands/from.md) or a [`FORK`](/reference/query-languages/esql/commands/fork.md), a metadata column such as `_index` that is null on some rows is left alone. Name it explicitly to fill it.
 
-All the `FILLNULL` commands in a query share a limit on how many columns they may fill (`esql.query.max_fillnull_fields`, 1,000 by default; each `FORK` branch and view reference that runs one counts toward it). A query that would exceed the limit is rejected rather than filling a subset, so with wide data prefer naming the columns you need, or narrow the input with [`KEEP`](/reference/query-languages/esql/commands/keep.md) or [`DROP`](/reference/query-languages/esql/commands/drop.md) before `FILLNULL ... ON *`.
+The columns filled by all the `FILLNULL` commands in a single query share a limit (`esql.query.max_fillnull_fields`, 1,000 by default), and each `FORK` branch and view reference that runs one counts toward that query's total. An `IN` subquery runs as a query of its own with its own budget, so its columns are not added to the outer query's total. A query that would exceed its limit is rejected rather than filling a subset, so with wide data prefer naming the columns you need, or narrow the input with [`KEEP`](/reference/query-languages/esql/commands/keep.md) or [`DROP`](/reference/query-languages/esql/commands/drop.md) before `FILLNULL ... ON *`.
 
 ## Examples
 

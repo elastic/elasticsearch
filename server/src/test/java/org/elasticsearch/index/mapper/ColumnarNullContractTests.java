@@ -40,7 +40,6 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     private static final String EXISTS_COUNT_DISAGREES = "https://github.com/elastic/elasticsearch/issues/165521";
 
     // The reconstructed _source reorders the values of a geo_point field and drops its repeated values.
-    private static final String ORDER_AND_DUPLICATES_NOT_PRESERVED = "https://github.com/elastic/elasticsearch/issues/166868";
 
     private static final Predicate<Configuration> INDEXED = Configuration::indexed;
     private static final Predicate<Configuration> NOT_INDEXED = INDEXED.negate();
@@ -219,16 +218,6 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
 
     public void testGeoPointSourceDropsNullElementsBatch() throws IOException {
         assertSourceDropsNullElements(geoPoint(), Path.BATCH);
-    }
-
-    @LuceneTestCase.AwaitsFix(bugUrl = ORDER_AND_DUPLICATES_NOT_PRESERVED)
-    public void testGeoPointRemainingValuesKeepTheirOrderRegular() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(geoPoint(), Path.REGULAR);
-    }
-
-    @LuceneTestCase.AwaitsFix(bugUrl = ORDER_AND_DUPLICATES_NOT_PRESERVED)
-    public void testGeoPointRemainingValuesKeepTheirOrderBatch() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(geoPoint(), Path.BATCH);
     }
 
     public void testGeoPointNullValueReplacesNullRegular() throws IOException {

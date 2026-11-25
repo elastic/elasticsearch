@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.versionfield;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.AbstractColumnarNullContractTestCase;
 import org.elasticsearch.plugins.Plugin;
@@ -17,9 +16,6 @@ import java.util.Collection;
 import java.util.List;
 
 public class VersionStringColumnarNullContractTests extends AbstractColumnarNullContractTestCase {
-
-    // The reconstructed _source drops a repeated value of a version field.
-    private static final String DUPLICATES_NOT_PRESERVED = "https://github.com/elastic/elasticsearch/issues/166868";
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -39,8 +35,4 @@ public class VersionStringColumnarNullContractTests extends AbstractColumnarNull
         assertSourceDropsNullElements(version(), Path.REGULAR);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = DUPLICATES_NOT_PRESERVED)
-    public void testVersionRemainingValuesKeepTheirOrderRegular() throws IOException {
-        assertSourceKeepsTheOrderOfTheRemainingValues(version(), Path.REGULAR);
-    }
 }

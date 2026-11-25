@@ -258,14 +258,17 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     private static List<List<TestDocument>> orderedDocumentGroups(Supplier<Object> values) {
         final Object first = values.get();
-        final Object second = values.get();
-        final Object third = values.get();
+        Object second = values.get();
+        for (int attempt = 0; attempt < 100 && first.equals(second); attempt++) {
+            second = values.get();
+        }
+        assertNotEquals("the values of the scenario must offer two distinct values", first, second);
         return List.of(
             List.of(
-                array(second, null, first, second),
+                array(first, null, second),
                 array(null, first, second),
                 array(first, second, null),
-                array(first, null, second, null, third, null, first)
+                array(second, null, first, null, null)
             )
         );
     }

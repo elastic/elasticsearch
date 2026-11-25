@@ -29,6 +29,7 @@ import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -899,6 +900,91 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // an exclusion only cancels inclusions that precede it
         assertThat(EsqlCCSUtils.concreteIndexRequested("-index-1,index-1"), equalTo(true));
         assertThat(EsqlCCSUtils.concreteIndexRequested("index-1,-index-1,index-1"), equalTo(true));
+    }
+
+    public void testConcreteIndexRequestedWithExclusionsAndSelectors() {
+        // no selector and ::data name the same component
+        assertThat(EsqlCCSUtils.concreteIndexRequested("ds,-ds::data"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("ds::data,-ds"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("ds::failures,-ds::failures"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("ds::failures,-ds*::failures"), equalTo(false));
+        // an exclusion only removes its own component, and a wildcard never matches the selector text
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing::failures,-missing"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing::failures,-missing*"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing::failures,-*"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing,-missing::failures"), equalTo(true));
+    }
+
+    public void testConcreteIndexRequestedWithExclusionsAndClusters() {
+        // an unqualified exclusion is local, it never removes a remote name
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:missing,-*"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:missing,-missing"), equalTo(true));
+        // a qualified exclusion only removes names on the clusters it is qualified with
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing,remote:-missing"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing,remote:-*"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:missing,remote:-*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:missing,rem*:-missing"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("remote:missing,-remote:missing"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing,remote:missing,-missing"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing,remote:missing,-missing,remote:-missing"), equalTo(false));
+    }
+
+    public void testConcreteIndexRequestedWithManyExclusions() {
+        // runs of consecutive exclusions are applied together
+        int count = between(100, 2000);
+        List<String> parts = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            parts.add("missing-" + i);
+        }
+        for (int i = 0; i < count; i++) {
+            parts.add("-other-" + i + "*");
+        }
+        assertThat(EsqlCCSUtils.concreteIndexRequested(String.join(",", parts)), equalTo(true));
+        parts.add("-missing-*");
+        assertThat(EsqlCCSUtils.concreteIndexRequested(String.join(",", parts)), equalTo(false));
+    }
+
+    public void testConcreteIndexRequestedPerPattern() {
+        // exclusions apply within their own pattern only
+        assertThat(EsqlCCSUtils.concreteIndexRequested(List.of("missing", "zzz*,-missing")), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested(List.of("missing,-missing", "zzz*")), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested(List.of()), equalTo(false));
+    }
+
+    /**
+     * Two source patterns on the same cluster, say {@code FROM missing, v} where view {@code v} is
+     * {@code FROM zzz*,-missing}. The view's exclusion must not cancel the outer {@code missing}.
+     */
+    public void testUpdateExecutionInfoWithClustersWithNoMatchingIndicesKeepsPatternsApart() {
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.initCluster(LOCAL_CLUSTER_ALIAS, EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "missing");
+        executionInfo.initCluster(LOCAL_CLUSTER_ALIAS, EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "zzz*,-missing");
+        assertThat(executionInfo.getCluster(LOCAL_CLUSTER_ALIAS).getIndexExpression(), equalTo("missing,zzz*,-missing"));
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                executionInfo,
+                List.of(IndexResolution.empty("missing"), IndexResolution.empty("zzz*,-missing")),
+                Set.of(),
+                IndexViewOrigins.EMPTY,
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown index [missing,zzz*,-missing]"));
+
+        // the same two patterns with the cancellation inside one of them are an empty result
+        EsqlExecutionInfo cancelled = createEsqlExecutionInfo(true);
+        cancelled.initCluster(LOCAL_CLUSTER_ALIAS, EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "missing,-missing");
+        cancelled.initCluster(LOCAL_CLUSTER_ALIAS, EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "zzz*");
+        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+            cancelled,
+            List.of(IndexResolution.empty("missing,-missing"), IndexResolution.empty("zzz*")),
+            Set.of(),
+            IndexViewOrigins.EMPTY,
+            false
+        );
+        assertThat(cancelled.getCluster(LOCAL_CLUSTER_ALIAS).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
     }
 
     public void testConcreteIndexRequestedWithEmptySegments() {

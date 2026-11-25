@@ -5518,9 +5518,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Off (the default): the wildcard reaches neither dataset. An exclusion only removes names, so it is
         // never a concrete request of its own, and the query is an empty success as in the bare-wildcard case.
         try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(1));
-            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
         }
 
         // On: employees* matches both, exclusion of employees_alt leaves only employees (3 rows)

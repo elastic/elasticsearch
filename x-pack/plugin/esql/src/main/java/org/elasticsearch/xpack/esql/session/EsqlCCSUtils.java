@@ -12,10 +12,13 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -41,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -219,7 +223,7 @@ public class EsqlCCSUtils {
          */
         for (String c : clustersWithNoMatchingIndices) {
             var cluster = executionInfo.getCluster(c);
-            if (concreteIndexRequested(cluster.getIndexExpression())) {
+            if (concreteIndexRequested(executionInfo.getIndexExpressions(c))) {
                 String error = unknownIndexError(cluster.getQualifiedIndexExpression(), indexViewOrigins);
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
@@ -313,54 +317,100 @@ public class EsqlCCSUtils {
     }
 
     /**
+     * Whether any of the expressions, each the part of one source pattern, requests a concrete index.
+     * See {@link #concreteIndexRequested(String)}.
+     */
+    static boolean concreteIndexRequested(List<String> indexExpressions) {
+        for (String indexExpression : indexExpressions) {
+            if (concreteIndexRequested(indexExpression)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Whether the expression names at least one concrete (non-wildcard) index that must exist, so that resolving
      * it to nothing is an "Unknown index" error rather than an empty result. Exclusions only ever remove names, so
      * they are never requests on their own, and a concrete inclusion stops counting once a later exclusion removes
      * it, mirroring the ordered evaluation in {@code IndexNameExpressionResolver}: {@code index-1,-index-1} and
      * {@code index-1,-index*} request nothing, while {@code index-1,index-2,-index-2} still requests {@code index-1}.
+     * <p>
+     * As in the resolver, an exclusion only removes names on its own cluster ({@code -*} is local, {@code remote:-*}
+     * is remote) and with its own selector (no selector means {@code ::data}). The expression must be a single
+     * source pattern: exclusions never reach across from one pattern to another.
      */
     // visible for testing
     static boolean concreteIndexRequested(String indexExpression) {
         if (Strings.isNullOrBlank(indexExpression)) {
             return false;
         }
-        Set<String> concreteInclusions = new HashSet<>();
+        Set<ConcreteName> concreteInclusions = new HashSet<>();
+        // Consecutive exclusions are applied together, so a long run of them is one pass over the inclusions.
+        Map<ExclusionScope, List<String>> pendingExclusions = new HashMap<>();
         for (String expr : indexExpression.split(",")) {
-            if (expr.isEmpty()) {
+            if (expr.isEmpty() || expr.startsWith("<") || expr.startsWith("-<")) {
+                // skip empty segments and date math expressions
                 continue;
             }
-            if (expr.startsWith("<") || expr.startsWith("-<")) {
-                // skip date math expressions
+            boolean exclusion = expr.startsWith("-");
+            RemoteClusterAware.QualifiedIndexExpression qualified = RemoteClusterAware.splitIndexName(exclusion ? expr.substring(1) : expr);
+            String local = qualified.indexExpression();
+            if (exclusion == false && qualified.clusterAlias() != null && local.startsWith("-")) {
+                exclusion = true;
+                local = local.substring(1);
+            }
+            if (local.startsWith("<")) {
+                // skip remote date math expressions
                 continue;
             }
-            String excluded = exclusionTarget(expr);
-            if (excluded != null) {
-                if (Regex.isSimpleMatchPattern(excluded)) {
-                    concreteInclusions.removeIf(included -> Regex.simpleMatch(excluded, included));
-                } else {
-                    concreteInclusions.remove(excluded);
+            Tuple<String, String> resourceAndSelector = IndexNameExpressionResolver.splitSelectorExpression(local);
+            String resource = resourceAndSelector.v1();
+            String selector = resourceAndSelector.v2() == null ? IndexComponentSelector.DATA.getKey() : resourceAndSelector.v2();
+            if (exclusion) {
+                pendingExclusions.computeIfAbsent(new ExclusionScope(qualified.clusterAlias(), selector), k -> new ArrayList<>())
+                    .add(resource);
+            } else {
+                applyExclusions(concreteInclusions, pendingExclusions);
+                if (expr.indexOf('*') < 0) {
+                    concreteInclusions.add(new ConcreteName(qualified.getClusterGroupingKey(), resource, selector));
                 }
-            } else if (expr.indexOf('*') < 0) {
-                concreteInclusions.add(expr);
             }
         }
+        applyExclusions(concreteInclusions, pendingExclusions);
         return concreteInclusions.isEmpty() == false;
     }
 
+    private static void applyExclusions(Set<ConcreteName> concreteInclusions, Map<ExclusionScope, List<String>> pendingExclusions) {
+        if (pendingExclusions.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<ExclusionScope, List<String>> entry : pendingExclusions.entrySet()) {
+            ExclusionScope scope = entry.getKey();
+            // A single matcher over all the patterns, compiled to one automaton when there are wildcards.
+            Predicate<String> excluded = Regex.simpleMatcher(entry.getValue().toArray(String[]::new));
+            concreteInclusions.removeIf(name -> scope.contains(name) && excluded.test(name.resource()));
+        }
+        pendingExclusions.clear();
+    }
+
     /**
-     * If {@code expr} is an exclusion ({@code -index} or {@code cluster:-index}), the expression it excludes,
-     * qualified the same way as the inclusion it would cancel; otherwise {@code null}.
+     * A concrete inclusion: the cluster grouping key, the index, alias, view or data stream name, and its selector.
      */
-    @Nullable
-    private static String exclusionTarget(String expr) {
-        if (expr.startsWith("-")) {
-            return expr.substring(1);
+    private record ConcreteName(String cluster, String resource, String selector) {}
+
+    /**
+     * Where an exclusion applies: the cluster alias or alias pattern it was qualified with ({@code null} for the local
+     * cluster), and its selector.
+     */
+    private record ExclusionScope(@Nullable String clusterPattern, String selector) {
+        boolean contains(ConcreteName name) {
+            if (selector.equals(name.selector()) == false) {
+                return false;
+            }
+            boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(name.cluster());
+            return clusterPattern == null ? local : local == false && Regex.simpleMatch(clusterPattern, name.cluster());
         }
-        RemoteClusterAware.QualifiedIndexExpression qualified = RemoteClusterAware.splitIndexName(expr);
-        if (qualified.clusterAlias() != null && qualified.indexExpression().startsWith("-")) {
-            return qualified.clusterAlias() + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + qualified.indexExpression().substring(1);
-        }
-        return null;
     }
 
     // visible for testing

@@ -150,6 +150,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // What the computes that failed did: a failure carries no DriverCompletionInfo, unlike a compute that succeeds. Created when
     // the first one is added, which is never for most queries.
     private final transient AtomicReference<DriverCompletionInfo.AtomicAccumulator> failedWork = new AtomicReference<>();
+    /**
+     * The index expression each source pattern contributed to a cluster, one entry per pattern. {@link Cluster#getIndexExpression()}
+     * joins them with commas for display, which loses where one pattern ends and the next starts. Exclusions only apply within
+     * their own pattern, so checking whether a cluster was asked for a concrete index needs them apart. Coordinator-only, not
+     * serialized.
+     */
+    private final transient Map<String, List<String>> indexExpressionsByCluster = new ConcurrentHashMap<>();
 
     private final EsqlQueryProfile queryProfile;
 
@@ -369,6 +376,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * This creates an initial Cluster object with indexExpression and skipUnavailable.
      */
     public void initCluster(String clusterAlias, String localCusterName, String indexExpression) {
+        if (Strings.isNullOrBlank(indexExpression) == false) {
+            indexExpressionsByCluster.computeIfAbsent(clusterAlias, k -> new CopyOnWriteArrayList<>()).add(indexExpression);
+        }
         swapCluster(clusterAlias, (ca, previous) -> {
             var expr = indexExpression;
             if (previous != null) {
@@ -379,6 +389,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             var displayClusterAlias = Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? localCusterName : null;
             return new Cluster(clusterAlias, displayClusterAlias, expr);
         });
+    }
+
+    /**
+     * The index expressions registered for the cluster through {@link #initCluster}, one per source pattern, or the cluster's
+     * joined {@link Cluster#getIndexExpression()} when none were registered on this instance (for example after deserialization).
+     */
+    public List<String> getIndexExpressions(String clusterAlias) {
+        List<String> expressions = indexExpressionsByCluster.get(clusterAlias);
+        if (expressions != null) {
+            return expressions;
+        }
+        Cluster cluster = clusterInfo.get(clusterAlias);
+        return cluster == null || Strings.isNullOrBlank(cluster.getIndexExpression()) ? List.of() : List.of(cluster.getIndexExpression());
     }
 
     /**

@@ -194,14 +194,28 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             assertOk(response);
             assertResultConcreteIndices(response);// concrete include cancelled by a wildcard exclude
         }
-        try (var response = run(syncEsqlQueryRequest("FROM index-1,index-2,-index-2 METADATA _index"))) {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    randomFrom(
+                        "FROM index-1,index-2,-index-2 METADATA _index",
+                        "FROM index-2,index-1,-index-2 METADATA _index",
+                        "FROM index-2,-index-2,index-1 METADATA _index"
+                    )
+                )
+            )
+        ) {
             assertOk(response);
             assertResultConcreteIndices(response, "index-1");// only one of the concrete includes is cancelled
         }
+        try (var response = run(syncEsqlQueryRequest("FROM index-1,-index-2,index-2 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1", "index-2");// exclusions only affect expressions before them
+        }
         expectThrows(
             VerificationException.class,
-            containsString("Unknown index [-index-1,no-such-index]"),
-            () -> run(syncEsqlQueryRequest("FROM -index-1,no-such-index"))
+            containsString("Unknown index [-no-such-index,no-such-index]"),
+            () -> run(syncEsqlQueryRequest("FROM -no-such-index,no-such-index"))
         );// an exclusion only cancels includes that precede it
     }
 

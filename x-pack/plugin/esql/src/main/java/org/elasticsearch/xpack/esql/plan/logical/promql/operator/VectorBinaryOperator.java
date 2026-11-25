@@ -603,7 +603,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 buildFields,
                 added,
                 setOperator == false && match.grouping() == Joining.NONE,
-                unless ? JoinTypes.LEFT : JoinTypes.INNER
+                unless ? JoinTypes.LEFT : JoinTypes.INNER,
+                false
             );
             labels = resultLabels(context, probeLabels, oneLabels);
         }

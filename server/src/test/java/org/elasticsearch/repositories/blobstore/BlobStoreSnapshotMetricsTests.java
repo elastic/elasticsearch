@@ -253,6 +253,10 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
 
     private BlobStoreSnapshotMetrics getBlobStoreSnapshotMetrics(ProjectId projectId) {
         RepositoryMetadata repoMetadata = new RepositoryMetadata("repo", "type", Settings.EMPTY);
-        return new BlobStoreSnapshotMetrics(projectId, repoMetadata, new SnapshotMetrics(new RecordingMeterRegistry()));
+        return new BlobStoreSnapshotMetrics(
+            projectId,
+            repoMetadata,
+            new SnapshotMetrics(new RecordingMeterRegistry(), m -> {}, m -> {}, m -> {}, m -> {})
+        );
     }
 }

@@ -1,0 +1,8 @@
+FROM employees
+| SORT first_name
+| LIMIT 10
+| DROP last_name
+| KEEP first_name
+| EVAL a = 12
+| SORT first_name
+| LIMIT 100

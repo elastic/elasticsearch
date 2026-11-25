@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
+import org.apache.parquet.filter2.predicate.Operators;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -25,11 +28,17 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PatternPrefixBound;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -47,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +66,7 @@ import static org.apache.parquet.schema.LogicalTypeAnnotation.dateType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.decimalType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.float16Type;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.stringType;
+import static org.apache.parquet.schema.LogicalTypeAnnotation.timeType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.timestampType;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
@@ -77,7 +88,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     // --- TIMESTAMP_MILLIS (INT64) ---
@@ -538,46 +549,194 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     /**
-     * A physical {@code TIME(MICROS)} column maps to LONG at inference, so a declared {@code date_nanos} over
-     * it is reachable once {@code supports(LONG, DATE_NANOS)} holds. TIME is nanos-of-day, not an epoch — and
-     * {@code isMicrosTimestamp} tests the Timestamp annotation, so before the allow-list a Time annotation fell
-     * through to divisor 1 while the scan separately scales x1_000: a guaranteed mis-prune. Both the comparison
-     * and the IN path must decline.
+     * A physical {@code TIME(MICROS)} column reads as {@code date_nanos} holding a nanosecond-of-day, while the
+     * footer statistics hold the raw microseconds — so the bound must be scaled down by 1_000 before it is pushed,
+     * exactly as for a {@code TIMESTAMP(MICROS)} column. Pushing the nanosecond literal verbatim would prune row
+     * groups the query matches, so the test asserts the scaled value is there and the unscaled one is not.
      */
-    public void testDeclaredDateNanosOverTimeColumnDeclinesPushdown() {
+    public void testDateNanosOverTimeColumnPushesTheScaledBound() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("t")
+            .named("test");
+        long nanosOfDay = 43_200_000_000_000L; // 12:00:00
+        long microsOfDay = nanosOfDay / 1_000L;
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATE_NANOS), lit(nanosOfDay, DataType.DATE_NANOS), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull("date_nanos over TIME(MICROS) is a plain unit scale and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(microsOfDay)));
+        assertThat("the nanosecond literal never reaches the footer", fp.toString(), not(containsString(String.valueOf(nanosOfDay))));
+
+        Expression inExpr = new In(Source.EMPTY, attr("t", DataType.DATE_NANOS), List.of(lit(nanosOfDay, DataType.DATE_NANOS)));
+        FilterPredicate inFp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull("date_nanos IN over TIME(MICROS) must push", inFp);
+        assertThat(inFp.toString(), containsString(String.valueOf(microsOfDay)));
+    }
+
+    /**
+     * An {@code INT32} {@code TIME(MILLIS)} column reads as {@code date}, and its stored millisecond of day IS the
+     * epoch-millis value a literal carries, so the bound pushes unscaled against the physical {@code intColumn}.
+     * This column pushed through the LONG arm before it became temporal; the assertion that the day scale is NOT
+     * applied is what separates the new arm from the {@code DATE} arm beside it.
+     */
+    public void testDatetimeOverInt32TimeMillisColumnPushesUnscaled() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int millisOfDay = 37_230_000; // 10:20:30
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATETIME), datetimeLit(millisOfDay), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull("a millisecond of day is already the epoch-millis value and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(millisOfDay)));
+        // Under the DATE arm's day scale the bound would floor to 0, which prunes nothing and reads as a pass.
+        assertThat("the day scale belongs to DATE, not TIME", fp.toString(), not(containsString("(t, 0)")));
+    }
+
+    /**
+     * The same column under {@code IN}, which is a separate translator and was missed when the comparison arm was
+     * added. Before TIME became temporal this set pushed through {@code translateLongIn}'s {@code INT32} arm, so a
+     * decline here is a pruning regression against main rather than a pre-existing gap.
+     * {@code integralDecodeScalesRelativeToRawStats} returns {@code false} for {@code TIME(MILLIS)}, which is what
+     * let the LONG path push it, and that method is unchanged.
+     */
+    public void testDatetimeInOverInt32TimeMillisColumnPushesUnscaled() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int morning = 37_230_000; // 10:20:30
+        int evening = 73_830_000; // 20:30:30
+
+        Expression in = new In(Source.EMPTY, attr("t", DataType.DATETIME), List.of(datetimeLit(morning), datetimeLit(evening)));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(in)).toFilterPredicate(schema);
+        assertNotNull("an IN over a millisecond-of-day column must push, as it did before TIME became temporal", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(morning)));
+        assertThat(fp.toString(), containsString(String.valueOf(evening)));
+    }
+
+    /**
+     * A literal outside {@code int} range is dropped from the pushed set rather than declining the whole predicate.
+     * The remaining set is an exact subset, which is what keeps it correct when the {@code IN} is wrapped in
+     * {@code NOT} -- the {@code DATE} arm beside it can only drop whole literals for the same reason.
+     */
+    public void testDatetimeInOverInt32TimeMillisDropsOutOfRangeLiteral() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int morning = 37_230_000;
+
+        Expression in = new In(
+            Source.EMPTY,
+            attr("t", DataType.DATETIME),
+            List.of(datetimeLit(morning), datetimeLit(Integer.MAX_VALUE + 1L))
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(in)).toFilterPredicate(schema);
+        assertNotNull("the in-range literal still pushes", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(morning)));
+    }
+
+    /**
+     * {@code TIME(NANOS)} is the identity: the file's unit is the block's, so the bound pushes unchanged. Pinned
+     * beside the {@code MICROS} case so a fix that scales every TIME unit by 1_000 fails here.
+     */
+    public void testDateNanosOverTimeNanosColumnPushesUnscaled() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("t")
+            .named("test");
+        long nanosOfDay = 43_200_000_000_123L;
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATE_NANOS), lit(nanosOfDay, DataType.DATE_NANOS), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanosOfDay)));
+    }
+
+    /**
+     * The complement of the decline below: a declared {@code long} over a {@code TIME(NANOS)} column pushes the
+     * literal unchanged, because {@code castBlock(DATE_NANOS -> LONG)} is the identity and the footer already holds
+     * that same nanosecond-of-day. Pinned so that widening the decline to every {@code TIME} unit loses pruning
+     * loudly rather than silently.
+     */
+    public void testDeclaredLongOverTimeNanosColumnPushes() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("t")
+            .named("test");
+        long nanosOfDay = 43_200_000_000_123L;
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.LONG), lit(nanosOfDay, DataType.LONG), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull("a long bound over TIME(NANOS) is the identity and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanosOfDay)));
+    }
+
+    /**
+     * A {@code TIME(MICROS)} column DECLARED as an integral type is the case that must still decline: the decode
+     * then hands back the nanosecond-of-day as a plain number while the footer holds microseconds, and an integral
+     * predicate carries no unit to reconcile them. {@code integralDecodeScalesRelativeToRawStats} owns that decline
+     * and is the reason the inventory keeps its TIME arm.
+     */
+    public void testDeclaredLongOverTimeMicrosColumnDeclinesPushdown() {
         MessageType schema = Types.buildMessage()
             .required(INT64)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
             .named("t")
             .named("test");
 
-        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATE_NANOS), lit(43_200_000_000_000L, DataType.DATE_NANOS), null);
-        assertNull("date_nanos over TIME(MICROS) must not push", new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema));
-
-        Expression inExpr = new In(Source.EMPTY, attr("t", DataType.DATE_NANOS), List.of(lit(43_200_000_000_000L, DataType.DATE_NANOS)));
-        assertNull(
-            "date_nanos IN over TIME(MICROS) must not push",
-            new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema)
-        );
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.LONG), lit(43_200_000_000_000L, DataType.LONG), null);
+        assertNull("a long bound over TIME(MICROS) must not push", new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema));
     }
 
     /**
-     * The allow-list's identity case and its unsigned decline: an un-annotated signed INT64 declared
-     * {@code date_nanos} is the unit convention's identity read (raw stats == scan values bit-for-bit), so it
-     * pushes with divisor 1 — declining it would be a needless lost-pruning cost; an unsigned INT64
-     * ({@code intType(64, false)}) decodes sign-wrapped and must decline.
+     * An un-annotated signed INT64 declared {@code date_nanos} holds epoch millis (the unit rule), so a nanos literal
+     * pushes as its raw millis value; a literal that is not a whole millisecond matches no stored value and pushes
+     * nothing. An unsigned INT64 ({@code intType(64, false)}) decodes sign-wrapped and must decline.
      */
-    public void testDeclaredDateNanosOverPlainInt64PushesIdentityAndUnsignedDeclines() {
-        long nanos = 1_700_000_000_123_456_789L;
+    public void testDeclaredDateNanosOverPlainInt64PushesScaledMillisAndUnsignedDeclines() {
+        long millis = 1_719_828_000_123L;
+        long nanos = millis * 1_000_000L;
         MessageType plain = Types.buildMessage().required(INT64).named("n").named("test");
         FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("n", DataType.DATE_NANOS, nanos))).toFilterPredicate(plain);
-        assertNotNull("un-annotated signed INT64 is the identity case and must push", fp);
-        assertThat(fp.toString(), containsString(String.valueOf(nanos)));
+        assertNotNull("un-annotated signed INT64 is the scaled epoch-millis case and must push", fp);
+        assertThat(fp.toString(), containsString("eq(n, " + millis + ")"));
+        assertThat("the nanos literal never reaches the footer", fp.toString(), not(containsString(String.valueOf(nanos))));
+        assertNull(
+            "a sub-millisecond literal has no stored counterpart",
+            new ParquetPushedExpressions(List.of(eq("n", DataType.DATE_NANOS, nanos + 1))).toFilterPredicate(plain)
+        );
 
         MessageType unsigned = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("n").named("test");
         assertNull(
             "date_nanos over unsigned INT64 must not push",
             new ParquetPushedExpressions(List.of(eq("n", DataType.DATE_NANOS, nanos))).toFilterPredicate(unsigned)
+        );
+    }
+
+    /**
+     * A bare INT64 declared {@code date_nanos} and the same column declared {@code {date_nanos, format: epoch_millis}}
+     * decode identically, so their raw-to-decoded relations must be identical too — {@code ScaleUp(1e6)} — or the
+     * pushdown and TopN rails would prune against a different unit than the scan produces. Under {@code date} the bare
+     * column stays the identity.
+     */
+    public void testBareInt64DateNanosRelationEqualsEpochMillisFormat() {
+        PrimitiveType bare = Types.required(INT64).named("ts");
+        DeclaredTypeCoercions.RawDecodeRelation noFormat = ParquetColumnDecoding.rawDecodeRelation(bare, DataType.DATE_NANOS, null);
+        assertEquals(new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1_000_000L), noFormat);
+        assertEquals(ParquetColumnDecoding.rawDecodeRelation(bare, DataType.DATE_NANOS, "epoch_millis"), noFormat);
+        assertEquals(
+            new DeclaredTypeCoercions.RawDecodeRelation.Identity(),
+            ParquetColumnDecoding.rawDecodeRelation(bare, DataType.DATETIME, null)
         );
     }
 
@@ -607,22 +766,25 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     /**
-     * A bare INT64 declared {@code date_nanos} is the identity read (raw stats == scan values), so every element of an
-     * IN has an exact raw counterpart and all of them push — nothing drops.
+     * A bare INT64 declared {@code date_nanos} holds epoch millis, scaled x1e6 by the scan, so every whole-millisecond
+     * element of an IN pushes its raw millis value and a sub-millisecond element — which no stored value can equal —
+     * drops without declining the rest.
      */
-    public void testDateNanosInBareInt64PushesEveryElement() {
+    public void testDateNanosInBareInt64PushesMillisTicksDropsNonTicks() {
         MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
-        long a = 1_700_000_000_123_456_789L;
-        long b = 1_700_000_000_987_654_321L;
+        long a = 1_719_828_000_123L;
+        long b = 1_719_828_000_987L;
+        long nonTick = b * 1_000_000L + 654_321L;
         Expression inExpr = new In(
             Source.EMPTY,
             attr("ts", DataType.DATE_NANOS),
-            List.of(lit(a, DataType.DATE_NANOS), lit(b, DataType.DATE_NANOS))
+            List.of(lit(a * 1_000_000L, DataType.DATE_NANOS), lit(b * 1_000_000L, DataType.DATE_NANOS), lit(nonTick, DataType.DATE_NANOS))
         );
         FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
         assertNotNull(fp);
-        assertThat(fp.toString(), containsString(String.valueOf(a)));
-        assertThat(fp.toString(), containsString(String.valueOf(b)));
+        assertThat(fp.toString(), containsString("eq(ts, " + a + ")"));
+        assertThat(fp.toString(), containsString("eq(ts, " + b + ")"));
+        assertThat("the sub-millisecond element is dropped", fp.toString(), not(containsString(String.valueOf(nonTick))));
     }
 
     /**
@@ -1140,35 +1302,38 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("42"));
     }
 
-    public void testToFilterPredicateDateLiteralOnDateNanosColumnDeclines() {
+    public void testToFilterPredicateDateLiteralOnDateNanosColumnConverts() {
         MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
-        Expression expr = new Equals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), datetimeLit(1_700_000_000_000L), null);
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
-    }
-
-    public void testToFilterPredicateDateRangeOnDateNanosColumnDeclines() {
-        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
-        Expression expr = new Range(
-            Source.EMPTY,
-            attr("ts", DataType.DATE_NANOS),
-            datetimeLit(1_000L),
-            true,
-            datetimeLit(2_000L),
-            true,
-            ZoneOffset.UTC
+        long millis = 1_700_000_000_000L;
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new Equals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), datetimeLit(millis), null)
         );
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(millis * 1_000_000L)));
     }
 
-    public void testToFilterPredicateDateNanosLiteralOnDateColumnDeclines() {
+    public void testToFilterPredicateDateRangeOnDateNanosColumnConverts() {
+        MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new Range(Source.EMPTY, attr("ts", DataType.DATE_NANOS), datetimeLit(1_000L), true, datetimeLit(2_000L), true, ZoneOffset.UTC)
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(1_000L * 1_000_000L)));
+        assertThat(fp.toString(), containsString(String.valueOf(2_000L * 1_000_000L)));
+    }
+
+    public void testToFilterPredicateDateNanosLiteralOnDateColumnConverts() {
         MessageType schema = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
-        Expression expr = new Equals(
-            Source.EMPTY,
-            attr("ts", DataType.DATETIME),
-            lit(1_700_000_000_000_000_000L, DataType.DATE_NANOS),
-            null
+        long nanos = 1_700_000_000_000_000_000L;
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new Equals(Source.EMPTY, attr("ts", DataType.DATETIME), lit(nanos, DataType.DATE_NANOS), null)
         );
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanos / 1_000_000L)));
+        assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
     }
 
     public void testToFilterPredicateMatchingDateNanosOnMicrosStillScales() {
@@ -1180,16 +1345,29 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
     }
 
-    public void testToFilterPredicateIntegerLessThanDoubleDeclines() {
+    public void testToFilterPredicateIntegerLessThanDoubleWidensToLte() {
         MessageType schema = Types.buildMessage().required(INT32).named("id").named("test");
-        Expression expr = new LessThan(Source.EMPTY, attr("id", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null);
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new LessThan(Source.EMPTY, attr("id", DataType.INTEGER), lit(5.5, DataType.DOUBLE), null)
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("lteq"));
+        assertThat(fp.toString(), containsString("5"));
+        assertThat(fp.toString(), not(containsString("5.5")));
     }
 
-    public void testToFilterPredicateIntegerLessThanOrEqualLongDeclines() {
+    public void testToFilterPredicateIntegerLessThanOrEqualLongIsTautologyNotTruncated() {
         MessageType schema = Types.buildMessage().required(INT32).named("id").named("test");
-        Expression expr = new LessThanOrEqual(Source.EMPTY, attr("id", DataType.INTEGER), lit(3_000_000_000L, DataType.LONG), null);
-        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+        Expression expr = PushdownLiteralConversion.rewrite(
+            new LessThanOrEqual(Source.EMPTY, attr("id", DataType.INTEGER), lit(3_000_000_000L, DataType.LONG), null)
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        // Domain tautology: i <= Integer.MAX_VALUE — never the truncated (int) 3000000000.
+        assertThat(fp.toString(), containsString(String.valueOf(Integer.MAX_VALUE)));
+        assertThat(fp.toString(), not(containsString("3000000000")));
+        assertThat(fp.toString(), not(containsString(String.valueOf((int) 3_000_000_000L))));
     }
 
     public void testToFilterPredicateLessThanOrEqualDatetime() {
@@ -1236,13 +1414,13 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat("the raw seconds point, not the millis literal", fp.toString(), containsString("noteq(ts, 1704067200)"));
     }
 
-    /** date_nanos != over a bare INT64 pushes notEq too. */
+    /** date_nanos != over a bare INT64 pushes notEq too, at the raw epoch-millis point. */
     public void testDateNanosNotEqPushesNotEq() {
         MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
         Expression ne = new NotEquals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), lit(1704067200000000000L, DataType.DATE_NANOS), null);
         FilterPredicate fp = new ParquetPushedExpressions(List.of(ne)).toFilterPredicate(schema);
         assertNotNull(fp);
-        assertThat(fp.toString(), containsString("noteq(ts, 1704067200000000000)"));
+        assertThat(fp.toString(), containsString("noteq(ts, 1704067200000)"));
     }
 
     // --- annotated TIMESTAMP(MICROS) declared `date`: a truncating decode, every operator ---
@@ -1328,7 +1506,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
      */
     public void testDatetimeIsNullDeclinesWhenDecodeCanNull() {
         MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
-        Expression isNull = new org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
+        Expression isNull = new IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
         FilterPredicate fp = new ParquetPushedExpressions(List.of(isNull)).toFilterPredicate(schema, Map.of("ts", "yyyyMMdd"));
         assertNull("IS NULL over a decode-can-null datetime column must decline", fp);
     }
@@ -1336,7 +1514,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     /** A plain inferred datetime (bare INT64, no format) never nulls at decode, so IS NULL keeps pushing. */
     public void testDatetimeIsNullStillPushesWhenDecodeCannotNull() {
         MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
-        Expression isNull = new org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
+        Expression isNull = new IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
         FilterPredicate fp = new ParquetPushedExpressions(List.of(isNull)).toFilterPredicate(schema);
         assertNotNull("IS NULL over a non-nulling inferred datetime must still push", fp);
     }
@@ -1345,9 +1523,13 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
      * The IS NULL pushdown gate must track {@link ParquetColumnDecoding#decodeCanNull} across the WHOLE truth table,
      * not the two cells the pair above pins. A decode that can mint a null from a physically-present value (a rescaling
      * temporal read at its range edge, or a format parse failure) makes the decoded null-set larger than the physical
-     * one, so {@code eq(col, null)} would prune a row group whose {@code nullCount == 0}. Only the identity reads keep
-     * the push: bare {@code INT64} / {@code TIMESTAMP(MILLIS)} datetime, {@code TIMESTAMP(NANOS)} date_nanos, and the
-     * no-format {@code INT32} date. Mutating {@code decodeCanNull} to {@code declaredFormat != null} reds this.
+     * one, so {@code eq(col, null)} would prune a row group whose {@code nullCount == 0}. What declines is narrower
+     * than "anything that rescales": a narrowing is total, so only a read that can leave a value with no
+     * representation at all declines -- the millis-to-nanos widen of a bare {@code INT64} and any format parse.
+     * {@code TIMESTAMP(MICROS)} declines too, but conservatively rather than necessarily: its declared-{@code date}
+     * decode is a fused pair now and cannot null, and the arm is keyed on the declared type rather than the file's,
+     * which is what a relaxation would have to change first. Mutating {@code decodeCanNull} to
+     * {@code declaredFormat != null} reds this.
      */
     public void testIsNullPushdownGateMatchesDecodeCanNullTruthTable() {
         LogicalTypeAnnotation.TimeUnit millis = LogicalTypeAnnotation.TimeUnit.MILLIS;
@@ -1355,20 +1537,31 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         LogicalTypeAnnotation.TimeUnit nanos = LogicalTypeAnnotation.TimeUnit.NANOS;
         record Case(String name, MessageType schema, DataType declared, String format, boolean pushes) {}
         List<Case> cases = List.of(
-            // DATETIME: identity over bare / MILLIS pushes; the rescaling MICROS / NANOS reads decline.
+            // DATETIME: the identity reads over bare / MILLIS push, and so does the NANOS narrowing -- floorDiv is
+            // total over the whole long domain. MICROS is the one decline, and a conservative one: see the javadoc.
             new Case("datetime / bare INT64", int64Ts(null), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATETIME, null, false),
-            new Case("datetime / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATETIME, null, false),
+            new Case("datetime / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATETIME, null, true),
             new Case("datetime / bare INT64 + epoch_second", int64Ts(null), DataType.DATETIME, "epoch_second", false),
-            // DATE_NANOS: identity only over NANOS; bare / MICROS / MILLIS all rescale and decline.
+            // DATE_NANOS: NANOS is the identity and TIME is bounded by the day, so both push; the bare INT64's
+            // millis->nanos widen nulls outside 1677..2262, and MICROS/MILLIS scale into the same edge.
             new Case("date_nanos / bare INT64", int64Ts(null), DataType.DATE_NANOS, null, false),
             new Case("date_nanos / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATE_NANOS, null, false),
             new Case("date_nanos / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATE_NANOS, null, false),
             new Case("date_nanos / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATE_NANOS, null, true),
             new Case("date_nanos / bare INT64 + epoch_second", int64Ts(null), DataType.DATE_NANOS, "epoch_second", false),
-            // INT32 inferred DATE (days -> millis) never nulls -> keeps the push.
-            new Case("date / INT32(DATE)", int32DateTs(), DataType.DATETIME, null, true)
+            // A well-formed TIME value is bounded by the day, far inside the scale's edge -- but nothing enforces
+            // that a file obeys its own annotation, and the MICROS unit carries the same overflow guard a timestamp
+            // does, so a value past the bound nulls and IS NULL has to decline. NANOS has no guard on its path and
+            // its decode is the identity, so it pushes.
+            new Case("date_nanos / TIME(MICROS)", int64Ts(timeType(true, micros)), DataType.DATE_NANOS, null, false),
+            new Case("date_nanos / TIME(NANOS)", int64Ts(timeType(true, nanos)), DataType.DATE_NANOS, null, true),
+            new Case("datetime / TIME(MICROS)", int64Ts(timeType(true, micros)), DataType.DATETIME, null, false),
+            new Case("datetime / TIME(NANOS)", int64Ts(timeType(true, nanos)), DataType.DATETIME, null, true),
+            // INT32 inferred DATE (days -> millis) and TIME(MILLIS) (already the millisecond of day) never null.
+            new Case("date / INT32(DATE)", int32DateTs(), DataType.DATETIME, null, true),
+            new Case("date / INT32(TIME(MILLIS))", int32TimeTs(), DataType.DATETIME, null, true)
         );
         for (Case c : cases) {
             Expression isNull = new IsNull(Source.EMPTY, attr("ts", c.declared()));
@@ -1822,6 +2015,55 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("score"));
     }
 
+    public void testDoublePredicateWithSignedZeroOrNanIsNotPushed() {
+        MessageType schema = Types.buildMessage().required(DOUBLE).named("score").named("test");
+        Attribute score = attr("score", DataType.DOUBLE);
+        assertNull("eq(0.0) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, 0.0)));
+        assertNull("eq(-0.0) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, -0.0)));
+        assertNull("eq(NaN) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, Double.NaN)));
+        assertNull(
+            "gte(0.0) must not reach parquet-java stats",
+            predicateFor(schema, new GreaterThanOrEqual(Source.EMPTY, score, lit(0.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "lte(-0.0) must not reach parquet-java stats",
+            predicateFor(schema, new LessThanOrEqual(Source.EMPTY, score, lit(-0.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "IN containing 0.0 must not reach parquet-java stats",
+            predicateFor(schema, new In(Source.EMPTY, score, List.of(lit(0.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE))))
+        );
+        assertNull(
+            "NOT(eq(0.0)) declines because the inner does",
+            predicateFor(schema, new Not(Source.EMPTY, eq("score", DataType.DOUBLE, 0.0)))
+        );
+        assertNull(
+            "notEq(5.0) can drop a {5.0, NaN} group",
+            predicateFor(schema, new NotEquals(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "NOT(gt(5.0)) inverts to lte and can drop {6.0, NaN}",
+            predicateFor(schema, new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null)))
+        );
+        assertNull("NOT(eq(5.0)) inverts to notEq", predicateFor(schema, new Not(Source.EMPTY, eq("score", DataType.DOUBLE, 5.0))));
+        assertNull(
+            "NOT(IN(5.0, 6.0)) inverts to notIn",
+            predicateFor(
+                schema,
+                new Not(Source.EMPTY, new In(Source.EMPTY, score, List.of(lit(5.0, DataType.DOUBLE), lit(6.0, DataType.DOUBLE))))
+            )
+        );
+        assertNotNull("eq(0.5) stays pushed", predicateFor(schema, eq("score", DataType.DOUBLE, 0.5)));
+        assertNotNull(
+            "gt(5.0) of a finite non-zero stays pushed",
+            predicateFor(schema, new GreaterThan(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null))
+        );
+        assertNotNull(
+            "IN of non-zero finites stays pushed",
+            predicateFor(schema, new In(Source.EMPTY, score, List.of(lit(1.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE))))
+        );
+    }
+
     // A DECIMAL(scale>0) column reached via a *declared* long/integer/keyword pushed the literal
     // against the column's *unscaled* on-disk stats (e.g. `price = 123` against stats stored as
     // 12300 for scale=2).
@@ -1867,7 +2109,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------------------
-    // esql-planning#1030: a Parquet UINT_32 column (physical INT32) widens to ESQL LONG
+    // A Parquet UINT_32 column (physical INT32) widens to ESQL LONG
     // because unsigned 32-bit values can exceed signed int range. Pushing a longColumn
     // predicate against it makes parquet-mr reject the predicate as a declared-type
     // mismatch against the file's INT32 schema — every comparator on such a column 500s.
@@ -2034,7 +2276,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     public void testToFilterPredicateLongMissingPathReturnsNull() {
-        // LONG now also resolves the physical primitive via resolveNestedPrimitive (esql-planning#1030);
+        // LONG now also resolves the physical primitive via resolveNestedPrimitive ;
         // a missing/unresolvable path must return null just like the DATETIME case above.
         MessageType schema = uint32Schema();
         Expression expr = eq("does_not_exist", DataType.LONG, 100_000L);
@@ -2086,13 +2328,12 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     // -----------------------------------------------------------------------------------
     // Nested STRUCT pushdown — dotted column names (e.g. event.action) flow through the
-    // same FilterPredicate translation as top-level names. The resolveNestedPrimitive
-    // helper walks the dotted path; FilterApi.binaryColumn / intColumn / longColumn etc.
-    // internally store the name as a multi-segment ColumnPath via ColumnPath.fromDotString,
-    // which is then compared against the multi-segment ColumnDescriptor.getPath() at row
-    // group filter time — so the dotted name must reappear verbatim in the predicate's
-    // toString. Per the prior PR's D2 rule, a literal top-level field literally named
-    // "event.action" wins over a nested resolution of the same dotted path.
+    // same FilterPredicate translation as top-level names. resolveNestedPrimitive walks
+    // the file schema; ParquetFilterColumns mints a ColumnPath from those segments, not
+    // from FilterApi.fromDotString (which would split a leaf named "event.action").
+    // Assert the segment array, not toString(): both ["event.action"] and ["event","action"]
+    // print as "event.action". A literal top-level field named "event.action" wins over
+    // nested event.action.
     // -----------------------------------------------------------------------------------
     // Nested STRUCT type-shape helpers: each builds a single event-group schema with the
     // requested leaf primitive and logical-type annotation.
@@ -2168,11 +2409,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
         FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
         assertNotNull(fp);
-        // parquet-mr renders the column path with dots in toString — verify the dotted name
-        // round-trips end-to-end through FilterApi.binaryColumn -> ColumnPath.fromDotString.
-        // Note: the BytesRef literal is rendered as raw byte values (Binary{N constant bytes,
-        // [108, ...]}) rather than the ASCII text, so we cannot assert on "login" here.
-        assertThat(fp.toString(), containsString("event.action"));
+        // Nested struct event.action is the path ["event","action"]. toString() also prints
+        // "event.action", so it cannot distinguish this from a one-segment leaf named "event.action".
+        assertArrayEquals(new String[] { "event", "action" }, columnPath(fp));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(fp).getClass());
     }
 
     public void testToFilterPredicateNestedLongRange() {
@@ -2317,7 +2557,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
         FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
         assertNotNull(fp);
-        assertThat(fp.toString(), containsString("a.b.c.d"));
+        assertArrayEquals(new String[] { "a", "b", "c", "d" }, columnPath(fp));
         assertThat(fp.toString(), containsString("42"));
     }
 
@@ -2329,8 +2569,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         // columns at filter time, so they are not the right shape for testing the resolver.
         // DATETIME exercises the resolver because it has to map epoch millis to the correct
         // physical encoding. LONG also resolves via resolveNestedPrimitive since
-        // ParquetPushedExpressions.buildLongPredicate (esql-planning#1030) — see
-        // testToFilterPredicateLongMissingPathReturnsNull below for that case.
+        // ParquetPushedExpressions.buildLongPredicate — // testToFilterPredicateLongMissingPathReturnsNull below for that case.
         MessageType schema = nestedTimestamp(LogicalTypeAnnotation.TimeUnit.MILLIS);
         Expression expr = eq("event.does_not_exist", DataType.DATETIME, 1700000000000L);
         assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
@@ -2347,7 +2586,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     public void testToFilterPredicateLiteralDottedNameWinsOverPath() {
         // Schema has BOTH a literal top-level "event.action" and a nested struct event.action.
-        // Per the prior PR's D2 rule (preserved by resolveNestedPrimitive), the literal wins —
+        // Preserved by resolveNestedPrimitive: the literal wins —
         // the predicate type-shape is decided from the literal's primitive (BINARY here), not
         // from the nested INT64 "event.action" leaf.
         MessageType schema = Types.buildMessage()
@@ -2364,11 +2603,76 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         Expression keywordEq = eq("event.action", DataType.KEYWORD, new BytesRef("login"));
         FilterPredicate keywordPred = new ParquetPushedExpressions(List.of(keywordEq)).toFilterPredicate(schema);
         assertNotNull("literal BINARY 'event.action' wins → KEYWORD pushdown valid", keywordPred);
-        assertThat(keywordPred.toString(), containsString("event.action"));
+        // The predicate must target the one-segment leaf, not the nested INT64 event.action.
+        // FilterApi.binaryColumn("event.action") splits on '.' and would miss this leaf.
+        assertArrayEquals(new String[] { "event.action" }, columnPath(keywordPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(keywordPred).getClass());
+    }
+
+    public void testLiteralDottedNameEqIsOneSegmentPath() {
+        // Flat parquet leaf whose name contains a dot. ES|QL writes this as source.ip (quotes
+        // optional — the parser joins `source.ip` and source.ip to the same name). The pushed
+        // ColumnPath must be one segment or RowGroupFilter looks for nested source → ip and
+        // drops every row group.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("source.ip")
+            .named("test");
+        FilterPredicate fp = predicateFor(schema, eq("source.ip", DataType.KEYWORD, new BytesRef("188.166.20.77")));
+        assertNotNull(fp);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(fp));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(fp).getClass());
+    }
+
+    public void testLiteralDottedNameInAndRangeAndStartsWithAreOneSegmentPath() {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("source.ip")
+            .required(INT32)
+            .named("destination.port")
+            .named("test");
+
+        FilterPredicate inPred = predicateFor(
+            schema,
+            new In(
+                Source.EMPTY,
+                attr("source.ip", DataType.KEYWORD),
+                List.of(lit(new BytesRef("188.166.20.77"), DataType.KEYWORD), lit(new BytesRef("1.2.3.4"), DataType.KEYWORD))
+            )
+        );
+        assertNotNull(inPred);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(inPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(inPred).getClass());
+
+        FilterPredicate rangePred = predicateFor(
+            schema,
+            new Range(
+                Source.EMPTY,
+                attr("destination.port", DataType.INTEGER),
+                lit(442, DataType.INTEGER),
+                false,
+                lit(444, DataType.INTEGER),
+                false,
+                ZoneOffset.UTC
+            )
+        );
+        assertNotNull(rangePred);
+        assertArrayEquals(new String[] { "destination.port" }, columnPath(rangePred));
+        assertEquals(Operators.IntColumn.class, firstColumn(rangePred).getClass());
+
+        FilterPredicate startsPred = predicateFor(
+            schema,
+            new StartsWith(Source.EMPTY, attr("source.ip", DataType.KEYWORD), lit(new BytesRef("188."), DataType.KEYWORD))
+        );
+        assertNotNull(startsPred);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(startsPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(startsPred).getClass());
     }
 
     public void testResolveNestedPrimitiveLiteralWinsOverPath() {
-        // Directly assert the helper's D2 contract.
+        // Directly assert the helper's literal-over-path contract.
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())
@@ -2424,7 +2728,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     // --- helpers ---
 
-    // List / repeated leaves must NOT push (esql-planning#1056): a 3-level LIST attribute is a
+    // List / repeated leaves must NOT push : a 3-level LIST attribute is a
     // group; a 2-level repeated leaf is a primitive that parquet-mr still rejects. Both decline
     // so the MV-safe evaluator answers.
 
@@ -2771,6 +3075,66 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         );
     }
 
+    /**
+     * A prefix-bearing {@code mv_like} / {@code mv_rlike} has no statistics form; the range it implies
+     * ({@link PatternPrefixBound}, pushed beside it) builds a two-sided bound over a non-repeated BINARY leaf, with the
+     * exclusive upper pushed inclusive as for every {@code mv_in_range}. The pattern itself is NO, so beside it the
+     * pushed predicate is the bound alone.
+     */
+    public void testImpliedPatternPrefixRangeBuildsATwoSidedRangeOnABinaryLeaf() {
+        MessageType schema = Types.buildMessage().required(BINARY).as(stringType()).named("region").named("test");
+        Attribute region = attr("region", DataType.KEYWORD);
+        FilterPredicate expected = FilterApi.and(
+            FilterApi.gtEq(FilterApi.binaryColumn("region"), Binary.fromConstantByteArray("abc".getBytes(StandardCharsets.UTF_8))),
+            FilterApi.ltEq(FilterApi.binaryColumn("region"), Binary.fromConstantByteArray("abd".getBytes(StandardCharsets.UTF_8)))
+        );
+        ParquetFilterPushdownSupport support = new ParquetFilterPushdownSupport();
+        for (Expression pattern : List.of(
+            new MvLike(Source.EMPTY, region, lit(new BytesRef("abc*xyz"), DataType.KEYWORD)),
+            new MvRLike(Source.EMPTY, region, lit(new BytesRef("abc.*xyz"), DataType.KEYWORD))
+        )) {
+            MvInRange bound = PatternPrefixBound.of(pattern);
+            assertNotNull(pattern + " has a prefix", bound);
+            assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(bound));
+            assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(pattern));
+            assertEquals(expected.toString(), predicateFor(schema, bound).toString());
+            assertEquals(expected.toString(), new ParquetPushedExpressions(List.of(bound, pattern)).toFilterPredicate(schema).toString());
+        }
+    }
+
+    /**
+     * A {@code BINARY DECIMAL} infers as {@code double}; declared {@code keyword} it reads {@code "12.34"} while its
+     * statistics hold the unscaled integer bytes. No keyword bound compares against those, the implied range included.
+     */
+    public void testKeywordOverBinaryDecimalBuildsNoValueBound() {
+        MessageType schema = Types.buildMessage().required(BINARY).as(decimalType(2, 9)).named("amount").named("test");
+        Attribute amount = attr("amount", DataType.KEYWORD);
+        MvInRange bound = PatternPrefixBound.of(new MvLike(Source.EMPTY, amount, lit(new BytesRef("12*"), DataType.KEYWORD)));
+        assertNotNull(bound);
+        assertNull("implied range", predicateFor(schema, bound));
+        assertNull("equality", predicateFor(schema, eq("amount", DataType.KEYWORD, new BytesRef("12.34"))));
+        assertNull("IN", predicateFor(schema, new In(Source.EMPTY, amount, List.of(lit(new BytesRef("12.34"), DataType.KEYWORD)))));
+        assertNull("STARTS_WITH", predicateFor(schema, new StartsWith(Source.EMPTY, amount, lit(new BytesRef("12"), DataType.KEYWORD))));
+        assertNotNull("IS NULL reads only the null count", predicateFor(schema, new IsNull(Source.EMPTY, amount)));
+
+        MessageType stringSchema = Types.buildMessage().required(BINARY).as(stringType()).named("amount").named("test");
+        assertNotNull("a string leaf still pushes", predicateFor(stringSchema, bound));
+    }
+
+    /** Statistics are only reachable at a non-repeated leaf, so over a list the implied range builds nothing. */
+    public void testImpliedPatternPrefixRangeBuildsNothingOverAList() {
+        MvInRange overList = PatternPrefixBound.of(
+            new MvLike(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("abc*"), DataType.KEYWORD))
+        );
+        assertNotNull(overList);
+        assertNull("3-level LIST", predicateFor(stringListSchema(), overList));
+        MvInRange overRepeated = PatternPrefixBound.of(
+            new MvRLike(Source.EMPTY, attr("String_list", DataType.KEYWORD), lit(new BytesRef("abc.*"), DataType.KEYWORD))
+        );
+        assertNotNull(overRepeated);
+        assertNull("2-level repeated leaf", predicateFor(repeatedStringSchema(), overRepeated));
+    }
+
     public void testListValuedKeywordBoundIsNotRenderedAsAString() {
         // On a keyword column a list-valued bound does not throw, it stringifies: mv_less(region, ["zzz"]) pushed
         // LTE("[zzz]"), which sorts below "zoo", so the row group holding region=zoo was dropped and the retained
@@ -2841,6 +3205,97 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         return new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
     }
 
+    /**
+     * Physical {@link org.apache.parquet.hadoop.metadata.ColumnPath} segments of the first leaf
+     * in {@code fp}. {@code toString()} joins with '.', so it cannot tell {@code ["source.ip"]}
+     * from {@code ["source","ip"]}.
+     */
+    private static String[] columnPath(FilterPredicate fp) {
+        return firstColumn(fp).getColumnPath().toArray();
+    }
+
+    private static Operators.Column<?> firstColumn(FilterPredicate fp) {
+        return fp.accept(new FilterPredicate.Visitor<Operators.Column<?>>() {
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Eq<T> eq) {
+                return eq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.NotEq<T> notEq) {
+                return notEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Lt<T> lt) {
+                return lt.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.LtEq<T> ltEq) {
+                return ltEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Gt<T> gt) {
+                return gt.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.GtEq<T> gtEq) {
+                return gtEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.In<T> in) {
+                return in.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.NotIn<T> notIn) {
+                return notIn.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Contains<T> contains) {
+                throw new AssertionError("unexpected Contains");
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.And and) {
+                return and.getLeft().accept(this);
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.Or or) {
+                return or.getLeft().accept(this);
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.Not not) {
+                return not.getPredicate().accept(this);
+            }
+
+            @Override
+            public <
+                T extends Comparable<T>,
+                U extends org.apache.parquet.filter2.predicate.UserDefinedPredicate<T>> Operators.Column<?> visit(
+                    Operators.UserDefined<T, U> udp
+                ) {
+                throw new AssertionError("unexpected UserDefined");
+            }
+
+            @Override
+            public <
+                T extends Comparable<T>,
+                U extends org.apache.parquet.filter2.predicate.UserDefinedPredicate<T>> Operators.Column<?> visit(
+                    Operators.LogicalNotUserDefined<T, U> udp
+                ) {
+                throw new AssertionError("unexpected LogicalNotUserDefined");
+            }
+        });
+    }
+
     private static Expression eq(String name, DataType type, Object value) {
         return new Equals(Source.EMPTY, attr(name, type), lit(value, type), null);
     }
@@ -2856,9 +3311,14 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
             : Types.buildMessage().required(INT64).as(annotation).named("ts").named("test");
     }
 
-    /** A single-column {@code ts} INT32 schema annotated {@code DATE} — the only INT32 datetime shape (days -> millis). */
+    /** A single-column {@code ts} INT32 schema annotated {@code DATE} — the day-count INT32 datetime shape. */
     private static MessageType int32DateTs() {
         return Types.buildMessage().required(INT32).as(dateType()).named("ts").named("test");
+    }
+
+    /** The other INT32 datetime shape: {@code TIME(MILLIS)}, whose value is already the millisecond of day. */
+    private static MessageType int32TimeTs() {
+        return Types.buildMessage().required(INT32).as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS)).named("ts").named("test");
     }
 
     private static Literal lit(Object value, DataType type) {

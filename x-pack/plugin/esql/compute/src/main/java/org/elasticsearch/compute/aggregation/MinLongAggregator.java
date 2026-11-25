@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator({ @IntermediateState(name = "min", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MinLongAggregator {
 
     public static long init() {

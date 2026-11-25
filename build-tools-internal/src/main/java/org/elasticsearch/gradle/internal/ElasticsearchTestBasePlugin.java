@@ -14,7 +14,6 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.flakiness.resolve.FlakinessProjectResolvePlugin;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
 import org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin;
@@ -44,6 +43,7 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -65,15 +65,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         var buildParams = loadBuildParams(project);
         project.getPluginManager().apply(InternalTestRerunPlugin.class);
         // Registers this project's own flakinessResolveProject task, but only under -Pflakiness.resolve; the
         // plugin is inert otherwise. See FlakinessProjectResolvePlugin for why the model is captured lazily.
         project.getPluginManager().apply(FlakinessProjectResolvePlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
-        // for fips mode check
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         // Default test task should run only unit tests
         maybeConfigure(project.getTasks(), "test", Test.class, task -> task.include("**/*Tests.class"));
 
@@ -82,6 +80,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         final boolean isCi = buildParams.get().getCi();
 
         project.getTasks().withType(Test.class).configureEach(test -> {
+            test.useJUnitPlatform();
+
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
             test.getReports().getHtml().getRequired().set(isCi == false);
 
@@ -166,7 +166,16 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 System.out.println("disable assertions");
                 test.setEnableAssertions(false);
             }
-            Map<String, String> sysprops = Map.of("java.awt.headless", "true", "tests.artifact", project.getName(), "jna.nosys", "true");
+            Map<String, String> sysprops = Map.of(
+                "java.awt.headless",
+                "true",
+                "tests.artifact",
+                project.getName(),
+                "jna.nosys",
+                "true",
+                "junit.vintage.discovery.issue.reporting.enabled",
+                "false"
+            );
             test.systemProperties(sysprops);
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability
@@ -175,7 +184,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
                 nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
             } else {
-                test.systemProperty("tests.seed", buildParams.get().getTestSeed());
+                test.systemProperty("tests.seed", buildParams.get().getTestSeedProvider().get());
             }
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability
@@ -240,8 +249,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
 
             if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
-                // override the suite timeout to 60 mins for windows, because it has the most inefficient filesystem known to man
-                test.systemProperty("tests.timeoutSuite", "3600000!");
+                // Override the suite timeout to 100 min (1h:40m) for windows, because it has the most inefficient filesystem known to man
+                // This choice of 100min was chosen based on a test that took 87 minutes on Windows for DocsClientYamlTestSuiteIT on 8.19
+                test.systemProperty("tests.timeoutSuite", "6000000!");
             }
 
             /*

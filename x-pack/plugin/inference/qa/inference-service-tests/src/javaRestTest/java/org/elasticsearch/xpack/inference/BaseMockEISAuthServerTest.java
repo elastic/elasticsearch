@@ -9,6 +9,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -92,6 +93,12 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         // available
         // Technically this only needs to be done before the suite runs but the underlying client is created in @Before and not statically
         // for the suite
-        assertBusy(() -> getModel(ELSER_V2_ENDPOINT_ID));
+        assertBusy(() -> {
+            try {
+                getModel(ELSER_V2_ENDPOINT_ID);
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 }

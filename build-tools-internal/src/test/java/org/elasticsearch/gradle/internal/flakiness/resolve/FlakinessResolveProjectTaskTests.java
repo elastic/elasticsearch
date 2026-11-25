@@ -60,6 +60,7 @@ public class FlakinessResolveProjectTaskTests {
 
         assertThat(yaml.runnable(), is(true));
         assertThat(yaml.runnableTasks(), contains(":p:yamlRestTest"));
+        assertThat(yaml.candidateTaskPaths(), contains(":p:yamlRestTest"));
         assertThat(yaml.skipReason(), is(nullValue()));
         // The wire kind a yaml runner class resolves to; PlanBuilder stamps it onto the re-homed entry.
         assertThat(yaml.kind(), equalTo(Kinds.YAML_REST_TEST_RUNNER));
@@ -81,6 +82,7 @@ public class FlakinessResolveProjectTaskTests {
 
         assertThat(test.sourceSet(), equalTo("test"));
         assertThat(test.runnable(), is(false));
+        assertThat(test.candidateTaskPaths(), is(List.of()));
         assertThat(test.skipReason(), equalTo(TestTaskSelector.REASON_NO_RUNNABLE_TASK));
     }
 

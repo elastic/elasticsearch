@@ -324,3 +324,40 @@ id:long | region:keyword
 1       | "zoo"
 ;
 
+
+// Every element of a LIST<uint32> widens unsigned, exactly as a scalar uint32 column's values do -- the reason the
+// type renders ESQL long at all is that an unsigned 32-bit value can exceed Integer.MAX_VALUE. No declaration is
+// involved: the element type comes from the file.
+listOfUnsignedInt32WidensElements
+required_capability: dataset_in_from_command
+required_capability: parquet_list_uint32_widens_unsigned
+dataset: list_uint32: "{{list_uint32}}"
+
+FROM list_uint32
+| SORT id
+;
+
+id:integer | ids:long
+1          | [1, 2147483648, 4000000000]
+2          | 7
+;
+
+// What the sign-extension cost a query, in the form a query over a multivalued column actually takes: a bare
+// comparison on an MV column yields null, so the filters that work here are the MV functions, and both of these
+// pick the row by a value that used to be negative. MV_MAX returned -294967296 before the fix, so mv_in_range over
+// the true domain matched nothing and the row disappeared from the result.
+listOfUnsignedInt32FiltersOnTheWidenedElements
+required_capability: dataset_in_from_command
+required_capability: fn_mv_in_range
+required_capability: parquet_list_uint32_widens_unsigned
+dataset: list_uint32_filter: "{{list_uint32}}"
+
+FROM list_uint32_filter
+| WHERE mv_in_range(ids, 2147483648, 4294967295)
+| EVAL top = MV_MAX(ids)
+| KEEP id, top
+;
+
+id:integer | top:long
+1          | 4000000000
+;

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -43,7 +44,14 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
-        if (plan instanceof OrderBy || plan instanceof TopN || plan instanceof Aggregate) {
+        if (plan instanceof SubqueryJoin join) {
+            // The join reads its subquery into a hash table, so the order of the subquery's rows is lost.
+            Set<OrderBy> redundant = findRedundantSort(join.right());
+            if (redundant.isEmpty()) {
+                return plan;
+            }
+            return join.replaceRight(join.right().transformDown(p -> redundant.contains(p) ? ((UnaryPlan) p).child() : p));
+        } else if (plan instanceof OrderBy || plan instanceof TopN || plan instanceof Aggregate) {
             Set<OrderBy> redundant = findRedundantSort(((UnaryPlan) plan).child());
             if (redundant.isEmpty()) {
                 return plan;

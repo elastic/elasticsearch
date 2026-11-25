@@ -11,12 +11,16 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
+import java.util.NavigableSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -35,11 +39,85 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     private final boolean hasNullSlots;
 
-    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs) throws IOException {
+    private final StringColumnMetadata.Plain.Skipper skipper;
+
+    private final IndexInput skipIndex;
+
+    private final long numValues;
+
+    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         super(column, inputs, column.values() == null ? StringColumnOptions.DEFAULT_VALUES_PER_BLOCK : column.values().valuesPerBlock());
         this.valuesWorthNaming = column.valuesWorthNaming();
         this.values = column.numDocsWithField() == 0 ? null : column.values().open(inputs);
         this.hasNullSlots = column.hasNullSlots();
+        this.skipper = column.skipper();
+        this.skipIndex = skipIndex;
+        this.numValues = column.values() == null ? 0 : column.values().numValues();
+    }
+
+    /**
+     * The ranks the ends of a match can lie in, from the chunks the region does not rule out. The chunks it keeps are
+     * one run, the first holds the lower end or sits just before it, and the last holds the upper end.
+     */
+    @Override
+    protected SortedWindows sortedWindows(PlainSkipQuery query) throws IOException {
+        if (skipper == null) {
+            return super.sortedWindows(query);
+        }
+        final PlainSkipKind.Reader bounds = PlainSkipKind.forId(skipper.kind()).newReader(skipper, numValues, skipIndex);
+        final int first = bounds.nextCandidate(0, query);
+        if (first >= bounds.entryCount()) {
+            return SortedWindows.NONE;
+        }
+        final int last = bounds.candidatesEnd(first, query) - 1;
+        return new SortedWindows(
+            Math.toIntExact(bounds.firstSlot(first)),
+            Math.toIntExact(bounds.endSlot(first)),
+            Math.toIntExact(bounds.firstSlot(last)),
+            Math.toIntExact(bounds.endSlot(last))
+        );
+    }
+
+    private ColumnIterator presenceWithin(PlainSkipQuery query) throws IOException {
+        final ColumnIterator presence = iterator();
+        if (skipper == null) {
+            return presence;
+        }
+        return new PlainRangePresence(
+            presence,
+            PlainSkipKind.forId(skipper.kind()).newReader(skipper, numValues, skipIndex),
+            query,
+            new PlainRangePresence.Slots() {
+                @Override
+                public long firstAddress(int rank) throws IOException {
+                    return firstValueAddress(rank);
+                }
+
+                @Override
+                public long count(int rank) throws IOException {
+                    return valueCount(rank);
+                }
+
+                @Override
+                public boolean oneSlotADocument() {
+                    return hasValueAddresses() == false;
+                }
+
+                @Override
+                public boolean everySlotHoldsAValue() {
+                    return hasNullSlots == false;
+                }
+            }
+        );
+    }
+
+    /** See {@link PlainValues.Reader#prefetch}. */
+    @Override
+    public boolean prefetchValues(int stage, long[] firsts, long[] counts, int count) throws IOException {
+        if (values != null) {
+            values.prefetch(firsts, counts, count);
+        }
+        return false;
     }
 
     @Override
@@ -72,6 +150,16 @@ public final class PlainStringColumnReader extends StringColumnReader {
         }
         values.get(valueAddress, value);
         return value;
+    }
+
+    @Override
+    public void transferValueAt(long valueAddress, BytesSink sink) throws IOException {
+        values.transfer(valueAddress, sink);
+    }
+
+    @Override
+    public boolean repeatsPreviousSlot(long valueAddress) throws IOException {
+        return values.repeatsPrevious(valueAddress);
     }
 
     @Override
@@ -130,13 +218,17 @@ public final class PlainStringColumnReader extends StringColumnReader {
     protected DocIdSetIterator unorderedMatches(BytesRef prefix, BytesRef exact) throws IOException {
         final BytesRef target = exact != null ? exact : prefix;
         final SlotWindow window = lengthWindow(target.length, exact != null ? target.length : Integer.MAX_VALUE);
-        final Slots candidates = slotsHeld(window);
+        final ColumnIterator presence = exact != null
+            ? presenceWithin(PlainSkipQuery.range(exact, true, exact, true))
+            : presenceWithin(PlainSkipQuery.prefix(prefix));
+        final PlainRangePresence region = presence instanceof PlainRangePresence kept ? kept : null;
+        final Slots candidates = slotsHeld(window, presence);
         final boolean settled = target.length == 0;
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                if (settled) {
+                if (settled || (region != null && region.accepted())) {
                     return true;
                 }
                 final long first = candidates.firstSlot();
@@ -185,6 +277,12 @@ public final class PlainStringColumnReader extends StringColumnReader {
         return matched;
     }
 
+    /** A null's code is below a repeat's and every length's, so every other code is a value. */
+    @Override
+    protected SlotWindow nonNullSlots() {
+        return new SlotWindow(values.codes(), PlainValues.REPEAT, Long.MAX_VALUE);
+    }
+
     /**
      * The slots whose value is {@code [min, max]} bytes long, compared on the stored codes. A null's code is
      * below every length's, so no range holds one; a repeat's code says nothing of its length, so it takes the
@@ -207,6 +305,104 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 }
             }
         };
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
+        throws IOException {
+        final ColumnIterator presence = presenceWithin(PlainSkipQuery.range(lower, includeLower, upper, includeUpper));
+        final PlainRangePresence region = presence instanceof PlainRangePresence kept ? kept : null;
+        final LastSeen lastSeen = new LastSeen();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            @Override
+            public boolean matches() throws IOException {
+                if (region != null && region.accepted()) {
+                    return true;
+                }
+                return matchesRangeRank(presence.rank(), lower, includeLower, upper, includeUpper, lastSeen);
+            }
+
+            @Override
+            public float matchCost() {
+                return 10f;
+            }
+        });
+    }
+
+    private boolean matchesRangeRank(
+        int rank,
+        BytesRef lower,
+        boolean includeLower,
+        BytesRef upper,
+        boolean includeUpper,
+        LastSeen lastSeen
+    ) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        if (count == 1) {
+            if (isNullSlot(first)) {
+                return false;
+            }
+            final long identity = values.read(first, scratch);
+            if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
+                return lastSeen.matched;
+            }
+            final boolean matched = inRange(scratch, lower, includeLower, upper, includeUpper);
+            lastSeen.identity = identity;
+            lastSeen.length = scratch.length;
+            lastSeen.matched = matched;
+            return matched;
+        }
+        for (long i = 0; i < count; i++) {
+            final BytesRef v = valueAt(first + i);
+            if (v != null && inRange(v, lower, includeLower, upper, includeUpper)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
+        final ColumnIterator presence = iterator();
+        final LastSeen lastSeen = new LastSeen();
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+            @Override
+            public boolean matches() throws IOException {
+                return matchesAnyOfRank(presence.rank(), membership, lastSeen);
+            }
+
+            @Override
+            public float matchCost() {
+                return 10f;
+            }
+        });
+    }
+
+    private boolean matchesAnyOfRank(int rank, Set<BytesRef> terms, LastSeen lastSeen) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        if (count == 1) {
+            if (isNullSlot(first)) {
+                return false;
+            }
+            final long identity = values.read(first, scratch);
+            if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
+                return lastSeen.matched;
+            }
+            final boolean matched = terms.contains(scratch);
+            lastSeen.identity = identity;
+            lastSeen.length = scratch.length;
+            lastSeen.matched = matched;
+            return matched;
+        }
+        for (long i = 0; i < count; i++) {
+            final BytesRef v = valueAt(first + i);
+            if (v != null && terms.contains(v)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -257,7 +453,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < values; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, values, pageValueCounts, docCount);
+            appendGathered(sink, values, pageValueCounts, docCount);
             return true;
         }
         sink.appendOrdinals(pageOrdinals, values, pageValueCounts, docCount, pageDictionary, slots);
@@ -299,7 +495,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count, counts, docCount);
+            appendGathered(sink, count, counts, docCount);
             return true;
         }
         sink.appendOrdinals(pageOrdinals, count, counts, docCount, pageDictionary, slots);
@@ -307,38 +503,17 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * The same page, without a dictionary being built for it. A page handed over as values never reads the one
-     * the method above builds, and building it hashes every value and probes a table for it. So a column whose
-     * values do not repeat is read this way instead: runs are still collapsed, which costs no bytes to find,
-     * but nothing is hashed.
-     *
-     * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
+     * The same page for a column whose values do not repeat, where a dictionary would be built and never read. Each
+     * value is handed to the sink where the column holds it, so nothing is gathered or hashed.
      */
     private boolean appendSingleValuedPageAsValues(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
-        growPageValues(count);
-        pageBytesLength = 0;
-        int runs = 0;
-        long previous = -1;
-        int previousLength = -1;
-        int previousRun = -1;
-        for (int i = 0; i < count; i++) {
-            final long identity = values.read(pageRanks[i], scratch);
-            if (previousRun < 0 || identity != previous || scratch.length != previousLength) {
-                // The run before is compared by its bytes before a new one is started.
-                if (previousRun < 0 || pageSlotHolds(previousRun, scratch) == false) {
-                    appendToPage(runs, scratch);
-                    previousRun = runs++;
-                }
-                previous = identity;
-                previousLength = scratch.length;
+        try (StringBlockSink.Values out = sink.values(count, counts, docCount)) {
+            for (int i = 0; i < count; i++) {
+                values.get(pageRanks[i], scratch);
+                out.append(scratch);
             }
-            pageOrdinals[i] = previousRun;
+            out.finish();
         }
-        point(pageDictionary, runs);
-        for (int i = 0; i < count; i++) {
-            pageValues[i] = pageDictionary[pageOrdinals[i]];
-        }
-        sink.appendValues(pageValues, count, counts, docCount);
         return true;
     }
 }

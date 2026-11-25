@@ -144,13 +144,13 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       wrapped in place rather than carved out. See {@link AstKeywordFieldRewriter} for the full list.</li>
  *   <li>Output column types: {@code field_extract} is only injected in expression contexts, so a
  *       converted keyword field that is projected directly (e.g. {@code KEEP first_name},
- *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) comes
- *       through with type {@code flattened}, while csv-spec expected results declare the column
- *       as {@code keyword}. These tests will fail with a column-type mismatch &mdash; that failure
- *       is the intended signal that those particular surfaces require an additional projection
- *       step (e.g. {@code EVAL field = field_extract(field, "v")} immediately before the
- *       projection) to fully recover keyword semantics. Synthesizing that extra projection is not
- *       yet implemented.</li>
+ *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) would
+ *       otherwise come through with type {@code flattened} while csv-spec expected results declare
+ *       it {@code keyword}. {@link AstKeywordFieldRewriter#appendTopLevelTailRecovery} recovers
+ *       those columns by appending {@code EVAL field = field_extract(field, "v")} plus an
+ *       order-restoring {@code KEEP}, so a direct projection is no longer a column-type mismatch.
+ *       What tail recovery cannot repair is anything a command already observed mid-pipeline: a
+ *       warning naming the field, for instance, still reflects the {@code flattened} type.</li>
  * </ul>
  */
 public class CsvFlattenedKeywordIT extends CsvIT {
@@ -288,7 +288,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 + "which are under construction (snapshot-only) and unavailable in release builds",
             DataType.FLATTENED.supportedVersion().supportedLocally()
         );
-        indexLoadStrategy = new KeywordToFlattenedStrategy(sharedPathModel());
+        differentialTestStrategy = new KeywordToFlattenedStrategy(sharedPathModel());
     }
 
     @AfterClass
@@ -360,7 +360,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      *       for that query.</li>
      * </ul>
      */
-    private static final class KeywordToFlattenedStrategy implements IndexLoadStrategy {
+    private static final class KeywordToFlattenedStrategy implements DifferentialTestStrategy {
         /**
          * Per-dataset union of every path that must remain {@code keyword} regardless of why.
          * Both the per-index startup mapping pass ({@link #computeDatasetPaths}) and the runtime
@@ -782,7 +782,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         @Override
-        public IndexLoadStrategy.TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+        public DifferentialTestStrategy.TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
             // Tests requiring ts_info_command or metrics_info_command expose TSDB dimension names
             // directly in query output (e.g. _timeseries, _tsid). After the keyword→flattened
             // rewrite those names change from "cluster" to "cluster.v", so the expected results
@@ -970,7 +970,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             }
 
             Settings extraPragmas = Settings.EMPTY;
-            return new IndexLoadStrategy.TransformedQuery(result.rewrittenQuery(), extraPragmas);
+            return new DifferentialTestStrategy.TransformedQuery(result.rewrittenQuery(), extraPragmas);
         }
 
         /**
@@ -978,10 +978,10 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * dimension-key rename that TSDB applies after the keyword&rarr;flattened conversion.
          */
         @Override
-        public CsvTestUtils.ExpectedResults transformExpectedResults(
+        public CsvTestUtils.TestResults transformExpectedResults(
             String testId,
             CsvSpecReader.CsvTestCase testCase,
-            CsvTestUtils.ExpectedResults expected
+            CsvTestUtils.TestResults expected
         ) {
             int tsIdx = expected.columnNames().indexOf("_timeseries");
             if (tsIdx < 0) {
@@ -1013,7 +1013,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             if (anyChanged == false) {
                 return expected;
             }
-            return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+            return new CsvTestUtils.TestResults(expected.columnNames(), expected.columnTypes(), newValues);
         }
 
         @Override
@@ -1550,7 +1550,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             throw new IllegalStateException("Could not find docs/reference/query-languages/esql/kibana/generated at " + kibanaDir);
         }
 
-        KeywordToFlattenedStrategy strategy = (KeywordToFlattenedStrategy) indexLoadStrategy;
+        KeywordToFlattenedStrategy strategy = (KeywordToFlattenedStrategy) differentialTestStrategy;
 
         Set<String> coveredArguments = new HashSet<>();
         for (CsvSpecReader.CsvTestCase testCase : KeywordToFlattenedStrategy.loadAllCsvSpecTestCases()) {

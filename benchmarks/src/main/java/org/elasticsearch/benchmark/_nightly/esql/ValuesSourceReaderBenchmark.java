@@ -113,7 +113,7 @@ public class ValuesSourceReaderBenchmark {
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public static IndexSettings defaultIndexSettings() {
@@ -281,6 +281,7 @@ public class ValuesSourceReaderBenchmark {
             false,
             null,
             null,
+            false,
             false,
             false,
             false

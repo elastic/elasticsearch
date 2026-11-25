@@ -59,7 +59,7 @@ import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -137,7 +137,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
     private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
-    private final LongAsyncGauge snapshotShardsInProgressMetric;
 
     private volatile String defaultRepository;
 
@@ -149,8 +148,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
         NodeClient client,
-        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks,
-        SnapshotMetrics snapshotMetrics
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -173,7 +171,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.defaultRepository = DEFAULT_REPOSITORY_SETTING.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DEFAULT_REPOSITORY_SETTING, this::setDefaultRepository, this::validateDefaultRepository);
-        this.snapshotShardsInProgressMetric = snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
     }
 
     /**
@@ -1168,13 +1165,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 
-    private Collection<LongWithAttributes> getShardSnapshotsInProgress() {
-        return repositories.values()
-            .stream()
-            .flatMap(repositories -> repositories.values().stream())
-            .map(Repository::getShardSnapshotsInProgress)
-            .filter(Objects::nonNull)
-            .toList();
+    public void recordShardSnapshotsInProgress(LongAsyncMeasurement measurement) {
+        for (Map<String, Repository> projectRepositories : repositories.values()) {
+            for (Repository repository : projectRepositories.values()) {
+                final LongWithAttributes inProgress = repository.getShardSnapshotsInProgress();
+                if (inProgress != null) {
+                    measurement.record(inProgress.value(), inProgress.attributes());
+                }
+            }
+        }
     }
 
     private static Repository throwRepositoryTypeDoesNotExists(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
@@ -1388,9 +1387,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     protected void doStart() {}
 
     @Override
-    protected void doStop() {
-        snapshotShardsInProgressMetric.close();
-    }
+    protected void doStop() {}
 
     @Override
     protected void doClose() throws IOException {

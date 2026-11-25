@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -771,12 +772,19 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                     return;
                 }
-                if (unwrappedException instanceof IndexNotFoundException && pit != null) {
+                if (pit != null
+                    && (unwrappedException instanceof IndexNotFoundException
+                        || unwrappedException instanceof ElasticsearchSecurityException)) {
                     /*
                      * gh#81252 pit API search request can fail if indices get deleted (by ILM)
                      * fall-back to normal search, the pit gets re-created (with an updated set of indices) on the next run
                      *
                      * Note: Due to BWC this needs to be kept until CCS support for < 8.1 is dropped
+                     *
+                     * A pit search is authorized against the concrete indices captured in the pit. A privilege granted on a
+                     * data stream covers its backing indices only while they are members, so once ILM swaps a backing index
+                     * out of the data stream (e.g. searchable_snapshot) the pit search is denied before the index is deleted.
+                     * The normal search re-resolves the source pattern, so a genuine lack of privileges still fails it.
                      */
                     namedPits.remove(name);
                     originalRequest.source().pointInTimeBuilder(null);

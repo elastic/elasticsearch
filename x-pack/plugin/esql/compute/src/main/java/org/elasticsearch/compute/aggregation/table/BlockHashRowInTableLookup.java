@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.PackedValuesBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -23,7 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class BlockHashRowInTableLookup extends RowInTableLookup {
-    private final BlockHash hash;
+    static final int EMIT_BATCH_SIZE = 4096;
+
+    private final PackedValuesBlockHash hash;
 
     BlockHashRowInTableLookup(BlockFactory blockFactory, Block[] keys) {
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keys.length);
@@ -31,13 +34,10 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
             groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
         }
 
-        hash = BlockHash.buildPackedValuesBlockHash(
-            groups,
-            blockFactory,
-            (int) BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes()
-        );
+        hash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, EMIT_BATCH_SIZE);
         boolean success = false;
         try {
+            hash.ensureCapacity(keys[0].getPositionCount());
             hash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
                 private int lastOrd = -1;
 
@@ -96,8 +96,8 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
     }
 
     @Override
-    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        return hash.lookup(page, targetBlockSize);
+    public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize) {
+        return hash.lookup(page, blockFactory, targetBlockSize);
     }
 
     @Override

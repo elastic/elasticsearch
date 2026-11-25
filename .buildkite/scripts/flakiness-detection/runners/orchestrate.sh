@@ -4,15 +4,15 @@
 # scan reads the build/classes output compile produced and separate Buildkite steps share no workspace.
 #
 # Which phase failed decides how the run is reported, so the exit codes are not interchangeable:
-#   * compile non-zero is the SOLE build_failed signal. It writes the buildFailed plan and the precompile
-#     marker, then exits rc. The separate generate step depends on this one with allow_failure and turns
-#     those markers into the single build_failed record.
-#   * resolve or scan non-zero is a resolver/infra defect, NOT build_failed: no marker, exit rc.
+#   * compile non-zero is the SOLE build_failed signal. It writes the buildFailed plan, then exits rc. The
+#     separate generate step depends on this one with allow_failure and tells the report to record the
+#     single build_failed.
+#   * resolve or scan non-zero is a resolver/infra defect, NOT build_failed: no buildFailed plan, exit rc.
 #
 # Configuration arrives in the pipeline-level env block so that domain.ts stays the one place these names
 # and task lists are written:
-#   FLAKINESS_REFS_ARTIFACT, FLAKINESS_PLAN_ARTIFACT, FLAKINESS_PRECOMPILE_ARTIFACT,
-#   FLAKINESS_TARGETS_DIR, FLAKINESS_TARGETS_ARCHIVE, FLAKINESS_COMPILE_TASKS,
+#   FLAKINESS_REFS_ARTIFACT, FLAKINESS_PLAN_ARTIFACT, FLAKINESS_TARGETS_DIR,
+#   FLAKINESS_TARGETS_ARCHIVE, FLAKINESS_COMPILE_TASKS,
 #   FLAKINESS_RESOLVE_INNER_TIMEOUT, FLAKINESS_COMPILE_INNER_TIMEOUT, FLAKINESS_SCAN_INNER_TIMEOUT
 #
 # The inner timeouts fire a grace period before Buildkite's outer timeout_in_minutes so this script gets to
@@ -20,7 +20,7 @@
 # gradle CLI in a fresh process group; without it the CLI prints BUILD SUCCESSFUL and then never exits, as
 # develocity's shutdown path stalls until the timeout fires. Diagnosed in #150209.
 
-for var in FLAKINESS_REFS_ARTIFACT FLAKINESS_PLAN_ARTIFACT FLAKINESS_PRECOMPILE_ARTIFACT \
+for var in FLAKINESS_REFS_ARTIFACT FLAKINESS_PLAN_ARTIFACT \
            FLAKINESS_TARGETS_DIR FLAKINESS_TARGETS_ARCHIVE FLAKINESS_COMPILE_TASKS \
            FLAKINESS_RESOLVE_INNER_TIMEOUT FLAKINESS_COMPILE_INNER_TIMEOUT FLAKINESS_SCAN_INNER_TIMEOUT; do
   [ -n "${!var}" ] || { echo "orchestrate.sh: $var must be set" >&2; exit 2; }
@@ -62,7 +62,6 @@ if grep -qs '"refIndex"' "$FLAKINESS_TARGETS_DIR"/*.json; then
   rc=$?
   if [ "$rc" -ne 0 ]; then
     printf '{"buildFailed":true,"reason":"precompile","entries":[]}' > "$FLAKINESS_PLAN_ARTIFACT"
-    printf '{"outcome":"build_failed","reason":"precompile"}' > "$FLAKINESS_PRECOMPILE_ARTIFACT"
     exit $rc
   fi
 else

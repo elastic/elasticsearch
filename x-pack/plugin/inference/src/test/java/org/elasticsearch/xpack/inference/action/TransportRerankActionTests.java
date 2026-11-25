@@ -16,6 +16,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -147,5 +149,15 @@ public class TransportRerankActionTests extends BaseTransportInferenceActionTest
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error_type"), nullValue());
         }));
+    }
+
+    public void testRerankInferenceRunsAsChildOfActionTask() {
+        mockService(listener -> listener.onResponse(mock()));
+        var service = serviceRegistry.getService(serviceId).orElseThrow();
+
+        doExecute(taskType);
+
+        // doExecute runs the action with a mocked task, whose id is 0
+        verify(service).rerankInfer(any(), any(), any(), eq(new TaskId("local_node", 0L)), any());
     }
 }

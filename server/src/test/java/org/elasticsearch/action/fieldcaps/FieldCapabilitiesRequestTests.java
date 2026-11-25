@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.ObjectParser.fromList;
@@ -62,6 +63,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             randomIndices[i] = randomAlphaOfLengthBetween(5, 10);
         }
         request.fields(randomFields);
+        request.includeTimeSeriesStats(randomBoolean());
         request.indices(randomIndices);
         if (randomBoolean()) {
             request.indicesOptions(randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen());
@@ -150,6 +152,24 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
                 }
               }
             }""").replaceAll("\\s+", ""), xContent);
+    }
+
+    public void testCacheableEsqlRequest() {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().fields("_index").filters("-nested").includeUnmapped(true);
+        assertTrue(request.cacheable());
+        request.filters("-nested", "+dimension");
+        assertTrue(request.cacheable());
+        request.filters("-metadata");
+        assertTrue(request.cacheable());
+        request.filters("-nested", "+dimension", "-metadata", "-multifield");
+        assertFalse(request.cacheable());
+        request.filters("-nested");
+        request.fields(IntStream.range(0, FieldCapsCache.MAX_FIELDS + 1).mapToObj(i -> "f" + i).toArray(String[]::new));
+        assertFalse(request.cacheable());
+        request.fields("_index");
+        assertTrue(request.cacheable());
+        request.clusterAlias("remote");
+        assertFalse(request.cacheable());
     }
 
     public void testFromXContent() throws IOException {

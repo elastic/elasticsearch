@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 161315
+pr: 161314
+summary: Limit exception logging in `LocalBulk`
+type: bug

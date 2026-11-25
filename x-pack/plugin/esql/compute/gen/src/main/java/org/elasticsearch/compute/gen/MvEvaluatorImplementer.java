@@ -219,9 +219,9 @@ public class MvEvaluatorImplementer {
             builderType = builderType(blockType(resultType));
         }
         builder.beginControlFlow(
-            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            "try ($T builder = driverContext.blockFactory().$L)",
             builderType,
-            Methods.buildFromFactory(builderType)
+            Methods.buildResultFromFactory(builderType, true)
         );
 
         if (workType != null && false == workType.equals(fieldType) && workType.isPrimitive() == false) {

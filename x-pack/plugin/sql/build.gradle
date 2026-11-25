@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.antlr.PostProcessAntlrSourcesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -39,9 +41,13 @@ dependencies {
   api project('sql-action')
   api project(':modules:aggregations')
   compileOnly project(path: xpackModule('ql'))
+  // ql no longer re-exports mapper-version (it extends it instead), so declare it directly. Runtime access
+  // comes via the extendedPlugins chain (x-pack-sql -> x-pack-ql -> mapper-version).
+  compileOnly project(path: xpackModule('mapper-version'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('ql'))))
+  testImplementation project(path: xpackModule('mapper-version'))
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -106,33 +112,19 @@ tasks.register("regenParser", JavaExec) {
     "${file(grammarPath)}/SqlBase.g4"
 }
 
-tasks.register("regen") {
+tasks.register("regen", PostProcessAntlrSourcesTask) {
   dependsOn "regenParser"
-  doLast {
-    // moves token files to grammar directory for use with IDE's
-    ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/SqlBaseLexer.tokens", toDir: grammarPath)
-    // make the generated classes package private
-    ant.replaceregexp(match: 'public ((interface|class) \\QSqlBase\\E\\w+)',
-      replace: '\\1',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'SqlBase*.java')
-    }
-    // nuke timestamps/filenames in generated files
-    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
-      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'SqlBase*.java')
-    }
-    // remove tabs in antlr generated files
-    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'SqlBase*.java')
-    }
-    // fix line endings
-    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-      patternset(includes: 'SqlBase*.java')
-    }
-  }
+  generatedSourcesDir = file(outputPath)
+  // moves token files to grammar directory for use with IDE's
+  tokensDir = file(grammarPath)
+  tokenFiles = ["SqlBase.tokens", "SqlBaseLexer.tokens"]
+  // make the generated classes package private
+  replaceFirst('SqlBase*.java', 'public ((interface|class) \\QSqlBase\\E\\w+)', '$1')
+  // nuke timestamps/filenames in generated files
+  replaceFirst('SqlBase*.java', '\\Q// Generated from \\E.*', '// ANTLR GENERATED CODE: DO NOT EDIT')
+  // remove tabs in antlr generated files
+  replaceAll('SqlBase*.java', '\t', '  ')
+  fixLineEndings('SqlBase*.java')
 }
 
 allprojects {

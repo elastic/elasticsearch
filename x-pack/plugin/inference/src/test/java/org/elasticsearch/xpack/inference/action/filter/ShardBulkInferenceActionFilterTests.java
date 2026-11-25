@@ -1506,6 +1506,74 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     /**
+     * A URL-format input should be accepted regardless of the configured {@code maxBase64InputSize}: the base64 size validation only
+     * applies to base64 data URIs and must not be triggered for URL-format inputs.
+     */
+    public void testUrlInputIsAcceptedWithoutBase64SizeValidation() throws Exception {
+        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
+        // A URL string is far smaller than any base64 payload, but we set an absurdly low limit to prove the validation is skipped.
+        ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
+        InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png");
+
+        assertNull(
+            "a URL-format input should be accepted regardless of the binary size limit",
+            runSingleInputThroughFilter(maxSize, input)
+        );
+    }
+
+    /**
+     * An input whose data type is not a supported embedding data type (e.g. {@link DataType#HTML}, which is only valid for document
+     * extraction) should be rejected with a {@code 400 Bad Request} before any inference is performed.
+     */
+    public void testUnsupportedEmbeddingDataTypeIsRejected() throws Exception {
+        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
+        InferenceString input = new InferenceString(DataType.HTML, DataFormat.URL, "https://example.com/page.html");
+
+        BulkItemResponse.Failure failure = runSingleInputThroughFilter(
+            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getDefault(Settings.EMPTY),
+            input
+        );
+        assertNotNull("an input with an unsupported data type should be rejected", failure);
+        assertThat(failure.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            failure.getMessage(),
+            containsString(
+                "Input for field [semantic_field] from source field [semantic_field] has unsupported [type] value [html]. "
+                    + "Supported values are [text, image, audio, video, pdf]."
+            )
+        );
+    }
+
+    /**
+     * An input with an unsupported data type must only fail its own bulk item. Other items using the same inference endpoint should still
+     * be sent to inference and indexed.
+     */
+    public void testUnsupportedEmbeddingDataTypeFailsOnlyItsBulkItem() throws Exception {
+        assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
+
+        StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
+        InferenceString html = new InferenceString(DataType.HTML, DataFormat.URL, "https://example.com/page.html");
+        InferenceString image = imageInput("AAAA");
+        EmbeddingResults.Embedding<?> imageEmbedding = randomMultimodalEmbedding(model);
+        model.putResult(image, imageEmbedding);
+
+        List<BulkItemRequest> items = runMultimodalDocumentsThroughFilter(
+            model,
+            new MultimodalDocument(html),
+            new MultimodalDocument(image)
+        );
+
+        assertNotNull(items.get(0).getPrimaryResponse());
+        BulkItemResponse.Failure failure = items.get(0).getPrimaryResponse().getFailure();
+        assertThat(failure.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("has unsupported [type] value [html]"));
+
+        assertNull(items.get(1).getPrimaryResponse());
+        assertThat(model.embeddingCalls(), equalTo(List.of(new EmbeddingCall(image))));
+        assertChunkEmbeddings(semanticFieldChunks(items.get(1)), List.of(imageEmbedding));
+    }
+
+    /**
      * Indexes a single document with one inference field set to the given input and returns the resulting item failure, or {@code null} if
      * the item was processed successfully. When {@code cacheEmbedding} is set, the inference result for the input is pre-cached so that the
      * inference call succeeds for inputs that are expected to pass the base64 size check.
@@ -1515,7 +1583,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final StaticModel model = StaticModel.createRandomInstance(TaskType.EMBEDDING);
 
-        model.putResult(new InferenceStringGroup(input), randomMultimodalEmbedding(model));
+        // Building an InferenceStringGroup for an unsupported data type throws by design, and such inputs never reach inference
+        if (InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES.contains(input.dataType())) {
+            model.putResult(new InferenceStringGroup(input), randomMultimodalEmbedding(model));
+        }
 
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,

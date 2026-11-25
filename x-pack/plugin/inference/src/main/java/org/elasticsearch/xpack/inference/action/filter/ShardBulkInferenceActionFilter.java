@@ -207,10 +207,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 // Until the inference filter is made columnar-aware (reading field values directly from ESCF columns
                 // and writing results back into the batch), materialize every item to inline JSON up front. This makes
                 // the filter's source reads correct and causes the primary to use the sequential path with the
-                // correctly-enriched source. ensureInlineSources is a no-op when no batch is attached, so there is no
-                // overhead for non-batch requests.
+                // correctly-enriched source. This is a no-op when no batch is attached.
                 try {
-                    BulkShardBatch.ensureInlineSources(bulkShardRequest);
+                    BulkShardBatch shardBatch = bulkShardRequest.getBulkShardBatch();
+                    if (shardBatch != null) {
+                        for (BulkItemRequest item : bulkShardRequest.items()) {
+                            ((IndexRequest) item.request()).indexSource().ensureInlineSource();
+                        }
+                        bulkShardRequest.setBulkShardBatch(null);
+                    }
                 } catch (IOException e) {
                     listener.onFailure(e);
                     return;
@@ -587,13 +592,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 recordRequestCountMetrics(inferenceProvider.model(), requests.size(), null);
             }, exc -> onInferenceServiceFailure(inferenceProvider, requests, exc)), onBatchFinish);
 
-            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
-            var embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
-            ActionListener.run(
-                batchListener,
-                listener -> inferenceProvider.service()
-                    .embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, listener)
-            );
+            ActionListener.run(batchListener, listener -> {
+                final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
+                var embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
+                inferenceProvider.service().embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, listener);
+            });
         }
 
         private void addEmbeddingInferenceResponse(
@@ -939,6 +942,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int order,
             int sourceFieldInputIndex
         ) {
+            if (InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES.contains(input.dataType()) == false) {
+                setInferenceResponseFailure(
+                    itemIndex,
+                    new ElasticsearchStatusException(
+                        "Input for field [{}] from source field [{}] has unsupported [{}] value [{}]. Supported values are {}.",
+                        RestStatus.BAD_REQUEST,
+                        field,
+                        sourceField,
+                        InferenceString.TYPE_FIELD,
+                        input.dataType(),
+                        InferenceStringGroup.SUPPORTED_EMBEDDING_DATA_TYPES
+                    )
+                );
+                return -1;
+            }
             if (input.dataFormat() == DataFormat.BASE64) {
                 long decodedSize = base64BinarySize(input.value());
                 if (decodedSize == 0) {

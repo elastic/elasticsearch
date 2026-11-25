@@ -441,8 +441,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
-        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo));
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
+        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo, includeAutoCalibration));
     }
 
     @Override

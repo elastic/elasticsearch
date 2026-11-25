@@ -11,21 +11,20 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Collects the fetch results of a search on the coordinating node and charges the {@link CircuitBreaker#REQUEST}
- * breaker for the hits they carry. Every shard's hits stay on the heap until the search response has been built,
- * so the charge is only given back when this collection is released at the end of the search.
+ * Collects the fetch results of a search on the coordinating node and owns the {@link CircuitBreaker#REQUEST}
+ * charge for the hits they carry. The charge moves to the {@link SearchResponse} once one is built;
+ * {@link #doClose()} only releases it if one never is.
  */
 final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchResult> {
-
-    // Holds the charge off the default path until the fetch paths this does not reach yet are accounted for.
-    static final FeatureFlag ACCOUNTING_FEATURE_FLAG = new FeatureFlag("coordinator_fetch_accounting");
 
     private static final long RELEASED = -1L;
 
@@ -41,30 +40,47 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
     }
 
     /**
-     * Charges the breaker for the hits a shard has just sent back, unless they were assembled on this node and
-     * arrived charged. Called from {@link FetchSearchPhase} before the result is handed to the collector, so that
-     * a trip leaves the hits to the caller to release.
+     * Takes ownership of the charge for the hits a shard has just sent back, estimating them here unless they
+     * arrived already charged. Called before the result reaches the collector, so that a trip leaves the hits
+     * to the caller to release.
      *
      * @throws CircuitBreakingException if the coordinating node cannot hold these hits
      */
     void reserve(FetchSearchResult result) {
-        // The chunked path handed over what it charged for these hits, and the result gives that back when it is
-        // released, so charging here again would hold them twice.
-        if (ACCOUNTING_FEATURE_FLAG.isEnabled() == false || result.isChargedOnCoordinator()) {
-            return;
+        final long bytes;
+        if (result.isChargedOnCoordinator()) {
+            // The chunked path already charged these hits, so take that charge over instead of estimating again.
+            bytes = result.transferCoordinatorCharge();
+        } else {
+            long estimated = 0L;
+            for (SearchHit hit : result.hits().getHits()) {
+                estimated += hit.ramBytesUsed();
+            }
+            if (estimated == 0L) {
+                return;
+            }
+            circuitBreaker.addEstimateBytesAndMaybeBreak(estimated, BREAKER_LABEL);
+            bytes = estimated;
         }
-        long bytes = 0L;
-        for (SearchHit hit : result.hits().getHits()) {
-            bytes += hit.ramBytesUsed();
-        }
-        if (bytes == 0L) {
-            return;
-        }
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
-        if (addToReservation(bytes) == false) {
+        if (bytes > 0L && addToReservation(bytes) == false) {
             // A phase failure released this collection while the shard was still in flight, so nothing else will.
             circuitBreaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
         }
+    }
+
+    /**
+     * Hands the outstanding charge to the caller; a late {@link #reserve} or {@link #doClose()} will not touch it
+     * again. Must not be called until the caller is committed to using the result, since discarding it then leaks.
+     *
+     * @return the outstanding charge, or {@code null} if there is none
+     */
+    @Nullable
+    Releasable transferCharge() {
+        long bytes = reservedBytes.getAndSet(RELEASED);
+        if (bytes <= 0L) {
+            return null;
+        }
+        return Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, BREAKER_LABEL));
     }
 
     private boolean addToReservation(long bytes) {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -319,7 +318,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         final String repositoryName = "repository";
         createRepository(repositoryName, FsRepository.TYPE);
 
-        final Map<String, Tuple<Settings, Long>> mountedIndices = mountRandomIndicesWithCache(repositoryName, 3, 10);
+        final Map<String, Tuple<Settings, Long>> mountedIndices = mountRandomIndicesWithCache(repositoryName, 3, 5);
         ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
         refreshSystemIndex(true);
 
@@ -471,7 +470,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 ByteRange.of(i, i + length),
                 new BytesArray(bytes, 0, length),
                 creationTimeInEpochMillis,
-                ActionListener.running(latch::countDown)
+                latch::countDown
             );
         }
         safeAwait(latch);

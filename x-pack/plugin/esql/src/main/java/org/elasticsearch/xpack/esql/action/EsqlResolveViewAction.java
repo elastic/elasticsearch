@@ -85,10 +85,6 @@ public class EsqlResolveViewAction extends TransportLocalProjectMetadataAction<
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
             .build();
 
-        private static final IndicesOptions CPS_VIEW_INDICES_OPTIONS = IndicesOptions.builder(VIEW_INDICES_OPTIONS)
-            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-            .build();
-
         private final IndicesOptions indicesOptions;
         private final boolean cpsEnabled;
         private String[] indices = new String[0];
@@ -98,10 +94,23 @@ public class EsqlResolveViewAction extends TransportLocalProjectMetadataAction<
         private TargetProjects resolvedTargetProjects;
         private ResolvedIndexExpressions resolvedIndexExpressions;
 
-        public Request(TimeValue masterTimeout, boolean cpsEnabled) {
+        public Request(TimeValue masterTimeout, boolean cpsEnabled, boolean resolveDatasets) {
             super(masterTimeout);
             this.cpsEnabled = cpsEnabled;
-            this.indicesOptions = cpsEnabled ? CPS_VIEW_INDICES_OPTIONS : VIEW_INDICES_OPTIONS;
+            this.indicesOptions = options(cpsEnabled, resolveDatasets);
+        }
+
+        private static IndicesOptions options(boolean cpsEnabled, boolean resolveDatasets) {
+            var options = IndicesOptions.builder(VIEW_INDICES_OPTIONS);
+            if (cpsEnabled) {
+                options.crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true));
+            }
+            if (resolveDatasets) {
+                options.indexAbstractionOptions(
+                    IndicesOptions.IndexAbstractionOptions.builder(VIEW_INDICES_OPTIONS.indexAbstractionOptions()).resolveDatasets(true)
+                );
+            }
+            return options.build();
         }
 
         @Override

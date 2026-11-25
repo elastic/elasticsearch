@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +26,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
 
     @Override
     protected Writeable.Reader<ParquetReaderStatus> instanceReader() {
-        return ParquetReaderStatus::new;
+        return ParquetReaderStatus::readFrom;
     }
 
     @Override
@@ -33,6 +34,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
         return new ParquetReaderStatus(
             randomNonNegativeLong(),
             randomBoolean(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -84,6 +86,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             instance.rowGroupsInFile(),
             instance.rowGroupsTotal(),
             instance.rowGroupsKept(),
+            instance.rowGroupsDictionaryFilterSkipped(),
             instance.pageIndexUsed(),
             instance.rowsInKeptRowGroups(),
             instance.rowsAfterPageIndex(),
@@ -106,6 +109,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             3L,
             4L,
             2L,
+            1L,
             false,
             10L,
             8L,
@@ -120,11 +124,22 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
                 "{\"format\":\"parquet\",\"rows_emitted\":100,\"predicate_pushdown_used\":true,"
                     + "\"footer_read_nanos\":5,\"footer_size_bytes\":6,\"footer_cache_hits\":1,\"footer_cache_misses\":2,"
                     + "\"row_groups_in_file\":3,\"row_groups_total\":4,\"row_groups_kept\":2,"
+                    + "\"row_groups_dictionary_filter_skipped\":1,"
                     + "\"page_index_used\":false,\"rows_in_kept_row_groups\":10,\"rows_after_page_index\":8,"
                     + "\"late_materialization_enabled\":false,\"late_materialization_used\":false,"
                     + "\"predicate_columns\":[\"host\"],"
                     + "\"columns\":{\"host\":{\"materialization\":\"late\"}}}"
             )
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSchema() {
+        Map<String, Object> schema = ParquetReaderStatus.PROFILE_SCHEMA.schema();
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        assertEquals(ProfileSchema.constant("parquet"), properties.get("format"));
+        assertEquals(ProfileSchema.dynamicObject(PerColumnStatus.PROFILE_SCHEMA.schema()), properties.get("columns"));
+        assertFalse(((List<String>) schema.get("required")).contains("columns"));
+        assertEquals(List.copyOf(properties.keySet()).subList(0, properties.size() - 1), schema.get("required"));
     }
 }

@@ -242,6 +242,7 @@ public class RefResolverTests {
 
         assertThat(unit.runnable(), is(true));
         assertThat(unit.runnableTasks(), contains(":server:test"));
+        assertThat(unit.candidateTaskPaths(), contains(":server:test"));
         assertThat(unit.candidateTasks(), equalTo(1));
         assertThat(unit.skipReason(), is(nullValue()));
     }
@@ -261,7 +262,43 @@ public class RefResolverTests {
         assertThat(target.gradleProject(), equalTo(":qa:rolling"));
         assertThat(target.runnable(), is(true));
         assertThat(target.runnableTasks(), contains(":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest"));
+        assertThat(
+            target.candidateTaskPaths(),
+            contains(":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest")
+        );
         assertThat(target.candidateTasks(), equalTo(3));
+    }
+
+    @Test
+    public void testTaskScopedUnmuteIncludeTasksKeepsOnlyTheNamedRunnableTasks() throws IOException {
+        Path repo = tmp.getRoot().toPath();
+        writeJava(repo, "qa/rolling/src/javaRestTest/java/org/elasticsearch/SomeIT.java");
+        ProjectInfo p = project(repo, ":qa:rolling", "qa/rolling", "javaRestTest");
+        RefResolver bwc = resolver(repo, p, bwcShapedTasks(p));
+
+        BaseTarget target = bwc.resolve(unmuteIncluding("org.elasticsearch.SomeIT", null, List.of(":qa:rolling:v9.5.1#bwcTest")))
+            .orElseThrow();
+
+        assertThat(target.runnable(), is(true));
+        assertThat(target.runnableTasks(), contains(":qa:rolling:v9.5.1#bwcTest"));
+        assertThat(target.candidateTaskPaths(), contains(":qa:rolling:v9.5.1#bwcTest"));
+        assertThat(target.candidateTasks(), equalTo(1));
+    }
+
+    @Test
+    public void testTaskScopedUnmuteExcludeTasksFallsBackToTheNextRunnableTaskBeforeApplyingTheCap() throws IOException {
+        Path repo = tmp.getRoot().toPath();
+        writeJava(repo, "qa/rolling/src/javaRestTest/java/org/elasticsearch/SomeIT.java");
+        ProjectInfo p = project(repo, ":qa:rolling", "qa/rolling", "javaRestTest");
+        RefResolver bwc = resolver(repo, p, bwcShapedTasks(p));
+
+        BaseTarget target = bwc.resolve(unmuteExcluding("org.elasticsearch.SomeIT", null, List.of(":qa:rolling:v9.6.0#bwcTest")))
+            .orElseThrow();
+
+        assertThat(target.runnable(), is(true));
+        assertThat(target.runnableTasks(), contains(":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest"));
+        assertThat(target.candidateTaskPaths(), contains(":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest"));
+        assertThat(target.candidateTasks(), equalTo(2));
     }
 
     // ---- malformed input ----
@@ -281,8 +318,8 @@ public class RefResolverTests {
         Path repo = tmp.getRoot().toPath();
         RefResolver server = membershipResolver(repo, project(repo, ":server", "server", "test"));
 
-        FlakinessRef nullSource = new FlakinessRef(null, null, "org.elasticsearch.FooTests", null, null);
-        FlakinessRef bogusSource = new FlakinessRef("typo-source", "server/src/test/java/X.java", null, null, null);
+        FlakinessRef nullSource = new FlakinessRef(null, null, "org.elasticsearch.FooTests", null, null, null, null);
+        FlakinessRef bogusSource = new FlakinessRef("typo-source", "server/src/test/java/X.java", null, null, null, null, null);
 
         assertThat(server.resolve(nullSource).isPresent(), is(false));
         assertThat(server.resolve(bogusSource).isPresent(), is(false));
@@ -380,14 +417,22 @@ public class RefResolverTests {
     }
 
     private static FlakinessRef changedFile(String path) {
-        return new FlakinessRef(FlakinessRef.SOURCE_CHANGED_FILE, path, null, null, null);
+        return new FlakinessRef(FlakinessRef.SOURCE_CHANGED_FILE, path, null, null, null, null, null);
     }
 
     private static FlakinessRef unmute(String className, String method) {
-        return new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, className, method, null);
+        return new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, className, method, null, null, null);
+    }
+
+    private static FlakinessRef unmuteIncluding(String className, String method, List<String> includeTasks) {
+        return new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, className, method, null, includeTasks, null);
+    }
+
+    private static FlakinessRef unmuteExcluding(String className, String method, List<String> excludeTasks) {
+        return new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, className, method, null, null, excludeTasks);
     }
 
     private static FlakinessRef explicit(String spec) {
-        return new FlakinessRef(FlakinessRef.SOURCE_EXPLICIT, null, null, null, spec);
+        return new FlakinessRef(FlakinessRef.SOURCE_EXPLICIT, null, null, null, spec, null, null);
     }
 }

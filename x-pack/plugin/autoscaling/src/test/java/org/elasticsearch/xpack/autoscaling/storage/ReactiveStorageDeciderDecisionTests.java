@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -286,9 +288,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                                     shard,
                                     randomNodeId(allocation.routingNodes(), DATA_WARM_NODE_ROLE),
                                     0L,
-                                    "test",
+                                    MoveReason.CANNOT_REMAIN,
                                     allocation.changes(),
-                                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                                    RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                                 )
                                 .v2(),
                             allocation.changes(),
@@ -639,7 +641,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             .stream()
             .filter(shard -> subjectShards.contains(shard.shardId()))
             .filter(
-                shard -> allocation.routingNodes().stream().anyMatch(node -> deciders.canAllocate(shard, node, allocation) != Decision.NO)
+                shard -> allocation.routingNodes()
+                    .stream()
+                    .anyMatch(node -> deciders.canAllocate(shard, node, allocation).type() != Decision.Type.NO)
             )
             .toList();
         return new AllocatableShards(
@@ -725,9 +729,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                                 toMove,
                                 randomFrom(candidates).nodeId(),
                                 0L,
-                                "test",
+                                MoveReason.CANNOT_REMAIN,
                                 allocation.changes(),
-                                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                             );
                     }
                 }

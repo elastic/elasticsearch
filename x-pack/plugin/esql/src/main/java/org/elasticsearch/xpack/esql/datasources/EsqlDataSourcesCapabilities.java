@@ -61,5 +61,12 @@ public final class EsqlDataSourcesCapabilities {
      */
     public static final String DATASET_ID_NOT_DECLARABLE = "dataset_id_not_declarable";
 
+    /**
+     * Data source and dataset PUTs reject a {@code description} longer than {@link DataSourceLimits#MAX_DESCRIPTION_LENGTH}.
+     * Gates the yaml pins on that rejection, because the suite also runs mixed-cluster, where a node without this capability
+     * does not reject it.
+     */
+    public static final String DATA_SOURCE_DESCRIPTION_LENGTH_LIMIT = "data_source_description_length_limit";
+
     private EsqlDataSourcesCapabilities() {}
 }

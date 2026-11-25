@@ -32,6 +32,8 @@ public final class SimpleSourceMetadata implements SourceMetadata {
      * warnings describe the same source; the warnings only say how the description was obtained.
      */
     private final List<String> warnings;
+    /** See {@link SourceMetadata#widenedColumns()}. Not part of equals/hashCode, for the same reason as {@link #warnings}. */
+    private final List<WidenedColumn> widenedColumns;
 
     /**
      * Creates a SimpleSourceMetadata with required fields only.
@@ -65,7 +67,7 @@ public final class SimpleSourceMetadata implements SourceMetadata {
         Map<String, Object> sourceMetadata,
         Map<String, Object> config
     ) {
-        this(schema, sourceType, location, statistics, partitionColumns, sourceMetadata, config, List.of());
+        this(schema, sourceType, location, statistics, partitionColumns, sourceMetadata, config, List.of(), List.of());
     }
 
     private SimpleSourceMetadata(
@@ -76,7 +78,8 @@ public final class SimpleSourceMetadata implements SourceMetadata {
         List<String> partitionColumns,
         Map<String, Object> sourceMetadata,
         Map<String, Object> config,
-        List<String> warnings
+        List<String> warnings,
+        List<WidenedColumn> widenedColumns
     ) {
         if (schema == null) {
             throw new IllegalArgumentException("schema must not be null");
@@ -95,11 +98,37 @@ public final class SimpleSourceMetadata implements SourceMetadata {
         this.sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         this.config = config != null ? Map.copyOf(config) : Map.of();
         this.warnings = warnings != null ? List.copyOf(warnings) : List.of();
+        this.widenedColumns = widenedColumns != null ? List.copyOf(widenedColumns) : List.of();
     }
 
     /** A copy of this metadata carrying {@code warnings}; see {@link SourceMetadata#warnings()}. */
     public SimpleSourceMetadata withWarnings(List<String> warnings) {
-        return new SimpleSourceMetadata(schema, sourceType, location, statistics, partitionColumns, sourceMetadata, config, warnings);
+        return new SimpleSourceMetadata(
+            schema,
+            sourceType,
+            location,
+            statistics,
+            partitionColumns,
+            sourceMetadata,
+            config,
+            warnings,
+            widenedColumns
+        );
+    }
+
+    /** A copy of this metadata carrying {@code widenedColumns}; see {@link SourceMetadata#widenedColumns()}. */
+    public SimpleSourceMetadata withWidenedColumns(List<WidenedColumn> widenedColumns) {
+        return new SimpleSourceMetadata(
+            schema,
+            sourceType,
+            location,
+            statistics,
+            partitionColumns,
+            sourceMetadata,
+            config,
+            warnings,
+            widenedColumns
+        );
     }
 
     @Override
@@ -140,6 +169,11 @@ public final class SimpleSourceMetadata implements SourceMetadata {
     @Override
     public List<String> warnings() {
         return warnings;
+    }
+
+    @Override
+    public List<WidenedColumn> widenedColumns() {
+        return widenedColumns;
     }
 
     @Override

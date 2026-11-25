@@ -43,17 +43,21 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private boolean discardPunctuation;
     private boolean discardCompoundToken;
 
+    private final Object sharingKey;
+
     public KuromojiTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         mode = getMode(settings);
-        userDictionary = getUserDictionary(env, settings);
+        Analysis.LoadedUserDictionary<UserDictionary> loaded = loadUserDictionary(env, settings);
+        userDictionary = loaded.dictionary();
         discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
         nBestCost = settings.getAsInt(NBEST_COST, -1);
         nBestExamples = settings.get(NBEST_EXAMPLES);
         discardCompoundToken = settings.getAsBoolean(DISCARD_COMPOUND_TOKEN, false);
+        this.sharingKey = new Key(loaded.rulesSha256(), mode, discardPunctuation, discardCompoundToken, nBestCost, nBestExamples);
     }
 
-    public static UserDictionary getUserDictionary(Environment env, Settings settings) {
+    static Analysis.LoadedUserDictionary<UserDictionary> loadUserDictionary(Environment env, Settings settings) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
             throw new IllegalArgumentException(
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
@@ -69,15 +73,15 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
             true
         );
         if (ruleList == null || ruleList.isEmpty()) {
-            return null;
+            return Analysis.LoadedUserDictionary.none();
         }
         StringBuilder sb = new StringBuilder();
         for (String line : ruleList) {
             sb.append(line).append(System.lineSeparator());
         }
-
-        try (Reader rulesReader = new StringReader(sb.toString())) {
-            return UserDictionary.open(rulesReader);
+        String rules = sb.toString();
+        try (Reader rulesReader = new StringReader(rules)) {
+            return new Analysis.LoadedUserDictionary<>(UserDictionary.open(rulesReader), Analysis.sha256Hex(rules));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load kuromoji user dictionary", e);
         }
@@ -99,4 +103,17 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         return t;
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        String userDictionaryRulesSha256,
+        Mode mode,
+        boolean discardPunctuation,
+        boolean discardCompoundToken,
+        int nBestCost,
+        String nBestExamples
+    ) {}
 }

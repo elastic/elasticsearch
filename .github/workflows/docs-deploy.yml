@@ -19,5 +19,7 @@ jobs:
         docs/extend/**
         !docs/reference/query-languages/esql/**
       path-pattern: docs/**
-      path-pattern-ignore: docs/changelog/**/*.yaml
+      path-pattern-ignore: |
+        docs/changelog/**
+        docs/releases/**
       enable-cumulative-comment: true

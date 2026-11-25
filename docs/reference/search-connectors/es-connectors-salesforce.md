@@ -224,21 +224,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::
 
 
-::::{dropdown} Step 3: Run the Docker image
+:::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh subs=true
-docker run \
--v ~/connectors-config:/config \
---network "elastic" \
---tty \
---rm \
-docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
-/app/bin/elastic-ingest \
--c /config/config.yml
-```
+:::{include} _snippets/connectors-docker-run.md
+:::
 
-::::
+:::::
 
 
 Refer to [`DOCKER.md`](https://github.com/elastic/connectors/tree/main/docs/DOCKER.md) in the `elastic/connectors` repo for more details.
@@ -270,7 +262,7 @@ The following settings are required to set up this connector:
 
     When enabled:
 
-    * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+    * Full syncs will store access control lists in the `_allow_access_control` field of each document. For Salesforce records, these lists are computed per object type, not per record. Refer to [known issues](#es-connectors-salesforce-client-known-issues).
     * Access control syncs will fetch users' access control lists and store them in a separate index.
 
 
@@ -290,6 +282,10 @@ Your Client ID and Client Secret should now be visible at the top of the page.
 ### Document level security (DLS) [es-connectors-salesforce-client-dls]
 
 [Document level security (DLS)](/reference/search-connectors/document-level-security.md) enables you to restrict access to documents based on a user'­s permissions. This feature is available by default for the Salesforce connector and supports both **standard and custom objects**.
+
+::::{important}
+Salesforce DLS is applied per **object type**, not per record. Every user with `Read` permission on an object type (such as `Case`) can access **all** synced records of that type, even if Salesforce record-level sharing hides specific records from them. Files (Content Documents) are granted to the users and entities linked through `ContentDocumentLink`. Refer to [known issues](#es-connectors-salesforce-client-known-issues).
+::::
 
 Salesforce allows users to set permissions in the following ways:
 
@@ -495,9 +491,9 @@ See [content extraction](/reference/search-connectors/es-connectors-content-extr
 
 ### Known issues [es-connectors-salesforce-client-known-issues]
 
-* **DLS feature is "type-level" not "document-level"**
+* **DLS feature is "type-level" not "record-level"**
 
-    Salesforce DLS, added in 8.13.0, does not accomodate specific access controls to specific Salesforce Objects. Instead, if a given user/group can have access to *any* Objects of a given type (`Case`, `Lead`, `Opportunity`, etc), that user/group will appear in the `\_allow_access_control` list for *all* of the Objects of that type. See [https://github.com/elastic/connectors/issues/3028](https://github.com/elastic/connectors/issues/3028) for more details.
+    Salesforce DLS, added in 8.13.0, does not apply record-level access controls. If a user has `Read` permission on an object type (`Case`, `Lead`, `Opportunity`, and so on), that user appears in the `_allow_access_control` list of **all** synced records of that type. Users can therefore access records in Elasticsearch that Salesforce hides from them. To limit exposure, exclude sensitive object types from the sync. See [https://github.com/elastic/connectors/issues/3028](https://github.com/elastic/connectors/issues/3028) for more details.
 
 * **Only first 500 nested entities are ingested**
 

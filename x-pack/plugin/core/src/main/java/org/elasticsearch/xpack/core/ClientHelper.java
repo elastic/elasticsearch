@@ -198,6 +198,7 @@ public final class ClientHelper {
     public static final String PROMETHEUS_ORIGIN = "prometheus";
     public static final String REINDEX_DATA_STREAM_ORIGIN = "reindex_data_stream";
     public static final String ESQL_ORIGIN = "esql";
+    public static final String DATA_RECOVERY_ORIGIN = "data_recovery";
 
     private ClientHelper() {}
 

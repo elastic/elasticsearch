@@ -84,4 +84,27 @@ FROM sample_data
 | 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z |
 | 2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z |
 
+```{applies_to}
+stack: ga 9.6.0
+```
+
+By default, `TBUCKET` only returns buckets that contain at least one row. Set the
+`include_empty_buckets` option to `true` to also return the empty buckets in the `from`..`to` range,
+filled with default aggregate values:
+
+```esql
+TS k8s
+| STATS max_cost = MAX(MAX_OVER_TIME(network.cost))
+  BY time_bucket = TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
+```
+
+| max_cost:double | time_bucket:datetime |
+| --- | --- |
+| 12.375 | 2024-05-10T00:00:00.000Z |
+| 12.5 | 2024-05-10T00:05:00.000Z |
+| 11.875 | 2024-05-10T00:10:00.000Z |
+| 12.375 | 2024-05-10T00:15:00.000Z |
+| 11.875 | 2024-05-10T00:20:00.000Z |
+| null | 2024-05-10T00:25:00.000Z |
+
 

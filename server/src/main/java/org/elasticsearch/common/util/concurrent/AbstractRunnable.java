@@ -16,6 +16,8 @@ public abstract class AbstractRunnable implements Runnable {
 
     /**
      * Should the runnable force its execution in case it gets rejected?
+     * Note that the executor may still reject the runnable according to its rejection policy, and {@link EsAbortPolicy} is usually
+     * in place. That policy will reject if its executor is shutting down regardless of this setting.
      */
     public boolean isForceExecution() {
         return false;

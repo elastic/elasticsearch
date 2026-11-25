@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -68,14 +69,17 @@ public class HttpStorageObjectBreakerTripStatusTests extends ESTestCase {
         );
         // ... and still name the object that tripped it, like every other mapped read failure.
         assertThat(error, instanceOf(CircuitBreakingException.class));
-        assertThat(error.getMessage(), containsString(path.toString()));
+        assertThat(error.getMessage(), containsString(path.objectName()));
     }
 
-    /** The breaker-trip message is built outside this module from the path it is handed, which is the redacted URL. */
+    /** The breaker-trip message names the object by its last path segment, without echoing the storage URI or credentials. */
     public void testBreakerTripRedactsUrl() throws Exception {
         Exception error = readWithRefusingBreaker(StoragePath.of(HttpUrlsTests.SECRET_URL));
         assertThat(error, instanceOf(CircuitBreakingException.class));
-        HttpUrlsTests.assertRedacted(error.getMessage());
+        assertThat(error.getMessage(), containsString("b.csv"));
+        assertThat(error.getMessage(), not(containsString("user:pass")));
+        assertThat(error.getMessage(), not(containsString("X-Amz-Signature")));
+        assertThat(error.getMessage(), not(containsString("https://")));
     }
 
     /** Reads {@code path} through the native async path with a breaker that refuses the destination buffer. */

@@ -16,10 +16,27 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CheckedIntConsumer;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -76,6 +93,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
@@ -225,6 +243,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     private Directory directory = newDirectory();
     private IndexReader reader;
 
+    /** The shard context of the last factory {@link #simple} built. */
+    private MockShardContext shardContext;
+
     public LuceneSourceOperatorTests(TestCase testCase, boolean scoring) {
         this.testCase = testCase;
         this.scoring = scoring;
@@ -253,7 +274,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        ShardContext ctx = new MockShardContext(reader, 0);
+        MockShardContext ctx = new MockShardContext(reader, 0);
+        shardContext = ctx;
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> testCase.queryAndExtra();
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
@@ -364,7 +386,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             );
             drivers.add(driver);
         }
-        new TestDriverRunner().run(drivers);
+        new TestDriverRunner().testDriverStatuses(randomBoolean()).run(drivers);
         for (SourceOperator source : sources) {
             logger.info("source status {}", source.status());
         }
@@ -376,6 +398,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             testCase.numResults(numDocs)
         );
         assertThat(receivedRows.get(), equalTo(Math.min(limit, testCase.numResults(numDocs))));
+        // stopping at the limit leaves slices nobody read, and they count as read once the drivers are done
+        assertThat(shardContext.unfinishedSlices(), equalTo(0));
     }
 
     public void testEmpty() {
@@ -630,6 +654,291 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         return DirectoryReader.open(directory);
     }
 
+    /**
+     * One weight serves every leaf of a shard, so the operator renders its query for the status once, however many leaves it reads.
+     */
+    public void testRendersTheQueryOnce() throws IOException {
+        int numDocs = 1_000;
+        reader = simpleReader(directory, numDocs, /* commitEvery */ 50);
+        assertThat(reader.leaves().size(), greaterThan(1));
+        ShardContext ctx = new MockShardContext(reader, 0);
+        RenderCountingQuery query = new RenderCountingQuery();
+        LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            ignored -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            DataPartitioning.SEGMENT,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            1,
+            between(10, 100),
+            LuceneOperator.NO_LIMIT,
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
+        );
+        DriverContext driverContext = driverContext();
+        LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(driverContext);
+        List<Page> results = new ArrayList<>();
+        new TestDriverRunner().run(
+            TestDriverFactory.create(driverContext, sourceOperator, List.of(), new TestResultPageSinkOperator(results::add))
+        );
+        OperatorTestCase.assertDriverContext(driverContext);
+
+        int rows = 0;
+        for (Page page : results) {
+            rows += page.getPositionCount();
+            page.releaseBlocks();
+        }
+        assertThat(rows, equalTo(numDocs));
+        LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) sourceOperator.status();
+        assertThat(status.processedQueries(), equalTo(List.of("RenderCountingQuery")));
+        assertThat(query.renders.get(), equalTo(1));
+    }
+
+    /**
+     * Runs the operator against a query whose {@link BulkScorer} delivers every scored window through
+     * {@link LeafCollector#collectRange}, the way Lucene's {@code DenseConjunctionBulkScorer} does for dense doc-id runs.
+     * Covers the counted-loop override in {@code LimitingCollector} and the per-document one in {@code ScoringCollector}
+     * (via the {@code scoring} parameter), including the limit cutting a range short.
+     */
+    public void testCollectRange() throws IOException {
+        testBulkCollection(false);
+    }
+
+    /** Same as {@link #testCollectRange} but delivering hits through {@link LeafCollector#collect(DocIdStream)}. */
+    public void testCollectDocIdStream() throws IOException {
+        testBulkCollection(true);
+    }
+
+    private void testBulkCollection(boolean useDocIdStream) throws IOException {
+        int numDocs = 1_000;
+        // Two segments (400 + 600 docs) so bulk ranges restart at doc 0 on the second leaf.
+        reader = readerWithCommitsAfter(directory, numDocs, 399);
+        ShardContext ctx = new MockShardContext(reader, 0);
+        int maxPageSize = 256;
+        // A limit below numDocs cuts a bulk range short mid-window, a limit above never does.
+        for (int limit : new int[] { 700, numDocs * 2 }) {
+            LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+                new IndexedByShardIdFromSingleton<>(ctx),
+                ignored -> List.of(new LuceneSliceQueue.QueryAndTags(new BulkCollectingQuery(useDocIdStream), List.of())),
+                DataPartitioning.SHARD,
+                DataPartitioning.AutoStrategy.DEFAULT,
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
+                1,
+                maxPageSize,
+                limit,
+                scoring,
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                QueryWarnings.EMIT
+            );
+            DriverContext driverContext = driverContext();
+            List<Page> results = new ArrayList<>();
+            new TestDriverRunner().run(
+                TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), new TestResultPageSinkOperator(results::add))
+            );
+            OperatorTestCase.assertDriverContext(driverContext);
+
+            int rows = 0;
+            int lastSegment = -1;
+            int lastDoc = -1;
+            for (Page page : results) {
+                DocVector docs = ((DocBlock) page.getBlock(0)).asVector();
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    int segment = docs.segments().getInt(p);
+                    if (segment != lastSegment) {
+                        assertThat(segment, greaterThan(lastSegment));
+                        lastSegment = segment;
+                        lastDoc = -1;
+                    }
+                    assertThat(docs.docs().getInt(p), equalTo(lastDoc + 1));
+                    lastDoc++;
+                }
+                if (scoring) {
+                    DoubleBlock scores = page.getBlock(1);
+                    assertThat(scores.getPositionCount(), equalTo(page.getPositionCount()));
+                    for (int p = 0; p < scores.getPositionCount(); p++) {
+                        assertThat(scores.getDouble(p), equalTo(1.0));
+                    }
+                }
+                rows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            assertThat(rows, equalTo(Math.min(limit, numDocs)));
+        }
+    }
+
+    /**
+     * Match-all query whose {@link BulkScorer} delivers each scored window through a bulk collection entry point —
+     * {@link LeafCollector#collectRange} or {@link LeafCollector#collect(DocIdStream)} — instead of per-document
+     * {@link LeafCollector#collect(int)} calls, emulating {@code DenseConjunctionBulkScorer}'s dense-run shortcut.
+     * {@code Weight#bulkScorer} is final, so the hook is {@link ScorerSupplier#bulkScorer}.
+     */
+    private static class BulkCollectingQuery extends Query {
+        private final boolean useDocIdStream;
+
+        BulkCollectingQuery(boolean useDocIdStream) {
+            this.useDocIdStream = useDocIdStream;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+            return new ConstantScoreWeight(this, boost) {
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                    int maxDoc = context.reader().maxDoc();
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) {
+                            return new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(maxDoc));
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() {
+                            return new BulkScorer() {
+                                @Override
+                                public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                                    collector.setScorer(new Scorable() {
+                                        @Override
+                                        public float score() {
+                                            return 1f;
+                                        }
+                                    });
+                                    int end = Math.min(max, maxDoc);
+                                    if (min < end) {
+                                        if (useDocIdStream) {
+                                            collector.collect(new RangeStream(min, end));
+                                        } else {
+                                            collector.collectRange(min, end);
+                                        }
+                                    }
+                                    return end >= maxDoc ? DocIdSetIterator.NO_MORE_DOCS : end;
+                                }
+
+                                @Override
+                                public long cost() {
+                                    return maxDoc;
+                                }
+                            };
+                        }
+
+                        @Override
+                        public long cost() {
+                            return maxDoc;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext leafReaderContext) {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "BulkCollectingQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj) && ((BulkCollectingQuery) obj).useDocIdStream == useDocIdStream;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * classHash() + Boolean.hashCode(useDocIdStream);
+        }
+    }
+
+    /**
+     * Match-all query that counts how often it is rendered. Its weight reports this query, so the operator renders this one.
+     */
+    private static class RenderCountingQuery extends Query {
+        private final AtomicInteger renders = new AtomicInteger();
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new FilterWeight(this, Queries.ALL_DOCS_INSTANCE.createWeight(searcher, scoreMode, boost)) {};
+        }
+
+        @Override
+        public String toString(String field) {
+            renders.incrementAndGet();
+            return "RenderCountingQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
+    }
+
+    /** A {@link DocIdStream} over a contiguous doc-id range. Lucene's own range stream is package-private. */
+    private static class RangeStream extends DocIdStream {
+        /**
+         * {@link #intoArray} deliberately copies at most this many doc ids per call — a partial batch is legal ("copy
+         * some matching doc IDs") — so the collector's {@code forEach} tail after {@code intoArray} is exercised too.
+         */
+        private static final int INTO_ARRAY_CHUNK = 100;
+
+        private int next;
+        private final int end; // exclusive
+
+        RangeStream(int min, int end) {
+            this.next = min;
+            this.end = end;
+        }
+
+        @Override
+        public void forEach(int upTo, CheckedIntConsumer<IOException> consumer) throws IOException {
+            int bound = Math.min(upTo, end);
+            while (next < bound) {
+                consumer.accept(next++);
+            }
+        }
+
+        @Override
+        public int count(int upTo) {
+            int bound = Math.min(upTo, end);
+            int count = Math.max(0, bound - next);
+            next += count;
+            return count;
+        }
+
+        @Override
+        public int intoArray(int upTo, int[] array) {
+            int bound = Math.min(upTo, end);
+            int count = Math.min(Math.min(array.length, INTO_ARRAY_CHUNK), Math.max(0, bound - next));
+            for (int i = 0; i < count; i++) {
+                array[i] = next++;
+            }
+            return count;
+        }
+
+        @Override
+        public boolean mayHaveRemaining() {
+            return next < end;
+        }
+    }
+
     private static SharedMinCompetitive.Supplier timestampDescMinCompetitiveSupplier(BlockFactory blockFactory) {
         SharedMinCompetitive.KeyConfig keyConfig = new SharedMinCompetitive.KeyConfig(
             ElementType.LONG,
@@ -689,6 +998,10 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             // Shard with no docs may still see minimal load from query rewrite, but should be <= others
             assertThat(loadLarge, greaterThan(0d));
             assertThat(loadLarge, greaterThanOrEqualTo(load0));
+
+            // each shard counts the rows its source emitted
+            assertThat(((MockShardContext) shardContexts.get(0)).rowsEmitted(), equalTo(0L));
+            assertThat(((MockShardContext) shardContexts.get(1)).rowsEmitted(), equalTo(totalPositions));
         } finally {
             IOUtils.close(r0, rLarge, dir0, dirLarge);
         }
@@ -714,6 +1027,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         private final int index;
         private final ContextIndexSearcher searcher;
         private final ShardSearchStats shardSearchStats;
+        private final AtomicInteger unfinishedSlices = new AtomicInteger();
+        private final AtomicLong rowsEmitted = new AtomicLong();
 
         private static final int MIN_DOCS_PER_SLICE = 50_000;
         private static final int MAX_SLICES_NUMBER = 10;
@@ -754,6 +1069,18 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 new SearchStatsSettings(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
             );
             this.searcher = searcher;
+        }
+
+        @Override
+        public void addUnfinishedSlices(int delta) {
+            unfinishedSlices.addAndGet(delta);
+        }
+
+        /**
+         * The slices of this shard still to read or being read.
+         */
+        public int unfinishedSlices() {
+            return unfinishedSlices.get();
         }
 
         @Override
@@ -802,6 +1129,15 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         @Override
         public ShardSearchStats stats() {
             return shardSearchStats;
+        }
+
+        @Override
+        public void addRowsEmitted(long rows) {
+            rowsEmitted.addAndGet(rows);
+        }
+
+        public long rowsEmitted() {
+            return rowsEmitted.get();
         }
 
         public void incRef() {}

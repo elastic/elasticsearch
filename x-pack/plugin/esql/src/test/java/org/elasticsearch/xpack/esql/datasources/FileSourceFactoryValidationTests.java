@@ -14,9 +14,11 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -32,10 +34,12 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Pins {@link FileSourceFactory#COORDINATOR_KEYS} membership against the keys other code in this
@@ -78,11 +82,29 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
      * to FRAMEWORK_KEYS (for the storage-side strip step) but forgets the coordinator side, the
      * validator silently rejects every query that uses it. This unit-time check catches that
      * drift before it ships.
+     * <p>
+     * Restricted to keys a user can write. A framework-injected key is {@code _}-prefixed, and
+     * {@code ConfigKeyValidator} never reports one, so the rejection this pin guards against cannot
+     * happen for it and there is nothing for the coordinator side to declare.
      */
     public void testFrameworkKeysAreSubsetOfCoordinatorKeys() {
         Set<String> missing = new TreeSet<>(StorageProviderRegistry.FRAMEWORK_KEYS);
+        missing.removeIf(key -> key.startsWith("_"));
         missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
         assertTrue("FRAMEWORK_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
+    }
+
+    /**
+     * The provider cache keys on the whole config map, so a framework-injected key left in it
+     * fragments the cloud-client pool. With the definition version that is per dataset: every
+     * dataset over one bucket would build its own client, and past
+     * {@code StorageProviderCache.MAX_TOTAL_ENTRIES} concurrent ones the query fails outright.
+     */
+    public void testFrameworkKeysStripTheDefinitionVersion() {
+        assertTrue(
+            "the definition version must not reach a storage provider configuration",
+            StorageProviderRegistry.FRAMEWORK_KEYS.contains(DefinitionVersion.CONFIG_KEY)
+        );
     }
 
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {
@@ -113,6 +135,16 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     public void testPartitionConfigKeysMatchConstants() {
         assertConfigKeysMatchConstants(PartitionConfig.class, PartitionConfig.CONFIG_KEYS);
+    }
+
+    public void testCoordinatorKeysIncludesAllPartitionSpecKeys() {
+        for (String key : PartitionSpec.CONFIG_KEYS) {
+            assertTrue("PartitionSpec key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));
+        }
+    }
+
+    public void testPartitionSpecKeysMatchConstants() {
+        assertConfigKeysMatchConstants(PartitionSpec.class, PartitionSpec.CONFIG_KEYS);
     }
 
     public void testCoordinatorKeysIncludesAllExclusionConfigKeys() {
@@ -189,6 +221,37 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     }
 
     /**
+     * {@code withConfigTrackingConsumedKeys} mints a configured copy that {@code validateConfig}
+     * keeps only for consumed-key metadata. That remint must close; the registry prototype must not.
+     */
+    public void testValidateConfigClosesConfiguredRemint() {
+        AtomicInteger prototypeCloses = new AtomicInteger();
+        AtomicInteger remintCloses = new AtomicInteger();
+        FileSourceFactory factory = newRemintingFactory(prototypeCloses, remintCloses);
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("error_mode", "fail_fast"));
+        assertEquals(1, remintCloses.get());
+        assertEquals(0, prototypeCloses.get());
+    }
+
+    /** Identity {@code withConfig} (NoConfig readers) is not a mint; the prototype must stay open. */
+    public void testValidateConfigDoesNotCloseIdentityWithConfig() {
+        AtomicInteger closes = new AtomicInteger();
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("stub-parquet", (s, bf) -> new CountingNoConfigReader(closes), Settings.EMPTY, null);
+        formatRegistry.registerExtension(".parquet", "stub-parquet");
+        StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
+        storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
+        FileSourceFactory factory = new FileSourceFactory(
+            storageRegistry,
+            formatRegistry,
+            new DecompressionCodecRegistry(),
+            Settings.EMPTY
+        );
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("error_mode", "fail_fast"));
+        assertEquals(0, closes.get());
+    }
+
+    /**
      * Pins {@link FileSourceFactory#LEGACY_VOCABULARY_KEYS} against the format plugins' own
      * {@link FormatSpec}s, not a hand-typed copy: every text format must still claim each legacy key,
      * and the set must be exactly the sampling bound — a closed legacy shim, not a growing vocabulary.
@@ -223,8 +286,92 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
     }
 
+    private static FileSourceFactory newRemintingFactory(AtomicInteger prototypeCloses, AtomicInteger remintCloses) {
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(
+            "stub-parquet",
+            (s, bf) -> new RemintingReader(prototypeCloses, remintCloses, false),
+            Settings.EMPTY,
+            null
+        );
+        formatRegistry.registerExtension(".parquet", "stub-parquet");
+        StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
+        storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
+        return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
+    }
+
+    /**
+     * Mints a distinct configured copy so {@link FileSourceFactory#validateConfig} has a remint to
+     * close. Prototype and remint share the close counters.
+     */
+    private static final class RemintingReader implements FormatReader {
+        private final AtomicInteger prototypeCloses;
+        private final AtomicInteger remintCloses;
+        private final boolean remint;
+
+        RemintingReader(AtomicInteger prototypeCloses, AtomicInteger remintCloses, boolean remint) {
+            this.prototypeCloses = prototypeCloses;
+            this.remintCloses = remintCloses;
+            this.remint = remint;
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            if (remint) {
+                return Configured.empty(this);
+            }
+            return Configured.empty(new RemintingReader(prototypeCloses, remintCloses, true));
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("validateConfig never reads");
+        }
+
+        @Override
+        public org.elasticsearch.compute.operator.CloseableIterator<org.elasticsearch.compute.data.Page> read(
+            StorageObject object,
+            FormatReadContext context
+        ) {
+            throw new UnsupportedOperationException("validateConfig never reads");
+        }
+
+        @Override
+        public String formatName() {
+            return "stub-parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {
+            (remint ? remintCloses : prototypeCloses).incrementAndGet();
+        }
+    }
+
+    private static final class CountingNoConfigReader extends StubNoConfigReader {
+        private final AtomicInteger closes;
+
+        CountingNoConfigReader(AtomicInteger closes) {
+            this.closes = closes;
+        }
+
+        @Override
+        public void close() {
+            closes.incrementAndGet();
+        }
+    }
+
     /** Claims no config keys (like Parquet does for {@code schema_sample_size}); never actually reads. */
-    private static final class StubNoConfigReader implements NoConfigFormatReader {
+    private static class StubNoConfigReader implements NoConfigFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -351,4 +498,35 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         assertTrue(clazz.getSimpleName() + " CONFIG_* constants missing from CONFIG_KEYS: " + missingFromKeys, missingFromKeys.isEmpty());
         assertTrue(clazz.getSimpleName() + " CONFIG_KEYS entries with no backing CONFIG_* constant: " + extraInKeys, extraInKeys.isEmpty());
     }
+
+    /**
+     * The coordinator vends its own identity, so this pins it behaviourally: every key it owns moves the value,
+     * and every key it declares inert does not. A set-membership assertion cannot see a derivation that dropped
+     * a key; this can.
+     */
+    public void testTheCoordinatorIdentityMovesWithEveryKeyItOwnsAndNoInertOne() {
+        Map<String, Object> base = new HashMap<>();
+        for (String key : FileSourceFactory.COORDINATOR_KEYS) {
+            base.put(key, "a");
+        }
+        String baseIdentity = FileSourceFactory.coordinatorIdentity(base);
+        for (String key : FileSourceFactory.COORDINATOR_KEYS) {
+            Map<String, Object> altered = new HashMap<>(base);
+            altered.put(key, "b");
+            String identity = FileSourceFactory.coordinatorIdentity(altered);
+            if (FileSourceFactory.COORDINATOR_IDENTITY_INERT_KEYS.contains(key)) {
+                assertEquals("inert coordinator key [" + key + "] must not move the identity", baseIdentity, identity);
+            } else {
+                assertNotEquals("coordinator key [" + key + "] must move the identity", baseIdentity, identity);
+            }
+        }
+    }
+
+    /** A key declared inert that the coordinator no longer owns is a dangling justification. */
+    public void testCoordinatorInertKeysAreStillCoordinatorKeys() {
+        Set<String> stale = new TreeSet<>(FileSourceFactory.COORDINATOR_IDENTITY_INERT_KEYS);
+        stale.removeAll(FileSourceFactory.COORDINATOR_KEYS);
+        assertTrue("inert entries that are no longer coordinator keys: " + stale, stale.isEmpty());
+    }
+
 }

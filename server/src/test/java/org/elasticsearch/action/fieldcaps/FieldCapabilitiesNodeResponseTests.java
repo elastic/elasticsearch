@@ -49,7 +49,12 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     null,
                     randomFieldCaps(),
                     randomBoolean(),
-                    randomFrom(IndexMode.availableModes())
+                    randomFrom(IndexMode.availableModes()),
+                    0,
+                    0,
+                    0,
+                    0,
+                    null
                 )
             );
         }
@@ -77,7 +82,12 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     null,
                     randomFieldCaps(),
                     randomBoolean(),
-                    randomFrom(IndexMode.availableModes())
+                    randomFrom(IndexMode.availableModes()),
+                    0,
+                    0,
+                    0,
+                    0,
+                    null
                 )
             );
             case 1 -> {
@@ -93,7 +103,12 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         null,
                         randomFieldCaps(),
                         randomBoolean(),
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.availableModes()),
+                        0,
+                        0,
+                        0,
+                        0,
+                        null
                     )
                 );
             }
@@ -107,7 +122,12 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         UUIDs.randomBase64UUID(),
                         resp.get(),
                         true,
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.availableModes()),
+                        resp.getNumberOfShards(),
+                        resp.getCreatedVersion(),
+                        resp.getIndexSettingsVersion(),
+                        resp.getMappingVersion(),
+                        null
                     )
                 );
             }
@@ -154,6 +174,20 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         assumeTrue(
             "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
             hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+        );
+        final boolean hasPassthrough = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.isPassthrough() != null);
+        assumeTrue(
+            "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
+            hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
+        );
+        final boolean hasSingleValued = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(IndexFieldCapabilities::isStaticallySingleValued);
+        assumeTrue(
+            "single valued flag requires transport version " + FieldCapabilities.FIELD_CAPS_SINGLE_VALUED,
+            hasSingleValued == false || version.supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)
         );
 
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);

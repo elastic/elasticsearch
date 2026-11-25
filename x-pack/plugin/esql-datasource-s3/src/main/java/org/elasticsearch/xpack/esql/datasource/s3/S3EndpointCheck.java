@@ -141,14 +141,14 @@ final class S3EndpointCheck {
         boolean https = "https".equalsIgnoreCase(uri.getScheme());
         // The STS host receives the node's OIDC token, so it gets TLS even when the operator allowlist names it.
         if (https == false && STS_SERVICE.equals(service)) {
-            errors.addValidationError(settingName + " [" + value + "] must use https; it is sent the node's OIDC token");
+            errors.addValidationError(settingName + " must use https; it is sent the node's OIDC token");
             return;
         }
         if (allowedByOperator.test(hostAndPort(uri))) {
             return;
         }
         if (https == false) {
-            errors.addValidationError(settingName + " [" + value + "] must use https; plain http does not authenticate the endpoint");
+            errors.addValidationError(settingName + " must use https; plain http does not authenticate the endpoint");
             return;
         }
         if (isPermittedHost(uri.getHost(), service) == false) {

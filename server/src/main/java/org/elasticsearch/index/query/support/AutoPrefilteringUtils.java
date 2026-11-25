@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +53,9 @@ public final class AutoPrefilteringUtils {
             }
             case DisMaxQueryBuilder disMaxQuery -> pruneDisMaxQuery(disMaxQuery, prunedTypes);
             case FunctionScoreQueryBuilder functionScoreQuery -> pruneFunctionScoreQuery(functionScoreQuery, prunedTypes);
+            // The script only affects scoring (and min_score, which can only narrow the matches), so the inner query is a safe
+            // superset to filter on. Without looking inside, queries such as nested ones would escape pruning.
+            case ScriptScoreQueryBuilder scriptScoreQuery -> pruneQuery(scriptScoreQuery.query(), prunedTypes);
             case InterceptedQueryBuilderWrapper interceptedQuery -> {
                 Optional<QueryBuilder> pruned = pruneQuery(interceptedQuery.query(), prunedTypes);
                 yield pruned.map(q -> q == interceptedQuery.query() ? interceptedQuery : new InterceptedQueryBuilderWrapper(q));

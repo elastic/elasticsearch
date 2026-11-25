@@ -32,7 +32,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -512,63 +511,43 @@ public class MetadataDataStreamsService {
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
         Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
-        CompressedXContent effectiveMappings = dataStream.getEffectiveMappings(projectMetadata, indicesService);
+        DataStream updatedDataStream = dataStream.copy().setSettings(mergedDataStreamSettings).build();
+        // The effective mappings depend on the data stream's settings, so compute them with the new settings, not the current ones.
+        CompressedXContent effectiveMappings = updatedDataStream.getEffectiveMappings(
+            projectMetadata,
+            indicesService,
+            indexSettingProviders
+        );
         MetadataIndexTemplateService.validateTemplate(
-            addSettingsFromIndexSettingProviders(
-                dataStreamName,
-                template.isRegistryInstalled(),
-                effectiveMappings,
-                projectMetadata,
-                mergedEffectiveSettings
-            ),
+            addSettingsFromIndexSettingProviders(dataStreamName, template, effectiveMappings, projectMetadata, mergedEffectiveSettings),
             effectiveMappings,
             indicesService,
             dataStreamName
         );
 
-        return dataStream.copy().setSettings(mergedDataStreamSettings).build();
+        return updatedDataStream;
     }
 
     private Settings addSettingsFromIndexSettingProviders(
         String dataStreamName,
-        boolean registryInstalledTemplate,
+        ComposableIndexTemplate template,
         CompressedXContent effectiveMappings,
         ProjectMetadata projectMetadata,
         Settings settings
     ) {
-        Settings.Builder additionalSettings = Settings.builder();
-        IndexMode indexMode = projectMetadata.dataStreams().get(dataStreamName).getIndexMode();
-        Set<String> overrulingSettings = new HashSet<>();
-        indexSettingProviders.getIndexSettingProviders().forEach(indexSettingProvider -> {
-            Settings.Builder providerSettingsBuilder = Settings.builder();
-            indexSettingProvider.provideAdditionalSettings(
-                dataStreamName,
-                dataStreamName,
-                indexMode,
-                registryInstalledTemplate,
-                projectMetadata,
-                Instant.now(),
-                settings,
-                List.of(effectiveMappings),
-                IndexVersion.current(),
-                providerSettingsBuilder
-            );
-            Settings providerSettings = providerSettingsBuilder.build();
-            if (indexSettingProvider.overrulesTemplateAndRequestSettings()) {
-                overrulingSettings.addAll(providerSettings.keySet());
-            }
-            additionalSettings.put(providerSettings);
-        });
-        Settings filteredmergedEffectiveSettings = settings;
-        if (overrulingSettings.isEmpty() == false) {
-            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
-            final Settings.Builder filtered = Settings.builder().put(settings);
-            for (String setting : overrulingSettings) {
-                filtered.remove(setting);
-            }
-            filteredmergedEffectiveSettings = filtered.build();
-        }
-        return additionalSettings.put(filteredmergedEffectiveSettings).build();
+        return IndexSettingProviders.collectAdditionalSettings(
+            indexSettingProviders.getIndexSettingProviders(),
+            dataStreamName,
+            dataStreamName,
+            // The template's mode, as on rollover. The data stream's mode is the write index's mode, which the template may have changed.
+            projectMetadata.retrieveIndexModeFromTemplate(template),
+            template.isRegistryInstalled(),
+            projectMetadata,
+            Instant.now(),
+            settings,
+            effectiveMappings == null ? List.of() : List.of(effectiveMappings),
+            IndexVersion.current()
+        ).applyTo(settings);
     }
 
     private DataStream createDataStreamForUpdatedDataStreamMappings(
@@ -586,8 +565,9 @@ public class MetadataDataStreamsService {
             projectMetadata,
             template,
             mappingsOverrides,
-            dataStream.getWriteIndex(),
-            indicesService
+            dataStream,
+            indicesService,
+            indexSettingProviders
         );
         MetadataIndexTemplateService.validateTemplate(
             getEffectiveSettings(projectMetadata, dataStream, mappingsOverrides),
@@ -631,12 +611,13 @@ public class MetadataDataStreamsService {
             projectMetadata,
             template,
             mappingOverrides,
-            dataStream.getWriteIndex(),
-            indicesService
+            dataStream,
+            indicesService,
+            indexSettingProviders
         );
         return addSettingsFromIndexSettingProviders(
             dataStream.getName(),
-            template.isRegistryInstalled(),
+            template,
             effectiveMappings,
             projectMetadata,
             templateSettings.merge(dataStream.getSettings())

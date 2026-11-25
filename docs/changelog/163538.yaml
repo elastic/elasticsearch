@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 163537
+pr: 163538
+summary: "Fix `minimum_should_match` being ignored by `query_string` and `simple_query_string` on text fields with `index: false`"
+type: bug

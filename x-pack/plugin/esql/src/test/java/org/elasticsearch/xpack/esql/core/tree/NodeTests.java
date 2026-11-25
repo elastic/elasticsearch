@@ -19,8 +19,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -270,6 +272,79 @@ public class NodeTests extends ESTestCase {
     public void testTransformDownAsyncNoChange() throws InterruptedException {
         NoChildren node = new NoChildren(randomSource(), "unchanged");
         assertAsyncTransform(node, (n, listener) -> listener.onResponse(n), result -> assertSame(node, result));
+    }
+
+    public void testTransformUpSkipBranch() {
+        NoChildren skippedLeaf = new NoChildren(randomSource(), "leaf");
+        ChildrenAreAProperty skipped = new ChildrenAreAProperty(randomSource(), List.of(skippedLeaf), "skipped");
+        NoChildren visitedLeaf = new NoChildren(randomSource(), "leaf");
+        ChildrenAreAProperty root = new ChildrenAreAProperty(randomSource(), List.of(skipped, visitedLeaf), "root");
+
+        List<String> visited = new ArrayList<>();
+        Dummy result = root.transformUpSkipBranch((parent, i) -> parent == root && i == 0, n -> {
+            visited.add(n.thing());
+            return n instanceof NoChildren ? new NoChildren(n.source(), "transformed") : n;
+        });
+
+        // Children before parents, and nothing at or below the skipped child.
+        assertEquals(List.of("leaf", "root"), visited);
+        assertSame(skipped, result.children().get(0));
+        assertEquals("transformed", result.children().get(1).thing());
+    }
+
+    /**
+     * The skip decision is positional: of two equal children, only the one at the skipped index is left alone.
+     */
+    public void testTransformUpSkipBranchByPosition() {
+        Source source = randomSource();
+        NoChildren first = new NoChildren(source, "leaf");
+        NoChildren second = new NoChildren(source, "leaf");
+        assertEquals(first, second);
+        ChildrenAreAProperty root = new ChildrenAreAProperty(source, List.of(first, second), "root");
+
+        Dummy result = root.transformUpSkipBranch(
+            (parent, i) -> parent == root && i == 1,
+            n -> n instanceof NoChildren ? new NoChildren(n.source(), "transformed") : n
+        );
+
+        assertEquals("transformed", result.children().get(0).thing());
+        assertSame(second, result.children().get(1));
+    }
+
+    public void testTransformUpSkipBranchNoChange() {
+        ChildrenAreAProperty root = new ChildrenAreAProperty(
+            randomSource(),
+            List.of(new NoChildren(randomSource(), "leaf"), new NoChildren(randomSource(), "leaf")),
+            "root"
+        );
+        assertSame(root, root.transformUpSkipBranch((parent, i) -> i == 0, n -> n));
+    }
+
+    /**
+     * A node rebuilt because a child changed reaches the rule with the node it was rebuilt from; an unchanged node is its own
+     * original.
+     */
+    public void testTransformUpSkipBranchWithOriginal() {
+        NoChildren leaf = new NoChildren(randomSource(), "leaf");
+        ChildrenAreAProperty middle = new ChildrenAreAProperty(randomSource(), List.of(leaf), "middle");
+        NoChildren unchanged = new NoChildren(randomSource(), "unchanged");
+        ChildrenAreAProperty root = new ChildrenAreAProperty(randomSource(), List.of(middle, unchanged), "root");
+
+        Map<String, Dummy> originals = new HashMap<>();
+        Map<String, Dummy> nodes = new HashMap<>();
+        root.transformUpSkipBranchWithOriginal((parent, i) -> false, (original, n) -> {
+            originals.put(n.thing(), original);
+            nodes.put(n.thing(), n);
+            return n == leaf ? new NoChildren(n.source(), "transformed") : n;
+        });
+
+        assertSame(leaf, originals.get("leaf"));
+        assertSame(middle, originals.get("middle"));
+        assertNotSame(middle, nodes.get("middle"));
+        assertSame(root, originals.get("root"));
+        assertNotSame(root, nodes.get("root"));
+        assertSame(unchanged, originals.get("unchanged"));
+        assertSame(unchanged, nodes.get("unchanged"));
     }
 
     private void assertAsyncTransform(Dummy node, BiConsumer<? super Dummy, ActionListener<Dummy>> rule, Consumer<Dummy> assertions)

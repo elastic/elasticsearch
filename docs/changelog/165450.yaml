@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165450
+summary: Accept day-based periods such as `7 days` for the `DECAY` scale and offset of dates
+type: enhancement

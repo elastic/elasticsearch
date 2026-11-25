@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 158937
+summary: "PromQL: add `sort_by_label` and `sort_by_label_desc`"
+type: feature

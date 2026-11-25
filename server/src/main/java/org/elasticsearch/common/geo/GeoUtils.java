@@ -525,8 +525,7 @@ public class GeoUtils {
     ) {
         final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
         if (singleValues != null && fromPoints.length == 1) {
-            return FieldData.singleton(new DoubleValues() {
-
+            var doubleValues = new DoubleValues() {
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
                     return singleValues.advanceExact(doc);
@@ -539,7 +538,8 @@ public class GeoUtils {
                     return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
                 }
 
-            });
+            };
+            return SortedNumericDoubleValues.singleton(doubleValues, geoPointValues.docIdIterator());
         } else {
             return new SortingNumericDoubleValues() {
                 @Override

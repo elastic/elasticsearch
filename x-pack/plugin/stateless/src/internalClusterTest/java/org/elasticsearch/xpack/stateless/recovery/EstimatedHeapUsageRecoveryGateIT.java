@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
@@ -36,6 +35,7 @@ import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -52,11 +52,9 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginIntegTestCase {
 
-    /// Recovery gates are disabled by default; [InternalSettingsPlugin] registers the enable flag so tests can turn it on.
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(InternalSettingsPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
@@ -91,6 +89,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
             greaterThan(0L)
         );
         assertThat(getLastLongAsyncGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(1L));
+        assertCurrentGateHasPendingRecoveries(telemetry, true);
         assertThat(telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC), empty());
         final List<Measurement> blockCount = telemetry.getLongCounterMeasurement(
             RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC
@@ -130,6 +129,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
             getLastLongAsyncGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC, telemetry),
             equalTo(0L)
         );
+        assertCurrentGateHasPendingRecoveries(telemetry, false);
         assertThat(
             getLastDoubleGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC, telemetry),
             greaterThan(0.0)
@@ -308,6 +308,19 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
     }
 
     private static double getLastDoubleGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
-        return telemetryPlugin.getDoubleAsyncGaugeMeasurement(name).getLast().getDouble();
+        return telemetryPlugin.getDoubleGaugeMeasurement(name).getLast().getDouble();
+    }
+
+    private static void assertCurrentGateHasPendingRecoveries(TestTelemetryPlugin telemetry, boolean expected) {
+        for (String metric : List.of(
+            RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
+            RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC
+        )) {
+            assertThat(
+                metric,
+                telemetry.getLongAsyncGaugeMeasurement(metric).getLast().attributes(),
+                equalTo(Map.of(RecoveryMetricsCollector.RECOVERY_GATE_HAS_PENDING_RECOVERIES_ATTRIBUTE_KEY, expected))
+            );
+        }
     }
 }

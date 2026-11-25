@@ -7,27 +7,22 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.monitor.jvm.HotThreads;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -51,11 +46,8 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
     private final ShardId shardId;
     private final long generation;
     private final long taskStartMillis;
-    private final TimeValue hotThreadsLogInterval;
     private final AtomicBoolean cacheWarmedAttempted = new AtomicBoolean();
-    private final List<BccUploadResult.BccUploadAttemptTiming> attemptTimings = new CopyOnWriteArrayList<>();
     private int uploadTryNumber = 0;
-    private volatile Scheduler.Cancellable hotThreadsLoggingTask;
     private volatile long attemptStartMillis;
 
     public BatchedCompoundCommitUploadTask(
@@ -67,7 +59,6 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
         BiConsumer<ActionListener<Void>, Long> uploadWhenReady,
         VirtualBatchedCompoundCommit virtualBcc,
         TimeValue initialDelay,
-        TimeValue hotThreadsLogInterval,
         ActionListener<BccUploadResult> listener
     ) {
         super(
@@ -77,7 +68,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
             TimeValue.timeValueSeconds(5),
             TimeValue.timeValueMillis(Long.MAX_VALUE),
             listener,
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+            threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
         );
         assert virtualBcc.isFrozen();
 
@@ -91,7 +82,6 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
         this.shardId = virtualBcc.getShardId();
         this.generation = virtualBcc.getPrimaryTermAndGeneration().generation();
         this.taskStartMillis = threadPool.relativeTimeInMillis();
-        this.hotThreadsLogInterval = hotThreadsLogInterval;
     }
 
     // TODO: shouldRetrySupplier, pauseUploadSupplier and uploadWhenReady (in executeUpload)
@@ -100,7 +90,6 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
     public void tryAction(ActionListener<BccUploadResult> listener) {
         ++uploadTryNumber;
         attemptStartMillis = threadPool.relativeTimeInMillis();
-        maybeStartHotThreadsLogging();
 
         // Check whether a shard relocation is in progress. If the relocation hand-off fails, then the state will be set back to RUNNING and
         // the next upload attempt will be allowed through. If the state is transition to CLOSED then we still don't upload and the upload
@@ -114,25 +103,6 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
                 logUploadAttemptFailure(e);
                 l.onFailure(e);
             }));
-        }
-    }
-
-    private void maybeStartHotThreadsLogging() {
-        if (hotThreadsLoggingTask != null || hotThreadsLogInterval.millis() <= 0) {
-            return;
-        }
-        hotThreadsLoggingTask = threadPool.scheduleWithFixedDelay(
-            () -> HotThreads.logLocalHotThreads(logger, Level.INFO, shardId + " bcc upload ", ReferenceDocs.LOGGING),
-            hotThreadsLogInterval,
-            threadPool.generic()
-        );
-    }
-
-    private void cancelHotThreadsLogging() {
-        final Scheduler.Cancellable task = hotThreadsLoggingTask;
-        if (task != null) {
-            task.cancel();
-            hotThreadsLoggingTask = null;
         }
     }
 
@@ -167,15 +137,19 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
     }
 
     private void uploadBatchedCompoundCommitFile(ActionListener<BccUploadResult> listener) {
+        assert pauseUploadSupplier.apply(generation) == false
+            : shardId + " uploading batched compound commit generation [" + generation + "] whose upload is paused";
+
         final long generationQueueWaitMs = threadPool.relativeTimeInMillis() - attemptStartMillis;
         final int attempt = uploadTryNumber;
         final long enqueuedAtNanos = threadPool.relativeTimeInNanos();
+        final var attemptTiming = new AtomicReference<BccUploadResult.BccUploadAttemptTiming>();
         try (RefCountingListener refCountingListener = new RefCountingListener(listener.delegateFailureAndWrap((l, unused) -> {
-            cancelHotThreadsLogging();
             BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
             assert uploadedBcc.lastCompoundCommit() != null;
             final long totalUploadTimeMs = threadPool.relativeTimeInMillis() - taskStartMillis;
-            l.onResponse(new BccUploadResult(uploadedBcc, totalUploadTimeMs, List.copyOf(attemptTimings)));
+            assert attemptTiming.get() != null : shardId + " commit [" + generation + "] uploaded without a timing";
+            l.onResponse(new BccUploadResult(uploadedBcc, totalUploadTimeMs, attemptTiming.get()));
         }))) {
             if (cacheWarmedAttempted.compareAndSet(false, true)) {
                 cacheWarmingService.warmCacheBeforeUpload(virtualBcc, refCountingListener.acquire().delegateResponse((l, e) -> {
@@ -194,17 +168,15 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
                 enqueuedAtNanos,
                 virtualBcc,
                 refCountingListener.acquire().delegateFailure((l, objectStoreTiming) -> {
-                    attemptTimings.add(
-                        new BccUploadResult.BccUploadAttemptTiming(
-                            attempt,
-                            generationQueueWaitMs,
-                            objectStoreTiming.objectStoreQueueWaitMs(),
-                            objectStoreTiming.uploadIoMs(),
-                            virtualBcc.getTotalSizeInBytes()
-                        )
+                    final var timing = new BccUploadResult.BccUploadAttemptTiming(
+                        attempt,
+                        generationQueueWaitMs,
+                        objectStoreTiming.objectStoreQueueWaitMs(),
+                        objectStoreTiming.uploadIoMs(),
+                        virtualBcc.getTotalSizeInBytes()
                     );
+                    attemptTiming.set(timing);
                     if (logger.isDebugEnabled()) {
-                        final var timing = attemptTimings.getLast();
                         logger.debug(() -> {
                             int uploadedFileCount = 0;
                             long uploadedFileBytes = 0;
@@ -231,11 +203,5 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
     @Override
     public boolean shouldRetry(Exception e) {
         return shouldRetryPredicate.test(e);
-    }
-
-    @Override
-    public void onFinished() {
-        cancelHotThreadsLogging();
-        super.onFinished();
     }
 }

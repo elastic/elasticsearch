@@ -63,6 +63,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -110,7 +111,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(mapping.get());
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
-        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
+        assertEquals(Strings.toString(mapping.get()), mapperService.documentMapper().mappingSource().string());
     }
 
     public void testDateWithLocale() throws IOException {
@@ -121,7 +122,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(mapping.get());
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
-        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
+        assertEquals(Strings.toString(mapping.get()), mapperService.documentMapper().mappingSource().string());
     }
 
     public void testDateWithLocaleAndFormat() throws IOException {
@@ -132,7 +133,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(mapping.get());
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
-        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
+        assertEquals(Strings.toString(mapping.get()), mapperService.documentMapper().mappingSource().string());
     }
 
     public void testFormat() throws IOException {
@@ -176,12 +177,12 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1595432181351]}"))));
-            List<Long> results = new ArrayList<>();
+            List<Long> results = Collections.synchronizedList(new ArrayList<>());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 DateScriptFieldType ft = build("add_days", Map.of("days", 1), OnScriptError.FAIL);
                 DateScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -204,7 +205,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                             }
                         };
                     }
-                });
+                }));
                 assertThat(results, containsInAnyOrder(1595518581354L, 1595518581351L, 1595518581356L));
             }
         }

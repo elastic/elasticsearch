@@ -37,12 +37,11 @@ import java.util.stream.IntStream;
 
 /**
  * Bare-bones bulk operation benchmark for int8 vector similarity functions.
- * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
+ * Dispatches directly to the native BULK / BULK_SPARSE implementations
  * via {@link SimdVecLibrary}, bypassing the Lucene scorer infrastructure
  * so the inner SIMD kernel cost is the dominant signal:
  * <ul>
  *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
- *   <li>{@code scoreBulkOffsets} — scattered access via int32 offsets array</li>
  *   <li>{@code scoreBulkSparse} — scattered access via pre-resolved address array</li>
  * </ul>
  * {@code scoreSequential} and {@code scoreRandom} are single-pair controls.
@@ -92,11 +91,14 @@ public class VectorScorerInt8BulkOperationBenchmark {
     private int numVectorsToScore;
     private long datasetAddress;
     // Scratch buffers in native memory for bulk calls.
-    private MemorySegment ordinalsSeg;
     private MemorySegment addressesSeg;
     private MemorySegment resultsSeg;
     // Java-side results array, returned from benchmarks to prevent dead-code elimination.
     private float[] scores;
+    // Heap dataset, query and scores for the heap-API bulk case, matching the all-heap maxSim call shape.
+    private byte[] heapDataset;
+    private byte[] heapQuery;
+    private float[] heapScores;
 
     // although this is not a directory-based BulkBenchmark, we can still use some bits in the VectorData impl
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
@@ -144,10 +146,16 @@ public class VectorScorerInt8BulkOperationBenchmark {
         ordinals = vectorData.ordinals;
 
         // Native scratch buffers for bulk calls
-        ordinalsSeg = arena.allocate((long) bulkSize * Integer.BYTES);
         addressesSeg = arena.allocate((long) bulkSize * Long.BYTES);
         resultsSeg = arena.allocate((long) bulkSize * Float.BYTES);
         scores = new float[bulkSize];
+
+        heapDataset = new byte[numVectors * dims];
+        for (int v = 0; v < numVectors; v++) {
+            System.arraycopy(vectorData.vectors[v], 0, heapDataset, v * dims, dims);
+        }
+        heapQuery = vectorData.vectors[vectorData.targetOrd];
+        heapScores = new float[numVectorsToScore];
 
     }
 
@@ -170,23 +178,6 @@ public class VectorScorerInt8BulkOperationBenchmark {
             case COSINE -> VEC_LIBRARY.cosineI8Bulk(a, b, dims, count, results);
             case DOT_PRODUCT -> VEC_LIBRARY.dotProductI8Bulk(a, b, dims, count, results);
             case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI8Bulk(a, b, dims, count, results);
-            default -> throw new UnsupportedOperationException(function.toString());
-        }
-    }
-
-    private void callBulkOffsetsScore(
-        MemorySegment a,
-        MemorySegment b,
-        int dims,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment results
-    ) {
-        switch (function) {
-            case COSINE -> VEC_LIBRARY.cosineI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
-            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
-            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
             default -> throw new UnsupportedOperationException(function.toString());
         }
     }
@@ -238,16 +229,20 @@ public class VectorScorerInt8BulkOperationBenchmark {
         return scores;
     }
 
-    /** BULK_OFFSETS: scattered access driven by an int32 ordinals array. */
+    /**
+     * Heap-API BULK: contiguous heap dataset with heap query and scores, all operands on the heap
+     * like the maxSim path. Only the dot-product kernel has a heap API.
+     */
     @Benchmark
-    public float[] scoreBulkOffsets() {
+    public float[] scoreBulkHeap() {
+        if (function != VectorSimilarityType.DOT_PRODUCT) {
+            throw new UnsupportedOperationException(function.toString());
+        }
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
-            MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-            callBulkOffsetsScore(dataset, query, dims, dims, ordinalsSeg, count, resultsSeg);
+            VEC_LIBRARY.dotProductI8Bulk(heapDataset, i * dims, heapQuery, dims, count, heapScores, i);
         }
-        MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
-        return scores;
+        return heapScores;
     }
 
     /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */

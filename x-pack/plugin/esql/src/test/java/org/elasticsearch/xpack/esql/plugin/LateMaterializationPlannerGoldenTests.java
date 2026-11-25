@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 
 import java.util.EnumSet;
 import java.util.Objects;
@@ -45,65 +44,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
-    public void testRemoteFetchTopNBoundaryAndRealizedPlans() {
-        runRemoteFetchGoldenTest("""
-            FROM employees
-            | KEEP hire_date, salary, emp_no
-            | SORT hire_date
-            | LIMIT 20
-            """);
-    }
-
-    public void testRemoteFetchTopNDoesNotPlanAggregationAfterTopN() {
-        runRemoteFetchGoldenTest("""
-            FROM employees
-            | KEEP hire_date, salary, emp_no
-            | SORT hire_date
-            | LIMIT 20
-            | STATS max_salary = MAX(salary)
-            """);
-    }
-
-    public void testRemoteFetchTopNDoesNotPlanAggregationBelowTopN() {
-        runRemoteFetchGoldenTest("""
-            FROM employees
-            | STATS max_salary = MAX(salary) BY hire_date
-            | SORT max_salary DESC
-            | LIMIT 20
-            """);
-    }
-
-    public void testRemoteFetchTopNDoesNotPlanExpressionBeforeTopN() {
-        runRemoteFetchGoldenTest("""
-            FROM employees
-            | EVAL adjusted_salary = salary + 1
-            | SORT hire_date
-            | LIMIT 20
-            | KEEP hire_date, adjusted_salary, emp_no
-            """);
-    }
-
-    public void testRemoteFetchTopNDoesNotPlanUserEvalSortKey() {
-        runRemoteFetchGoldenTest("""
-            FROM employees
-            | EVAL adjusted_salary = salary + 1
-            | SORT adjusted_salary
-            | LIMIT 20
-            | KEEP adjusted_salary, emp_no
-            """);
-    }
-
-    public void testRemoteFetchTopNDoesNotPlanNestedPipelineBreaker() {
-        runRemoteFetchGoldenTest("""
-            FROM employees
-            | SORT salary DESC
-            | LIMIT 100
-            | SORT hire_date
-            | LIMIT 20
-            | KEEP hire_date, salary, emp_no
-            """);
-    }
-
     public void testMultipleTopN() {
         String query = """
             FROM employees
@@ -128,10 +68,9 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * No narrowing {@code KEEP}, so {@code ProjectAwayColumns} leaves the top-level {@code Project} covering the whole relation.
-     * That is the shape every {@code FORK} branch has (reproduced here without {@code FORK}, which {@code GoldenTestCase} cannot
-     * plan because of its multiple {@code ExchangeExec}s), and the case where using that {@code Project} to decide what crosses the
-     * exchange prunes nothing. The data driver must still come out as {@code [_doc, hire_date]}.
+     * No narrowing {@code KEEP}, so the top-level {@code Project} that {@code ProjectAwayColumns} adds lists the whole relation.
+     * Every {@code FORK} branch has this shape. The test has no {@code FORK} because {@code GoldenTestCase} cannot plan its
+     * multiple {@code ExchangeExec}s. The data driver must output only {@code [_doc, hire_date]}.
      */
     public void testNoKeepWithFilter() {
         String query = """
@@ -144,8 +83,8 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * {@code _score} is produced by the Lucene source operator and has no block loader, so the node-reduce driver cannot re-read it.
-     * It must cross the exchange even though it is neither a sort key nor referenced below the TopN.
+     * The Lucene source operator computes {@code _score} and no block loader reads it, so the node-reduce driver cannot load it.
+     * It must cross the exchange although it is not a sort key and nothing under the TopN reads it.
      */
     public void testScoreMustCrossTheExchange() {
         String query = """
@@ -158,11 +97,9 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * The positive counterpart to {@link #testScoreMustCrossTheExchange}. {@code _index} and {@code _id} are on
-     * {@code LateMaterializationPlanner}'s allow-list of metadata attributes that have a block loader, so even though the
-     * {@code EVAL} below the TopN pulls them into the pipeline breaker's output - which is the only way a metadata attribute
-     * reaches the pruning decision at all - they must be dropped from the exchange and re-read on the node-reduce driver.
-     * Only the sort key and the {@code EVAL} result should cross.
+     * {@code Fetchability} accepts {@code _index} and {@code _id}. The {@code EVAL} under the TopN reads them, so the data driver
+     * loads them, but they must not cross the exchange: the node-reduce driver loads them again. Only the sort key and the
+     * {@code EVAL} result cross.
      */
     public void testReloadableMetadataMustNotCrossTheExchange() {
         String query = """
@@ -179,8 +116,9 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
      * For a TSDB index {@code ReplaceSourceAttributes} synthesizes a fresh {@code FieldAttribute} per
      * {@code EsQueryExec#TIME_SERIES_SOURCE_FIELDS}, so {@code _ts_slice_index} and {@code _ts_future_max_timestamp} appear in the
      * pipeline breaker's physical output without being the output of any {@code EsRelation}. They must not reach the data-side
-     * {@code Project}: its child is the logical fragment, which cannot produce them - the data node mints its own pair while
-     * mapping. Regression test for {@code missing references [_ts_slice_index, _ts_future_max_timestamp]}.
+     * {@code Project}: its child is the logical fragment, which does not output them, and the data node creates its own pair when
+     * it maps the fragment. Otherwise the data node fails with
+     * {@code missing references [_ts_slice_index, _ts_future_max_timestamp]}.
      */
     public void testTimeSeriesSourceAttributesMustNotBeProjected() {
         String query = """
@@ -384,14 +322,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
                 return false;
             }
         };
-    }
-
-    private void runRemoteFetchGoldenTest(String query) {
-        builder(query).stages(STAGES)
-            .searchStats(unindexedStats())
-            .flags(EsqlFlags.withRemoteFetchTopN(true))
-            .since(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION)
-            .run();
     }
 
     // Returns false for exists() for the specified field, simulating a missing field on the data node.

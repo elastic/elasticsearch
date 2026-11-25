@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -23,9 +28,11 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.FieldValueQueries;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -37,6 +44,9 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "STRING", "keyword" }, returnType = "boolean"),
+            @Signature(params = { "STRING", "keyword", "boolean" }, returnType = "boolean") },
         briefSummary = "Filters data based on string patterns using regular expressions.",
         description = """
             Use `RLIKE` to filter data based on string patterns using
@@ -148,10 +158,42 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     }
 
     @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, field())) {
+            // The field answers over the values it keeps, which the expression asks it for on the shard.
+            return FieldValueQueries.pushable(pushdownPredicates.minTransportVersion()) ? Translatable.YES : Translatable.NO;
+        }
+        return super.translatable(pushdownPredicates);
+    }
+
+    @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, field())) {
+            return FieldValueQueries.over(source(), handler.nameOf(field()), this);
+        }
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
         // TODO: see whether escaping is needed
         return new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive());
+    }
+
+    /**
+     * The regular expression matched against the value whole, which is what RLIKE asks.
+     */
+    @Override
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        return FieldValueQueries.textFamily(fieldType)
+            .regexpLikeQuery(
+                pattern().asJavaRegex(),
+                RegExp.ALL,
+                caseInsensitive() ? RegExp.CASE_INSENSITIVE : 0,
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                constantScoreRewrite,
+                context
+            );
     }
 
     /**

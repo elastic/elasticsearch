@@ -11,10 +11,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
@@ -43,7 +44,7 @@ public class MergeExecKindMapperTests extends ESTestCase {
         assertEquals(MergeExec.Kind.UNION, merge.kind());
     }
 
-    public void testViewUnionAllMapsToUnionKind() {
+    public void testBranchPlanMapsToUnionKind() {
         PhysicalPlan physical = new Mapper().map(new Versioned<>(viewUnionAll(), TransportVersion.current()));
         MergeExec merge = as(physical, MergeExec.class);
         assertEquals(MergeExec.Kind.UNION, merge.kind());
@@ -73,12 +74,17 @@ public class MergeExecKindMapperTests extends ESTestCase {
         return new UnionAll(Source.EMPTY, List.of(left, right), left.output());
     }
 
-    private static ViewUnionAll viewUnionAll() {
+    private static BranchPlan viewUnionAll() {
         LogicalPlan left = EsqlTestUtils.emptySource();
         LogicalPlan right = EsqlTestUtils.emptySource();
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("left", left);
         children.put("right", right);
-        return new ViewUnionAll(Source.EMPTY, children, Set.of("left", "right"), left.output());
+        return new BranchPlan(
+            Source.EMPTY,
+            children,
+            Map.of("left", BranchIdentity.view("left"), "right", BranchIdentity.view("right")),
+            left.output()
+        );
     }
 }

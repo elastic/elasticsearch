@@ -175,8 +175,8 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
             assertThat(result.isPartial(), equalTo(false));
             assertSingleKeyFieldExtracted(result, "data", Set.of("sorted"));
             assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read", "filtered", "more", "some_more"));
-            // The reduce driver re-reads these from _doc after its own TopN, so they have to line up with the sort key row for row.
-            // A reload that returned the right values against the wrong rows would satisfy the profile assertions above.
+            // The reduce driver reads these from _doc after its own TopN. The profile assertions above also pass when it reads them
+            // for the wrong rows, so check that each value sits next to its sort key.
             assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L)));
             assertThat(column(result, "read"), equalTo(List.of(1023L, 1022L, 1021L)));
             assertThat(column(result, "filtered"), equalTo(List.of(3069L, 3066L, 3063L)));
@@ -184,16 +184,14 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
     }
 
     /**
-     * A {@code FORK} branch never has a narrowing {@code KEEP} - {@code ProjectAwayColumns} keeps everything {@code MergeExec} needs -
-     * which is exactly the shape that used to defeat the pruning and made every branch load all fields in every data driver.
+     * A {@code FORK} branch has no narrowing {@code KEEP}: {@code ProjectAwayColumns} keeps everything {@code MergeExec} needs. The
+     * data drivers of each branch must still load only the sort key.
      *
-     * <p>Both branches' drivers report the same unqualified {@code "data"} / {@code "node_reduce"} descriptions, so each assertion is
-     * the aggregate over the branches. That is the right metric anyway: the cost this fixes is the per-slice fan-out summed over
-     * branches. The {@code node_reduce} half matters as much as the {@code data} half - without it the test would also pass if the
-     * branches stopped loading the deferred fields altogether rather than deferring them.
+     * <p>The drivers of both branches report the same {@code "data"} and {@code "node_reduce"} descriptions, so each assertion
+     * covers both branches. The {@code node_reduce} assertion shows that the branches defer the other fields instead of not
+     * loading them.
      */
     public void testForkBranchesLateMaterialize() throws Exception {
-        assumeTrue("requires FORK", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         setupIndex();
         String query = """
             from test
@@ -209,6 +207,25 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
             // Both branches keep the same three documents - only i=0 fails either predicate - and _fork orders the branches.
             assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L, 2046L, 2044L, 2042L)));
             assertThat(column(result, "read"), equalTo(List.of(1023L, 1022L, 1021L, 1023L, 1022L, 1021L)));
+        }
+    }
+
+    /**
+     * {@code _id}, {@code _index} and {@code some_more} are read by the {@code EVAL} under the TopN and returned by the query, so
+     * the data drivers load them for every row, and the node-reduce driver loads them again for the rows that survive.
+     */
+    public void testMetadataReadBelowTopNIsReloaded() throws Exception {
+        setupIndex();
+        String query = "from test metadata _id, _index | eval e = concat(_index, \"/\", _id) | where some_more > 0 | sort sorted desc | limit 3";
+        try (var result = sendQuery(query)) {
+            assertThat(result.isRunning(), equalTo(false));
+            assertThat(result.isPartial(), equalTo(false));
+            List<Object> ids = column(result, "_id");
+            assertThat(ids.size(), equalTo(3));
+            assertThat(column(result, "_index"), equalTo(List.of("test", "test", "test")));
+            assertThat(column(result, "e"), equalTo(ids.stream().<Object>map(id -> "test/" + id).toList()));
+            assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L)));
+            assertThat(column(result, "read"), equalTo(List.of(1023L, 1022L, 1021L)));
         }
     }
 

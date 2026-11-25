@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentityCoverage;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -93,4 +94,20 @@ public class AzureCredentialIdentityTests extends ESTestCase {
         }
         return AzureConfiguration.fromMap(raw);
     }
+
+    /**
+     * The census, derived rather than listed. Every per-field test above names its field, so none of them can fail
+     * when this provider GAINS a setting that never reaches the identity — and two data sources differing only in
+     * that setting would then share cached bytes. This asks the configuration which settings it declares.
+     */
+    public void testEverySettingReachesTheIdentity() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "acct", "a2V5", null, "http://azure:1");
+        StorageIdentityCoverage.assertEverySettingReachesTheIdentity(
+            config,
+            AzureCredentialIdentity.of(config),
+            Map.of("auth", "authMode"),
+            Map.of()
+        );
+    }
+
 }

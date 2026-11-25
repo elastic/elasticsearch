@@ -118,7 +118,7 @@ public class BytesBuilderBenchmark {
     @Setup
     public void setup() throws Exception {
         Data data = Data.build(this.data);
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("benchmark");
+        NoopCircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         int byteSize = (int) data.expectedLength();
         selected = switch (impl) {
             case "paged" -> new Paged(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, byteSize);

@@ -243,8 +243,9 @@ public class ExternalNdJsonUnionByNameNumericWideningIT extends AbstractExternal
         assertThat(values.get(), hasSize(1));
         assertThat(values.get().get(0).get(0), equalTo(9007199254740994.0));
 
-        String pathA = StoragePath.ofLocalPath(dir.resolve("a.ndjson")).toString();
-        String pathB = StoragePath.ofLocalPath(dir.resolve("b.ndjson")).toString();
+        // Named below the directory the files share: the warning reaches users who may not know the location.
+        String pathA = "a.ndjson";
+        String pathB = "b.ndjson";
         String summary = "Columns mixing [long] and [double] across files are read as [double], losing precision above 2^53; "
             + "set [schema_resolution] to [strict] to fail instead";
         String detailAb = "column [v]: " + pathA + " (long), " + pathB + " (double); types [long, double]";

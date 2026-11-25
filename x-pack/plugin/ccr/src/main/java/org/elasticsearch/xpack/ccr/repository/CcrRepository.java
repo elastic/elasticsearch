@@ -48,13 +48,16 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
@@ -113,6 +116,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
@@ -324,7 +328,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         customMetadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
         imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, customMetadata);
 
-        imdBuilder.settings(leaderIndexMetadata.getSettings());
+        Settings.Builder settings = Settings.builder().put(leaderIndexMetadata.getSettings());
+        if (leaderIndexMetadata.getCreationVersion().onOrAfter(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION)) {
+            // The files copied next may hold documents indexed under a mapping the leader got after this metadata was read.
+            settings.put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true);
+        }
+        imdBuilder.settings(settings);
         imdBuilder.transportVersion(leaderIndexMetadata.getTransportVersion());
 
         // Copy mappings from leader IMD to follow IMD
@@ -383,7 +392,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,
@@ -451,30 +460,45 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             acquireRetentionLeaseOnLeader(shardId, retentionLeaseId, leaderShardId, remoteClient);
 
             // schedule renewals to run during the restore
-            final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(() -> {
-                logger.trace("{} background renewal of retention lease [{}] during restore", shardId, retentionLeaseId);
-                try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
-                    // we have to execute under the system context so that if security is enabled the renewal is authorized
-                    CcrRetentionLeases.asyncRenewRetentionLease(
-                        leaderShardId,
-                        retentionLeaseId,
-                        RETAIN_ALL,
-                        remoteClient,
-                        ActionListener.wrap(r -> {}, e -> {
-                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                            assert cause instanceof ElasticsearchSecurityException == false : cause;
-                            if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
-                                logger.warn(
-                                    () -> format(
-                                        "%s background renewal of retention lease [%s] failed during restore",
-                                        shardId,
-                                        retentionLeaseId
-                                    ),
-                                    cause
-                                );
-                            }
-                        })
-                    );
+            final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    logger.trace("{} background renewal of retention lease [{}] during restore", shardId, retentionLeaseId);
+                    try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
+                        // we have to execute under the system context so that if security is enabled the renewal is authorized
+                        CcrRetentionLeases.asyncRenewRetentionLease(
+                            leaderShardId,
+                            retentionLeaseId,
+                            RETAIN_ALL,
+                            remoteClient,
+                            ActionListener.wrap(r -> {}, e -> {
+                                final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                assert cause instanceof ElasticsearchSecurityException == false : cause;
+                                if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
+                                    logger.warn(
+                                        () -> format(
+                                            "%s background renewal of retention lease [%s] failed during restore",
+                                            shardId,
+                                            retentionLeaseId
+                                        ),
+                                        cause
+                                    );
+                                }
+                            })
+                        );
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // the scheduler reschedules the task
+                    logger.warn(() -> format("%s failed to run background renewal of retention lease [%s]", shardId, retentionLeaseId), e);
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    // if the ccr pool rejects this the scheduler won't reschedule
+                    return true;
                 }
             },
                 CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(store.indexSettings().getNodeSettings()),

@@ -919,6 +919,41 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that identical jars share an inode in the final image. The hard links are created in the builder stage, so this guards
+     * against them being lost by the {@code COPY --from=builder} that produces the final image. The Cloud ESS image is built on top of the
+     * Wolfi image without touching the distribution, so it is expected to inherit the links. Jars with the same content but a different
+     * mode are deliberately not linked, so that every jar keeps the mode the distribution ships it with.
+     */
+    public void test102IdenticalJarsAreHardLinked() {
+        assumeTrue(
+            "Only the default, Wolfi and Cloud ESS images hard link duplicate jars",
+            distribution.packaging == Packaging.DOCKER
+                || distribution.packaging == Packaging.DOCKER_WOLFI
+                || distribution.packaging == Packaging.DOCKER_CLOUD_ESS
+        );
+
+        final String jars = "find lib modules plugins -type f -name '*.jar'";
+
+        // Print every checksum and mode that is shared by jars with different inodes, which means a duplicate was stored as an
+        // independent copy.
+        final var unlinkedChecksums = DockerShell.executeCommand(
+            "bash",
+            "-c",
+            "set -o pipefail; cd /usr/share/elasticsearch && "
+                + jars
+                + " -exec sha256sum {} + | while read -r sum path; do "
+                + "echo \"$sum $(stat -c '%a %i' \"$path\")\"; done | sort -u | cut -d' ' -f1,2 | uniq -d"
+        );
+        assertThat("Failed to inspect the jars: " + unlinkedChecksums.stderr(), unlinkedChecksums.isSuccess(), is(true));
+        assertThat("Found identical jars that do not share an inode", unlinkedChecksums.stdout(), is(emptyString()));
+
+        // Make sure the check above is not vacuous, i.e. that there are duplicate jars that have been linked
+        final var linkedJars = DockerShell.executeCommand("bash", "-c", "cd /usr/share/elasticsearch && " + jars + " -links +1");
+        assertThat("Failed to inspect the jars: " + linkedJars.stderr(), linkedJars.isSuccess(), is(true));
+        assertThat("Expected some jars to be hard linked", linkedJars.stdout(), is(not(emptyString())));
+    }
+
+    /**
      * Check that the Docker image has the expected "Label Schema" labels.
      * @see <a href="http://label-schema.org/">Label Schema website</a>
      */

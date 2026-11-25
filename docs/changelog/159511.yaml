@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 159511
+summary: Upgrade HC 4 to 5 in x-pack/plugin/core
+type: upgrade

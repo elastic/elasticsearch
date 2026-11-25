@@ -29,6 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.ml.utils.MlRecoverableErrorClassifier;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -296,9 +299,21 @@ public class ResultsPersisterService {
 
     static class RecoverableException extends Exception {}
 
-    static class IrrecoverableException extends ElasticsearchStatusException {
-        IrrecoverableException(String msg, RestStatus status, Throwable cause, Object... args) {
+    public static class IrrecoverableException extends ElasticsearchStatusException {
+        private final Set<String> rejectedDocIds;
+
+        IrrecoverableException(Set<String> rejectedDocIds, String msg, RestStatus status, Throwable cause, Object... args) {
             super(msg, status, cause, args);
+            this.rejectedDocIds = Set.copyOf(rejectedDocIds);
+        }
+
+        /**
+         * @return ids of the bulk items whose content the index permanently rejected (a document or mapper parsing failure).
+         *         Re-sending these can never succeed. Items that failed irrecoverably for other reasons, including other 400s, are
+         *         not included, as those may be resolved by a later attempt (for example when a missing index is created).
+         */
+        public Set<String> rejectedDocIds() {
+            return rejectedDocIds;
         }
     }
 
@@ -313,6 +328,15 @@ public class ResultsPersisterService {
         }
         // Delegate to the centralised classifier, which uses an explicit allowlist.
         return MlRecoverableErrorClassifier.isRecoverable(ex) == false;
+    }
+
+    /**
+     * Whether the index rejected the document's content itself, so that re-sending it can never succeed. Deliberately not "any 400":
+     * other 400s (a closed results index, an alias without a write index, a total-fields limit) heal once an operator acts, and dropping
+     * their documents would lose results for good.
+     */
+    private static boolean isRejectedDocument(Throwable unwrapped) {
+        return unwrapped instanceof DocumentParsingException || unwrapped instanceof MapperParsingException;
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
@@ -356,27 +380,39 @@ public class ResultsPersisterService {
                         retryableListener.onResponse(bulkResponse);
                         return;
                     }
+                    Throwable firstIrrecoverable = null;
+                    Set<String> rejectedDocIds = new HashSet<>();
                     for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
                         if (itemResponse.isFailed() && isIrrecoverable(itemResponse.getFailure().getCause())) {
-                            Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
-                            LOGGER.warn(
-                                () -> format(
-                                    "[%s] experienced failure that cannot be automatically retried. Bulk failure message [%s]",
-                                    jobId,
-                                    bulkResponse.buildFailureMessage()
-                                ),
-                                unwrappedParticular
-                            );
-                            retryableListener.onFailure(
-                                new IrrecoverableException(
-                                    "{} experienced failure that cannot be automatically retried. See logs for bulk failures",
-                                    status(unwrappedParticular),
-                                    unwrappedParticular,
-                                    jobId
-                                )
-                            );
-                            return;
+                            Throwable unwrapped = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
+                            if (firstIrrecoverable == null) {
+                                firstIrrecoverable = unwrapped;
+                            }
+                            if (isRejectedDocument(unwrapped)) {
+                                rejectedDocIds.add(itemResponse.getId());
+                            }
                         }
+                    }
+                    if (firstIrrecoverable != null) {
+                        Throwable unwrappedParticular = firstIrrecoverable;
+                        LOGGER.warn(
+                            () -> format(
+                                "[%s] experienced failure that cannot be automatically retried. Bulk failure message [%s]",
+                                jobId,
+                                bulkResponse.buildFailureMessage()
+                            ),
+                            unwrappedParticular
+                        );
+                        retryableListener.onFailure(
+                            new IrrecoverableException(
+                                rejectedDocIds,
+                                "{} experienced failure that cannot be automatically retried. See logs for bulk failures",
+                                status(unwrappedParticular),
+                                unwrappedParticular,
+                                jobId
+                            )
+                        );
+                        return;
                     }
                     bulkRequestRewriter.rewriteRequest(bulkResponse);
                     // Let the listener attempt again with the new bulk request

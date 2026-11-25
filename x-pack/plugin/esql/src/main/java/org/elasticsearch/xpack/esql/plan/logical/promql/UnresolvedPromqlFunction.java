@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -61,6 +62,11 @@ public final class UnresolvedPromqlFunction extends LogicalPlan implements Promq
         this.groupingKeys = groupingKeys != null ? groupingKeys : List.of();
     }
 
+    @Override
+    public TranslationContext.IntermediateResult translate(TranslationContext translation) {
+        throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", this);
+    }
+
     public String functionName() {
         return functionName;
     }
@@ -85,7 +91,7 @@ public final class UnresolvedPromqlFunction extends LogicalPlan implements Promq
 
     @Override
     public UnresolvedPromqlFunction replaceChildren(List<LogicalPlan> newChildren) {
-        return new UnresolvedPromqlFunction(source(), functionName, newChildren, grouping, groupingKeys);
+        return passIdentityTo(new UnresolvedPromqlFunction(source(), functionName, newChildren, grouping, groupingKeys));
     }
 
     @Override

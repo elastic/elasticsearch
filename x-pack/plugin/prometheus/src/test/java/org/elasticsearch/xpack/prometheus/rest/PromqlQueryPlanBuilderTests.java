@@ -97,6 +97,24 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
         assertThat(((TimeSeriesCollapse) eval.child()).child(), instanceOf(PromqlCommand.class));
     }
 
+    /**
+     * A string literal is a result of its own type: an instant query returns the literal itself and runs no statement; a range
+     * query rejects it like Prometheus does.
+     */
+    public void testStringLiteralIsAStringResult() {
+        Instant evaluationTime = Instant.parse("2025-01-01T00:00:00Z");
+        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement("\"a string\"", "*", evaluationTime, QueryMode.INSTANT);
+        assertThat(result.resultType(), equalTo("string"));
+        assertThat(result.stringValue(), equalTo("a string"));
+        assertThat(result.esqlStatement(), nullValue());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PromqlQueryPlanBuilder.buildStatement("\"a string\"", "*", "1735689600", "1735693200", "60", QueryMode.RANGE)
+        );
+        assertThat(e.getMessage(), equalTo("invalid expression type \"string\" for range query, must be Scalar or instant Vector"));
+    }
+
     public void testBuildStatementWithNumericStep() {
         PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60", QueryMode.RANGE);
         assertThat(result.resultType(), equalTo("matrix"));

@@ -56,10 +56,10 @@ import static org.mockito.Mockito.mock;
 /**
  * SearchPhaseContext for tests
  */
-public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
+public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(MockSearchPhaseContext.class);
     public final AtomicReference<Throwable> phaseFailure = new AtomicReference<>();
-    public final AtomicInteger phaseFailures = new AtomicInteger();
+    public final AtomicInteger phaseFailureCount = new AtomicInteger();
     final int numShards;
     final AtomicInteger numSuccess;
     public final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
@@ -68,7 +68,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
-        this(numShards, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        this(numShards, NoopCircuitBreaker.INSTANCE);
     }
 
     public MockSearchPhaseContext(int numShards, CircuitBreaker circuitBreaker) {
@@ -166,7 +166,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
                 numSuccess.get(),
                 0,
                 0,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                failures,
+                phaseFailures,
                 SearchResponse.Clusters.EMPTY,
                 searchContextId,
                 null,
@@ -183,7 +184,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
         // Counted because raisePhaseFailure completes the search listener, which must not happen twice.
-        phaseFailures.incrementAndGet();
+        phaseFailureCount.incrementAndGet();
         // Completes the listener as production does, so anything registered with addReleasable is released. Unlike
         // raisePhaseFailure it does not release the successful shards' contexts or notify the progress listener.
         doneFuture.onResponse(null);

@@ -11,24 +11,34 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.FilteredRestRequest;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Creates a new snapshot
  */
 @ServerlessScope(Scope.INTERNAL)
-public class RestCreateSnapshotAction extends BaseRestHandler {
+public class RestCreateSnapshotAction extends BaseRestHandler implements RestRequestFilter {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM, "wait_for_completion");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "repository", "snapshot");
 
     @Override
     public List<Route> routes() {
@@ -41,6 +51,16 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     }
 
     @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String repository = request.param("repository");
         String snapshot = request.param("snapshot");
@@ -48,5 +68,33 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
         request.applyContentParser(p -> createSnapshotRequest.source(p.mapOrdered()));
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         return channel -> client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<>(channel));
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Set.of("encrypted_data.password");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
+    }
+
+    /**
+     * Omits a body that cannot be parsed, rather than failing the audit event or exposing the raw bytes, which may contain credentials.
+     * {@link #prepareRequest} still rejects the original request.
+     */
+    @Override
+    public RestRequest getFilteredRequest(RestRequest restRequest) {
+        if (restRequest.hasContent() == false) {
+            return restRequest;
+        }
+        return new FilteredRestRequest(restRequest, FILTERED_FIELDS) {
+            @Override
+            public ReleasableBytesReference content() {
+                try {
+                    return super.content();
+                } catch (Exception e) {
+                    return ReleasableBytesReference.wrap(BytesArray.EMPTY);
+                }
+            }
+        };
     }
 }

@@ -34,11 +34,16 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 @ServerlessScope(value = Scope.PUBLIC)
 public class RestExplainAction extends BaseRestHandler {
-    private static final String SINGLE_SLICE_ONLY_ERROR = "[slice] must be a single value for explain requests";
+    private static final String SINGLE_SLICE_ONLY_ERROR = "[_slice] must be a single value for explain requests";
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_explain/{id}"), new Route(POST, "/{index}/_explain/{id}"));
+        return List.of(
+            new Route(GET, "/{index}/_explain/{id}"),
+            new Route(POST, "/{index}/_explain/{id}"),
+            new Route(GET, "/{index}/{_slice}/_explain/{id}"),
+            new Route(POST, "/{index}/{_slice}/_explain/{id}")
+        );
     }
 
     @Override
@@ -85,11 +90,11 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     private static void validateSliceParamForExplain(RestRequest request) {
-        final String slice = request.param(SliceIndexing.PARAM_NAME);
+        final String slice = request.param(SliceIndexing.FIELD_NAME);
         if (slice == null || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
             return;
         }
-        if (SliceIndexing.SLICE_ALL.equals(slice) || Strings.splitStringByCommaToArray(slice).length != 1) {
+        if (Strings.splitStringByCommaToArray(slice).length != 1) {
             throw new IllegalArgumentException(SINGLE_SLICE_ONLY_ERROR);
         }
     }

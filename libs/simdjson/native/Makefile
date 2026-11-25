@@ -15,7 +15,7 @@
 # so we compile a single source file per platform — no tier-1/tier-2 split.
 #
 # Intended to be run inside the shared cross-compilation toolchain container
-# (es-native-cross-toolchain:7 — clang-21, GCC 8 libstdc++ cross libs, and llvm-mingw;
+# (es-native-cross-toolchain:8 — clang-21, GCC 8 libstdc++ cross libs, and llvm-mingw;
 # the open-source Darwin sysroot baked in). See publish_simdjson_binaries.sh.
 #
 # Linux cross builds pin libstdc++ to GCC 8 (GLIBCXX_3.4.25) while keeping
@@ -36,7 +36,7 @@ LLVM_SUFFIX := $(patsubst clang++%,%,$(firstword $(CLANG_CXX)))
 
 # Darwin cross-compilation. The sysroot is assembled from Apple's open-source
 # distributions plus upstream libc++ headers and baked into the toolchain image; see
-# libs/simdvec/native/darwin-sysroot/assemble.sh. -nostdinc blocks the host (glibc)
+# libs/native-toolchain/darwin-sysroot/assemble.sh. -nostdinc blocks the host (glibc)
 # headers, then the three -isystem paths are added in this order deliberately:
 # libc++ must come before the clang resource directory (otherwise libc++'s <cstddef>
 # cannot find its own <stddef.h>), and the resource directory before the sysroot so
@@ -53,7 +53,7 @@ CLANG_RESOURCE_ARM = $(shell $(CLANG_CXX) --target=aarch64-linux-gnu -print-reso
 CLANG_RESOURCE_X64 = $(shell $(CLANG_CXX) --target=x86_64-linux-gnu -print-resource-dir)
 
 # -nostdinc++ keeps clang from picking up libstdc++-14; include paths below
-# pair clang intrinsics with GCC 8 libstdc++ (see Dockerfile.cross-toolchain).
+# pair clang intrinsics with GCC 8 libstdc++ (see libs/native-toolchain/Dockerfile.cross-toolchain).
 LINUX_CXXFLAGS_ARM = -nostdinc++ \
   -isystem $(CLANG_RESOURCE_ARM)/include \
   -isystem /usr/aarch64-linux-gnu/include \
@@ -99,7 +99,7 @@ SO_X64  = $(OUT_DIR_AMD64)/libsimdjson.so
 DLL_WIN = $(OUT_DIR_WIN_X64)/simdjson.dll
 PDB_WIN = $(OUT_DIR_WIN_X64)/simdjson.pdb
 
-.PHONY: all clean local local-install install verify-linux-abi
+.PHONY: all clean local local-install verify-linux-abi
 
 # --- local: build for the current platform using the native compiler ---
 # On Windows (MSYS/MinGW/Cygwin shell), reuses the same llvm-mingw driver as
@@ -142,12 +142,6 @@ ifndef DEST
 endif
 	mkdir -p $(DEST)/$(LOCAL_PLATFORM)
 	cp $(LOCAL_OUTPUT) $(DEST)/$(LOCAL_PLATFORM)/$(notdir $(LOCAL_OUTPUT))
-
-# Convenience target for manual installs into the native-libraries extract tree.
-INSTALL_DIR = ../../native/libraries/build/platform/$(LOCAL_PLATFORM)
-install: local
-	mkdir -p $(INSTALL_DIR)
-	cp $(LOCAL_OUTPUT) $(INSTALL_DIR)/$(notdir $(LOCAL_OUTPUT))
 
 # --- all: cross-compile all four targets (inside Docker) ---
 

@@ -123,7 +123,7 @@ public class LuceneCountOperator extends LuceneOperator {
         LongSupplier directoryBytesRead,
         QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardRefCounters, driverContext, Integer.MAX_VALUE, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
+        super(shardRefCounters, driverContext, Integer.MAX_VALUE, sliceQueue, directoryBytesRead, singleValueQueryWarnings, false);
         this.tagTypes = tagTypes;
         this.remainingDocs = limit;
         this.driverContext = driverContext;

@@ -31,7 +31,7 @@ public record RealmDomain(String name, Set<RealmConfig.RealmIdentifier> realms) 
         out.writeCollection(realms);
     }
 
-    static RealmDomain readFrom(StreamInput in) throws IOException {
+    public static RealmDomain readFrom(StreamInput in) throws IOException {
         String domainName = in.readString();
         Set<RealmConfig.RealmIdentifier> realms = in.readCollectionAsSet(RealmConfig.RealmIdentifier::new);
         return new RealmDomain(domainName, realms);

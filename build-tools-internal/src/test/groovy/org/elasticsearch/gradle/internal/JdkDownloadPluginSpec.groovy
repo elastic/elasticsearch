@@ -45,9 +45,32 @@ class JdkDownloadPluginSpec extends AbstractProjectBuilderPluginSpec {
         "architecture is unknown" | "openjdk" | "11.0.2+33" | "linux"  | "unknown"   | "unknown architecture [unknown] for jdk [testjdk], must be one of [aarch64, x64]"
     }
 
-    private static void createJdk(Project project, String name, String vendor, String version, String platform, String architecture) {
+    @Unroll
+    def "parses jdk version #version"() {
+        given:
+        Project project = createProject()
+
+        when:
+        Jdk jdk = createJdk(project, "testjdk", "openjdk", version, "linux", "x64")
+
+        then:
+        jdk.major == major
+        jdk.baseVersion == baseVersion
+        jdk.build == build
+        jdk.hash == hash
+
+        where:
+        version                                          | major | baseVersion  | build | hash
+        "27+35@55ce5470a6294008af0057ff4626d0e5"         | "27"  | "27"         | "35"  | "55ce5470a6294008af0057ff4626d0e5"
+        "26.0.2+10@818d462d89b645c7a1aad49066c454e5"     | "26"  | "26.0.2"     | "10"  | "818d462d89b645c7a1aad49066c454e5"
+        "26.0.2.1+1@0123456789abcdef0123456789abcdef"    | "26"  | "26.0.2.1"   | "1"   | "0123456789abcdef0123456789abcdef"
+        "27.0.1.0.2+1@924dbdccfc234bb9b9355d7c6b66034b"  | "27"  | "27.0.1.0.2" | "1"   | "924dbdccfc234bb9b9355d7c6b66034b"
+        "11.0.2+33"                                      | "11"  | "11.0.2"     | "33"  | null
+    }
+
+    private static Jdk createJdk(Project project, String name, String vendor, String version, String platform, String architecture) {
         NamedDomainObjectContainer<Jdk> jdks = (NamedDomainObjectContainer<Jdk>) project.extensions.getByName("jdks")
-        jdks.create(name) { Jdk jdk ->
+        Jdk created = jdks.create(name) { Jdk jdk ->
             if (vendor != null) {
                 jdk.vendor = vendor
             }
@@ -60,7 +83,9 @@ class JdkDownloadPluginSpec extends AbstractProjectBuilderPluginSpec {
             if (architecture != null) {
                 jdk.architecture = architecture
             }
-        }.finalizeValues()
+        }
+        created.finalizeValues()
+        return created
     }
 
     private Project createProject() {

@@ -27,6 +27,7 @@ import org.elasticsearch.escf.LuceneLongColumn;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
@@ -40,18 +41,37 @@ public final class MappedColumns {
     private final BytesRef versions;
 
     private final List<LuceneColumn> columns;
+    /**
+     * The documents of this window that are written to Lucene, or {@code null} for all of them. Every column carries the same
+     * filter; it is kept here as well because {@link #toColumnBatch()} needs it to renumber the remaining documents.
+     */
+    private final FixedBitSet filter;
 
     /**
      * Constructs a {@code MappedColumns} covering the window {@code [from, from + count)} of the
      * given backing arrays and columns.
      */
     public MappedColumns(int offset, int count, BytesRef seqNos, BytesRef primaryTerms, BytesRef versions, List<LuceneColumn> columns) {
+        this(offset, count, seqNos, primaryTerms, versions, columns, null);
+    }
+
+    private MappedColumns(
+        int offset,
+        int count,
+        BytesRef seqNos,
+        BytesRef primaryTerms,
+        BytesRef versions,
+        List<LuceneColumn> columns,
+        FixedBitSet filter
+    ) {
+        assert filter == null || filter.length() == count;
         this.offset = offset;
         this.count = count;
         this.seqNos = Objects.requireNonNull(seqNos, "seqNos");
         this.primaryTerms = Objects.requireNonNull(primaryTerms, "primaryTerms");
         this.versions = Objects.requireNonNull(versions, "versions");
         this.columns = List.copyOf(columns);
+        this.filter = filter;
     }
 
     public int docCount() {
@@ -81,13 +101,24 @@ public final class MappedColumns {
         for (LuceneColumn c : columns) {
             slicedColumns.add(c.slice(from, newCount));
         }
-        return new MappedColumns(this.offset + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
+        return new MappedColumns(
+            this.offset + from,
+            newCount,
+            seqNos,
+            primaryTerms,
+            versions,
+            slicedColumns,
+            windowValidity(filter, from, newCount)
+        );
     }
 
     /**
      * Returns a copy of this {@code MappedColumns} where every column is filtered to emit only
      * the documents whose bit is set in {@code filter}. Returns {@code this} when {@code filter}
      * is {@code null}.
+     *
+     * <p>The filter does not change {@link #docCount()} or the row numbering of {@link #rowCursor()}, which still has to be
+     * advanced once per document. {@link #toColumnBatch()} on the other hand holds the remaining documents only.
      *
      * @param filter a bitset of length {@link #docCount()}, or {@code null}
      */
@@ -100,12 +131,30 @@ public final class MappedColumns {
         for (LuceneColumn c : columns) {
             filtered.add(c.withFilter(filter));
         }
-        return new MappedColumns(offset, count, seqNos, primaryTerms, versions, filtered);
+        return new MappedColumns(offset, count, seqNos, primaryTerms, versions, filtered, LuceneColumn.singleFilter(this.filter, filter));
     }
 
+    /**
+     * The batch to hand to {@code IndexWriter.addBatch}. Lucene adds one document per batch-local doc id in {@code [0, numDocs)},
+     * whether or not any column has a value for it, so a document that a {@link #withFilter filter} excludes must not keep a doc id
+     * or it is indexed as a document without any field. The remaining documents are therefore renumbered densely, in order, and
+     * {@code numDocs} is the number of them.
+     */
     public ColumnBatch toColumnBatch() {
-        final List<Column> luceneColumns = columns.stream().map(LuceneColumn::toLuceneColumn).toList();
-        return new SliceableColumnBatch(luceneColumns, count);
+        if (filter == null) {
+            final List<Column> luceneColumns = columns.stream().map(LuceneColumn::toLuceneColumn).toList();
+            return new SliceableColumnBatch(luceneColumns, count);
+        }
+        final int[] compactedDocIds = new int[count];
+        int numDocs = 0;
+        for (int doc = 0; doc < count; doc++) {
+            compactedDocIds[doc] = filter.get(doc) ? numDocs++ : -1;
+        }
+        final List<Column> luceneColumns = new ArrayList<>(columns.size());
+        for (LuceneColumn column : columns) {
+            luceneColumns.add(column.toLuceneColumn(compactedDocIds));
+        }
+        return new SliceableColumnBatch(luceneColumns, numDocs);
     }
 
     /**
@@ -114,7 +163,16 @@ public final class MappedColumns {
      * not be written to Lucene — to keep all column cursors correctly positioned.
      */
     public RowCursor rowCursor() {
-        return new RowCursor(columns);
+        return rowCursor(column -> true);
+    }
+
+    /**
+     * Like {@link #rowCursor()}, but the cursor only reads the columns accepted by {@code include}, and so the fields it assembles for
+     * a document leave out those of the other columns. Use it when only some fields are needed, as skipping a column also skips
+     * building its fields.
+     */
+    public RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
+        return new RowCursor(columns.stream().filter(include).toList());
     }
 
     /**
@@ -277,6 +335,11 @@ public final class MappedColumns {
         @Override
         public Column toLuceneColumn() {
             return this;
+        }
+
+        @Override
+        public Column toLuceneColumn(int[] compactedDocIds) {
+            return CompactedColumns.of(this, compactedDocIds);
         }
 
         @Override

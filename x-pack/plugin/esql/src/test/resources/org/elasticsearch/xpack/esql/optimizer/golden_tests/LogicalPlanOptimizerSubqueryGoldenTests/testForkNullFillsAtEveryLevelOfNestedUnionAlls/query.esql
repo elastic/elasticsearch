@@ -1,0 +1,8 @@
+FROM (FROM (FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP @timestamp, message) (KEEP message)),
+           (FROM sample_data | KEEP @timestamp, message)
+      | FORK (EVAL t = @timestamp) (KEEP message)),
+     (FROM sample_data_ts_nanos | KEEP @timestamp, message)
+| RENAME t AS u
+| KEEP @timestamp, u, message, _fork
+| SORT @timestamp, u

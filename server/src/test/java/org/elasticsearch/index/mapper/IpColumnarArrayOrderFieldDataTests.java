@@ -69,14 +69,7 @@ public class IpColumnarArrayOrderFieldDataTests extends AbstractColumnarArrayOrd
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             settings,
-            mapping(
-                b -> b.startObject("field")
-                    .field("type", "ip")
-                    .startObject("doc_values")
-                    .field("multi_value", false)
-                    .endObject()
-                    .endObject()
-            )
+            mapping(b -> b.startObject("field").field("type", "ip").field("multi_value", false).endObject())
         );
         // Confirm we are exercising the plain binary doc-values path, not the in-order format the base cases cover.
         assertFalse(mapperService.documentMapper().mappers().getMapper("field").storesArrayValuesInOrder());

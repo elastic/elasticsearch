@@ -39,22 +39,22 @@ class java.lang.Comparable {
 }
 
 class java.lang.Iterable {
-  void org.elasticsearch.painless.api.Augmentation forEach(Consumer) @script_aware
+  void org.elasticsearch.painless.api.Augmentation forEach(Consumer) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="forEachBytes"]
   Iterator iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
   Spliterator spliterator()
   # some adaptations of groovy wmethods
-  boolean org.elasticsearch.painless.api.Augmentation any(Predicate) @script_aware
+  boolean org.elasticsearch.painless.api.Augmentation any(Predicate) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="anyBytes"]
   Collection org.elasticsearch.painless.api.Augmentation asCollection() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="asCollectionBytes"]
   List org.elasticsearch.painless.api.Augmentation asList() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="asListBytes"]
-  int org.elasticsearch.painless.api.Augmentation count(Predicate) @script_aware
-  def org.elasticsearch.painless.api.Augmentation each(Consumer) @script_aware
-  def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer) @script_aware
-  boolean org.elasticsearch.painless.api.Augmentation every(Predicate) @script_aware
+  int org.elasticsearch.painless.api.Augmentation count(Predicate) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="countBytes"]
+  def org.elasticsearch.painless.api.Augmentation each(Consumer) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="eachBytes"]
+  def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="eachWithIndexBytes"]
+  boolean org.elasticsearch.painless.api.Augmentation every(Predicate) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="everyBytes"]
   List org.elasticsearch.painless.api.Augmentation findResults(Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="findResultsBytes"]
   Map org.elasticsearch.painless.api.Augmentation groupBy(Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="groupByBytes"]
   String org.elasticsearch.painless.api.Augmentation join(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iterableJoinBytes"]
-  double org.elasticsearch.painless.api.Augmentation sum()
-  double org.elasticsearch.painless.api.Augmentation sum(ToDoubleFunction) @script_aware
+  double org.elasticsearch.painless.api.Augmentation sum() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="sumBytes"]
+  double org.elasticsearch.painless.api.Augmentation sum(ToDoubleFunction) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="sumBytes"]
 }
 
 # Readable: i/o

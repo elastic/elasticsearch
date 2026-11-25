@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.ConstantFieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
@@ -22,6 +26,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
 
@@ -136,6 +143,19 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
     }
 
+    /** With a request breaker in the context, the pattern is built step by step on it, as it is for keyword fields. */
+    public void testRegexpQueryIsChargedToTheBreaker() {
+        ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
+        // A mock context, because the field type reads only the breaker from it.
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        when(context.getCircuitBreaker()).thenReturn(breaker);
+        expectThrows(CircuitBreakingException.class, () -> ft.regexpQuery("x?{500}{2}", RegExp.ALL, 0, 10_000, null, context));
+        assertEquals(0L, breaker.getUsed());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.regexpQuery("f.o", RegExp.ALL, 0, 10_000, null, context));
+        assertEquals(0L, breaker.getUsed());
+    }
+
     public void testFetchValue() throws Exception {
         MappedFieldType fieldType = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", null);
         ValueFetcher fetcher = fieldType.valueFetcher(null, null);
@@ -152,6 +172,29 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
 
         assertEquals(List.of("foo"), fetcher.fetchValues(sourceWithNoFieldValue, -1, ignoredValues));
         assertEquals(List.of("foo"), fetcher.fetchValues(sourceWithNullFieldValue, -1, ignoredValues));
+    }
+
+    public void testApplyFieldVisibility() {
+        Map<String, String> meta = Map.of("key", "value");
+        var fieldType = new ConstantKeywordFieldType("field", "constant", meta);
+
+        // A visible field is unchanged.
+        assertSame(fieldType, fieldType.applyFieldVisibility(true));
+        assertEquals("constant", fieldType.value());
+
+        // A hidden field retains its mapping identity but loses the constant.
+        var hidden = (ConstantKeywordFieldType) fieldType.applyFieldVisibility(false);
+        assertNotSame(fieldType, hidden);
+        assertEquals("field", hidden.name());
+        assertEquals(meta, hidden.meta());
+        assertNull(hidden.value());
+
+        // Sanitizing the copy did not mutate the mapping's original field type.
+        assertEquals("constant", fieldType.value());
+
+        // Once value-less, applying visibility again cannot restore the value.
+        assertSame(hidden, hidden.applyFieldVisibility(false));
+        assertSame(hidden, hidden.applyFieldVisibility(true));
     }
 
     @Override

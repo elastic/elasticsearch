@@ -8,16 +8,17 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -53,7 +54,9 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.SizeTrackingOneMerge;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -66,6 +69,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -75,6 +79,7 @@ import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
@@ -84,6 +89,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -131,6 +137,7 @@ public class IndexEngine extends InternalEngine {
     );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
+    private static final String HOLLOW_FLUSH_REFRESH_SOURCE = "hollow_flush";
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
@@ -140,6 +147,7 @@ public class IndexEngine extends InternalEngine {
     private final ReshardIndexService reshardIndexService;
     private final IndexEngineDynamicSettings indexEngineDynamicSettings;
     private final CommitBCCResolver commitBCCResolver;
+    private final DocumentParsingProvider documentParsingProvider;
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
@@ -217,6 +225,7 @@ public class IndexEngine extends InternalEngine {
         this.reshardIndexService = reshardIndexService;
         this.indexEngineDynamicSettings = indexEngineDynamicSettings;
         this.commitBCCResolver = commitBCCResolver;
+        this.documentParsingProvider = documentParsingProvider;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
         this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
             shardId.getIndex(),
@@ -243,28 +252,34 @@ public class IndexEngine extends InternalEngine {
     }
 
     /**
-     * Prefetches the min/max {@code _id} .tim blocks in each segment so the first id lookups after a primary relocation do not
-     * block on a cold read from the object store. Best-effort: only boundary blocks are prefetched; interior lookups will still
-     * cold-read on first access.
+     * Prefetches the min/max {@code _id} .tim blocks in the last {@code maxSegments} segments so the first id
+     * lookups after a primary relocation do not block on a cold read from the object store. Best-effort: only boundary blocks of
+     * the most recent segments are prefetched; other lookups will still cold-read on first access. Segments without {@code _id}
+     * terms still count towards {@code maxSegments}, as the bound limits how far back the leaves are visited.
      */
-    public void prewarmIdLookups() {
+    public void prewarmIdLookups(int maxSegments) {
         performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-            for (LeafReaderContext leaf : reader.leaves()) {
-                var terms = leaf.reader().terms(IdFieldMapper.NAME);
-                if (terms == null) {
-                    continue; // no-op segment
-                }
-                BytesRef min = terms.getMin();
-                if (min != null) {
-                    terms.iterator().prepareSeekExact(min);
-                }
-                BytesRef max = terms.getMax();
-                if (max != null) {
-                    terms.iterator().prepareSeekExact(max);
-                }
-            }
+            prewarmIdLookups(reader.leaves(), maxSegments);
             return null;
         });
+    }
+
+    static void prewarmIdLookups(List<LeafReaderContext> leaves, int maxSegments) throws IOException {
+        final int lowestLeaf = Math.max(0, leaves.size() - maxSegments);
+        for (int i = leaves.size() - 1; i >= lowestLeaf; i--) {
+            var terms = leaves.get(i).reader().terms(IdFieldMapper.NAME);
+            if (terms == null) {
+                continue; // no-op segment
+            }
+            BytesRef min = terms.getMin();
+            if (min != null) {
+                terms.iterator().prepareSeekExact(min);
+            }
+            BytesRef max = terms.getMax();
+            if (max != null) {
+                terms.iterator().prepareSeekExact(max);
+            }
+        }
     }
 
     /**
@@ -275,7 +290,7 @@ public class IndexEngine extends InternalEngine {
      * Note that soft deletes, which are persisted in generational files, are not considered (unless all docs in a particular
      * segment are deleted, which un-references the segment internally).
      */
-    public static @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRangeAcrossSegments(
+    public static @Nullable TimestampFieldValueRange readTimestampFieldValueRangeAcrossSegments(
         IndexCommit indexCommit,
         Set<String> subsetSegmentNames,
         @Nullable DateFieldMapper.DateFieldType timestampFieldMappedType
@@ -310,79 +325,123 @@ public class IndexEngine extends InternalEngine {
             if (subsetSegmentNames.contains(segmentCommitInfo.info.name) == false) {
                 continue;
             }
-            var codec = segmentCommitInfo.info.getCodec();
-            Directory cfsIndexDirectory = null;
-            try {
-                if (segmentCommitInfo.info.getUseCompoundFile()) {
-                    cfsIndexDirectory = codec.compoundFormat().getCompoundReader(indexCommit.getDirectory(), segmentCommitInfo.info);
-                } else {
-                    cfsIndexDirectory = indexCommit.getDirectory();
-                }
-                var fieldsInfo = codec.fieldInfosFormat().read(cfsIndexDirectory, segmentCommitInfo.info, "", IOContext.DEFAULT);
-                var timestampFieldInfo = fieldsInfo.fieldInfo(timestampFieldMappedType.name());
-                if (timestampFieldInfo != null) {
-                    var segmentReadState = new SegmentReadState(cfsIndexDirectory, segmentCommitInfo.info, fieldsInfo, IOContext.DEFAULT);
-                    long segmentMinValue = minTimestampValue;
-                    long segmentMaxValue = maxTimestampValue;
-                    // logsdb and time_series index mode store the @timestamp field values as "doc values" (with a doc values skip index)
-                    if (timestampFieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
-                        assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
-                        try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
-                            var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
-                            segmentMinValue = docValuesSkipper.minValue();
-                            segmentMaxValue = docValuesSkipper.maxValue();
-                        }
-                        found = true;
-                    } else if (timestampFieldInfo.getPointDimensionCount() == 1) {
-                        // standard index mode stores the @timestamp field values as uni-dimensional points data
-                        assert timestampFieldMappedType.indexType().hasPoints();
-                        try (var fieldsReader = codec.pointsFormat().fieldsReader(segmentReadState)) {
-                            var pointsReader = fieldsReader.getValues(timestampFieldMappedType.name());
-                            // Sometimes it's possible to get ghost points, since we're using a low level API
-                            // so we should skip those. This can happen when all the docs containing points
-                            // are deleted and the segments get merged.
-                            // See https://github.com/apache/lucene/issues/11393 for more details.
-                            if (pointsReader == null) {
-                                continue;
-                            }
-                            segmentMinValue = LongPoint.decodeDimension(pointsReader.getMinPackedValue(), 0);
-                            segmentMaxValue = LongPoint.decodeDimension(pointsReader.getMaxPackedValue(), 0);
-                        }
-                        found = true;
-                    } else {
-                        assert false : "Could not parse field value for [" + timestampFieldMappedType.name() + "] field";
-                    }
-                    assert segmentMinValue <= segmentMaxValue
-                        : "Invalid timestamp values interval for commit ["
-                            + segmentCommitInfo
-                            + "], ["
-                            + segmentMinValue
-                            + ", "
-                            + segmentMaxValue
-                            + "]";
-                    minTimestampValue = Math.min(minTimestampValue, segmentMinValue);
-                    maxTimestampValue = Math.max(maxTimestampValue, segmentMaxValue);
-                }
-            } finally {
-                if (cfsIndexDirectory != null && segmentCommitInfo.info.getUseCompoundFile()) {
-                    assert cfsIndexDirectory != indexCommit.getDirectory();
-                    cfsIndexDirectory.close();
-                }
+            final var segmentValues = readTimestampFieldValuesOfSegment(
+                indexCommit.getDirectory(),
+                segmentCommitInfo,
+                timestampFieldMappedType
+            );
+            if (segmentValues != null) {
+                found = true;
+                minTimestampValue = Math.min(minTimestampValue, segmentValues.minValue());
+                maxTimestampValue = Math.max(maxTimestampValue, segmentValues.maxValue());
             }
         }
-        if (found) {
-            if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
-                return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
-            } else {
-                // Resolution#roundDownToMillis doesn't handle negative values
-                assert timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.NANOSECONDS;
-                return new StatelessCompoundCommit.TimestampFieldValueRange(
-                    Math.floorDiv(minTimestampValue, 1_000_000L),
-                    Math.ceilDiv(maxTimestampValue, 1_000_000L)
-                );
-            }
+        // found already means min <= max today. The extra check keeps a future bug from failing the commit.
+        if (found && minTimestampValue <= maxTimestampValue) {
+            return toTimestampFieldValueRange(minTimestampValue, maxTimestampValue, timestampFieldMappedType);
         } else {
             return null;
+        }
+    }
+
+    /**
+     * The smallest and the largest values of a date field in a segment, as they are stored in the segment: in the resolution of the field.
+     */
+    public record SegmentTimestampFieldValues(long minValue, long maxValue) {}
+
+    /**
+     * Reads the range of the values of a date field in a single segment, from the segment files and not from a commit, so that it can be
+     * computed for a segment that no commit references yet (a segment that was just merged for instance).
+     * Note that soft deletes, which are persisted in generational files, are not considered.
+     *
+     * @param directory                 the directory that holds the files of the segment
+     * @param segmentCommitInfo         the segment
+     * @param timestampFieldMappedType  the mapping type of the date field
+     * @return the range of the values of the field in the segment, or {@code null} if the segment does not contribute any value: it has no
+     * such field, or only a ghost field without values
+     */
+    public static @Nullable SegmentTimestampFieldValues readTimestampFieldValuesOfSegment(
+        Directory directory,
+        SegmentCommitInfo segmentCommitInfo,
+        DateFieldMapper.DateFieldType timestampFieldMappedType
+    ) throws IOException {
+        var codec = segmentCommitInfo.info.getCodec();
+        Directory cfsIndexDirectory = null;
+        try {
+            if (segmentCommitInfo.info.getUseCompoundFile()) {
+                cfsIndexDirectory = codec.compoundFormat().getCompoundReader(directory, segmentCommitInfo.info);
+            } else {
+                cfsIndexDirectory = directory;
+            }
+            var fieldsInfo = codec.fieldInfosFormat().read(cfsIndexDirectory, segmentCommitInfo.info, "", IOContext.DEFAULT);
+            var timestampFieldInfo = fieldsInfo.fieldInfo(timestampFieldMappedType.name());
+            if (timestampFieldInfo == null) {
+                return null;
+            }
+            var segmentReadState = new SegmentReadState(cfsIndexDirectory, segmentCommitInfo.info, fieldsInfo, IOContext.DEFAULT);
+            final long segmentMinValue;
+            final long segmentMaxValue;
+            // logsdb and time_series index mode store the @timestamp field values as "doc values" (with a doc values skip index)
+            if (timestampFieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
+                assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
+                try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
+                    var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
+                    if (docValuesSkipper == null || docValuesSkipper.docCount() == 0) {
+                        return null;
+                    }
+                    segmentMinValue = docValuesSkipper.minValue();
+                    segmentMaxValue = docValuesSkipper.maxValue();
+                }
+            } else if (timestampFieldInfo.getPointDimensionCount() == 1) {
+                // standard index mode stores the @timestamp field values as uni-dimensional points data
+                assert timestampFieldMappedType.indexType().hasPoints();
+                try (var fieldsReader = codec.pointsFormat().fieldsReader(segmentReadState)) {
+                    var pointsReader = fieldsReader.getValues(timestampFieldMappedType.name());
+                    // Sometimes it's possible to get ghost points, since we're using a low level API
+                    // so we should skip those. This can happen when all the docs containing points
+                    // are deleted and the segments get merged.
+                    // See https://github.com/apache/lucene/issues/11393 for more details.
+                    if (pointsReader == null) {
+                        return null;
+                    }
+                    segmentMinValue = LongPoint.decodeDimension(pointsReader.getMinPackedValue(), 0);
+                    segmentMaxValue = LongPoint.decodeDimension(pointsReader.getMaxPackedValue(), 0);
+                }
+            } else {
+                assert false : "Could not parse field value for [" + timestampFieldMappedType.name() + "] field";
+                return null;
+            }
+            assert segmentMinValue <= segmentMaxValue
+                : "Invalid timestamp values interval for commit ["
+                    + segmentCommitInfo
+                    + "], ["
+                    + segmentMinValue
+                    + ", "
+                    + segmentMaxValue
+                    + "]";
+            return new SegmentTimestampFieldValues(segmentMinValue, segmentMaxValue);
+        } finally {
+            if (cfsIndexDirectory != null && segmentCommitInfo.info.getUseCompoundFile()) {
+                assert cfsIndexDirectory != directory;
+                cfsIndexDirectory.close();
+            }
+        }
+    }
+
+    /**
+     * Converts values of a date field, in the resolution of the field, to the range in milliseconds that is stored in compound commits.
+     */
+    public static TimestampFieldValueRange toTimestampFieldValueRange(
+        long minValue,
+        long maxValue,
+        DateFieldMapper.DateFieldType timestampFieldMappedType
+    ) {
+        if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
+            return new TimestampFieldValueRange(minValue, maxValue);
+        } else {
+            // Resolution#roundDownToMillis doesn't handle negative values
+            assert timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.NANOSECONDS;
+            return new TimestampFieldValueRange(Math.floorDiv(minValue, 1_000_000L), Math.ceilDiv(maxValue, 1_000_000L));
         }
     }
 
@@ -508,10 +567,18 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+        assert isFlushLockIsHeldByCurrentThread();
         // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
         // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
         // process, so for now we just store the start file as a thread local.
         translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && getProcessedLocalCheckpoint() == hollowMaxSeqNo) {
+            // If the commit we'll write is hollow, getCommitExtraUserData() will calculate DOC_STATS and SHARD_FIELD_STATS when Lucene
+            // visits the live commit data. Those stats are read from the internal searcher inside IndexWriter#commit. Refresh before the
+            // commit so documents indexed since the last internal refresh are included in the stats. Note that the refresh may grab
+            // Lucene's full-flush lock, but that should not be held by anyone else since we already hold the flushLock here.
+            refreshInternalSearcher(HOLLOW_FLUSH_REFRESH_SOURCE, true);
+        }
         super.commitIndexWriter(writer, translog);
     }
 
@@ -547,22 +614,32 @@ public class IndexEngine extends InternalEngine {
         IndexResult result = super.index(index);
 
         if (result.getResultType() == Result.Type.SUCCESS) {
-            documentParsingReporter.onIndexingCompleted(parsedDocument);
+            documentParsingReporter.onIndexingCompleted(parsedDocument, index.origin());
         }
         return result;
     }
 
     @Override
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return documentParsingProvider.newMeteringParserDecorator();
+    }
+
+    @Override
+    public void onBatchParsingCompleted(BatchMappingContext context) {
+        documentParsingReporter.onBatchParsingCompleted(context.docCount(), context::normalizedSize, context::addColumn);
+    }
+
+    @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         checkNoNewOperationsWhileHollow();
+        // parsing was reported for the whole chunk in onBatchParsingCompleted; indexing is still reported per row
+        // TODO: make onIndexingCompleted batch aware and avoid materializeIndexOps here
         List<Index> operations = engineBatch.batch().materializeIndexOps();
-        for (Index operation : operations) {
-            documentParsingReporter.onParsingCompleted(operation.parsedDoc());
-        }
         List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {
-                documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());
+                Index operation = operations.get(i);
+                documentParsingReporter.onIndexingCompleted(operation.parsedDoc(), operation.origin());
             }
         }
         return results;
@@ -617,7 +694,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     public static boolean isLastCommitHollow(SegmentInfos segmentInfos) {
-        String translogRecoveryStartFile = segmentInfos.getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
+        return isLastCommitHollow(segmentInfos.getUserData());
+    }
+
+    public static boolean isLastCommitHollow(Map<String, String> commitUserData) {
+        String translogRecoveryStartFile = commitUserData.get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
         return translogRecoveryStartFile != null ? Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE : false;
     }
 
@@ -697,10 +778,13 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
-        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE)) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
+                /// Note that we don't wait for the durability of the commit produced by this flush
+                /// since we set `IS_FLUSH_BY_REFRESH`.
+                /// See [IndexEngine#waitForCommitDurability(long, ActionListener)].
                 flush(true, true);
             } finally {
                 IS_FLUSH_BY_REFRESH.set(false);
@@ -1049,14 +1133,20 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
-        return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new MergePolicy.OneMerge(oneMerge) {
-            private volatile boolean isComplete = false;
+    protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+        if (iwc.getMergedSegmentWarmer() != null && iwc.getMaxFullFlushMergeWaitMillis() > 0) {
+            // the index writer wraps the merges on full flush in merges that do not forward their abort, which the warmer would not see
+            throw new IllegalStateException("merged segment warmer requires merges on full flush to be disabled");
+        }
+        return super.createWriter(directory, iwc);
+    }
 
-            @Override
-            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
-                return oneMerge.wrapForMerge(reader);
-            }
+    @Override
+    protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
+        // called while the engine is being constructed, before the fields of the engine are set
+        final var warmer = engineConfig.getMergedSegmentWarmer() instanceof MergedSegmentWarmer w ? w : null;
+        return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new SizeTrackingOneMerge(oneMerge) {
+            private volatile boolean isComplete = false;
 
             @Override
             public boolean isAborted() {
@@ -1080,7 +1170,27 @@ public class IndexEngine extends InternalEngine {
             @Override
             public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
                 isComplete = true;
-                super.mergeFinished(success, segmentDropped);
+                try {
+                    final var mergeInfo = getMergeInfo();
+                    if (warmer != null && mergeInfo != null) {
+                        warmer.onMergeFinished(mergeInfo, this);
+                    }
+                } finally {
+                    super.mergeFinished(success, segmentDropped);
+                }
+            }
+
+            // the index writer sets the merged segment before it warms it, during mergeMiddle, so we hook in here to detect newly
+            // started merges
+            @Override
+            public void setMergeInfo(SegmentCommitInfo info) {
+                // the index writer sets the merge info more than once, but the warmer tracks the merge by the id of its segment
+                assert getMergeInfo() == null || Arrays.equals(getMergeInfo().info.getId(), info.info.getId())
+                    : "the segment of a merge changed from " + getMergeInfo().info + " to " + info.info;
+                super.setMergeInfo(info);
+                if (warmer != null) {
+                    warmer.onMergeStarted(info, this);
+                }
             }
         });
     }

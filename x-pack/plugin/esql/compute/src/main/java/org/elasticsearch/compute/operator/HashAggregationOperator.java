@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.GroupRuns;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -168,11 +169,23 @@ public class HashAggregationOperator implements Operator {
 
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
+    public static final long DEFAULT_PARTITIONING_MEMORY_THRESHOLD = 16L * 1024 * 1024;
+    public static final int DEFAULT_PARTITIONING_NUM_KEYS_THRESHOLD = 400_000;
 
     // TODO: Push down LIMIT only
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
 
-    public record ParallelConfig(Executor executor, int numWorkers, int pagesPerWorker, int partitionKeysThreshold) {}
+    public record ParallelConfig(
+        Executor executor,
+        int numWorkers,
+        int pagesPerWorker,
+        int partitionKeysThreshold,
+        long partitioningMemoryThreshold
+    ) {
+        public ParallelConfig(Executor executor, int numWorkers, int pagesPerWorker, int partitionKeysThreshold) {
+            this(executor, numWorkers, pagesPerWorker, partitionKeysThreshold, Long.MAX_VALUE);
+        }
+    }
 
     /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
@@ -332,12 +345,14 @@ public class HashAggregationOperator implements Operator {
     protected final DriverContext driverContext;
     private final boolean supportPartitioning;
     private final int partitioningRowThreshold;
+    private final long partitioningMemoryThreshold;
     private final ParallelConfig parallelConfig;
 
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
     protected BlockHash blockHash;
     private boolean finished;
     protected ReleasableIterator<Page> output;
+    private Page pendingInputPage;
 
     /**
      * Maximum number of rows per output page.
@@ -410,6 +425,7 @@ public class HashAggregationOperator implements Operator {
         this.topAggregation = topAggregation;
         this.parallelConfig = parallelConfig;
         this.partitioningRowThreshold = parallelConfig != null ? parallelConfig.partitionKeysThreshold : Integer.MAX_VALUE;
+        this.partitioningMemoryThreshold = parallelConfig != null ? parallelConfig.partitioningMemoryThreshold : Long.MAX_VALUE;
         boolean success = false;
         try {
             this.blockHash = blockHashSupplier.apply(driverContext);
@@ -421,7 +437,7 @@ public class HashAggregationOperator implements Operator {
             this.supportPartitioning = parallelConfig != null
                 && blockHash instanceof PartitionedBlockHash
                 && PartitionedBlockHash.supportPartitioning()
-                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
+                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning(a.mode()));
             this.partitionedPartialOutput = this.supportPartitioning && allowPartitionedOutput && aggregatorMode.isOutputPartial();
             success = true;
         } finally {
@@ -476,7 +492,7 @@ public class HashAggregationOperator implements Operator {
     @Override
     public Operator tryPromote(DriverContext driverContext) {
         if (partitionedAggregationBlocks.isEmpty() == false
-            || (supportPartitioning && aggregatorMode.isOutputPartial() == false && blockHash.numKeys() >= partitioningRowThreshold)) {
+            || (supportPartitioning && aggregatorMode.isOutputPartial() == false && partitioningThresholdReached())) {
             var parallelOp = new ParallelHashAggregationOperator(parallelConfig, this);
             Releasables.close(this);
             return parallelOp;
@@ -486,7 +502,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return output == null && finished == false;
+        return output == null && pendingInputPage == null && finished == false;
     }
 
     @Override
@@ -498,11 +514,32 @@ public class HashAggregationOperator implements Operator {
             page.close();
             return;
         }
+        checkState(needsInput(), "Operator is already finishing");
+        requireNonNull(page, "page is null");
+        final boolean toEmit;
+        boolean success = false;
+        try {
+            toEmit = canEmitCurrentBatchPeriodically() && periodicEmitThresholdReached() && prepareForPeriodicEmit(page);
+            success = true;
+        } finally {
+            if (success == false) {
+                page.releaseBlocks();
+            }
+        }
+        if (toEmit) {
+            pendingInputPage = page;
+            emit();
+        } else {
+            processInputPage(page);
+        }
+    }
+
+    private void processInputPage(Page page) {
         try {
             maybeReinitializeAfterPeriodicallyEmitted();
             List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
             class AddInput implements GroupingAggregatorFunction.AddInput {
-                long hashStart = System.nanoTime();
+                long hashStart;
                 long aggStart;
 
                 @Override
@@ -533,6 +570,20 @@ public class HashAggregationOperator implements Operator {
                     end();
                 }
 
+                /**
+                 * The sort-aware hash calls this instead of {@link #add(int, IntVector)} when it split its group ids into
+                 * runs. Every aggregator gets the same ids either way: the ones that can combine a run at a time do, and
+                 * the rest expand the runs.
+                 */
+                @Override
+                public void addRuns(int positionOffset, GroupRuns runs) {
+                    startAggEndHash();
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.addRuns(positionOffset, runs);
+                    }
+                    end();
+                }
+
                 private void startAggEndHash() {
                     aggStart = System.nanoTime();
                     hashNanos += aggStart - hashStart;
@@ -549,33 +600,48 @@ public class HashAggregationOperator implements Operator {
                 }
             }
             try (AddInput add = new AddInput()) {
-                checkState(needsInput(), "Operator is already finishing");
-                requireNonNull(page, "page is null");
-
+                final long aggsPrepareStart = System.nanoTime();
                 for (GroupingAggregator aggregator : aggregators) {
                     GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
                     if (p != null) {
                         prepared.add(p);
                     }
                 }
-
                 // TODO we can skip the page *entirely* if we know we don't need "empty" results.
+                add.hashStart = System.nanoTime();
+                // Count aggregation preparation time toward aggregation time
+                aggregationNanos += add.hashStart - aggsPrepareStart;
                 blockHash.add(page, add);
                 hashNanos += System.nanoTime() - add.hashStart;
             }
             rowsAddedInCurrentBatch += page.getPositionCount();
-            if (shouldEmitPartialResultsPeriodically()) {
-                emit();
-            }
         } finally {
-            page.releaseBlocks();
             pagesProcessed++;
             rowsReceived += page.getPositionCount();
+            page.releaseBlocks();
         }
     }
 
     @Override
     public Page getOutput() {
+        Page out = nextOutputPage();
+        if (out == null) {
+            if (pendingInputPage != null) {
+                try {
+                    processInputPage(pendingInputPage);
+                } finally {
+                    this.pendingInputPage = null;
+                }
+                if (finished) {
+                    emit();
+                    out = nextOutputPage();
+                }
+            }
+        }
+        return out;
+    }
+
+    private Page nextOutputPage() {
         if (output == null) {
             return null;
         }
@@ -595,7 +661,9 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         finished = true;
-        emit();
+        if (pendingInputPage == null) {
+            emit();
+        }
     }
 
     private void maybeReinitializeAfterPeriodicallyEmitted() {
@@ -656,11 +724,13 @@ public class HashAggregationOperator implements Operator {
             return true;
         }
         // Partition when the current batch reaches the threshold.
-        if (blockHash.numKeys() >= partitioningRowThreshold) {
+        if (partitioningThresholdReached()) {
             return true;
         }
         // For the final batch, partition at 75% of the threshold.
-        return finished && blockHash.numKeys() >= Math.toIntExact((partitioningRowThreshold * 3L + 3L) / 4L);
+        return finished
+            && (blockHash.numKeys() >= Math.toIntExact((partitioningRowThreshold * 3L + 3L) / 4L)
+                || estimatedBytesForPartitioning() >= partitioningMemoryThreshold - partitioningMemoryThreshold / 4);
     }
 
     /**
@@ -692,16 +762,30 @@ public class HashAggregationOperator implements Operator {
         return allKeys;
     }
 
-    protected boolean shouldEmitPartialResultsPeriodically() {
-        if (aggregatorMode.isOutputPartial() == false) {
-            return false;
+    /**
+     * Whether the current batch may be emitted before the incoming page is added to it. Partial output can always be
+     * emitted early because the final aggregation re-merges groups that span batches.
+     */
+    protected boolean canEmitCurrentBatchPeriodically() {
+        return aggregatorMode.isOutputPartial();
+    }
+
+    private boolean prepareForPeriodicEmit(Page incomingPage) {
+        for (GroupingAggregator aggregator : aggregators) {
+            if (aggregator.aggregatorFunction().prepareForPeriodicEmit(incomingPage) == false) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    private boolean periodicEmitThresholdReached() {
         if (rowsAddedInCurrentBatch == 0) {
             return false;
         }
         final int numKeys = blockHash.numKeys();
         if (partitionedPartialOutput) {
-            return numKeys >= partitioningRowThreshold;
+            return partitioningThresholdReached();
         } else {
             if (numKeys < partialEmitKeysThreshold) {
                 return false;
@@ -714,19 +798,38 @@ public class HashAggregationOperator implements Operator {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
+    boolean partitioningThresholdReached() {
+        return blockHash.numKeys() >= partitioningRowThreshold || estimatedBytesForPartitioning() >= partitioningMemoryThreshold;
+    }
+
+    private long estimatedBytesForPartitioning() {
+        if (blockHash instanceof PartitionedBlockHash partitioned) {
+            return partitioned.estimatedBytesForPartitioning();
+        } else {
+            assert false : "expected a partitioned block hash; got " + blockHash;
+            return -1;
+        }
+    }
+
     @Override
     public boolean isFinished() {
-        return finished && output == null;
+        return finished && output == null && pendingInputPage == null;
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return output != null;
+        return output != null || pendingInputPage != null;
     }
 
     @Override
     public void close() {
-        Releasables.close(blockHash, () -> Releasables.close(aggregators), output, Releasables.wrap(partitionedAggregationBlocks));
+        Releasables.close(
+            blockHash,
+            () -> Releasables.close(aggregators),
+            output,
+            pendingInputPage,
+            Releasables.wrap(partitionedAggregationBlocks)
+        );
     }
 
     @Override
@@ -756,6 +859,22 @@ public class HashAggregationOperator implements Operator {
             "hashagg",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder, params)
+        )
+            .required("hash_nanos", ProfileSchema.integer())
+            .optional("hash_time", ProfileSchema.string())
+            .required("aggregation_nanos", ProfileSchema.integer())
+            .optional("aggregation_time", ProfileSchema.string())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .optional("emit_count", ProfileSchema.integer())
+            .required("emit_nanos", ProfileSchema.integer())
+            .optional("emit_time", ProfileSchema.string())
+            .optional("partitioning", ParallelHashAggregationOperator.PartitioningStatus.partitioningSchema())
+            .build();
 
         private static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME = TransportVersion.fromName(
             "esql_hash_operator_status_output_time"
@@ -927,8 +1046,7 @@ public class HashAggregationOperator implements Operator {
             return extraFields;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hash_nanos", hashNanos);
             if (builder.humanReadable()) {
@@ -952,7 +1070,11 @@ public class HashAggregationOperator implements Operator {
                 ef.toXContent(builder, params);
             }
             return builder.endObject();
+        }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

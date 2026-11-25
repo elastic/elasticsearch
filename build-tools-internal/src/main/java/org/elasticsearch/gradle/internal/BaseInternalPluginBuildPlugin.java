@@ -13,7 +13,6 @@ import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin;
@@ -25,6 +24,8 @@ import org.gradle.api.Project;
 
 import java.util.Map;
 import java.util.Optional;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Base plugin for building internal plugins or modules. This plugin should only be directly applied by internal test-only plugins or
@@ -40,7 +41,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
         project.getPluginManager().apply(TransportVersionReferencesPlugin.class);
-        boolean isCi = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class).getCi();
+        boolean isCi = loadBuildParams(project).get().getCi();
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin

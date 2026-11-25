@@ -54,7 +54,7 @@ public class CacheFileReaderStoreMetricsTests extends ESTestCase {
         var reader = new CacheFileReader(
             cacheFile,
             mock(CacheBlobReader.class),
-            createBlobFileRanges(1L, 0L, 0, FILE_LENGTH),
+            createBlobFileRanges(1L, 1L, 0, FILE_LENGTH),
             BlobCacheMetrics.NOOP,
             System::currentTimeMillis,
             REGION_SIZE,

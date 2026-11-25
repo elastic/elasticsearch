@@ -864,6 +864,35 @@ instance-2       | null       | null       | null          | null       | null  
 ;
 
 
+// FIRST, LAST, EARLIEST and LATEST return one sample of each series, the same as with FROM.
+// COUNT of a merged histogram would count every value of the series: 8841, 3250 and 3380.
+timeseriesFirstAndLastReturnSample
+required_capability: ts_command_v0
+required_capability: exponential_histogram_tech_preview
+required_capability: count_of_histogram_types
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+required_capability: last_agg_extended_types
+required_capability: fix_ts_first_last_samples
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS first_hist = FIRST(responseTime, @timestamp), earliest_hist = EARLIEST(responseTime),
+         last_hist = LAST(responseTime, @timestamp), latest_hist = LATEST(responseTime)
+         BY instance
+ | STATS first_count = COUNT(first_hist), earliest_count = COUNT(earliest_hist),
+         last_count = COUNT(last_hist), latest_count = COUNT(latest_hist)
+         BY instance
+ | SORT instance
+;
+
+first_count:long | earliest_count:long | last_count:long | latest_count:long | instance:keyword
+69               | 69                  | 93              | 93                | instance-0
+32               | 32                  | 23              | 23                | instance-1
+34               | 34                  | 26              | 26                | instance-2
+;
+
+
 timeseriesAllMathOverTimeAggsGrouped
 required_capability: exponential_histogram_tech_preview
 required_capability: ts_command_v0
@@ -951,6 +980,55 @@ instance-1       | 2025-09-25T00:33:00.000Z | true            | false
 instance-2       | 2025-09-25T00:31:00.000Z | false           | true
 instance-2       | 2025-09-25T00:32:00.000Z | true            | false
 instance-2       | 2025-09-25T00:33:00.000Z | true            | false
+;
+
+promqlCountOverTimeCountsSamples
+required_capability: exponential_histogram_tech_preview
+required_capability: promql_command_v0
+required_capability: fix_promql_empty_range_is_no_element
+
+// As in Prometheus, each histogram is one sample, whatever the number of observations it holds, even none.
+PROMQL index=exp_histo_sample start="2025-09-24T00:00:00Z" end="2025-09-24T00:00:00Z" step=1m samples=(sum by (instance) (count_over_time(responseTime{instance=~"dummy-.*"}[1m])))
+| SORT instance;
+
+samples:double | step:datetime            | instance:keyword
+1.0            | 2025-09-24T00:00:00.000Z | dummy-empty
+1.0            | 2025-09-24T00:00:00.000Z | dummy-full
+1.0            | 2025-09-24T00:00:00.000Z | dummy-negative_only
+1.0            | 2025-09-24T00:00:00.000Z | dummy-no_zero_bucket
+1.0            | 2025-09-24T00:00:00.000Z | dummy-positive_only
+1.0            | 2025-09-24T00:00:00.000Z | dummy-zero_count_only
+1.0            | 2025-09-24T00:00:00.000Z | dummy-zero_threshold_only
+;
+
+promqlCountCountsSeries
+required_capability: exponential_histogram_tech_preview
+required_capability: promql_command_v0
+required_capability: fix_promql_empty_range_is_no_element
+
+// As in Prometheus, each histogram series is one element, whatever the number of observations it holds, even none.
+PROMQL index=exp_histo_sample start="2025-09-24T00:00:00Z" end="2025-09-24T00:00:00Z" step=1m series=(count by (instance) (responseTime{instance=~"dummy-.*"}))
+| SORT instance;
+
+series:double | step:datetime            | instance:keyword
+1.0           | 2025-09-24T00:00:00.000Z | dummy-empty
+1.0           | 2025-09-24T00:00:00.000Z | dummy-full
+1.0           | 2025-09-24T00:00:00.000Z | dummy-negative_only
+1.0           | 2025-09-24T00:00:00.000Z | dummy-no_zero_bucket
+1.0           | 2025-09-24T00:00:00.000Z | dummy-positive_only
+1.0           | 2025-09-24T00:00:00.000Z | dummy-zero_count_only
+1.0           | 2025-09-24T00:00:00.000Z | dummy-zero_threshold_only
+;
+
+promqlCountOfAggregatedHistogramsCountsSeries
+required_capability: exponential_histogram_tech_preview
+required_capability: promql_command_v0
+required_capability: fix_promql_empty_range_is_no_element
+
+PROMQL index=exp_histo_sample start="2025-09-24T00:00:00Z" end="2025-09-24T00:00:00Z" step=1m series=(count(sum by (instance) (responseTime{instance=~"dummy-.*"})));
+
+series:double | step:datetime
+7.0           | 2025-09-24T00:00:00.000Z
 ;
 
 // -------------------------------------------------------------------------------
@@ -1081,11 +1159,13 @@ cnt:long
 
 Count exponential histogram with null bucket
 required_capability: fn_count_histogram_bucket
+required_capability: warn_null_misuse
 
 FROM exp_histo_sample
  | WHERE instance == "dummy-full"
  | STATS cnt = COUNT(responseTime, TO_RANGE(null, 1.0))
 ;
+warning:Line 3:35: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 cnt:long
 null

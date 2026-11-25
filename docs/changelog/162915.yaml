@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 162915
+summary: Let the AlertZero Threat Hunt role read endpoint metadata
+type: bug

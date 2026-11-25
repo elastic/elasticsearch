@@ -103,7 +103,8 @@ template <
     float32x4_t(*inner_op)(const float32x4_t, const float32x4_t, const float32x4_t),
     f32_t(*scalar_op)(const bf16_t, const TQuery),
     f32_t(*bulk_tail)(const bf16_t*, const TQuery*, const int32_t),
-    int batches = 8
+    int batches = 8,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void bf16_bulk_inner(
     const TData* a,
@@ -162,14 +163,15 @@ static inline void bf16_bulk_inner(
             });
         }
 
-        // this should be turned into direct value copies by the compiler
-        std::copy_n(res, batches, results + c);
+        apply_indexed<batches>([&](auto I) {
+            results[out_mapper(offsets, c + I)] = res[I];
+        });
     }
 
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const bf16_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = bulk_tail(a0, b, dims);
+        results[out_mapper(offsets, c)] = bulk_tail(a0, b, dims);
     }
 }
 
@@ -223,30 +225,6 @@ EXPORT void vec_dotDbf16Qbf16_bulk_sparse(
 ) {
     bf16_bulk_inner<const bf16_t*, bf16_t, sparse_mapper, load_bf16, vfmaq_f32, dot_scalar, vec_dotDbf16Qbf16>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_dotDbf16Qf32_bulk_offsets(
-    const bf16_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, f32_t, offsets_mapper, load_f32, vfmaq_f32, dot_scalar, vec_dotDbf16Qf32>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_dotDbf16Qbf16_bulk_offsets(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, bf16_t, offsets_mapper, load_bf16, vfmaq_f32, dot_scalar, vec_dotDbf16Qbf16>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }
 
 static inline float32x4_t sqrf32_vector(float32x4_t sum, float32x4_t a, float32x4_t b) {
@@ -304,28 +282,4 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_sparse(
 ) {
     bf16_bulk_inner<const bf16_t*, bf16_t, sparse_mapper, load_bf16, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qbf16>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qf32_bulk_offsets(
-    const bf16_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, f32_t, offsets_mapper, load_f32, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qf32>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qbf16_bulk_offsets(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, bf16_t, offsets_mapper, load_bf16, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qbf16>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }

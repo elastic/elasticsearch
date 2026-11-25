@@ -27,10 +27,12 @@ public class IndexFieldCapabilitiesBuilder {
     private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
+    private @Nullable Boolean isPassthrough;
     private Map<String, String> meta;
     private @Nullable String indexAnalyzer;
     private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
     private boolean indexLocalAnalyzer;
+    private boolean isStaticallySingleValued;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -72,6 +74,12 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    /** Passthrough status; {@code null} (the default) when the field type cannot be a passthrough source. */
+    public IndexFieldCapabilitiesBuilder isPassthrough(@Nullable Boolean isPassthrough) {
+        this.isPassthrough = isPassthrough;
+        return this;
+    }
+
     public IndexFieldCapabilitiesBuilder meta(@Nullable Map<String, String> meta) {
         this.meta = meta != null ? new TreeMap<>(meta) : null;
         return this;
@@ -93,6 +101,12 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    /** Whether the mapping guarantees at most one value per document; {@code false} (the default) means not guaranteed. */
+    public IndexFieldCapabilitiesBuilder isStaticallySingleValued(boolean isStaticallySingleValued) {
+        this.isStaticallySingleValued = isStaticallySingleValued;
+        return this;
+    }
+
     public IndexFieldCapabilities build() {
         return new IndexFieldCapabilities(
             name,
@@ -103,10 +117,12 @@ public class IndexFieldCapabilitiesBuilder {
             isInference,
             isDimension,
             metricType,
+            isPassthrough,
             meta,
             indexAnalyzer,
             indexAnalyzerPositionIncrementGap,
-            indexLocalAnalyzer
+            indexLocalAnalyzer,
+            isStaticallySingleValued
         );
     }
 }

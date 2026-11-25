@@ -30,4 +30,13 @@ public interface DeferredExtractionCapable {
      * same instance via the same {@link DriverContext}.
      */
     SourceExtractors sourceExtractorsFor(DriverContext driverContext);
+
+    /**
+     * Returns the dataset context label (e.g. {@code "in dataset [tmax] from data source [noaa] (s3)"}),
+     * or {@code null} when no dataset context is available. Used by {@link ExternalFieldExtractOperator}
+     * to annotate classified failures with the originating dataset.
+     */
+    default String datasetLabel() {
+        return null;
+    }
 }

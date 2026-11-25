@@ -27,25 +27,9 @@ public class VectorScorerInt4BulkOperationBenchmarkTests extends BenchmarkTest {
         bench.bulkSize = 200;
         bench.setup(vectorData);
         try {
-            float[] single = bench.scoreSequential();
+            float[] single = bench.scoreSequential().clone();
             float[] bulk = bench.scoreBulk();
             assertArrayEquals("scoreBulk vs scoreSequential", single, bulk, 0f);
-        } finally {
-            bench.teardown();
-        }
-    }
-
-    public void testBulkOffsets() {
-        var vectorData = new VectorScorerInt4BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
-        var bench = new VectorScorerInt4BulkOperationBenchmark();
-        bench.dims = dims;
-        bench.numVectors = 1000;
-        bench.bulkSize = 200;
-        bench.setup(vectorData);
-        try {
-            float[] single = bench.scoreRandom();
-            float[] bulk = bench.scoreBulkOffsets();
-            assertArrayEquals("scoreBulkOffsets vs scoreRandom", single, bulk, 0f);
         } finally {
             bench.teardown();
         }
@@ -59,9 +43,26 @@ public class VectorScorerInt4BulkOperationBenchmarkTests extends BenchmarkTest {
         bench.bulkSize = 200;
         bench.setup(vectorData);
         try {
-            float[] single = bench.scoreRandom();
+            float[] single = bench.scoreRandom().clone();
             float[] bulk = bench.scoreBulkSparse();
             assertArrayEquals("scoreBulkSparse vs scoreRandom", single, bulk, 0f);
+        } finally {
+            bench.teardown();
+        }
+    }
+
+    public void testBulkMasked() {
+        var vectorData = new VectorScorerInt4BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
+        var bench = new VectorScorerInt4BulkOperationBenchmark();
+        bench.dims = dims;
+        bench.numVectors = 1000;
+        bench.bulkSize = 200;
+        bench.selected = randomIntBetween(0, Integer.SIZE);
+        bench.setup(vectorData);
+        try {
+            float[] single = bench.scoreSingleMasked().clone();
+            float[] bulk = bench.scoreBulkMasked();
+            assertArrayEquals("scoreBulkMasked vs scoreSingleMasked", single, bulk, 0f);
         } finally {
             bench.teardown();
         }

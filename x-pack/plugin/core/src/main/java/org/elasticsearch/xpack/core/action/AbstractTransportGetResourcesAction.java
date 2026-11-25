@@ -57,6 +57,17 @@ public abstract class AbstractTransportGetResourcesAction<
     Request extends AbstractGetResourcesRequest,
     Response extends AbstractGetResourcesResponse<Resource>> extends HandledTransportAction<Request, Response> {
 
+    /**
+     * Resource indices may not exist yet or may be unavailable, so searches over them ignore unavailable indices.
+     */
+    protected static final IndicesOptions LENIENT_INDICES_OPTIONS = IndicesOptions.fromOptions(
+        true,
+        SearchRequest.DEFAULT_INDICES_OPTIONS.allowNoIndices(),
+        SearchRequest.DEFAULT_INDICES_OPTIONS.expandWildcardsOpen(),
+        SearchRequest.DEFAULT_INDICES_OPTIONS.expandWildcardsClosed(),
+        SearchRequest.DEFAULT_INDICES_OPTIONS
+    );
+
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
@@ -86,16 +97,8 @@ public abstract class AbstractTransportGetResourcesAction<
         }
         sourceBuilder.trackTotalHits(true);
 
-        IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-        SearchRequest searchRequest = new SearchRequest(getIndices()).indicesOptions(
-            IndicesOptions.fromOptions(
-                true,
-                indicesOptions.allowNoIndices(),
-                indicesOptions.expandWildcardsOpen(),
-                indicesOptions.expandWildcardsClosed(),
-                indicesOptions
-            )
-        ).source(customSearchOptions(sourceBuilder));
+        SearchRequest searchRequest = new SearchRequest(getIndices()).indicesOptions(LENIENT_INDICES_OPTIONS)
+            .source(customSearchOptions(sourceBuilder));
         searchRequest.setParentTask(parentTaskId);
 
         executeAsyncWithOrigin(
@@ -123,6 +126,7 @@ public abstract class AbstractTransportGetResourcesAction<
                         }
                     } catch (IOException e) {
                         l.onFailure(e);
+                        return;
                     }
                 }
                 ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, request.isAllowNoResources());

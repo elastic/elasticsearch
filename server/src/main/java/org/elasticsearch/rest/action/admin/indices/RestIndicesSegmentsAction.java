@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -22,11 +23,22 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestIndicesSegmentsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "vector_formats",
+        "include_auto_calibration"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
 
     public RestIndicesSegmentsAction() {}
 
@@ -44,10 +56,22 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(
             Strings.splitStringByCommaToArray(request.param("index"))
-        ).withVectorFormatsInfo(request.paramAsBoolean("vector_formats", false));
+        ).withVectorFormatsInfo(request.paramAsBoolean("vector_formats", false))
+            .withAutoCalibration(request.paramAsBoolean("include_auto_calibration", false));
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .segments(indicesSegmentsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

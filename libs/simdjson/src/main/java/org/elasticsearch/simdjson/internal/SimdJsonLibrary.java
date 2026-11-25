@@ -49,7 +49,7 @@ public interface SimdJsonLibrary {
     /**
      * Frees a context previously obtained from {@link #create(int)}. Safe to call with
      * {@link MemorySegment#NULL} (the native code treats a null pointer as a no-op).
-     * Passing a Java {@code null} reference is not permitted and will throw {@link NullPointerException}.
+     * Passing a Java {@code null} reference is not permitted.
      */
     @Function("simdjson_stage1_destroy")
     void destroy(MemorySegment ctx);

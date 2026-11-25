@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;

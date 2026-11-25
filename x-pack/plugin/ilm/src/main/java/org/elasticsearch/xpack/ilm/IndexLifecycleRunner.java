@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -60,6 +61,7 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
     private final MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> masterServiceTaskQueue;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
 
     @SuppressWarnings("Convert2Lambda") // can't SuppressForbidden on a lambda
     private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR =
@@ -88,7 +90,8 @@ class IndexLifecycleRunner {
         ILMHistoryStore ilmHistoryStore,
         ClusterService clusterService,
         ThreadPool threadPool,
-        LongSupplier nowSupplier
+        LongSupplier nowSupplier,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         this.stepRegistry = stepRegistry;
         this.ilmHistoryStore = ilmHistoryStore;
@@ -96,6 +99,7 @@ class IndexLifecycleRunner {
         this.nowSupplier = nowSupplier;
         this.threadPool = threadPool;
         this.masterServiceTaskQueue = clusterService.createTaskQueue("ilm-runner", Priority.NORMAL, ILM_TASK_EXECUTOR);
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
     }
 
     /**
@@ -477,7 +481,16 @@ class IndexLifecycleRunner {
             logger.debug("[{}] running policy with current-step [{}]", indexMetadata.getIndex().getName(), currentStep.getKey());
             submitUnlessAlreadyQueued(
                 Strings.format("ilm-execute-cluster-state-steps [%s]", currentStep),
-                new ExecuteStepsUpdateTask(projectId, policy, indexMetadata.getIndex(), currentStep, stepRegistry, this, nowSupplier)
+                new ExecuteStepsUpdateTask(
+                    projectId,
+                    policy,
+                    indexMetadata.getIndex(),
+                    currentStep,
+                    stepRegistry,
+                    this,
+                    nowSupplier,
+                    dataStreamLifecycleSettings
+                )
             );
         } else {
             logger.trace("[{}] ignoring step execution from cluster state change event [{}]", index, currentStep.getKey());

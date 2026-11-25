@@ -37,7 +37,7 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     public void testCountersPopulatedAfterDrain() throws IOException {
@@ -107,6 +107,21 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
 
         assertTrue(
             "withReadConfig runs per file; passing the same counters object threads work through to the caller",
+            counters.snapshot().rowsEmitted() > 0
+        );
+    }
+
+    public void testPerReadBlockFactoryCopyUsesTheSameCounters() throws IOException {
+        NdJsonFormatReader node = new NdJsonFormatReader(null, blockFactory);
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        NdJsonFormatReader perRead = node.withBlockFactory(other);
+        assertNotSame(node, perRead);
+        NdJsonReaderCounters counters = (NdJsonReaderCounters) node.newReadCounters();
+
+        drain(perRead, counters);
+
+        assertTrue(
+            "withBlockFactory runs per read; passing the same counters object threads work through to the caller",
             counters.snapshot().rowsEmitted() > 0
         );
     }

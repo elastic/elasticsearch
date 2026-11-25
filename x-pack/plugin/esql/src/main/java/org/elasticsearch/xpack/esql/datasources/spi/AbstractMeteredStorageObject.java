@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 
+import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
@@ -41,6 +42,15 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
     @Override
     public final void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
         counters.attach(metrics, scheme);
+    }
+
+    /**
+     * Wraps a leaf {@code newStream} return so received body bytes (not the planned range)
+     * enter {@link #counters}. Inner {@link InputStream#close()} owns drain vs drop.
+     */
+    protected final InputStream metered(InputStream in) {
+        counters.bindPlanningIo();
+        return new MeteredInputStream(in, counters);
     }
 
     /**

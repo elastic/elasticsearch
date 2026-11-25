@@ -1,0 +1,16 @@
+FROM (FROM (FROM (ROW client_ip = "172.21.0.5"), (ROW client_ip = "172.21.3.15")
+            | EVAL label = 1
+            | KEEP client_ip, label
+            | RENAME label AS renamed
+            | RENAME renamed AS label),
+           (ROW client_ip = "172.21.2.162", label = 1)
+      | KEEP client_ip, label
+      | RENAME label AS renamed
+      | RENAME renamed AS label),
+     (ROW client_ip = "172.21.2.162", label = 1)
+| KEEP client_ip, label
+| RENAME label AS renamed
+| RENAME renamed AS label
+| EVAL client_ip = client_ip::ip
+| KEEP client_ip
+| LIMIT 10

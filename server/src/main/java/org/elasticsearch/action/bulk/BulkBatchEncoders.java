@@ -11,11 +11,14 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,7 +28,6 @@ import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,9 +80,16 @@ final class BulkBatchEncoders implements Releasable {
 
     private record PendingAttachment(IndexRequest indexRequest, int rowIndex) {}
 
+    private final Recycler<BytesRef> recycler;
     private final Map<Index, IndexState> indexStates = new HashMap<>();
     private boolean disabled;
+    private boolean finalized;
     private boolean closed;
+
+    /** Creates encoders that take their pages from {@code recycler}. */
+    BulkBatchEncoders(Recycler<BytesRef> recycler) {
+        this.recycler = recycler;
+    }
 
     /**
      * Returns true if every item in {@code bulkRequest} is structurally eligible to be batch-encoded:
@@ -138,7 +147,7 @@ final class BulkBatchEncoders implements Releasable {
         }
         IndexState state = indexStates.computeIfAbsent(
             concreteIndex,
-            idx -> new IndexState(new EscfEncoder(), indexRouting.newRoutingExtractor())
+            idx -> new IndexState(new EscfEncoder(recycler), indexRouting.newRoutingExtractor())
         );
         if (state.extractor != null) {
             state.extractor.reset();
@@ -177,24 +186,43 @@ final class BulkBatchEncoders implements Releasable {
      * Build the batch for every shard that received committed rows, set the batch row reference
      * on each item routed there (replacing inline source bytes with a row reference), and return
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
+     * The caller owns every returned batch.
+     *
+     * <p>Building a partition hands its buffers to the returned batch, so this may be called at most
+     * once per bulk. The failure-store redirect pass must not call it: redirected items are new
+     * requests that were never batch-encoded.
+     *
+     * @throws IllegalStateException if called more than once
      */
     Map<ShardId, SourceBatch> finalizeBatches() {
+        if (finalized) {
+            throw new IllegalStateException("batches were already finalized for this bulk");
+        }
+        finalized = true;
         if (disabled) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
-        for (IndexState state : indexStates.values()) {
-            for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
-                List<PendingAttachment> pending = entry.getValue();
-                if (pending.isEmpty()) {
-                    continue;
+        boolean success = false;
+        try {
+            for (IndexState state : indexStates.values()) {
+                for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
+                    List<PendingAttachment> pending = entry.getValue();
+                    if (pending.isEmpty()) {
+                        continue;
+                    }
+                    ShardId shardId = entry.getKey();
+                    SourceBatch batch = state.encoder.buildPartition(shardId.getId());
+                    batchesByShard.put(shardId, batch);
+                    for (PendingAttachment attachment : pending) {
+                        attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
+                    }
                 }
-                ShardId shardId = entry.getKey();
-                SourceBatch batch = state.encoder.buildPartition(shardId.getId());
-                batchesByShard.put(shardId, batch);
-                for (PendingAttachment attachment : pending) {
-                    attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
-                }
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(batchesByShard.values());
             }
         }
         return batchesByShard;

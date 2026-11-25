@@ -656,9 +656,9 @@ required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
-  | EVAL @timestamp=CASE(@timestamp=="2024-05-10T00:04:00.000Z", NULL, @timestamp)
-  | EVAL @timestamp=CASE(@timestamp=="2024-05-10T00:08:00.000Z", NULL, @timestamp)
-  | EVAL count=count+CASE(@timestamp<="2024-05-10T00:11:00.000Z", 100, 0)
+  | EVAL @timestamp=CASE(@timestamp=="2024-05-10T00:13:00.000Z", NULL, @timestamp)
+  | EVAL @timestamp=CASE(@timestamp=="2024-05-10T00:14:00.000Z", NULL, @timestamp)
+  | EVAL count=count+CASE(@timestamp<="2024-05-10T00:09:00.000Z", 100, 0)
   | CHANGE_POINT count ON @timestamp AS type, pvalue
   | SORT @timestamp, count
 ;
@@ -668,15 +668,15 @@ FROM k8s
 2024-05-10T00:01:00.000Z | 104        | null         | null
 2024-05-10T00:02:00.000Z | 108        | null         | null
 2024-05-10T00:03:00.000Z | 108        | null         | null
+2024-05-10T00:04:00.000Z | 105        | null         | null
 2024-05-10T00:05:00.000Z | 108        | null         | null
 2024-05-10T00:06:00.000Z | 110        | null         | null
 2024-05-10T00:07:00.000Z | 105        | null         | null
+2024-05-10T00:08:00.000Z | 112        | null         | null
 2024-05-10T00:09:00.000Z | 120        | null         | null
-2024-05-10T00:10:00.000Z | 105        | null         | null
-2024-05-10T00:11:00.000Z | 107        | null         | null
-2024-05-10T00:12:00.000Z | 8          | step_change  | 0..1E-16
-2024-05-10T00:13:00.000Z | 9          | null         | null
-2024-05-10T00:14:00.000Z | 9          | null         | null
+2024-05-10T00:10:00.000Z | 5          | step_change  | 0..1E-16
+2024-05-10T00:11:00.000Z | 7          | null         | null
+2024-05-10T00:12:00.000Z | 8          | null         | null
 2024-05-10T00:15:00.000Z | 11         | null         | null
 2024-05-10T00:16:00.000Z | 7          | null         | null
 2024-05-10T00:17:00.000Z | 15         | null         | null
@@ -685,8 +685,8 @@ FROM k8s
 2024-05-10T00:20:00.000Z | 10         | null         | null
 2024-05-10T00:21:00.000Z | 4          | null         | null
 2024-05-10T00:22:00.000Z | 9          | null         | null
-null                     | 5          | null         | null
-null                     | 12         | null         | null
+null                     | 9          | null         | null
+null                     | 9          | null         | null
 ;
 
 null values
@@ -1100,6 +1100,7 @@ time:integer | values:null | type:keyword | pvalue:double
 
 values evals to null
 required_capability: change_point
+required_capability: warn_null_misuse
 
 FROM employees
   | KEEP emp_no
@@ -1108,6 +1109,7 @@ FROM employees
   | LIMIT 5
 ;
 
+warning: Line 3:17: Expression [emp_no + NULL] always evaluates to NULL.
 warning: Line 4:3: evaluation of [CHANGE_POINT values ON emp_no] failed, treating result as null. Only first 20 failures recorded.
 warning: Line 4:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]
 warning: Line 4:3: java.lang.IllegalArgumentException: values contain nulls; skipping them

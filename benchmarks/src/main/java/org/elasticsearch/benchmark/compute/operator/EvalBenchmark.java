@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -32,14 +33,17 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,12 +52,15 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
@@ -90,14 +97,20 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntToDoubleFunction;
+
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -204,6 +217,51 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkDateTruncExpected(this, actual);
+            }
+        },
+        DECAY_CARTESIAN("decay_cartesian") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return decayCartesianEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkDecayExpected(this, actual, new ScoreScriptUtils.DecayNumericExp(0, BLOCK_LENGTH, 0, 0.5)::decayNumericExp);
+            }
+        },
+        DECAY_DATETIME("decay_datetime") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return decayDatetimeEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkDecayExpected(this, actual, new ScoreScriptUtils.DecayNumericGauss(0, BLOCK_LENGTH, 0, 0.5)::decayNumericGauss);
+            }
+        },
+        DECAY_DOUBLE("decay_double") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return decayDoubleEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkDecayExpected(this, actual, new ScoreScriptUtils.DecayNumericLinear(0, BLOCK_LENGTH, 0, 0.5)::decayNumericLinear);
+            }
+        },
+        DECAY_GEO("decay_geo") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return decayGeoEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                var expected = new ScoreScriptUtils.DecayGeoLinear("45,0", "1000km", "10km", 0.5);
+                checkDecayExpected(this, actual, i -> expected.decayGeoLinear(new GeoPoint(45, i * 0.001)));
             }
         },
         EQUAL_TO_CONST("equal_to_const") {
@@ -437,6 +495,22 @@ public class EvalBenchmark {
                 checkRoundTo4Expected(this, actual);
             }
         },
+        /**
+         * {@code CASE(f % 4 == 0, f + 1, f % 4 == 1, f + 2, f % 4 == 2, f + 3, f + 4)}. Neither the conditions nor the
+         * values are safe to evaluate eagerly, so every arm after the first runs on a filtered page, and the arms
+         * are balanced so each one selects a quarter of the rows.
+         */
+        CASE_4_LAZY_BALANCED("case_4_lazy_balanced") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return case4LazyBalancedEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkCase4LazyBalancedExpected(this, actual);
+            }
+        },
         ROUND_TO_2("round_to_2") {
             @Override
             ExpressionEvaluator evaluator() {
@@ -567,6 +641,28 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkToUpperExpected(this, actual, true);
+            }
+        },
+        TO_BASE64("to_base64") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return toBase64Evaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkBase64Expected(this, actual, BASE64_SMALL_TEXT, true);
+            }
+        },
+        FROM_BASE64("from_base64") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return fromBase64Evaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkBase64Expected(this, actual, BASE64_SMALL_TEXT, false);
             }
         },
         TSTEP_5_EQUAL("tstep(5)") {
@@ -756,12 +852,13 @@ public class EvalBenchmark {
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final FoldContext FOLD_CONTEXT = FoldContext.small();
 
     private static final int BLOCK_LENGTH = 8 * 1024;
+    private static final String BASE64_SMALL_TEXT = "benchmark-value";
     private static final long TBUCKET_RANGE_START_MILLIS = Instant.parse("2024-01-01T00:00:00Z").toEpochMilli();
     private static final long TBUCKET_RANGE_END_MILLIS = Instant.parse("2024-01-03T00:00:00Z").toEpochMilli();
     private static final ReplaceDateTruncBucketWithRoundTo REWRITE_RULE = new ReplaceDateTruncBucketWithRoundTo();
@@ -847,6 +944,49 @@ public class EvalBenchmark {
             .get(driverContext);
         assertEvaluatorContains(evaluator, lazy ? "CoalesceLongLazyEvaluator" : "CoalesceLongEagerEvaluator");
         return evaluator;
+    }
+
+    private static ExpressionEvaluator decayCartesianEvaluator() {
+        FieldAttribute cartesianField = new FieldAttribute(
+            Source.EMPTY,
+            "cartesian",
+            new EsField("cartesian", DataType.CARTESIAN_POINT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal origin = new Literal(Source.EMPTY, CARTESIAN.wktToWkb("POINT (0 0)"), DataType.CARTESIAN_POINT);
+        Literal scale = new Literal(Source.EMPTY, (double) BLOCK_LENGTH, DataType.DOUBLE);
+        return decayEvaluator(cartesianField, origin, scale, decayOptions("type", "exp"));
+    }
+
+    private static ExpressionEvaluator decayDatetimeEvaluator() {
+        Literal origin = new Literal(Source.EMPTY, 0L, DataType.DATETIME);
+        Literal scale = new Literal(Source.EMPTY, Duration.ofMillis(BLOCK_LENGTH), DataType.TIME_DURATION);
+        return decayEvaluator(timestampField(), origin, scale, decayOptions("type", "gauss"));
+    }
+
+    private static ExpressionEvaluator decayDoubleEvaluator() {
+        Literal origin = new Literal(Source.EMPTY, 0D, DataType.DOUBLE);
+        Literal scale = new Literal(Source.EMPTY, (double) BLOCK_LENGTH, DataType.DOUBLE);
+        return decayEvaluator(doubleField(), origin, scale, null);
+    }
+
+    private static ExpressionEvaluator decayGeoEvaluator() {
+        FieldAttribute geoField = new FieldAttribute(
+            Source.EMPTY,
+            "geo",
+            new EsField("geo", DataType.GEO_POINT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal origin = new Literal(Source.EMPTY, GEO.wktToWkb("POINT (0 45)"), DataType.GEO_POINT);
+        Literal scale = Literal.keyword(Source.EMPTY, "1000km");
+        return decayEvaluator(geoField, origin, scale, decayOptions("offset", "10km"));
+    }
+
+    private static ExpressionEvaluator decayEvaluator(FieldAttribute field, Literal origin, Literal scale, MapExpression options) {
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Decay(Source.EMPTY, field, origin, scale, options), layout(field))
+            .get(driverContext);
+    }
+
+    private static MapExpression decayOptions(String key, String value) {
+        return new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, key), Literal.keyword(Source.EMPTY, value)));
     }
 
     private static ExpressionEvaluator dateTruncEvaluator() {
@@ -1068,6 +1208,25 @@ public class EvalBenchmark {
         return evaluator;
     }
 
+    private static ExpressionEvaluator case4LazyBalancedEvaluator() {
+        FieldAttribute f = longField();
+        Expression four = new Literal(Source.EMPTY, 4L, DataType.LONG);
+        Expression mod = new Mod(Source.EMPTY, f, four);
+        List<Expression> arms = new ArrayList<>();
+        for (int k = 0; k < 3; k++) {
+            arms.add(new Equals(Source.EMPTY, mod, new Literal(Source.EMPTY, (long) k, DataType.LONG)));
+            arms.add(new Add(Source.EMPTY, f, new Literal(Source.EMPTY, (long) k + 1, DataType.LONG), configuration()));
+        }
+        arms.add(new Add(Source.EMPTY, f, new Literal(Source.EMPTY, 4L, DataType.LONG), configuration()));
+        ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+            FOLD_CONTEXT,
+            new Case(Source.EMPTY, arms.get(0), arms.subList(1, arms.size())),
+            layout(f)
+        ).get(driverContext);
+        assertEvaluatorContains(evaluator, "CaseLazyEvaluator");
+        return evaluator;
+    }
+
     private static ExpressionEvaluator roundTo2Evaluator() {
         FieldAttribute f = longField();
         ExpressionEvaluator evaluator = EvalMapper.toEvaluator(FOLD_CONTEXT, new RoundTo(Source.EMPTY, f, List.of(b(), kb())), layout(f))
@@ -1108,6 +1267,16 @@ public class EvalBenchmark {
         FieldAttribute keywordField = keywordField();
         ToUpper toUpper = new ToUpper(Source.EMPTY, keywordField, configuration());
         return EvalMapper.toEvaluator(FOLD_CONTEXT, toUpper, layout(keywordField)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator toBase64Evaluator() {
+        FieldAttribute keywordField = keywordField();
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new ToBase64(Source.EMPTY, keywordField), layout(keywordField)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator fromBase64Evaluator() {
+        FieldAttribute keywordField = keywordField();
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new FromBase64(Source.EMPTY, keywordField), layout(keywordField)).get(driverContext);
     }
 
     private static void assertEvaluatorContains(ExpressionEvaluator evaluator, String requiredSubstring) {
@@ -1296,6 +1465,16 @@ public class EvalBenchmark {
         for (int i = 0; i < BLOCK_LENGTH; i++) {
             if (v.getDouble(i) != i * 100_000 + 1D) {
                 throw new AssertionError("[" + operation + "] expected [" + (i * 100_000 + 1D) + "] but was [" + v.getDouble(i) + "]");
+            }
+        }
+    }
+
+    private static void checkDecayExpected(Operation operation, Page actual, IntToDoubleFunction expectedAtPosition) {
+        DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            double expected = expectedAtPosition.applyAsDouble(i);
+            if (v.getDouble(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] at [" + i + "] but was [" + v.getDouble(i) + "]");
             }
         }
     }
@@ -1529,6 +1708,17 @@ public class EvalBenchmark {
         }
     }
 
+    private static void checkCase4LazyBalancedExpected(Operation operation, Page actual) {
+        LongVector f = actual.<LongBlock>getBlock(0).asVector();
+        LongVector result = actual.<LongBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            long expected = f.getLong(i) + 1 + (f.getLong(i) % 4);
+            if (result.getLong(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+            }
+        }
+    }
+
     private static void checkRoundTo3Expected(Operation operation, Page actual) {
         long b = 1;
         long kb = ByteSizeUnit.KB.toBytes(1);
@@ -1597,6 +1787,12 @@ public class EvalBenchmark {
         checkBytes(operation.id(), actual, expectOrds, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
     }
 
+    private static void checkBase64Expected(Operation operation, Page actual, String text, boolean encode) {
+        byte[] raw = text.getBytes(StandardCharsets.UTF_8);
+        BytesRef expected = encode ? new BytesRef(Base64.getEncoder().encodeToString(raw)) : new BytesRef(raw);
+        checkBytes(operation.id(), actual, false, new BytesRef[] { expected, expected });
+    }
+
     private static void checkBytes(String operation, Page actual, boolean expectOrds, BytesRef[] expectedVals) {
         BytesRef scratch = new BytesRef();
         BytesRefVector v = actual.<BytesRefBlock>getBlock(1).asVector();
@@ -1631,10 +1827,46 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
+            case CASE_4_LAZY_BALANCED -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendLong(i);
+                }
+                yield new Page(builder.build());
+            }
             case ADD_DOUBLE -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendDouble(i * 100_000D);
+                }
+                yield new Page(builder.build());
+            }
+            case DECAY_CARTESIAN -> {
+                var builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(CARTESIAN.asWkb(new Point(i, 0)));
+                }
+                yield new Page(builder.build());
+            }
+            case DECAY_DATETIME -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendLong(i);
+                }
+                yield new Page(builder.build());
+            }
+            case DECAY_DOUBLE -> {
+                var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendDouble(i);
+                }
+                yield new Page(builder.build());
+            }
+            case DECAY_GEO -> {
+                // points along the 45th parallel, east of the origin, where swapping lat and lon changes the distances
+                var builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(GEO.asWkb(new Point(i * 0.001, 45)));
                 }
                 yield new Page(builder.build());
             }
@@ -1788,6 +2020,10 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build().asBlock());
             }
+            case TO_BASE64 -> base64Page(new BytesRef(BASE64_SMALL_TEXT));
+            case FROM_BASE64 -> base64Page(
+                new BytesRef(Base64.getEncoder().encodeToString(BASE64_SMALL_TEXT.getBytes(StandardCharsets.UTF_8)))
+            );
             case MV_LIKE_PREFIX_SINGLE, MV_LIKE_GENERAL_SINGLE -> {
                 // Single-valued, vector-backed keyword block: the pattern ("f*" / "f?o*") matches "foo" at even positions.
                 var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
@@ -1821,6 +2057,14 @@ public class EvalBenchmark {
                 yield new Page(new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock());
             }
         };
+    }
+
+    private static Page base64Page(BytesRef value) {
+        var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            builder.appendBytesRef(value);
+        }
+        return new Page(builder.build().asBlock());
     }
 
     private static Page bucketPage() {

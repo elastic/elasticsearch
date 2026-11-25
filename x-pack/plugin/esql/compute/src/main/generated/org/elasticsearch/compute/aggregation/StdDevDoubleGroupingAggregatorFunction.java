@@ -39,11 +39,14 @@ public final class StdDevDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private final boolean stdDev;
 
+  private final boolean allowNonFinite;
+
   StdDevDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      boolean stdDev) {
+      boolean stdDev, boolean allowNonFinite) {
     this.stdDev = stdDev;
+    this.allowNonFinite = allowNonFinite;
     this.channels = channels;
-    this.state = StdDevDoubleAggregator.initGrouping(driverContext.bigArrays(), stdDev);
+    this.state = StdDevDoubleAggregator.initGrouping(driverContext.bigArrays(), stdDev, allowNonFinite);
     this.driverContext = driverContext;
   }
 

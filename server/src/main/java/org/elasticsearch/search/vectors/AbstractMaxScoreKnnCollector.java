@@ -20,25 +20,17 @@ import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
  * over multiple leaves.
  */
 abstract class AbstractMaxScoreKnnCollector extends AbstractKnnCollector {
-    public static final long LEAST_COMPETITIVE = NeighborQueue.encodeRaw(Integer.MAX_VALUE, Float.NEGATIVE_INFINITY);
+    public static final long LEAST_COMPETITIVE = NeighborQueue.encodeLeastCompetitive(Float.NEGATIVE_INFINITY);
 
     protected AbstractMaxScoreKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
         super(k, visitLimit, searchStrategy);
     }
 
     /**
-     * Returns the minimum competitive document score.
-     * This is used to determine the global competitiveness of documents in the search.
-     * This may be a competitive score even if the collector hasn't collected k results yet.
-     *
-     * @return the minimum competitive document score
+     * Returns the encoded minimum competitive document score. A local bound is not competitive until {@code k} results have been collected.
      */
     public abstract long getMinCompetitiveDocScore();
 
-    /**
-     * Updates the minimum competitive document score.
-     *
-     * @param minCompetitiveDocScore the new minimum competitive document score to set
-     */
+    /** Raises the encoded minimum competitive document to at least the supplied bound. */
     abstract void updateMinCompetitiveDocScore(long minCompetitiveDocScore);
 }

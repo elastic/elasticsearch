@@ -385,6 +385,22 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(NumericUtils.asLongUnsigned(new BigInteger(value)), HivePartitionDetector.castValue(value, DataType.UNSIGNED_LONG));
     }
 
+    public void testCastValueRefusesJavaOnlyNumberSpellings() {
+        for (DataType type : List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG)) {
+            expectThrows(NumberFormatException.class, () -> HivePartitionDetector.castValue("١٢٣", type));
+        }
+        expectThrows(NumberFormatException.class, () -> HivePartitionDetector.castValue("١٢٣", DataType.DOUBLE));
+        expectThrows(NumberFormatException.class, () -> HivePartitionDetector.castValue("10D", DataType.DOUBLE));
+        expectThrows(NumberFormatException.class, () -> HivePartitionDetector.castValue("0x1p3", DataType.DOUBLE));
+    }
+
+    public void testInferTypeKeepsJavaOnlyNumberSpellingsAsKeyword() {
+        for (String text : List.of("10D", "14f", "0x1p3", "١٢٣")) {
+            assertEquals(text, DataType.KEYWORD, HivePartitionDetector.inferType(List.of(text)));
+            assertEquals(text, DataType.KEYWORD, HivePartitionDetector.inferType(List.of("1", text)));
+        }
+    }
+
     public void testCastValueDouble() {
         assertEquals(3.14, HivePartitionDetector.castValue("3.14", DataType.DOUBLE));
     }
@@ -814,6 +830,26 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals("", value(result, files, "s3://bucket/region=/year=2025/dXNlcjI=/f2.csv", "region"));
         assertEquals(2024, value(result, files, "s3://bucket/region=/year=2024/dXNlcjE=/f1.csv", "year"));
         assertEquals(2025, value(result, files, "s3://bucket/region=/year=2025/dXNlcjI=/f2.csv", "year"));
+    }
+
+    /**
+     * Many files in one directory stay one row per file until {@code shareByGroups}.
+     * {@code planningBytes()} is that columnar layout: {@code 64 + 24*cols + 8*cols*files}.
+     */
+    public void testDeepLayoutPlanningBytesBeforeSharing() {
+        int files = 40;
+        int cols = 3;
+        List<StorageEntry> entries = new ArrayList<>(files);
+        for (int i = 0; i < files; i++) {
+            entries.add(entry("s3://bucket/year=2024/month=01/day=02/part-" + i + ".parquet"));
+        }
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+
+        assertEquals(cols, result.partitionColumns().size());
+        assertEquals(files, result.fileCount());
+        assertEquals(files, result.rowCount());
+        assertEquals(64L + 24L * cols + 8L * cols * files, result.planningBytes());
     }
 
     /** Empty pieces from {@code //} drop. The object name drops, including when a trailing slash follows it. */

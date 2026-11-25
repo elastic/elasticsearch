@@ -244,7 +244,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             this.resultFuture = resultFuture;
             this.expectedLength = expectedLength;
             this.factory = factory;
-            this.fill = new KnownLengthBodyFill("S3", path.toString(), expectedLength);
+            this.fill = new KnownLengthBodyFill("S3", path.objectName(), expectedLength);
         }
 
         @Override

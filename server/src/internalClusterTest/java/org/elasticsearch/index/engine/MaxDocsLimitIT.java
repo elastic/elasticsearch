@@ -102,6 +102,10 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         indexingResult = indexDocs(rejectedRequests, between(1, 8));
         assertThat(indexingResult.numFailures, equalTo(rejectedRequests));
         assertThat(indexingResult.numSuccess, equalTo(0));
+        var primaryIndexingStats = indicesAdmin().prepareStats("test").setIndexing(true).get().getPrimaries().getIndexing().getTotal();
+        assertThat(primaryIndexingStats.getIndexFailedCount(), equalTo((long) rejectedRequests));
+        assertThat(primaryIndexingStats.getIndexFailedDueToTooManyDocsCount(), equalTo((long) rejectedRequests));
+        assertThat(primaryIndexingStats.getIndexFailedDueToVersionConflictCount(), equalTo(0L));
         final IllegalArgumentException deleteError = expectThrows(IllegalArgumentException.class, client().prepareDelete("test", "any-id"));
         assertThat(deleteError.getMessage(), containsString("Number of documents in the shard cannot exceed [" + maxDocs.get() + "]"));
         indicesAdmin().prepareRefresh("test").get();

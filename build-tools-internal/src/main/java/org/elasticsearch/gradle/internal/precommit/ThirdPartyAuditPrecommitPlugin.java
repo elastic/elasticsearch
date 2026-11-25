@@ -33,7 +33,6 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        project.getRootProject().getPlugins().apply(CompileOnlyResolvePlugin.class);
         var buildParams = loadBuildParams(project);
 
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);

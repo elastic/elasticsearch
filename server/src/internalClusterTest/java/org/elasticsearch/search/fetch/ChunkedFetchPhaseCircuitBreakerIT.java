@@ -19,13 +19,13 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -652,6 +652,65 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Verifies that bytes charged for {@code fields} (FetchFieldsPhase) during chunked streaming
+     * fetch are released on both the data node and the coordinator node after the search completes.
+     */
+    public void testChunkedFetchWithFieldsReleasesBreaker() throws Exception {
+        String dataNode = internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+
+        // 'tag' keyword array provides measurable per-hit heap for the fields-phase charge.
+        String fieldsIndex = "chunked_fields_idx";
+        assertAcked(
+            prepareCreate(fieldsIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping(SORT_FIELD, "type=long", "tag", "type=keyword")
+        );
+
+        int nDocs = 150;
+        int tagsPerDoc = 100;
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < nDocs; i++) {
+            List<String> tags = new ArrayList<>(tagsPerDoc);
+            for (int j = 0; j < tagsPerDoc; j++) {
+                tags.add("tag-" + i + "-" + j);
+            }
+            builders.add(
+                prepareIndex(fieldsIndex).setId(Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().field(SORT_FIELD, i).array("tag", tags.toArray(new String[0])).endObject())
+            );
+        }
+        indexRandom(true, builders);
+        ensureGreen(fieldsIndex);
+
+        long breakerBeforeData = getRequestBreakerUsed(dataNode);
+        long breakerBeforeCoord = getRequestBreakerUsed(coordinatorNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
+            .size(80)
+            .fetchSource(false)
+            .fetchField(new FieldAndFormat("tag", null))
+            .sort(SORT_FIELD);
+        assertNoFailuresAndResponse(
+            internalCluster().client(coordinatorNode).prepareSearch(fieldsIndex).setSource(source),
+            response -> assertThat(response.getHits().getHits().length, equalTo(80))
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Data-node circuit breaker should be released after chunked fields fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeData)
+            );
+            assertThat(
+                "Coordinator circuit breaker should be released after chunked fields fetch",
+                getRequestBreakerUsed(coordinatorNode),
+                lessThanOrEqualTo(breakerBeforeCoord)
+            );
+        });
+    }
+
     private void populateIndex(String indexName, int nDocs, int textSize) throws IOException {
         int batchSize = 50;
         // Reuse large payload strings across documents to avoid excessive temporary allocations during indexing.
@@ -700,12 +759,6 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                     "type=keyword"
                 )
         );
-    }
-
-    private long getRequestBreakerUsed(String node) {
-        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        return breaker.getUsed();
     }
 
     private void populateSimpleIndex(String indexName, int nDocs) throws IOException {

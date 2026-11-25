@@ -103,10 +103,11 @@ public class UnifiedChatCompletionException extends XContentFormattedException {
             }).orElseGet(() -> {
                 log.atDebug().withThrowable(t).log("UnifiedChatCompletionException stack trace for debugging purposes.");
                 var status = ExceptionsHelper.status(t);
+                var message = t.getMessage() != null ? t.getMessage() : "Unexpected error while streaming response: " + getExceptionName(t);
                 return new UnifiedChatCompletionException(
                     t,
                     status,
-                    t.getMessage(),
+                    message,
                     getExceptionName(t),
                     status.name().toLowerCase(Locale.ROOT),
                     null

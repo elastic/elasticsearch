@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator({ @IntermediateState(name = "max", type = "DOUBLE"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MaxDoubleAggregator {
 
     public static double init() {

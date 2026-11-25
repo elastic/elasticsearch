@@ -1,0 +1,19 @@
+area: PromQL
+highlight:
+  body: |-
+    Metric exemplars stored in `exemplars-*` data streams can now be queried based on an
+    existing metrics query. With the ES|QL `exemplars` query setting (`SET exemplars=true;`),
+    a `TS ... | STATS` or `PROMQL` query returns the exemplars of the metrics and series
+    it selects instead of its result, including their `trace_id` and `span_id`, so you
+    can drill down from a metric to the traces behind it.
+
+    The Prometheus-compatible `/_prometheus/api/v1/query_exemplars` endpoint is built
+    on the same setting, so Grafana and other Prometheus clients can show exemplars
+    on their panels. Both are available in technical preview.
+  notable: true
+  title: Metric exemplars can now be queried with ES|QL and the Prometheus API
+issues:
+ - 154786
+pr: 165539
+summary: Release metric exemplar querying in ES|QL and the Prometheus API
+type: feature

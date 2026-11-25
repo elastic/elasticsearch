@@ -11,8 +11,10 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.Executor;
+import java.util.function.LongSupplier;
 
 /**
  * Same as {@link PrioritizedThrottledAsyncTaskRunner} but accepts synchronous tasks that extend {@link AbstractRunnable}.
@@ -23,6 +25,17 @@ public class PrioritizedThrottledTaskRunner<T extends AbstractRunnable & Compara
 
     public PrioritizedThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor) {
         this.runner = new PrioritizedThrottledAsyncTaskRunner<>(name, maxRunningTasks, executor);
+    }
+
+    /// @param name: name of the task runner that must be a valid metric name (see MetricValidator.validateMetricName)
+    public PrioritizedThrottledTaskRunner(
+        final String name,
+        final int maxRunningTasks,
+        final Executor executor,
+        MeterRegistry meterRegistry,
+        LongSupplier relativeTimeNanosProvider
+    ) {
+        this.runner = new PrioritizedThrottledAsyncTaskRunner<>(name, maxRunningTasks, executor, meterRegistry, relativeTimeNanosProvider);
     }
 
     /**

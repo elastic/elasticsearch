@@ -90,6 +90,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -2491,7 +2492,7 @@ public class DataStreamIT extends ESIntegTestCase {
             """);
 
         String dataStreamName = "effective-mappings-test";
-        Index writeIndex;
+        DataStream dataStream;
         {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
                 TEST_REQUEST_TIMEOUT,
@@ -2499,7 +2500,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 dataStreamName
             );
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-            writeIndex = getDataStream(dataStreamName).getWriteIndex();
+            dataStream = getDataStream(dataStreamName);
         }
 
         ProjectMetadata projectMetadata = client().admin()
@@ -2510,12 +2511,14 @@ public class DataStreamIT extends ESIntegTestCase {
             .metadata()
             .getProject(ProjectId.DEFAULT);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
+        IndexSettingProviders indexSettingProviders = internalCluster().getInstance(IndexSettingProviders.class);
         CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
             projectMetadata,
             composableIndexTemplate,
             mappingOverrides,
-            writeIndex,
-            indicesService
+            dataStream,
+            indicesService,
+            indexSettingProviders
         );
         assertNotNull(effectiveMappings);
         Map<String, Object> effectiveMappingMap = XContentHelper.convertToMap(effectiveMappings.uncompressed(), true, XContentType.JSON)
@@ -2548,7 +2551,10 @@ public class DataStreamIT extends ESIntegTestCase {
                 dataStreamName
             )
         ).actionGet();
-        assertThat(getDataStream(dataStreamName).getEffectiveMappings(projectMetadata, indicesService), equalTo(effectiveMappings));
+        assertThat(
+            getDataStream(dataStreamName).getEffectiveMappings(projectMetadata, indicesService, indexSettingProviders),
+            equalTo(effectiveMappings)
+        );
     }
 
     private DataStream getDataStream(String dataStreamName) throws ExecutionException, InterruptedException {

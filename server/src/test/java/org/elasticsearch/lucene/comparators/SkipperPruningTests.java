@@ -21,12 +21,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldCollector;
@@ -176,6 +178,57 @@ public class SkipperPruningTests extends ESTestCase {
                 assertThat(collector.topDocs().scoreDocs.length, equalTo(numHits));
                 assertThat(collectedPerLeaf[1], lessThanOrEqualTo(numHits + 1));
                 // The tail is set before any hit, so the first segment also reads only its tail
+                assertThat(collectedPerLeaf[0], lessThanOrEqualTo(numHits + 1));
+            }
+        }
+    }
+
+    /**
+     * A match-all query on a segment of at least 2048 documents gets a dense bulk scorer, which can collect the whole segment in
+     * one call. The tail must be set before that call, because an update during collection comes too late. The hits threshold is
+     * the one that {@code _search} uses when it counts a match-all query without the collector, or the one of ES|QL.
+     */
+    public void testMatchTailOnLargeSegment() throws IOException {
+        int numHits = between(1, 10);
+        int numDocs = between(2048, 5000);
+        try (Directory dir = newDirectory()) {
+            SortField timestampSort = new SortField("@timestamp", SortField.Type.LONG, true);
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random())).setIndexSort(new Sort(timestampSort))
+                .setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter indexWriter = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(NumericDocValuesField.indexedField("@timestamp", 1_000_000L + i));
+                    indexWriter.addDocument(doc);
+                }
+                indexWriter.commit();
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                SortedNumericIndexFieldData fd = new SortedNumericIndexFieldData(
+                    "@timestamp",
+                    IndexNumericFieldData.NumericType.LONG,
+                    CoreValuesSourceType.NUMERIC,
+                    null,
+                    IndexType.skippers()
+                );
+                LongValuesComparatorSource source = new LongValuesComparatorSource(
+                    fd,
+                    null,
+                    MultiValueMode.MIN,
+                    null,
+                    IndexNumericFieldData.NumericType.LONG
+                );
+                source.setMatchTailQuery();
+                Sort sort = new Sort(new SortField("@timestamp", source, false));
+                TopFieldCollector collector = new TopFieldCollectorManager(sort, numHits, null, between(0, 1)).newCollector();
+                int[] collectedPerLeaf = new int[1];
+                new IndexSearcher(reader).search(new MatchAllDocsQuery(), countingCollector(collector, collectedPerLeaf));
+                ScoreDoc[] hits = collector.topDocs().scoreDocs;
+                assertThat(hits.length, equalTo(numHits));
+                for (int i = 0; i < numHits; i++) {
+                    assertThat(((FieldDoc) hits[i]).fields[0], equalTo(1_000_000L + i));
+                }
                 assertThat(collectedPerLeaf[0], lessThanOrEqualTo(numHits + 1));
             }
         }

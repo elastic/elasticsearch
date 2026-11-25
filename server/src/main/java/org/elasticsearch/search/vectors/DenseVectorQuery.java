@@ -175,7 +175,11 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-            // checked first, so a leaf the filter rules out opens no vector input
+            if (context.reader().getFieldInfos().fieldInfo(field) == null) {
+                // no vectors in this leaf: skip setting up the filter
+                return null;
+            }
+            // checked before the vectors, so a leaf the filter rules out opens no vector input
             ScorerSupplier filterSupplier = null;
             if (filterWeight != null) {
                 filterSupplier = filterWeight.scorerSupplier(context);

@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
@@ -25,11 +26,13 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -46,6 +49,8 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -801,6 +806,83 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
                     assertEquals("score for doc " + docId + " must scale by boost", baseScores[docId] * boost, boostedScores[docId], 1e-5f);
                 }
             }
+        }
+    }
+
+    /** A leaf without the vector field returns no scorer without setting up the filter. */
+    public void testLeafWithoutVectorsSkipsTheFilter() throws IOException {
+        try (Directory d = newDirectoryForTest()) {
+            try (IndexWriter writer = new IndexWriter(d, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                Document withVector = new Document();
+                withVector.add(getKnnVectorField("field", randomVector(4), VectorSimilarityFunction.EUCLIDEAN));
+                withVector.add(new StringField("tag", "a", Field.Store.NO));
+                writer.addDocument(withVector);
+                writer.commit();
+                Document withoutVector = new Document();
+                withoutVector.add(new StringField("tag", "a", Field.Store.NO));
+                writer.addDocument(withoutVector);
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(d)) {
+                assertEquals(2, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                List<Integer> filteredLeaves = new ArrayList<>();
+                Query filter = new RecordingFilter(new TermQuery(new Term("tag", "a")), filteredLeaves);
+                Query knnQuery = getDenseVectorQuery("field", randomVector(4), filter);
+                assertEquals(1, searcher.search(knnQuery, 10).scoreDocs.length);
+                // no merges, so the leaf with the vector is the first one
+                assertNotNull(reader.leaves().get(0).reader().getFieldInfos().fieldInfo("field"));
+                assertEquals(List.of(0), filteredLeaves);
+            }
+        }
+    }
+
+    /** Records the leaves the wrapped filter is asked to set up a scorer for. */
+    private static class RecordingFilter extends Query {
+        private final Query in;
+        private final List<Integer> leaves;
+
+        RecordingFilter(Query in, List<Integer> leaves) {
+            this.in = in;
+            this.leaves = leaves;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new FilterWeight(this, in.createWeight(searcher, scoreMode, boost)) {
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    leaves.add(context.ord);
+                    return super.scorerSupplier(context);
+                }
+            };
+        }
+
+        @Override
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query rewritten = in.rewrite(searcher);
+            return rewritten == in ? this : new RecordingFilter(rewritten, leaves);
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            in.visit(visitor);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "recording(" + in.toString(field) + ")";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return sameClassAs(o) && in.equals(((RecordingFilter) o).in);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash() ^ in.hashCode();
         }
     }
 

@@ -31,11 +31,10 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -192,7 +191,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             final long maxBccGen = maxBccGeneration;
             cacheService.forceEvict(shardId, (key, region) -> {
                 final String blobName = key.fileName();
-                final long bccGeneration = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
+                final long bccGeneration = BccBlob.parseGenerationFromBlobName(blobName);
 
                 BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
                 if (activeRegions != null && activeRegions.get(region)) {
@@ -279,7 +278,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     /**
      * Resolves a raw compound-commit timestamp range into a stampable cache-region timestamp.
      */
-    public long resolveRegionTimestampMillis(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+    public long resolveRegionTimestampMillis(@Nullable TimestampFieldValueRange range) {
         return resolveRegionTimestampMillis(BlobFileRanges.midpointMillisOrUnknownForCache(range));
     }
 

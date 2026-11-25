@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -28,8 +29,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,12 +65,19 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
      * A large enough size that loading the field won't circuit break.
      */
     public static final ByteSizeValue TEST_BREAKER_SIZE = ByteSizeValue.ofMb(1);
+    public static final String TIME_SERIES_DIMENSION_FIELD = "sensor_id";
 
     @ParametersFactory(argumentFormatting = "preference=%s")
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
+        List<IndexMode> modes = List.of(
+            IndexMode.STANDARD,
+            IndexMode.COLUMNAR,
+            IndexMode.LOGSDB,
+            IndexMode.LOGSDB_COLUMNAR,
+            IndexMode.TIME_SERIES
+        );
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -273,8 +279,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         );
 
         var settings = getSettingsForParams();
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        runner.mapperService(createMapperService(settings.build(), mappingXContent));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         configureRunner(runner, settings, mapping).run(expected);
     }
 
@@ -337,8 +342,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         }
 
         var settings = getSettingsForParams();
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        runner.mapperService(createMapperService(settings.build(), mappingXContent));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
 
         runner.fieldName(getFieldNameToLoad(fullFieldName.toString(), getFieldValue(runner.mapDoc(), fullFieldName.toString())));
 
@@ -432,9 +436,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         Object expected = expected(fieldMapping, getFieldValue(runner.mapDoc(), "parent"), new TestContext(false, true));
         var settings = getSettingsForParams();
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.fieldName("parent.mf");
-        runner.mapperService(createMapperService(settings.build(), mappingXContent));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         configureRunner(runner, settings, mapping).run(expected);
     }
 
@@ -446,6 +449,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var builder = Settings.builder();
         builder.put("index.mapping.source.mode", params.sourceMode().name());
         builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
+        if (params.indexMode() == IndexMode.TIME_SERIES) {
+            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), TIME_SERIES_DIMENSION_FIELD);
+        }
         return builder;
     }
 

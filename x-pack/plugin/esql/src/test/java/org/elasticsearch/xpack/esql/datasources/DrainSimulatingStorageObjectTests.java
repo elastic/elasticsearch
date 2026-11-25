@@ -46,7 +46,7 @@ public class DrainSimulatingStorageObjectTests extends ESTestCase {
         second.close();
         assertTrue("second large leftover must abort independently of the first stream", second.isAborted());
         assertTrue("object-level aborted is a sticky OR", tracking.aborted.get());
-        assertEquals("close-abort of the second stream is not abortStream", 1, tracking.abortCalls.get());
+        assertEquals("each stream's close-abort is counted once", 2, tracking.abortCalls.get());
         assertEquals("second remainder must not drain", afterFirst + 1, tracking.bytesConsumed.get());
     }
 
@@ -83,7 +83,7 @@ public class DrainSimulatingStorageObjectTests extends ESTestCase {
             assertEquals(1, in.read());
         }
         assertTrue(tracking.aborted.get());
-        assertEquals(0, tracking.abortCalls.get());
+        assertEquals(1, tracking.abortCalls.get());
         assertEquals(1, tracking.bytesConsumed.get());
     }
 

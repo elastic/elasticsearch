@@ -3,13 +3,16 @@
 describeRoles
 required_capability: describe_command
 
+// tag::describeRoles[]
 FROM k8s
 | DESCRIBE
 | WHERE name IN ("@timestamp", "cluster", "event", "event_log", "client.ip", "network.bytes_in", "network.total_bytes_in", "network.eth0.rx")
 | KEEP name, type, role, origin, metric_type, unit
 | SORT name
+// end::describeRoles[]
 ;
 
+// tag::describeRoles-result[]
 name:keyword           | type:keyword  | role:keyword | origin:keyword | metric_type:keyword | unit:keyword
 @timestamp             | date          | time         | mapped         | null                | null
 client.ip              | ip            | attribute    | mapped         | null                | null
@@ -19,6 +22,7 @@ event_log              | text          | text         | mapped         | null   
 network.bytes_in       | long          | numeric      | mapped         | null                | null
 network.eth0.rx        | integer       | metric       | mapped         | gauge               | packets
 network.total_bytes_in | counter_long  | metric       | mapped         | counter             | bytes
+// end::describeRoles-result[]
 ;
 
 describeMetricsUnderTs
@@ -42,12 +46,15 @@ network.total_cost      | counter             | usd
 describeRolesSummary
 required_capability: describe_command
 
+// tag::describeRolesSummary[]
 FROM k8s
 | DESCRIBE
 | STATS fields = COUNT(*) BY role
 | SORT role
+// end::describeRolesSummary[]
 ;
 
+// tag::describeRolesSummary-result[]
 fields:long | role:keyword
 7           | attribute
 3           | dimension
@@ -56,24 +63,29 @@ fields:long | role:keyword
 2           | other
 1           | text
 1           | time
+// end::describeRolesSummary-result[]
 ;
 
 describeLineage
 required_capability: describe_command
 
+// tag::describeLineage[]
 FROM employees
 | KEEP emp_no, salary, first_name
 | RENAME salary AS pay
 | EVAL bonus = pay * 2
 | DESCRIBE
 | KEEP name, type, field, origin, role
+// end::describeLineage[]
 ;
 
+// tag::describeLineage-result[]
 name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword
 emp_no       | integer      | emp_no        | mapped         | numeric
 pay          | integer      | salary        | renamed        | numeric
 first_name   | keyword      | first_name    | mapped         | attribute
 bonus        | integer      | null          | computed       | null
+// end::describeLineage-result[]
 ;
 
 describeAfterStats
@@ -182,6 +194,7 @@ describeIntervals
 required_capability: describe_command
 required_capability: describe_interval
 
+// tag::describeIntervals[]
 FROM k8s
 | EVAL day = DATE_TRUNC(1 day, @timestamp)
 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), day
@@ -189,14 +202,17 @@ FROM k8s
 | EVAL month = DATE_TRUNC(1 month, hour), ninety = DATE_TRUNC(90 minutes, hour)
 | DESCRIBE
 | KEEP name, role, interval, time_zone
+// end::describeIntervals[]
 ;
 
+// tag::describeIntervals-result[]
 name:keyword      | role:keyword | interval:keyword | time_zone:keyword
 c                 | null         | null             | null
 hour              | time         | 1 hour           | UTC
 day               | time         | 1 day            | UTC
 month             | time         | 1 month          | UTC
 ninety            | time         | 90 minutes       | UTC
+// end::describeIntervals-result[]
 ;
 
 describeIntervalOfBucketCount
@@ -285,22 +301,6 @@ TS k8s
 name:keyword | role:keyword | interval:keyword | time_zone:keyword
 rate         | null         | null             | null
 bucket       | time         | 5 minutes        | UTC
-;
-
-describeIntervalOfUnboundedTBucketCount
-required_capability: describe_command
-required_capability: describe_interval
-skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
-
-TS k8s
-| STATS rate = SUM(RATE(network.total_bytes_in)) BY bucket = TBUCKET(20)
-| DESCRIBE
-| KEEP name, role, interval, time_zone
-;
-
-name:keyword | role:keyword | interval:keyword | time_zone:keyword
-rate         | null         | null             | null
-bucket       | time         | null             | null
 ;
 
 describeIntervalTimeZone

@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -112,7 +114,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -159,6 +160,7 @@ public class CsvIT extends ESTestCase {
         "approximation",
         "unmapped-load",
         "unmapped-load-all",
+        "fillnull",
         "metadata-views-and-subqueries",
         "named_subquery"
     );
@@ -398,6 +400,13 @@ public class CsvIT extends ESTestCase {
             TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         cluster.beforeTest(random());
+        // The loaders are static, so they outlive the cluster of the previous class that ran in this JVM. What they recorded as loaded
+        // is not in this new cluster, and the next unloadAll() would delete views that it does not have.
+        indices.reset();
+        enrich.reset();
+        inference.reset();
+        views.reset();
+        aliases.reset();
 
         long stop = System.currentTimeMillis();
         logger.info("Started test cluster in {} ms", stop - start);
@@ -411,6 +420,39 @@ public class CsvIT extends ESTestCase {
     @After
     public void resetNameIndexThreshold() {
         Analyzer.ResolveRefs.resetNameIndexThreshold();
+    }
+
+    @After
+    public void resetBatchIndexing() {
+        if (batchIndexingForced) {
+            batchIndexingForced = false;
+            setBatchIndexing(null);
+        }
+    }
+
+    private boolean batchIndexingForced;
+
+    /**
+     * The test cluster randomly turns the {@code indices.batch_indexing} kill switch off to cover the non-batch path, but INTO only
+     * writes through batch indexing. Turn it on for the INTO tests alone so the other tests keep that coverage.
+     */
+    private void forceBatchIndexingForInto() {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()
+            && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName())) {
+            batchIndexingForced = true;
+            setBatchIndexing(true);
+        }
+    }
+
+    private static void setBatchIndexing(Boolean enabled) {
+        Settings.Builder settings = Settings.builder();
+        settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), enabled == null ? null : enabled.toString());
+        cluster.client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+            .setPersistentSettings(settings)
+            .get();
     }
 
     public final void test() throws Throwable {
@@ -442,6 +484,7 @@ public class CsvIT extends ESTestCase {
         CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
+        forceBatchIndexingForInto();
         Analyzer.ResolveRefs.setNameIndexThresholdForTests(randomBoolean() ? 0 : Integer.MAX_VALUE);
 
         currentGroupName = groupName;
@@ -881,42 +924,6 @@ public class CsvIT extends ESTestCase {
             );
         }
     };
-
-    private abstract static class ResourceLoader<T> {
-        private final Set<String> loaded = new HashSet<>();
-        private Throwable failure = null;
-
-        protected abstract void load(T resource) throws Throwable;
-
-        protected void unload(String name) {
-            throw new UnsupportedOperationException("Unloading is not supported");
-        }
-
-        public void maybeLoad(String name, T resource) {
-            assertNotNull("Resource [" + name + "] is not found!", resource);
-            if (failure == null && loaded.add(name)) {
-                try {
-                    load(resource);
-                } catch (Throwable t) {
-                    failure = t;
-                    throw new RuntimeException("Resource loading failure", failure);
-                }
-            }
-        }
-
-        public void unloadAll() {
-            for (String name : loaded) {
-                unload(name);
-            }
-            loaded.clear();
-        }
-
-        public void ensureNoFailures() {
-            if (failure != null) {
-                throw new RuntimeException("Resource loading failure", failure);
-            }
-        }
-    }
 
     private static void createCustomRegexConfig(Path configDir) throws IOException {
         // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option

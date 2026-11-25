@@ -1430,8 +1430,12 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testImplicitMaxLimitAfterDescribeAndLimit() {
-        var limit = as(basic().query("from test | describe | sort name | limit " + (MAX_LIMIT + 1)), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+        for (int explicit : List.of(1, MAX_LIMIT + 1)) {
+            var limit = as(basic().query("from test | describe | sort name | limit " + explicit), Limit.class);
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+            limit = as(limit.child(), Limit.class);
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(explicit));
+        }
     }
 
     public void testImplicitDefaultLimitAfterLimitBy() {

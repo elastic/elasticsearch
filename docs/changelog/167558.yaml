@@ -1,0 +1,6 @@
+area: "ES|QL, EQL"
+issues:
+ - 167285
+pr: 167558
+summary: EQL engine now records per-cluster total/successful/skipped/failed shards
+type: enhancement

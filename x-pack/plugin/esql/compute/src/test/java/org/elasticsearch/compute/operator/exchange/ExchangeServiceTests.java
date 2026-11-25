@@ -1219,9 +1219,10 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     /**
-     * A cancelled fetch must leave a sink that something on the node owns to its owner. A batch exchange keeps pages that carry
-     * batch metadata after its sink is finished, and only its own {@link ExchangeService#finishSinkHandler}, on the failed
-     * completion, discards them. A compute that took the sink the coordinator opened owns it the same way.
+     * A cancelled fetch, and a close that arrives after it, must leave a sink that something on the node owns to its owner. A
+     * batch exchange keeps pages that carry batch metadata after its sink is finished, and only its own
+     * {@link ExchangeService#finishSinkHandler}, on the failed completion, discards them. A compute that took the sink the
+     * coordinator opened owns it the same way.
      */
     public void testCancelledFetchLeavesOwnedSinkToItsOwner() throws Exception {
         BlockFactory blockFactory = blockFactory();
@@ -1265,6 +1266,11 @@ public class ExchangeServiceTests extends ESTestCase {
                 cancelled.actionGet(10, TimeUnit.SECONDS);
                 assertTrue(fetchedFinished.actionGet(10, TimeUnit.SECONDS));
                 assertFalse("the owner unregisters its sink", exchange1.isEmpty());
+                // A close that was already on its way, such as finishRemoteSinkIfNotSent sends, finds the sink failed.
+                PlainActionFuture<Void> closed = new PlainActionFuture<>();
+                exchange0.newRemoteSink(queryTask, exchangeId, node0, connection).close(closed);
+                closed.actionGet(10, TimeUnit.SECONDS);
+                assertFalse("the close leaves a failed sink to its owner", exchange1.isEmpty());
 
                 // PageToBatchPageOperator#flushBatch writes without checking needsInput; the finished buffer keeps batch pages.
                 IntBlock block = blockFactory.newConstantIntBlockWith(1, 1);

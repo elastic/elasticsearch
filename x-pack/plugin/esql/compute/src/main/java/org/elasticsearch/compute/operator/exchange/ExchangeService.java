@@ -417,9 +417,10 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 if (request.sourcesFinished()) {
                     // fetchPageAsync(true) finished the buffer, but a fetch racing on another thread can be the one that
                     // completes it, and then completes the handler only after this thread has moved on. Unregister the sink
-                    // once the handler completes, not only when it already has.
-                    // Null failure: the buffer is already finished, and onFailure would notify listeners again.
-                    sinkHandler.addCompletionListener(ActionListener.running(() -> finishSinkHandler(exchangeId, null)));
+                    // once the handler completes, not only when it already has, and only this handler. A handler that fails
+                    // is left to whatever failed it: a cancelled fetch unregisters a sink nobody owns, and an owner
+                    // unregisters its own, which also discards the pages it may still write.
+                    sinkHandler.addCompletionListener(ActionListener.wrap(ignored -> sinks.remove(exchangeId, sinkHandler), e -> {}));
                 }
             }
         }

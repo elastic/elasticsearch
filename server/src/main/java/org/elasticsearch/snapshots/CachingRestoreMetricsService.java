@@ -19,11 +19,14 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.LongSupplier;
 
 /**
@@ -60,7 +63,10 @@ public class CachingRestoreMetricsService {
         });
     }
 
-    /** Records the number of indices that the restores in progress are restoring. */
+    /**
+     * Records the number of indices with at least one shard still restoring. An index stops counting once every one of its shards has
+     * restored or failed, even while its restore goes on for other indices, so this shows the progress of a restore of many indices.
+     */
     public void recordIndicesCurrent(LongAsyncMeasurement measurement) {
         maybeGetCachedRestoreMetrics().ifPresent(metrics -> measurement.record(metrics.indices()));
     }
@@ -75,12 +81,21 @@ public class CachingRestoreMetricsService {
     }
 
     /**
-     * Records the number of shards still restoring that have had at least one failed restore attempt, and will be tried again.
+     * Records the number of shards still restoring whose allocation failure counter is not zero, that is, whose restore attempt has
+     * failed since the counter was last reset, and which will be tried again.
      * <p>
-     * A shard is counted from its first failed restore attempt until it either restores or uses up its allocation attempts
-     * ({@code index.allocation.max_retries}). At that point the allocation deciders refuse every node, the restore marks the shard as
-     * {@link RestoreInProgress.ShardRestoreFailureReason#NO_ELIGIBLE_NODE failed}, and it moves to the failed shards. So this never counts
-     * a shard that has stopped being retried. A restore that the master cancels is not a failed attempt, and is not counted.
+     * The count comes from {@link UnassignedInfo#failedAllocations()}, which the cluster state keeps, rather than from a history of the
+     * shard's attempts. A shard is counted from a failed restore attempt until one of these happens:
+     * <ul>
+     *     <li>it restores;</li>
+     *     <li>it uses up its allocation attempts ({@code index.allocation.max_retries}), at which point the allocation deciders refuse
+     *     every node and the restore marks the shard as
+     *     {@link RestoreInProgress.ShardRestoreFailureReason#NO_ELIGIBLE_NODE failed}, so it moves to the failed shards;</li>
+     *     <li>the counter is reset, which happens to every unassigned shard when a node joins, when some node shutdown markers change,
+     *     and on a reroute with {@code retry_failed}. The shard is still being retried but is no longer counted, until another attempt
+     *     fails.</li>
+     * </ul>
+     * A restore that the master cancels is not a failed attempt, and is not counted.
      */
     public void recordShardsRetrying(LongAsyncMeasurement measurement) {
         maybeGetCachedRestoreMetrics().ifPresent(metrics -> measurement.record(metrics.shardsRetrying()));
@@ -135,7 +150,8 @@ public class CachingRestoreMetricsService {
         final RestoreInProgress restoreInProgress = RestoreInProgress.get(state);
         long reporting = 0;
         long notReporting = 0;
-        long indices = 0;
+        // a set, so that an index counts once however many of its shards are still restoring, in one restore or in several
+        final Set<Index> indicesRestoring = new HashSet<>();
         long retrying = 0;
         long oldestUnassignedTimeMillis = Long.MAX_VALUE;
         final long[] shardsByState = new long[RestoreMetrics.ShardState.values().length];
@@ -149,12 +165,12 @@ public class CachingRestoreMetricsService {
             } else {
                 notReporting++;
             }
-            indices += entry.indices().size();
             for (Map.Entry<ShardId, ShardRestoreStatus> shard : entry.shards().entrySet()) {
                 final RestoreMetrics.ShardState shardState = switch (shard.getValue().state()) {
                     case SUCCESS -> RestoreMetrics.ShardState.SUCCEEDED;
                     case FAILURE -> RestoreMetrics.ShardState.FAILED;
                     case INIT, STARTED -> {
+                        indicesRestoring.add(shard.getKey().getIndex());
                         final ShardRouting primary = primary(state, shard.getKey());
                         // a restoring primary keeps the unassigned info of its current attempt until it starts
                         final UnassignedInfo unassignedInfo = primary == null ? null : primary.unassignedInfo();
@@ -177,7 +193,7 @@ public class CachingRestoreMetricsService {
             state.globalRoutingTable(),
             reporting,
             notReporting,
-            indices,
+            indicesRestoring.size(),
             shardsByState,
             retrying,
             oldestUnassignedTimeMillis
@@ -198,8 +214,8 @@ public class CachingRestoreMetricsService {
     /**
      * A cached copy of the restore gauge values, and the cluster state parts they were calculated from.
      *
-     * @param oldestShardUnassignedTimeMillis the earliest wall-clock time at which a shard still restoring became unassigned for its current
-     *                                        attempt, or {@link Long#MAX_VALUE} if no shard is restoring
+     * @param oldestShardUnassignedTimeMillis the earliest wall-clock time at which a shard still restoring became unassigned for its
+     *                                        current attempt, or {@link Long#MAX_VALUE} if no shard is restoring
      */
     private record CachedRestoreMetrics(
         RestoreInProgress restoreInProgress,

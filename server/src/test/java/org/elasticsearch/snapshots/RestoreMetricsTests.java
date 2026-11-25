@@ -189,9 +189,10 @@ public class RestoreMetricsTests extends ESTestCase {
     }
 
     /**
-     * The gauges describe the restores in progress in the cluster service's state: a queued shard is told from a restoring one, a shard
-     * that has failed and is being retried is counted, the oldest restoring shard's age is measured from when it became unassigned for its
-     * current attempt, and a completed restore that is only waiting to be removed is left out.
+     * The gauges describe the restores in progress in the cluster service's state: an index with several shards still restoring counts
+     * once, a queued shard is told from a restoring one, a shard that has failed and is being retried is counted, the oldest restoring
+     * shard's age is measured from when it became unassigned for its current attempt, and a completed restore that is only waiting to be
+     * removed is left out.
      */
     public void testGauges() {
         final long oldestAgeMillis = randomLongBetween(1_000, 1_000_000);
@@ -241,8 +242,9 @@ public class RestoreMetricsTests extends ESTestCase {
     }
 
     /**
-     * The gauges follow the cluster state as it changes: once the restoring shards finish, nothing is queued, restoring or retrying, and
-     * the oldest age is zero. An unassigned time ahead of this node's clock, which another master may have set, never gives a negative age.
+     * The gauges follow the cluster state as it changes: once the restoring shards finish, nothing is queued, restoring or retrying, no
+     * index is counted as restoring even though the restore has not yet been marked complete, and the oldest age is zero. An unassigned
+     * time ahead of this node's clock, which another master may have set, never gives a negative age.
      */
     public void testGaugesFollowClusterState() {
         final RestoreInProgress.Entry restoring = entry(RestoreInProgress.State.STARTED, inProgress(), inProgress(), inProgress());
@@ -256,6 +258,7 @@ public class RestoreMetricsTests extends ESTestCase {
         );
         collect();
         assertThat(shardsInState("queued"), equalTo((long) NUMBER_OF_SHARDS));
+        assertThat(gauge(RestoreMetrics.RESTORES_INDICES_CURRENT, Map.of()), equalTo(1L));
         assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_RETRYING_CURRENT, Map.of()), equalTo(1L));
         assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(0L));
 
@@ -272,6 +275,9 @@ public class RestoreMetricsTests extends ESTestCase {
         collect();
         assertThat(shardsInState("queued"), equalTo(0L));
         assertThat(shardsInState("succeeded"), equalTo((long) NUMBER_OF_SHARDS));
+        // the restore is still running, but its index has no shard left to restore
+        assertThat(gauge(RestoreMetrics.RESTORES_CURRENT, reportShardRestoringAttribute()), equalTo(1L));
+        assertThat(gauge(RestoreMetrics.RESTORES_INDICES_CURRENT, Map.of()), equalTo(0L));
         assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_RETRYING_CURRENT, Map.of()), equalTo(0L));
         assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(0L));
     }

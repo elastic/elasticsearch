@@ -63,17 +63,18 @@ public class RestoreMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(response.getRestoreInfo().successfulShards(), equalTo(numberOfShards));
 
         assertThat(counterTotal(masterNode, RestoreMetrics.RESTORES_STARTED_TOTAL, NOT_REPORTING_SHARD_RESTORING), equalTo(1L));
-        // the completion is recorded when the master removes the completed restore from the cluster state, after the response
-        assertBusy(
-            () -> assertThat(
+        // the completion is recorded when the master removes the completed restore from the cluster state, after the response, and
+        // its histograms are recorded after its counters, so wait for all of them
+        assertBusy(() -> {
+            assertThat(
                 counterTotal(masterNode, RestoreMetrics.RESTORES_COMPLETED_TOTAL, Map.of(RestoreMetrics.OUTCOME_ATTRIBUTE, "success")),
                 equalTo(1L)
-            )
-        );
+            );
+            assertOnlyHistogramValue(masterNode, RestoreMetrics.RESTORES_INDICES_HISTOGRAM, 1L, "success");
+            assertOnlyHistogramValue(masterNode, RestoreMetrics.RESTORES_SHARDS_HISTOGRAM, numberOfShards, "success");
+        });
         assertThat(counterTotal(masterNode, RestoreMetrics.RESTORES_SHARDS_COMPLETED_TOTAL, Map.of()), equalTo((long) numberOfShards));
         assertThat(plugin(masterNode).getLongCounterMeasurement(RestoreMetrics.RESTORES_SHARDS_FAILED_TOTAL), empty());
-        assertOnlyHistogramValue(masterNode, RestoreMetrics.RESTORES_INDICES_HISTOGRAM, 1L, "success");
-        assertOnlyHistogramValue(masterNode, RestoreMetrics.RESTORES_SHARDS_HISTOGRAM, numberOfShards, "success");
 
         // only the master records restores
         assertThat(plugin(dataNode).getLongCounterMeasurement(RestoreMetrics.RESTORES_STARTED_TOTAL), empty());
@@ -96,12 +97,14 @@ public class RestoreMetricsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertThat(response.getRestoreInfo().failedShards(), equalTo(numberOfShards));
 
-        assertBusy(
-            () -> assertThat(
+        // the histograms are recorded after the counters, so wait for them too
+        assertBusy(() -> {
+            assertThat(
                 counterTotal(masterNode, RestoreMetrics.RESTORES_COMPLETED_TOTAL, Map.of(RestoreMetrics.OUTCOME_ATTRIBUTE, "failure")),
                 equalTo(1L)
-            )
-        );
+            );
+            assertOnlyHistogramValue(masterNode, RestoreMetrics.RESTORES_SHARDS_HISTOGRAM, numberOfShards, "failure");
+        });
         assertThat(
             counterTotal(
                 masterNode,
@@ -110,7 +113,6 @@ public class RestoreMetricsIT extends AbstractSnapshotIntegTestCase {
             ),
             equalTo((long) numberOfShards)
         );
-        assertOnlyHistogramValue(masterNode, RestoreMetrics.RESTORES_SHARDS_HISTOGRAM, numberOfShards, "failure");
     }
 
     /**

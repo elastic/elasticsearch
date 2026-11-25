@@ -1574,7 +1574,9 @@ public final class RestoreService implements ClusterStateApplier {
             if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
                 if (newUnassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     String reason = "shard could not be allocated to any of the nodes";
-                    changes(recoverySource).put(
+                    // A shard whose last allowed attempt failed with a more specific reason, such as corruption, in this same allocation is
+                    // then refused by every node because its retries are used up. Keep the specific reason rather than this generic one.
+                    changes(recoverySource).putIfAbsent(
                         unassignedShard.shardId(),
                         ShardRestoreStatus.failed(
                             unassignedShard.currentNodeId(),
@@ -2174,8 +2176,8 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Records each completed restore that the published cleanup removed from the cluster state. A restore whose
-     * {@link RestoreLifecycleListener} notification failed is kept for the next cleanup, and only recorded once it is actually removed.
+     * Records each completed restore that the published cleanup removed from the cluster state. A restore whose completion the
+     * {@link RestoreProjectCustomUpdater} failed to record is kept for the next cleanup, and only recorded once it is actually removed.
      * <p>
      * Recording only after publication means a restore is never counted twice, but it can be missed: if the master publishes the state
      * that removes the entry and then fails before this runs, no master records it, because the next master never sees the entry. The

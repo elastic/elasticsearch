@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -867,6 +868,52 @@ public class RestoreServiceTests extends ESTestCase {
             sourceChanged.applyChanges(s.restoreInProgress()).get(restoreUuid),
             shardId,
             RestoreInProgress.ShardRestoreFailureReason.RECOVERY_SOURCE_CHANGED
+        );
+    }
+
+    /**
+     * When a shard's last allowed attempt fails with corruption, the same allocation then finds that every node refuses the shard,
+     * because its retries are used up. The shard is recorded as corrupt, not as having no eligible node.
+     */
+    public void testCorruptionIsNotOverwrittenByNoEligibleNodeInTheSameAllocation() {
+        var s = buildRestoreTestState(randomBoolean());
+        var shardId = s.primary().shardId();
+        String restoreUuid = ((SnapshotRecoverySource) s.primary().recoverySource()).restoreUUID();
+        final int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getDefault(Settings.EMPTY);
+
+        var updater = new RestoreService.RestoreInProgressUpdater();
+        final UnassignedInfo lastAttemptFailed = new UnassignedInfo(
+            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            "failed to recover",
+            new ElasticsearchException("recovery failed", new CorruptIndexException("checksum mismatch", "resource")),
+            maxRetries,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Set.of(),
+            null
+        );
+        updater.shardFailed(s.primary(), lastAttemptFailed);
+        updater.unassignedInfoUpdated(
+            s.primary(),
+            new UnassignedInfo(
+                lastAttemptFailed.reason(),
+                lastAttemptFailed.message(),
+                lastAttemptFailed.failure(),
+                maxRetries,
+                lastAttemptFailed.unassignedTimeNanos(),
+                lastAttemptFailed.unassignedTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                Set.of(),
+                null
+            )
+        );
+        assertFailureReason(
+            updater.applyChanges(s.restoreInProgress()).get(restoreUuid),
+            shardId,
+            RestoreInProgress.ShardRestoreFailureReason.CORRUPTION
         );
     }
 
@@ -2074,12 +2121,12 @@ public class RestoreServiceTests extends ESTestCase {
 
     /**
      * A restore is recorded as completed once the published cleanup removes its completed entry. A restore still in progress, and a
-     * completed one kept for the next cleanup because its lifecycle notification failed, are not recorded.
+     * completed one kept for the next cleanup because recording its completion failed, are not recorded.
      */
     public void testRecordRemovedRestores() {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final RestoreService service = createMinimalRestoreService(
-            RestoreLifecycleListener.NOOP,
+            RestoreProjectCustomUpdater.NOOP,
             new RestoreMetrics(meterRegistry, m -> {}, m -> {}, m -> {}, m -> {}, m -> {})
         );
         final boolean reportShardRestoring = randomBoolean();

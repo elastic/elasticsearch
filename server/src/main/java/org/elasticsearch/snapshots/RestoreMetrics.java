@@ -53,8 +53,9 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
     public static final String RESTORES_INDICES_CURRENT = "es.repositories.restores.indices.current";
     public static final String RESTORES_SHARDS_BY_STATE_CURRENT = "es.repositories.restores.shards.by_state.current";
     /**
-     * Shards still restoring that have had at least one failed restore attempt, and will be tried again. A shard that uses up its
-     * allocation attempts is failed by the restore and leaves this count. See {@link CachingRestoreMetricsService#recordShardsRetrying}.
+     * Shards still restoring whose restore attempt has failed since their allocation failure counter was last reset, and which will be
+     * tried again. A shard that uses up its allocation attempts is failed by the restore and leaves this count, and so does one whose
+     * counter is reset, for example when a node joins. See {@link CachingRestoreMetricsService#recordShardsRetrying}.
      */
     public static final String RESTORES_SHARDS_RETRYING_CURRENT = "es.repositories.restores.shards.retrying.current";
     /**
@@ -221,7 +222,7 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
         asyncGauges.add(
             meterRegistry.registerLongAsyncGauge(
                 RESTORES_INDICES_CURRENT,
-                "indices being restored from a snapshot",
+                "indices with at least one shard still being restored from a snapshot",
                 "unit",
                 indicesObserver
             )
@@ -237,7 +238,7 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
         asyncGauges.add(
             meterRegistry.registerLongAsyncGauge(
                 RESTORES_SHARDS_RETRYING_CURRENT,
-                "shards still restoring that have had at least one failed restore attempt, and will be tried again",
+                "shards still restoring whose restore attempt has failed since their allocation failure counter was last reset",
                 "unit",
                 shardsRetryingObserver
             )

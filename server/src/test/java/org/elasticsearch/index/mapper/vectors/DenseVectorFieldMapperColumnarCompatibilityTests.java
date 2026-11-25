@@ -28,13 +28,14 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RowSource;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.sourcebatch.SourceRowToXContent;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -525,7 +526,7 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
                 new MappingMetadata(mapperService.documentMapper()).sourceAsMap(),
                 mapperService.getIndexSettings().sourceKeepMode()
             );
-        final BytesReference rebuilt;
+        final DocumentMapper mapper = mapperService.documentMapper();
         try (
             EscfEncoder escfEncoder = new EscfEncoder(
                 BytesRefRecycler.NON_RECYCLING_INSTANCE,
@@ -534,28 +535,28 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
             )
         ) {
             escfEncoder.addDocument(new BytesArray(source), XContentType.JSON, 0);
-            try (EscfBatch batch = escfEncoder.buildPartition(0)) {
+            try (EscfBatch batch = escfEncoder.buildPartition(0); Directory directory = newDirectory()) {
                 assertNull(
                     "the shard refuses the batch and indexes it on the row path",
                     ShardBatchMapper.resolveMappers(batch, mapperService.mappingLookup(), mapperService.getIndexSettings())
                 );
-                // as IndexSource#ensureInlineSource does for the row path
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    SourceRowToXContent.writeRow(batch.row(0), batch.schema(), builder);
-                    rebuilt = BytesReference.bytes(builder);
+                // as TransportShardBulkAction#sourceToParse does for the row path: the row is parsed in place, while the batch is open
+                final RowSource row = new RowSource(
+                    SourceRowXContentParser.buildSchemaTree(batch.schema()),
+                    batch.row(0),
+                    XContentType.JSON
+                );
+                final ParsedDocument doc = mapper.parse(
+                    new SourceToParse("1", row, null, Map.of(), Map.of(), XContentMeteringParserDecorator.NOOP, null)
+                );
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                try (RandomIndexWriter iw = indexWriterForSyntheticSource(directory)) {
+                    iw.addDocuments(doc.docs());
                 }
-            }
-        }
-        final DocumentMapper mapper = mapperService.documentMapper();
-        try (Directory directory = newDirectory()) {
-            final ParsedDocument doc = mapper.parse(new SourceToParse("1", rebuilt, XContentType.JSON));
-            doc.updateSeqID(0, 0);
-            doc.version().setLongValue(0);
-            try (RandomIndexWriter iw = indexWriterForSyntheticSource(directory)) {
-                iw.addDocuments(doc.docs());
-            }
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                return syntheticSource(mapper, reader, doc.docs().size() - 1);
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    return syntheticSource(mapper, reader, doc.docs().size() - 1);
+                }
             }
         }
     }

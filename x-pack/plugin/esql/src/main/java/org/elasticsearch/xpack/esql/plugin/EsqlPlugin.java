@@ -7,12 +7,16 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -94,11 +98,15 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamDeleteAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlDeleteStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlGetStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
@@ -204,6 +212,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -394,6 +403,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+    private final SetOnce<BooleanSupplier> batchIndexingSupported = new SetOnce<>();
+    private final SetOnce<EscfBulkService> escfBulkService = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> storedStreamBreaker = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -410,6 +422,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
+        this.escfBulkService.set(
+            new EscfBulkService(services.indexingPressure(), services.threadPool().generic(), services.bigArrays().bytesRefRecycler())
+        );
+        this.storedStreamBreaker.set(services.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BatchIndexingEnabled batchIndexingEnabled = new BatchIndexingEnabled(services.clusterService().getClusterSettings());
+        this.batchIndexingSupported.set(() -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, services.clusterService()));
         var blockFactoryProvider = blockFactoryProvider(
             BlockFactory.builder(bigArrays)
                 .maxPrimitiveArraySize(
@@ -555,7 +573,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.telemetryProvider().getMeterRegistry(),
             localFileAccess,
             services.threadPool().executor(externalBlobStorePool()),
-            listingService
+            listingService,
+            // The live flag, not the yml value: setEnabled doubles as the cache's clear operation.
+            cacheService::isEnabled
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -769,6 +789,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
                 EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+                EsqlFlags.ESQL_FETCH_PHASE,
                 EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
                 EsqlFlags.ESQL_MAX_PARENTHESES_COUNT,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
@@ -818,6 +839,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return List.of(
             new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
             new ActionHandler(EsqlStreamQueryAction.INSTANCE, TransportEsqlStreamQueryAction.class),
+            new ActionHandler(EsqlStreamGetResultAction.INSTANCE, TransportEsqlStreamGetResultsAction.class),
+            new ActionHandler(EsqlStreamDeleteAction.INSTANCE, TransportEsqlStreamDeleteAction.class),
             new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
             new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
@@ -900,7 +923,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
         if (RestEsqlStreamQueryAction.ENABLED) {
-            handlers.add(new RestEsqlStreamQueryAction(capabilities));
+            handlers.add(
+                new RestEsqlStreamQueryAction(
+                    capabilities,
+                    batchIndexingSupported.get(),
+                    escfBulkService.get(),
+                    storedStreamBreaker.get(),
+                    restHandlersServices.projectResolver()
+                )
+            );
+            // A stream can be read or deleted only where it can be created, and only when its results are stored.
+            if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestEsqlGetStreamResultAction());
+                handlers.add(new RestEsqlDeleteStreamResultAction());
+            }
         }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the

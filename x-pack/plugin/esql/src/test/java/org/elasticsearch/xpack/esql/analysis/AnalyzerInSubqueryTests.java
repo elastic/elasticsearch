@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -667,8 +667,8 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
             | EVAL id_string = id::keyword
             """);
 
-        List<AbstractSubqueryJoin> joins = new ArrayList<>();
-        plan.forEachDown(AbstractSubqueryJoin.class, joins::add);
+        List<AbstractInSubqueryJoin> joins = new ArrayList<>();
+        plan.forEachDown(AbstractInSubqueryJoin.class, joins::add);
         assertThat(joins, hasSize(1));
         assertThat(joins.getFirst().right().output().stream().map(Attribute::name).toList(), equalTo(List.of("name")));
     }
@@ -764,8 +764,8 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
     }
 
     private static void assertConvertedFields(LogicalPlan plan, List<String> mainQueryFields, List<String> subqueryFields) {
-        List<AbstractSubqueryJoin> joins = new ArrayList<>();
-        plan.forEachDown(AbstractSubqueryJoin.class, joins::add);
+        List<AbstractInSubqueryJoin> joins = new ArrayList<>();
+        plan.forEachDown(AbstractInSubqueryJoin.class, joins::add);
         assertThat(joins, hasSize(1));
         assertThat(convertedFields(joins.getFirst().left()), equalTo(mainQueryFields));
         assertThat(convertedFields(joins.getFirst().right()), equalTo(subqueryFields));

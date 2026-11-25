@@ -1,0 +1,4 @@
+SET approximation={"rows": 10000};
+FROM many_numbers
+  | EVAL l = sv::long
+  | STATS AVG(l)

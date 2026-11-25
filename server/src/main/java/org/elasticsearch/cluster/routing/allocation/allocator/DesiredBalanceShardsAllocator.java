@@ -303,8 +303,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
             }
-            // Only update on change, to minimise volatile writes
+            // NB if re-elected in a new term without an intervening not-master state, no need to call onNoLongerMaster(): the re-election
+            // always triggers a reroute() which ensures any pending listeners/move-commands are eventually processed and nothing else needs
+            // resetting.
+
             if (event.localNodeMaster() != event.previousState().nodes().isLocalNodeElectedMaster()) {
+                // Only update on change, to minimise volatile writes
                 desiredBalanceMetrics.setNodeIsMaster(event.localNodeMaster());
             }
         });

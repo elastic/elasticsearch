@@ -67,8 +67,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_CPU;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS_GTE;
+import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_LOAD;
+import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_WAITING;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
@@ -97,6 +100,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
@@ -173,6 +177,13 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, SearchCaptureContext.TYPE, "quick");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
+            // the shards it searched were charged its load
+            assertThat(Long.valueOf(message.get(QUERY_FIELD_SEARCH_LOAD)), greaterThan(0L));
+            assertThat(
+                Long.valueOf(message.get(QUERY_FIELD_SEARCH_CPU)),
+                lessThanOrEqualTo(Long.valueOf(message.get(QUERY_FIELD_SEARCH_LOAD)))
+            );
+            assertThat(Long.valueOf(message.get(QUERY_FIELD_SEARCH_WAITING)), greaterThanOrEqualTo(0L));
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
             assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
             assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));

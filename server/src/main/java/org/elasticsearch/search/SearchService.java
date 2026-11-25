@@ -143,6 +143,7 @@ import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.search.scheduling.SearchLoadMetrics;
+import org.elasticsearch.search.scheduling.SearchMemoryMetrics;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -1355,19 +1356,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
-        result.setDirectoryMetrics(chargeAndAddSearchLoad(metricsDelta.get().merge(context.getWorkerThreadsMetrics()), context));
+        result.setDirectoryMetrics(chargeAndAddQueryMetrics(metricsDelta.get().merge(context.getWorkerThreadsMetrics()), context));
     }
 
     private static void setFetchDirectoryMetrics(SearchPhaseResult result, SearchContext context) {
         result.setDirectoryMetrics(
-            chargeAndAddSearchLoad(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()), context)
+            chargeAndAddQueryMetrics(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()), context)
         );
     }
 
     /**
-     * Adds the load of the phase to its result, after charging the running task so far.
+     * Adds the load of the phase to its result, after charging the running task so far, and the peak memory of the query
+     * on this node.
      */
-    private static DirectoryMetrics chargeAndAddSearchLoad(DirectoryMetrics metrics, SearchContext context) {
+    private static DirectoryMetrics chargeAndAddQueryMetrics(DirectoryMetrics metrics, SearchContext context) {
+        QueryScheduler.QueryPart queryPart = context.queryPart();
+        if (queryPart != null) {
+            metrics = metrics.merge(SearchMemoryMetrics.directoryMetricsOf(queryPart));
+        }
         QueryLoad.Charging searchLoad = context.searchLoad();
         if (searchLoad == null) {
             return metrics;
@@ -2167,6 +2173,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (searchLoad != null) {
             context.searchLoad(searchLoad);
         }
+
+        context.queryPart(part);
 
         // Release the memory used for query construction once the search context is closed, before its part.
         context.addReleasable(context.getSearchExecutionContext()::releaseQueryConstructionMemory);

@@ -66,6 +66,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.scheduling.SearchLoadMetrics;
+import org.elasticsearch.search.scheduling.SearchMemoryMetrics;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -1555,7 +1556,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         long reported = 0;
         var registry = new NamedWriteableRegistry(
             List.of(
-                new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, SearchLoadMetrics.NAME, SearchLoadMetrics::new)
+                new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, SearchLoadMetrics.NAME, SearchLoadMetrics::new),
+                new NamedWriteableRegistry.Entry(
+                    DirectoryMetrics.PluggableMetrics.class,
+                    SearchMemoryMetrics.NAME,
+                    SearchMemoryMetrics::new
+                )
             )
         );
         try (StreamInput in = new NamedWriteableAwareStreamInput(((BytesTransportResponse) channel.response).streamInput(), registry)) {

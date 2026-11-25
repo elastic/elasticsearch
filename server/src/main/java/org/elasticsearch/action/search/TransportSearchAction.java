@@ -111,6 +111,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.scheduling.QueryScheduler;
+import org.elasticsearch.search.scheduling.SearchMemoryMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -435,7 +436,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ActionListener.releaseAfter(listener, coordination),
             searchCaptureContextBuilder,
             l -> ActionListener.run(
-                l,
+                l.<SearchResponse>map(response -> withPeakMemory(response, coordination)),
                 inner -> executeRequest(
                     (SearchTask) task,
                     searchRequest,
@@ -445,6 +446,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 )
             )
         );
+    }
+
+    /**
+     * Adds the peak of the query on this node, which also counts the shards it searched, to {@code response}.
+     */
+    private static SearchResponse withPeakMemory(SearchResponse response, QueryScheduler.QueryPart coordination) {
+        response.setDirectoryMetrics(response.getDirectoryMetrics().merge(SearchMemoryMetrics.directoryMetricsOf(coordination)));
+        return response;
     }
 
     void executeOpenPit(

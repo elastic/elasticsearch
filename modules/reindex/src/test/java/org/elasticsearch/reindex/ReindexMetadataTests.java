@@ -77,13 +77,35 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActi
     public void testRoutingDiscardedWhenSliceSourceReindexedIntoNonSliceDestination() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         TestAction action = action();
-        // Reading in slice mode into a non-slice-enabled destination (the TestAction uses an empty cluster state) drops the slice value
+        // Reading a slice into a non-slice-enabled destination (the TestAction uses an empty cluster state) drops the slice value
         // rather than persisting it as ordinary routing.
-        action.mainRequest().getSearchRequest().searchSlice("tenant-a");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("tenant-a"));
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("tenant-a").setRoutingFromSlice(true));
         assertNull(index.routing());
         assertFalse(index.isRoutingFromSlice());
+    }
+
+    /**
+     * A source of slice-enabled and other indices decides per hit, because the two carry different routing: a hit of a slice-enabled
+     * index has a slice and no routing, any other hit has plain routing or none. Into a destination without slices the slice is
+     * dropped and the plain routing is kept. Into a slice-enabled destination the other hits have no slice to keep, so the validator
+     * rejects that request up front unless the destination slice is given.
+     */
+    public void testOnlySliceDroppedWhenSourceMixesSlicesAndPlainRouting() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        TestAction action = action();
+        IndexRequest fromSlice = new IndexRequest();
+        action.copyMetadata(
+            AbstractAsyncBulkByPaginatedSearchAction.wrap(fromSlice),
+            doc().setRouting("tenant-a").setRoutingFromSlice(true)
+        );
+        IndexRequest fromPlain = new IndexRequest();
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(fromPlain), doc().setRouting("custom"));
+
+        assertNull(fromSlice.routing());
+        assertFalse(fromSlice.isRoutingFromSlice());
+        assertEquals("custom", fromPlain.routing());
+        assertFalse(fromPlain.isRoutingFromSlice());
     }
 
     @Override

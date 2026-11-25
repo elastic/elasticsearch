@@ -741,7 +741,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
         DriverContext driverContext = driverContext();
         Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
-        EqlSearchResponse response = new EqlSearchResponse(hits, 1, timedOut, failures);
+        EqlSearchResponse response = new EqlSearchResponse(hits, 1, timedOut, List.of(failures));
         SourceOperator operator = operator(
             client,
             driverContext,
@@ -804,12 +804,12 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
 
     private static EqlSearchResponse eventResponse(List<Event> events) {
         Hits hits = new Hits(events, null, new TotalHits(events.size(), TotalHits.Relation.EQUAL_TO));
-        return new EqlSearchResponse(hits, 1, false, new ShardSearchFailure[0]);
+        return new EqlSearchResponse(hits, 1, false, List.of());
     }
 
     private static EqlSearchResponse sequenceResponse(List<Sequence> sequences) {
         Hits hits = new Hits(null, sequences, new TotalHits(sequences.size(), TotalHits.Relation.EQUAL_TO));
-        return new EqlSearchResponse(hits, 1, false, new ShardSearchFailure[0]);
+        return new EqlSearchResponse(hits, 1, false, List.of());
     }
 
     private static List<Attribute> concat(List<Attribute> head, Attribute tail) {

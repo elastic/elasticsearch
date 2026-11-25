@@ -227,6 +227,59 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("x\ny", "p\nq", "r\ns"), decoded);
     }
 
+    /**
+     * Unescaped values share one per-document buffer that grows when a document has more escaped
+     * string bytes than it can hold. Values handed out before a growth must stay intact afterwards,
+     * and whitespace between a value and the following separator must not confuse the sizing.
+     */
+    public void testRetainedUnescapedValuesSurviveArenaGrowth() {
+        record Slice(byte[] buf, int off, int len) {}
+        List<Slice> retained = new ArrayList<>();
+        RecordingHandler handler = new RecordingHandler(false) {
+            @Override
+            public void stringField(String fieldName, byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+
+            @Override
+            public void arrayElemString(byte[] buf, int off, int len) {
+                retained.add(new Slice(buf, off, len));
+            }
+        };
+
+        int fields = randomIntBetween(40, 80);
+        List<String> expected = new ArrayList<>();
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < fields; i++) {
+            // Each value is a few hundred bytes with \/ escapes every few characters, like a URL,
+            // so a document of a few dozen fields comfortably exceeds the initial 4 KiB arena.
+            String value = "http://host" + i + "/" + randomAlphaOfLengthBetween(100, 400).replace('a', '/') + "/end";
+            expected.add(value);
+            if (i > 0) {
+                json.append(randomFrom(",", " , ", ",\n  "));
+            }
+            json.append('"').append("f").append(i).append("\":").append('"').append(value.replace("/", "\\/")).append('"');
+            if (rarely()) {
+                json.append("  ");
+            }
+        }
+        json.append(randomFrom("}", " }", "\n}"));
+
+        byte[] buffer = json.toString().getBytes(UTF_8);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            FrozenFieldNameTable parent = new FrozenFieldNameTable();
+            SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
+            for (int round = 0; round < 2; round++) {
+                retained.clear();
+                parser.stage1(buffer, 0, buffer.length);
+                parser.prepareDocumentWindow(0, buffer.length);
+                walker.walkDocument(buffer, parser, handler);
+                List<String> decoded = retained.stream().map(s -> new String(s.buf(), s.off(), s.len(), UTF_8)).toList();
+                assertEquals(expected, decoded);
+            }
+        }
+    }
+
     // Root must be an object; top-level arrays are rejected.
     public void testDocumentStartingWithArray() {
         expectThrows(JsonParsingException.class, () -> walkJson("[1,2]"));

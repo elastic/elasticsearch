@@ -28,6 +28,11 @@ import java.math.BigInteger;
  * bracketing methods, with field events delivered as named methods
  * (the handler tracks nesting context).
  *
+ * <p><strong>Byte slices are borrowed.</strong> The {@code buf}/{@code off}/{@code len} arguments
+ * of {@link #stringField} and {@link #arrayElemString} point either into the source document or
+ * into a scratch buffer the walker reuses for the next document. They are valid until the walker
+ * parses its next document; a handler that keeps a value longer than that must copy it.
+ *
  * <p><strong>Not thread-safe.</strong> Implementations should assume
  * single-threaded access per walker instance.
  */

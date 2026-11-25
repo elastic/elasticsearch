@@ -73,6 +73,13 @@ public final class SimdJsonDirectWalker {
     private final DoubleParser doubleParser = new DoubleParser();
     private final int maxDepth;
     private byte[] stringBuf = new byte[4096];
+    /**
+     * Holds the unescaped bytes of every string value in the current document that contained an
+     * escape. Reset at the start of each document, so the slices handed to the handler stay valid
+     * until the next {@link #walkDocument} call (see {@link JsonDocumentHandler#stringField}).
+     */
+    private byte[] valueArena = new byte[4096];
+    private int valueArenaPos;
     private int currentDepth;
     private int docCount;
     private int docStart;
@@ -115,6 +122,7 @@ public final class SimdJsonDirectWalker {
 
     private void walkDocument(byte[] buffer, int docStart, BitIndexes bitIndexes, JsonDocumentHandler handler) {
         this.docStart = docStart;
+        this.valueArenaPos = 0;
         try {
             walkDocumentBody(buffer, bitIndexes, handler);
         } catch (ArrayIndexOutOfBoundsException e) {
@@ -232,7 +240,7 @@ public final class SimdJsonDirectWalker {
                         if (buffer[endIdx] != '"') {
                             strBuf = unescapeString(buffer, valIdx, skipEscapesToCloseQuote(buffer, bi));
                             len = unescapedLength;
-                            strOff = 0;
+                            strOff = unescapedOffset;
                         }
                         handler.stringField(fieldName, strBuf, strOff, len);
                     }
@@ -285,7 +293,7 @@ public final class SimdJsonDirectWalker {
                         handler.arrayElemString(buffer, idx + 1, endIdx - idx - 1);
                     } else {
                         byte[] unescaped = unescapeString(buffer, idx, skipEscapesToCloseQuote(buffer, bi));
-                        handler.arrayElemString(unescaped, 0, unescapedLength);
+                        handler.arrayElemString(unescaped, unescapedOffset, unescapedLength);
                     }
                 }
                 case 't' -> {
@@ -368,7 +376,7 @@ public final class SimdJsonDirectWalker {
                     if (buffer[endIdx] != '"') {
                         strBuf = unescapeString(buffer, valIdx, skipEscapesToCloseQuote(buffer, bi));
                         len = unescapedLength;
-                        strOff = 0;
+                        strOff = unescapedOffset;
                     }
                     handler.stringField(fieldName, strBuf, strOff, len);
                 }
@@ -1058,16 +1066,28 @@ public final class SimdJsonDirectWalker {
         return idx;
     }
 
+    private int unescapedOffset;
     private int unescapedLength;
 
     /**
-     * Unescapes the string value opening at {@code valIdx} and closing at {@code closeIdx} into a new
-     * buffer, leaving the length in {@link #unescapedLength}. Kept out of the field loop.
+     * Unescapes the string value opening at {@code valIdx} and closing at {@code closeIdx} into
+     * {@link #valueArena}, leaving the result's position in {@link #unescapedOffset}/{@link #unescapedLength}.
+     * Kept out of the field loop so the common escape-free path stays small.
      */
     private byte[] unescapeString(byte[] buffer, int valIdx, int closeIdx) {
-        byte[] out = new byte[closeIdx - valIdx - 1 + StringParser.DESTINATION_PADDING];
-        unescapedLength = stringParser.parseString(buffer, valIdx, out);
-        return out;
+        int rawLen = closeIdx - valIdx - 1;
+        int pos = valueArenaPos;
+        if (pos + rawLen + StringParser.DESTINATION_PADDING > valueArena.length) {
+            // Values already handed to the handler keep referencing the old array, so it must not
+            // be copied or reused; only this and later values go into the new one.
+            valueArena = new byte[Math.max(valueArena.length << 1, rawLen + StringParser.DESTINATION_PADDING)];
+            pos = 0;
+        }
+        int end = stringParser.parseStringInto(buffer, valIdx, valueArena, pos);
+        unescapedOffset = pos;
+        unescapedLength = end - pos;
+        valueArenaPos = end;
+        return valueArena;
     }
 
     /**

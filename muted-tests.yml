@@ -852,3 +852,8 @@ tests:
   method: testEvaluateBlockWithoutNulls {TestCase=<date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>, <null>, <date_nanos>,
     <date_nanos>, <date_nanos>, <date_nanos>, <date_nanos>}
   issue: https://github.com/elastic/elasticsearch/issues/167364
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
+  tasks:
+  - :modules:repository-gcs:test
+  method: testResumableWrite
+  issue: https://github.com/elastic/elasticsearch/issues/156513

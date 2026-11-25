@@ -17,7 +17,9 @@ import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -425,8 +427,10 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         assertFalse("the slice selects no configuration of " + scenario.type(), configurations.isEmpty());
         for (final Configuration configuration : configurations) {
             final MapperService mapperService = createMapperService(scenario, configuration);
+            // NOTE: newDirectory() keeps every directory and its creation stack referenced until the suite ends. These tests create one
+            // per configuration, which exhausts a small heap under -Dtests.iters. This wrapper still checks the index on close.
             try (
-                Directory directory = newDirectory();
+                Directory directory = new MockDirectoryWrapper(random(), new ByteBuffersDirectory());
                 IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig(mapperService))
             ) {
                 int firstSeqNo = 0;

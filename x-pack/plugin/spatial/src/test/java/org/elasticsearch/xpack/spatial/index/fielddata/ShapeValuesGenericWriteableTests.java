@@ -21,12 +21,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-
 public abstract class ShapeValuesGenericWriteableTests<T extends ShapeValues.ShapeValue> extends AbstractWireTestCase<
     ShapeValuesGenericWriteableTests.GenericWriteableWrapper> {
-
-    private static final TransportVersion SHAPE_VALUE_DOC_VALUE_FORMAT = TransportVersion.fromName("shape_value_doc_value_format");
 
     /**
      * Wrapper around a GeoShapeValue to verify that it round-trips via {@code writeGenericValue} and {@code readGenericValue}
@@ -82,21 +78,24 @@ public abstract class ShapeValuesGenericWriteableTests<T extends ShapeValues.Sha
     protected abstract ShapeValues.ShapeValue randomShapeValue(GeometryDocValueFormat format) throws IOException;
 
     /**
-     * Nodes that predate the doc-value format on the wire only read legacy doc values, so legacy values are sent to them
-     * as before, and sending them V2 values fails rather than having them misread the bytes.
+     * A value received from another node is read in {@link ShapeValues.ShapeValue#RECEIVED_FORMAT} whatever format it was
+     * read in on the sending node, so its centroid, shape type and extent must decode the same in both formats.
      */
-    public void testSerializationBeforeDocValueFormat() throws IOException {
-        TransportVersion version = randomFrom(
-            TransportVersionUtils.allReleasedVersions()
-                .stream()
-                .filter(v -> v.supports(TransportVersion.minimumCompatible()) && v.supports(SHAPE_VALUE_DOC_VALUE_FORMAT) == false)
-                .toList()
-        );
-        GenericWriteableWrapper legacy = new GenericWriteableWrapper(randomShapeValue(GeometryDocValueFormat.LEGACY));
-        assertEquals(legacy, copyInstance(legacy, version));
-
-        GenericWriteableWrapper v2 = new GenericWriteableWrapper(randomShapeValue(GeometryDocValueFormat.V2));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(v2, version));
-        assertThat(e.getMessage(), containsString("which only reads the legacy format"));
+    public void testReceivedValueKeepsHeader() throws IOException {
+        ShapeValues.ShapeValue sent = randomShapeValue(randomFrom(GeometryDocValueFormat.values()));
+        ShapeValues.ShapeValue received = copyInstance(new GenericWriteableWrapper(sent), TransportVersionUtils.randomCompatibleVersion())
+            .shapeValue();
+        assertEquals(sent, received);
+        assertEquals(sent.getX(), received.getX(), 0);
+        assertEquals(sent.getY(), received.getY(), 0);
+        assertEquals(sent.dimensionalShapeType(), received.dimensionalShapeType());
+        ShapeValues.BoundingBox sentBox = sent.boundingBox();
+        ShapeValues.BoundingBox receivedBox = received.boundingBox();
+        assertEquals(sentBox.top, receivedBox.top, 0);
+        assertEquals(sentBox.bottom, receivedBox.bottom, 0);
+        assertEquals(sentBox.negLeft, receivedBox.negLeft, 0);
+        assertEquals(sentBox.negRight, receivedBox.negRight, 0);
+        assertEquals(sentBox.posLeft, receivedBox.posLeft, 0);
+        assertEquals(sentBox.posRight, receivedBox.posRight, 0);
     }
 }

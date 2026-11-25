@@ -78,7 +78,7 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
 
         @SuppressWarnings("this-escape")
         public GeoShapeValue(StreamInput in) throws IOException {
-            this(readFormat(in));
+            this(RECEIVED_FORMAT);
             reset(in);
         }
 

@@ -75,7 +75,7 @@ public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeVal
 
         @SuppressWarnings("this-escape")
         public CartesianShapeValue(StreamInput in) throws IOException {
-            this(readFormat(in));
+            this(RECEIVED_FORMAT);
             this.reset(in);
         }
 

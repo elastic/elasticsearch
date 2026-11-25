@@ -107,7 +107,12 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      * the provided decoder (could be geo or cartesian)
      */
     protected abstract static class ShapeValue implements ToXContentFragment, GenericNamedWriteable {
-        private static final TransportVersion SHAPE_VALUE_DOC_VALUE_FORMAT = TransportVersion.fromName("shape_value_doc_value_format");
+        /**
+         * The format a value read from another node is decoded in. Values are only sent between nodes so that a script
+         * returning one can be rendered as unserializable on the coordinating node. Nothing reads a received value beyond
+         * its centroid, shape type and extent, which are laid out the same in both formats.
+         */
+        protected static final GeometryDocValueFormat RECEIVED_FORMAT = GeometryDocValueFormat.LEGACY;
 
         private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
@@ -134,19 +139,6 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
             this.boundingBox.reset(reader.getExtent(), encoder);
         }
 
-        /**
-         * Reads the format written before the doc value by {@link #writeTo}. Streams from nodes that predate the V2 format
-         * only carry legacy doc values.
-         */
-        protected static GeometryDocValueFormat readFormat(StreamInput in) throws IOException {
-            return in.getTransportVersion().supports(SHAPE_VALUE_DOC_VALUE_FORMAT)
-                ? in.readEnum(GeometryDocValueFormat.class)
-                : GeometryDocValueFormat.LEGACY;
-        }
-
-        /**
-         * Reads the doc value written by {@link #writeTo}, after {@link #readFormat} has read its format.
-         */
         protected void reset(StreamInput in) throws IOException {
             BytesReference bytes = in.readBytesReference();
             reset(bytes.toBytesRef());
@@ -234,26 +226,13 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(SHAPE_VALUE_DOC_VALUE_FORMAT)) {
-                out.writeEnum(reader.format());
-            } else if (reader.format() != GeometryDocValueFormat.LEGACY) {
-                throw new IllegalArgumentException(
-                    "cannot send a ["
-                        + getWriteableName()
-                        + "] read from doc values in the ["
-                        + reader.format()
-                        + "] format to a node on transport version ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "], which only reads the legacy format"
-                );
-            }
             out.writeBytesReference(new BytesArray(reader.getBytesRef()));
         }
 
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof ShapeValue other) {
-                return reader.format() == other.reader.format() && reader.getBytesRef().equals(other.reader.getBytesRef());
+                return reader.getBytesRef().equals(other.reader.getBytesRef());
             }
             return false;
         }

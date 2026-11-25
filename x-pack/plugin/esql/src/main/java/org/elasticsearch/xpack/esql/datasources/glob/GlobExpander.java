@@ -1727,8 +1727,8 @@ public final class GlobExpander {
                         diagnosticsOut
                     );
                 } catch (DiscoveredFilesLimitException e) {
-                    // Unbounded walks still throw at max_discovered_files. A bounded walk stops at
-                    // maxFiles instead; this catch is the leftover path if a collector still overflows.
+                    // Unbounded walks still throw at max_discovered_files. A bounded walk stops there
+                    // instead; this catch is the leftover path if a collector still overflows.
                     if (extents.boundsFileSet() == false) {
                         throw e;
                     }

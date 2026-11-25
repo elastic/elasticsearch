@@ -6612,8 +6612,8 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A file-set bound stops the walk collector at {@code maxFiles}; it does not throw at
-     * {@code max_discovered_files} and prefix-drain unfiltered. Trust is the walked sample.
+     * A file-set bound stops the walk collector at {@code max_discovered_files}; it does not throw
+     * and prefix-drain unfiltered. {@code maxFiles} is applied after listing order. Trust is the walked sample.
      */
     public void testBoundedWalkDiscoveryCapFallsBackToBoundedDrain() throws Exception {
         List<StorageEntry> tree = List.of(
@@ -6635,7 +6635,7 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Same bound through {@link GlobExpander#expand}: the collector stops at {@code maxFiles}.
+     * Same bound through {@link GlobExpander#expand}: the collector stops at {@code max_discovered_files}.
      * Concurrency-4 async never enters a throw-then-prefix-drain catch.
      */
     public void testBoundedWalkDiscoveryCapFallsBackOnSyncExpand() throws IOException {
@@ -8444,17 +8444,29 @@ public class GlobExpanderTests extends ESTestCase {
          */
         boolean trailingSlashDirectories = false;
 
+        private final boolean listsInKeyOrder;
+
         TreeStubProvider(List<StorageEntry> allEntries) {
+            this(allEntries, true);
+        }
+
+        /**
+         * @param sortByPath when false, listings keep constructor order and {@link #listsInKeyOrder()} is false
+         */
+        TreeStubProvider(List<StorageEntry> allEntries, boolean sortByPath) {
             // Sort entries by path so listChildren and listObjects return results in key order,
             // satisfying the contract required by listsInKeyOrder().
-            List<StorageEntry> sorted = new ArrayList<>(allEntries);
-            sorted.sort(Comparator.comparing(e -> e.path().toString()));
-            this.allEntries = sorted;
+            List<StorageEntry> entries = new ArrayList<>(allEntries);
+            if (sortByPath) {
+                entries.sort(Comparator.comparing(e -> e.path().toString()));
+            }
+            this.allEntries = entries;
+            this.listsInKeyOrder = sortByPath;
         }
 
         @Override
         public boolean listsInKeyOrder() {
-            return true;
+            return listsInKeyOrder;
         }
 
         private static String withTrailingSlash(String prefix) {
@@ -8867,8 +8879,8 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Bounded walk of a surviving subtree larger than {@code max_discovered_files} stops at {@code maxFiles}
-     * and marks truncated instead of throwing.
+     * Bounded walk of a surviving subtree larger than {@code max_discovered_files} stops there
+     * and marks truncated instead of throwing. {@code maxFiles} is applied after listing order.
      */
     public void testBoundedWalkStopsAtMaxFilesInsteadOfThrowing() throws IOException {
         List<StorageEntry> files = new ArrayList<>();
@@ -8894,6 +8906,37 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
         assertThat("must not fall back to a prefix drain of the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
         assertFalse("pruned 2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
+    }
+
+    /**
+     * Visit order lists {@code b.parquet} before {@code a.parquet}. The file-set cap is applied after
+     * {@code fileOrder} ({@code name}+{@code asc}), so {@code maxFiles=1} keeps {@code a.parquet}.
+     * {@code year=2024} is present so the walk prunes and finishes rather than flattening.
+     */
+    public void testBoundedWalkAppliesListingOrderBeforeMaxFilesCap() throws IOException {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2025/b.parquet", 100),
+            entry("s3://bucket/data/year=2025/a.parquet", 100),
+            entry("s3://bucket/data/year=2024/old.parquet", 100)
+        );
+        TreeStubProvider provider = new TreeStubProvider(files, false);
+        Map<String, Object> config = Map.of(FileOrderConfig.CONFIG_FILE_SORT_BY, "name", FileOrderConfig.CONFIG_FILE_ORDER, "asc");
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            config,
+            MAX,
+            MAX,
+            MAX,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2025/a.parquet", result.path(0).toString());
+        assertTrue(result.isTruncated());
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
+        assertThat("must not fall back to a prefix drain of the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
     }
 
     public void testUnboundedWalkStillThrowsAtDiscoveredFilesLimit() {

@@ -2095,15 +2095,17 @@ final class PartitionPruningWalk {
             if (folderRange != null && folderRange.mayContain(folderRangeBindings(entry.path().path())) == false) {
                 return;
             }
+            // Do not stop at maxFiles: GlobExpander proves types on the full matched set, then
+            // fileOrder.apply and subList. Capping here hides a later-ordered stray from detection.
+            // Bounded walks still stop at max_discovered_files; unbounded still throws there.
             if (maxFiles != Integer.MAX_VALUE) {
-                int cap = Math.min(maxFiles, maxDiscoveredFiles);
-                if (matched.size() >= cap) {
+                if (matched.size() >= maxDiscoveredFiles) {
                     truncated = true;
                     return;
                 }
-            }
-            matched.add(entry);
-            if (maxFiles == Integer.MAX_VALUE) {
+                matched.add(entry);
+            } else {
+                matched.add(entry);
                 GlobExpander.checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles, diagnostics.get());
             }
         }

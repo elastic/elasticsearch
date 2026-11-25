@@ -1583,20 +1583,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     /** Removing the metric name from the output must not merge histogram families before their quantiles. */
     public void testPromqlHistogramMetricNameIsAnInternalGroupingDependency() {
         String index = "promql-histogram-families";
-        createOptionalLabelMetricsIndex(index);
-        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m1", "le", "1", "tx", 2.0);
-        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m1", "le", "+Inf", "tx", 4.0);
-        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m2", "le", "1", "tx", 6.0);
-        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m2", "le", "+Inf", "tx", 8.0);
-        refresh(index);
-        // m1: target count 2 in a bucket of count 2 gives 1. m2: target 4 in a bucket of count 6 gives 2/3.
-        assertRowsAnyOrder(
-            promqlQuery(index, "histogram_quantile(0.5,sum by(le,__name__,cluster)(tx))") + " | KEEP result",
-            List.of(List.of(1.0), List.of(2.0 / 3.0))
-        );
-    }
-
-    private void createOptionalLabelMetricsIndex(String index) {
         assertAcked(
             indicesAdmin().prepareCreate(index)
                 .setSettings(
@@ -1613,59 +1599,37 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     "type=keyword,time_series_dimension=true",
                     "host",
                     "type=keyword,time_series_dimension=true",
-                    "optional",
-                    "type=keyword,time_series_dimension=true",
-                    "region",
-                    "type=keyword,time_series_dimension=true",
                     "__name__",
                     "type=keyword,time_series_dimension=true",
                     "le",
                     "type=keyword,time_series_dimension=true",
-                    "event",
-                    "type=keyword",
                     "tx",
-                    "type=double,time_series_metric=gauge",
-                    "rx",
                     "type=double,time_series_metric=gauge"
                 )
         );
         ensureGreen(index);
-    }
-
-    private void indexPromqlSample(String index, Object... fields) {
-        indexPromqlSampleAt(index, PROMQL_QUERY_TIME, fields);
-    }
-
-    private void indexPromqlSampleAt(String index, String timestamp, Object... fields) {
-        Object[] source = new Object[fields.length + 2];
-        source[0] = "@timestamp";
-        source[1] = timestamp;
-        System.arraycopy(fields, 0, source, 2, fields.length);
-        client().prepareIndex(index).setSource(source).get();
-    }
-
-    private static String promqlQuery(String index, String expression) {
-        return "PROMQL index="
+        indexPromqlSample(index, "m1", "1", 2.0);
+        indexPromqlSample(index, "m1", "+Inf", 4.0);
+        indexPromqlSample(index, "m2", "1", 6.0);
+        indexPromqlSample(index, "m2", "+Inf", 8.0);
+        refresh(index);
+        String query = "PROMQL index="
             + index
             + " start=\""
             + PROMQL_QUERY_TIME
             + "\" end=\""
             + PROMQL_QUERY_TIME
-            + "\" step=1m result=("
-            + expression
-            + ")";
-    }
-
-    private void assertRowsAnyOrder(String query, List<List<Object>> expected) {
+            + "\" step=1m result=(histogram_quantile(0.5,sum by(le,__name__,cluster)(tx))) | KEEP result";
+        // m1: target count 2 in a bucket of count 2 gives 1. m2: target 4 in a bucket of count 6 gives 2/3.
         try (EsqlQueryResponse response = run(query)) {
-            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(expected.toArray()));
+            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(List.of(1.0), List.of(2.0 / 3.0)));
         }
     }
 
-    private void assertPromqlColumns(String index, String expression, String columns, List<List<Object>> expected) {
-        try (EsqlQueryResponse response = run(promqlQuery(index, expression) + " | KEEP result, " + columns + " | SORT result")) {
-            assertThat(EsqlTestUtils.getValuesList(response), equalTo(expected));
-        }
+    private void indexPromqlSample(String index, String name, String le, double tx) {
+        client().prepareIndex(index)
+            .setSource("@timestamp", PROMQL_QUERY_TIME, "cluster", "prod", "host", "a", "__name__", name, "le", le, "tx", tx)
+            .get();
     }
 
     private static double round(double value) {

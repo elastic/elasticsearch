@@ -150,6 +150,8 @@ The response for the above aggregation:
 
 ## Geo Centroid Aggregation on `geo_shape` fields [geocentroid-aggregation-geo-shape]
 
+In {{stack}}, you can aggregate `geo_shape` fields with a Gold, Platinum, or Enterprise license.
+
 The centroid metric for geoshapes is more nuanced than for points. The centroid of a specific aggregation bucket containing shapes is the centroid of the highest-dimensionality shape type in the bucket. For example, if a bucket contains shapes comprising of polygons and lines, then the lines do not contribute to the centroid metric. Each type of shape’s centroid is calculated differently. Envelopes and circles ingested through the [Circle](/reference/ingest-processor/ingest-circle-processor.md) are treated as polygons.
 
 | Geometry Type | Centroid Calculation |

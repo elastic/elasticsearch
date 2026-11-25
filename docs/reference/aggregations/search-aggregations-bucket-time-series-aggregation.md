@@ -4,14 +4,18 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-time-series-aggregation.html
 applies_to:
   stack: deprecated 9.7+, preview 9.0-9.6
-  serverless: deprecated
+  serverless:
+    elasticsearch: deprecated
+    observability: deprecated
+    security: deprecated
+    vectordb: unavailable
 ---
 
 # Time series aggregation [search-aggregations-bucket-time-series-aggregation]
 
 
 ::::{warning}
-:applies_to: {"stack": "deprecated 9.7+", "serverless": "deprecated"}
+:applies_to: {"stack": "deprecated 9.7+", "serverless": {"elasticsearch": "deprecated", "observability": "deprecated", "security": "deprecated", "vectordb": "unavailable"}}
 The `time_series` aggregation is deprecated and will be removed in a future version. This deprecation also affects `rate` on counter fields and `geo_line` inside `time_series`. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
 ::::
 

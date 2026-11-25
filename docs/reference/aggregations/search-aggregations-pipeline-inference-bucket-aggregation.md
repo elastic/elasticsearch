@@ -14,7 +14,7 @@ A parent pipeline aggregation which loads a pre-trained model and performs {{inf
 
 To use the {{infer}} bucket aggregation, you need to have the same security privileges that are required for using the [get trained models API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-trained-models).
 
-In {{stack}}, you can use models covered by the Basic license. You can use other models with a Platinum or Enterprise license.
+This aggregation supports regression and classification models. In {{stack}}, you can use compatible models covered by the Basic license. Other compatible models are available with a Platinum or Enterprise license.
 
 ## Syntax [inference-bucket-agg-syntax]
 

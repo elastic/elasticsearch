@@ -291,6 +291,8 @@ The table below shows the metric dimensions for cells covered by various string 
 
 ### Aggregating `geo_shape` fields [_aggregating_geo_shape_fields]
 
+In {{stack}}, you can aggregate `geo_shape` fields with a Gold, Platinum, or Enterprise license.
+
 Aggregating on [Geoshape](/reference/elasticsearch/mapping-reference/geo-shape.md) fields works just as it does for points, except that a single shape can be counted for in multiple tiles. A shape will contribute to the count of matching values if any part of its shape intersects with that tile. Below is an image that demonstrates this:
 
 ![geoshape grid](images/geoshape_grid.png "")

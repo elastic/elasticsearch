@@ -254,7 +254,18 @@ Which returns:
 ```
 % TESTRESPONSE
 
-The default `size` is 1. The maximum default size is `10` because the aggregation’s working storage is "dense", meaning we allocate `size` slots for every bucket. `10` is a **very** conservative default maximum and you can raise it if you need to by changing the `top_metrics_max_size` index setting. But know that large sizes can take a fair bit of memory, especially if they are inside of an aggregation which makes many buckes like a large [terms aggregation](#search-aggregations-metrics-top-metrics-example-terms). If you till want to raise it, use something like:
+The default `size` is `1`, and the default maximum is `10`. The aggregation allocates `size` slots for every bucket. Larger values can use more memory, especially in aggregations that produce many buckets, such as a [terms aggregation](#search-aggregations-metrics-top-metrics-example-terms).
+
+::::{note}
+If `size` is more than `1` the `top_metrics` aggregation can’t be the **target** of a sort.
+::::
+
+### Increase the maximum size [search-aggregations-metrics-top-metrics-max-size]
+```{applies_to}
+stack: ga
+```
+
+If you need more than `10` results per bucket, increase `index.top_metrics_max_size`.
 
 ```console
 PUT /test/_settings
@@ -263,10 +274,6 @@ PUT /test/_settings
 }
 ```
 % TEST[continued]
-
-::::{note}
-If `size` is more than `1` the `top_metrics` aggregation can’t be the **target** of a sort.
-::::
 
 ### Use in transforms [search-aggregations-metrics-top-metrics-transforms]
 
@@ -287,8 +294,6 @@ Pivot transforms persist `top_metrics` on the **single destination document** fo
   }
 }
 ```
-
-Do not raise `index.top_metrics_max_size` unless you need more than the default maximum of 10.
 
 ## Examples [_examples_3]
 

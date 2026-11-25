@@ -279,11 +279,15 @@ These results contain an array of buckets, where each bucket is a JSON object wi
 ## Grouping with time-series [search-aggregations-metrics-geo-line-grouping-time-series]
 ```{applies_to}
 stack: deprecated 9.7+, preview 9.0-9.6
-serverless: deprecated
+serverless:
+  elasticsearch: deprecated
+  observability: deprecated
+  security: deprecated
+  vectordb: unavailable
 ```
 
 ::::{warning}
-:applies_to: {"stack": "deprecated 9.7+", "serverless": "deprecated"}
+:applies_to: {"stack": "deprecated 9.7+", "serverless": {"elasticsearch": "deprecated", "observability": "deprecated", "security": "deprecated", "vectordb": "unavailable"}}
 Using `geo_line` inside a [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) is deprecated and will be removed in a future version. Search requests that use it return a deprecation warning. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
 ::::
 

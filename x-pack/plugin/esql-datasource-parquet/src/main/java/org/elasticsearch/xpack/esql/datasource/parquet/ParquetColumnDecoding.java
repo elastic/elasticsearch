@@ -1305,6 +1305,14 @@ final class ParquetColumnDecoding {
                 tally,
                 info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT
             );
+            case DENSE_VECTOR -> readListFloatColumn(
+                input,
+                maxDef,
+                rows,
+                blockFactory,
+                tally,
+                info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT
+            );
             case BOOLEAN -> readListBooleanColumn(input, maxDef, rows, blockFactory, tally);
             case KEYWORD, TEXT -> readListBytesRefColumn(input, info, rows, blockFactory, tally);
             case DATETIME -> readListDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
@@ -1470,6 +1478,25 @@ final class ParquetColumnDecoding {
             Runnable appender = physicalFloat
                 ? () -> builder.appendDouble(input.reader().getFloat())
                 : () -> builder.appendDouble(input.reader().getDouble());
+            for (int row = 0; row < rows; row++) {
+                readListRow(input, maxDef, builder, appender, tally);
+            }
+            return builder.build();
+        }
+    }
+
+    private static Block readListFloatColumn(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally,
+        boolean physicalFloat
+    ) {
+        try (var builder = blockFactory.newFloatBlockBuilder(rows)) {
+            Runnable appender = physicalFloat
+                ? () -> builder.appendFloat(input.reader().getFloat())
+                : () -> builder.appendFloat((float) input.reader().getDouble());
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }

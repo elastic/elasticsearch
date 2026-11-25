@@ -28,7 +28,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -109,6 +109,8 @@ public class ListColumnParityTests extends ESTestCase {
             .as(LogicalTypeAnnotation.stringType())
             .named("strs");
         Type longList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("longs");
+        // A plain float list is a dense_vector and takes the optimized reader's bulk page decoder (FloatListPageReader),
+        // while the baseline keeps parquet-mr's per-value ColumnReader: the two must agree on every list, null and notice.
         Type floatList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.FLOAT).named("floats");
         MessageType schema = new MessageType("list_parity", intList, strList, longList, floatList);
 
@@ -268,8 +270,8 @@ public class ListColumnParityTests extends ESTestCase {
                     assertThat(ctx + " int@" + pos + "[" + k + "]", ab.getInt(aStart + k), equalTo(eb.getInt(eStart + k)));
                 } else if (expected instanceof LongBlock eb && actual instanceof LongBlock ab) {
                     assertThat(ctx + " long@" + pos + "[" + k + "]", ab.getLong(aStart + k), equalTo(eb.getLong(eStart + k)));
-                } else if (expected instanceof DoubleBlock eb && actual instanceof DoubleBlock ab) {
-                    assertThat(ctx + " double@" + pos + "[" + k + "]", ab.getDouble(aStart + k), equalTo(eb.getDouble(eStart + k)));
+                } else if (expected instanceof FloatBlock eb && actual instanceof FloatBlock ab) {
+                    assertThat(ctx + " float@" + pos + "[" + k + "]", ab.getFloat(aStart + k), equalTo(eb.getFloat(eStart + k)));
                 } else if (expected instanceof BytesRefBlock eb && actual instanceof BytesRefBlock ab) {
                     assertThat(
                         ctx + " bytes@" + pos + "[" + k + "]",

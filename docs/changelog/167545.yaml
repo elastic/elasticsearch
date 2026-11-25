@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 167545
+summary: Bitmap_terms leaf execution memory usage accounting
+type: enhancement

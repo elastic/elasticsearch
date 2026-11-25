@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
+import org.elasticsearch.tasks.TaskId;
 
 import java.time.ZoneId;
 import java.util.List;
@@ -53,6 +54,7 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
         PageStreamPublisher publisher,
         boolean[] nullColumns,
         ZoneId zoneId,
+        TaskId taskId,
         BooleanSupplier isPartial
     ) {}
 }

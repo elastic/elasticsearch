@@ -18,6 +18,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
@@ -25,10 +26,13 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.IOUtils;
@@ -38,10 +42,14 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
@@ -1831,5 +1839,246 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         mapperServices.add(mapperService);
         return createSearchExecutionContext(mapperService);
+    }
+
+    /**
+     * The distinct values of a keyword are the terms of all segments of all shards, sorted. A shard that does not map the
+     * field has none.
+     */
+    public void testDistinctValues() throws IOException {
+        final MapperService mappedService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        final MapperService otherService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        final MapperService unmappedService = createMapperService("""
+            { "doc": { "properties": { "other": { "type": "long" } } } }""");
+
+        final Directory mappedDir = newDirectory();
+        final Directory otherDir = newDirectory();
+        final Directory unmappedDir = newDirectory();
+        final DirectoryReader mappedReader;
+        final DirectoryReader otherReader;
+        final DirectoryReader unmappedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
+            writer.addDocument(keywordDocument("kw", "b"));
+            writer.addDocument(keywordDocument("kw", "c", "a"));
+            writer.commit();
+            writer.addDocument(keywordDocument("kw", "b"));
+            writer.addDocument(keywordDocument("kw", ""));
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            mappedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), otherDir)) {
+            writer.addDocument(keywordDocument("kw", "d"));
+            writer.addDocument(keywordDocument("kw", "a"));
+            otherReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), unmappedDir)) {
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            unmappedReader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
+                    createSearchExecutionContext(unmappedService, newSearcher(unmappedReader)),
+                    createSearchExecutionContext(otherService, newSearcher(otherReader))
+                ),
+                false
+            );
+            FieldAttribute.FieldName field = new FieldAttribute.FieldName("kw");
+            List<BytesRef> values = List.of(new BytesRef(""), new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d"));
+            assertEquals(values, stats.distinctKeywordValues(field, between(5, 100)));
+            assertNull(stats.distinctKeywordValues(field, between(0, 4)));
+            // Not a keyword
+            assertNull(stats.distinctKeywordValues(new FieldAttribute.FieldName("other"), 100));
+            // Not mapped anywhere
+            assertEquals(List.of(), stats.distinctKeywordValues(new FieldAttribute.FieldName("missing"), 100));
+        } finally {
+            IOUtils.close(mappedReader, otherReader, unmappedReader, mappedService, otherService, unmappedService);
+            IOUtils.close(mappedDir, otherDir, unmappedDir);
+        }
+    }
+
+    /**
+     * The values that {@code ignore_above} skips are not indexed, and not read from the doc values either: the terms are
+     * still the values.
+     */
+    public void testDistinctValuesWithIgnoreAbove() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "ignore_above": 2 } } } }""");
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            // What the mapper writes for "a", for "bb" and for a value that is too long: nothing
+            writer.addDocument(keywordDocument("kw", "a"));
+            writer.addDocument(keywordDocument("kw", "bb"));
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            reader = writer.getReader();
+        }
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(createSearchExecutionContext(mapperService, newSearcher(reader))),
+                false
+            );
+            assertEquals(
+                List.of(new BytesRef("a"), new BytesRef("bb")),
+                stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100)
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * A shard that reads an empty string as a null holds none, and answers a term query for one with its documents that
+     * hold no value. The values are not listed if another shard holds an empty string.
+     */
+    public void testDistinctValuesWithEmptyStringAsNull() throws IOException {
+        final Settings emptyAsNull = Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true).build();
+        final String mapping = """
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""";
+        for (boolean otherShardHoldsEmptyString : new boolean[] { true, false }) {
+            final MapperService emptyAsNullService = createMapperService(emptyAsNull, mapping);
+            final MapperService otherService = createMapperService(mapping);
+            final Directory emptyAsNullDir = newDirectory();
+            final Directory otherDir = newDirectory();
+            final DirectoryReader emptyAsNullReader;
+            final DirectoryReader otherReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), emptyAsNullDir)) {
+                writer.addDocument(keywordDocument("kw", "a"));
+                emptyAsNullReader = writer.getReader();
+            }
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), otherDir)) {
+                writer.addDocument(keywordDocument("kw", otherShardHoldsEmptyString ? "" : "b"));
+                otherReader = writer.getReader();
+            }
+            try {
+                final SearchStats stats = SearchContextStats.from(
+                    List.of(
+                        createSearchExecutionContext(emptyAsNullService, newSearcher(emptyAsNullReader)),
+                        createSearchExecutionContext(otherService, newSearcher(otherReader))
+                    ),
+                    false
+                );
+                List<BytesRef> values = stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100);
+                if (otherShardHoldsEmptyString) {
+                    assertNull(values);
+                } else {
+                    assertEquals(List.of(new BytesRef("a"), new BytesRef("b")), values);
+                }
+            } finally {
+                IOUtils.close(emptyAsNullReader, otherReader, emptyAsNullService, otherService, emptyAsNullDir, otherDir);
+            }
+        }
+    }
+
+    /**
+     * The distinct values are not listed where the terms of the index are not the values that are read for every document.
+     */
+    public void testDistinctValuesNotListed() throws IOException {
+        for (String mapping : List.of(
+            "\"type\": \"keyword\", \"normalizer\": \"lowercase\"",
+            "\"type\": \"keyword\", \"index\": false",
+            "\"type\": \"keyword\", \"doc_values\": false",
+            "\"type\": \"text\"",
+            "\"type\": \"ip\""
+        )) {
+            final MapperService keywordService = createMapperService("""
+                { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+            final MapperService otherService = createMapperService("{ \"doc\": { \"properties\": { \"kw\": { " + mapping + " } } } }");
+            final Directory keywordDir = newDirectory();
+            final Directory otherDir = newDirectory();
+            final DirectoryReader keywordReader;
+            final DirectoryReader otherReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), keywordDir)) {
+                writer.addDocument(keywordDocument("kw", "a"));
+                keywordReader = writer.getReader();
+            }
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), otherDir)) {
+                writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+                otherReader = writer.getReader();
+            }
+            try {
+                final SearchStats stats = SearchContextStats.from(
+                    List.of(
+                        createSearchExecutionContext(keywordService, newSearcher(keywordReader)),
+                        createSearchExecutionContext(otherService, newSearcher(otherReader))
+                    ),
+                    false
+                );
+                assertNull(mapping, stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100));
+            } finally {
+                IOUtils.close(keywordReader, otherReader, keywordService, otherService, keywordDir, otherDir);
+            }
+        }
+    }
+
+    /**
+     * The terms of the index include the values of the documents that a shard filter or document level security hides. They
+     * are not listed then, as they would show in the plan of a user who must not see them.
+     */
+    public void testDistinctValuesWithHiddenDocuments() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(keywordDocument("kw", "visible"));
+            writer.addDocument(keywordDocument("kw", "hidden"));
+            reader = writer.getReader();
+        }
+        final DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        try {
+            FieldAttribute.FieldName field = new FieldAttribute.FieldName("kw");
+            SearchExecutionContext all = createSearchExecutionContext(mapperService, newSearcher(reader));
+            assertEquals(
+                List.of(new BytesRef("hidden"), new BytesRef("visible")),
+                SearchContextStats.from(List.of(all), false).distinctKeywordValues(field, 100)
+            );
+            // A shard filter, such as the filter of an index alias
+            assertNull(SearchContextStats.from(List.of(all), true).distinctKeywordValues(field, 100));
+
+            // Document level security, with other readers around it as a shard has
+            DirectoryReader secured = DocumentSubsetReader.wrap(
+                ElasticsearchDirectoryReader.wrap(reader, new ShardId("index", "_na_", 0)),
+                bitsetCache,
+                new TermQuery(new Term("kw", "visible"))
+            );
+            if (randomBoolean()) {
+                secured = new FilterDirectoryReader(secured, new FilterDirectoryReader.SubReaderWrapper() {
+                    @Override
+                    public LeafReader wrap(LeafReader leaf) {
+                        return leaf;
+                    }
+                }) {
+                    @Override
+                    protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return in.getReaderCacheHelper();
+                    }
+                };
+            }
+            SearchExecutionContext some = createSearchExecutionContext(mapperService, new IndexSearcher(secured));
+            assertNull(SearchContextStats.from(List.of(some), false).distinctKeywordValues(field, 100));
+            assertNull(SearchContextStats.from(List.of(all, some), false).distinctKeywordValues(field, 100));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+            bitsetCache.close();
+        }
+    }
+
+    private static List<IndexableField> keywordDocument(String field, String... values) {
+        List<IndexableField> document = new ArrayList<>();
+        for (String value : values) {
+            document.add(new StringField(field, value, Field.Store.NO));
+            document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
+        }
+        return document;
     }
 }

@@ -518,16 +518,30 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(eval.fields().get(0).child().references()), contains("id"));
     }
 
-    /** No mapping guarantee, no proof: the key stays even though the same query is pruned above for a guaranteed field. */
-    public void testDoesNotPruneDerivedGroupingOfUnguaranteedField() {
+    /**
+     * One derived key is pruned and another is kept: the {@code EVAL} below the aggregate drops the field of the pruned key and keeps
+     * the field of the kept key, which the aggregate still reads.
+     */
+    public void testPartialDerivedPruningKeepsNeededPreAggregateEval() {
         var plan = planWithSingleValuedFields("""
             FROM test
-            | EVAL next = emp_no + 1
-            | STATS c = COUNT(*) BY emp_no, next
-            """, Set.of("languages"));
+            | EVAL next = emp_no + 1, other_next = languages + 1
+            | STATS c = COUNT(*) BY emp_no, next, languages, other_next
+            """, Set.of("emp_no"));
 
-        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
-        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "next"));
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "emp_no", "next", "languages", "other_next"));
+
+        var postAggregateEval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(postAggregateEval.fields()), contains("next"));
+
+        var aggregate = rewrittenAggregate(postAggregateEval);
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "languages", "other_next"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "emp_no", "languages", "other_next"));
+
+        var preAggregateEval = as(aggregate.child(), Eval.class);
+        assertThat(Expressions.names(preAggregateEval.fields()), contains("other_next"));
+        as(preAggregateEval.child(), EsRelation.class);
     }
 
     public void testDoesNotPruneDerivedGroupingWhenOneInputIsUnguaranteed() {

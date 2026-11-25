@@ -556,6 +556,19 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         );
     }
 
+    public void testMinHashParamBoundsCheckIgnoresUnparseableSettings() {
+        // A filter whose settings can't be parsed is skipped rather than failing the check.
+        assertThat(
+            minHashIssues(
+                settings(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)).put(
+                    "index.analysis.filter.bad.type",
+                    "min_hash"
+                ).put("index.analysis.filter.bad.hash_count", "not_a_number")
+            ),
+            equalTo(List.of())
+        );
+    }
+
     private List<DeprecationIssue> minHashIssues(Settings.Builder settings) {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings)

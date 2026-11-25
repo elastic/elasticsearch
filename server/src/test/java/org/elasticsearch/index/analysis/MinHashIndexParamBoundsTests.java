@@ -10,7 +10,10 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
 
 public class MinHashIndexParamBoundsTests extends ESTestCase {
 
@@ -55,5 +58,15 @@ public class MinHashIndexParamBoundsTests extends ESTestCase {
             MinHashIndexParamBounds.violation(1, 512, 200),
             MinHashIndexParamBounds.violation(Settings.builder().put("hash_set_size", 200).build())
         );
+    }
+
+    public void testViolationFromUnparseableSettings() {
+        for (String key : List.of("hash_count", "bucket_count", "hash_set_size")) {
+            SettingsException e = expectThrows(
+                SettingsException.class,
+                () -> MinHashIndexParamBounds.violation(Settings.builder().put(key, "not_a_number").build())
+            );
+            assertEquals("Failed to parse int setting [" + key + "] with value [not_a_number]", e.getMessage());
+        }
     }
 }

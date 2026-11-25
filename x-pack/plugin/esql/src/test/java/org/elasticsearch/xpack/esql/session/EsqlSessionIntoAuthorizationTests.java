@@ -71,7 +71,7 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
 
     public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
         // A fixed date, as now/d could roll over to the next day between the name and the query
-        LogicalPlan authorized = authorize(grantingAuthorizer(), "ROW x = 1 | INTO <logs-{2026.01.01||/d}>");
+        LogicalPlan authorized = authorize(grantingAuthorizer(), "ROW x = 1 | INTO \"<logs-{2026.01.01||/d}>\"");
 
         assertThat(asked, contains(DATE_MATH_RESOLVED));
         // Everything after this, on whichever node, writes to the name that was authorized

@@ -187,6 +187,30 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return denseVectorAggMetricDoubleIfVersion;
     }
 
+    private void assertProducerGrouping(String field, String expression, int count) throws IOException {
+        String input = " | EVAL computed = " + expression + " | EVAL k = MV_APPEND(" + field + ", computed) | MV_EXPAND k";
+
+        assertGroupingValues(fromAllQuery(input + " | STATS c = count(*) BY k | KEEP c | LIMIT 1000"), List.of(List.of(count * 2)));
+        if (inlineStatsGroupingSupported()) {
+            assertGroupingValues(
+                fromAllQuery(input + " | INLINE STATS c = count(*) BY k | KEEP c | LIMIT 1000"),
+                Collections.nCopies(count * 2, List.of(count * 2))
+            );
+        }
+        if (limitByGroupingSupported()) {
+            assertGroupingValues(fromAllQuery(input + " | LIMIT 1 BY k | STATS c = count(*) | LIMIT 1000"), List.of(List.of(1)));
+        }
+        if (dedupGroupingSupported()) {
+            assertGroupingValues(fromAllQuery(input + " | KEEP k | DEDUP | STATS c = count(*) | LIMIT 1000"), List.of(List.of(1)));
+        }
+    }
+
+    private void assertGroupingValues(String query, List<?> expected) throws IOException {
+        Map<String, Object> response = runQuery(query).v1();
+        assertNoPartialResponse(response);
+        assertThat(query, response.get("values"), equalTo(expected));
+    }
+
     protected boolean fetchDenseVectorAggMetricDoubleIfVersion() throws IOException {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
@@ -783,6 +807,53 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 assertGrouping(fromAllQuery(" | KEEP " + field + " | DEDUP | LIMIT 10"), limitAccepted, "cannot dedup on");
             }
         }
+    }
+
+    /**
+     * Equal keys from different indices must form one group, including across nodes and clusters.
+     */
+    public void testGroupingResults() throws IOException {
+        assumeTrue(
+            "one configuration covers single-node, mixed-cluster and CCS",
+            extractPreference == MappedFieldType.FieldExtractPreference.NONE && indexMode == IndexMode.STANDARD
+        );
+        int count = expectedIndices(indexMode).size();
+
+        assertGroupingValues(
+            fromAllQuery(" | STATS c = count(*) BY f_keyword | KEEP f_keyword, c | LIMIT 1000"),
+            List.of(List.of("foo", count))
+        );
+        if (inlineStatsGroupingSupported()) {
+            assertGroupingValues(
+                fromAllQuery(" | INLINE STATS c = count(*) BY f_keyword | KEEP f_keyword, c | LIMIT 1000"),
+                Collections.nCopies(count, List.of("foo", count))
+            );
+        }
+        if (limitByGroupingSupported()) {
+            assertGroupingValues(fromAllQuery(" | LIMIT 1 BY f_keyword | KEEP f_keyword | LIMIT 1000"), List.of(List.of("foo")));
+        }
+        if (dedupGroupingSupported()) {
+            assertGroupingValues(fromAllQuery(" | KEEP f_keyword | DEDUP | LIMIT 1000"), List.of(List.of("foo")));
+        }
+    }
+
+    /**
+     * Indexed values and equal values produced by evaluators must group together.
+     */
+    public void testGroupingAcrossValueProducers() throws IOException {
+        assumeTrue(
+            "one configuration covers single-node, mixed-cluster and CCS",
+            extractPreference == MappedFieldType.FieldExtractPreference.NONE && indexMode == IndexMode.STANDARD
+        );
+        int count = expectedIndices(indexMode).size();
+
+        assertProducerGrouping("f_integer", "TO_INTEGER(TO_STRING(f_integer))", count);
+        assertProducerGrouping("f_long", "TO_LONG(TO_STRING(f_integer))", count);
+        assertProducerGrouping("f_double", "TO_DOUBLE(TO_STRING(f_double))", count);
+        assertProducerGrouping("f_keyword", "CONCAT(f_keyword, \"\")", count);
+        assertProducerGrouping("f_ip", "TO_IP(CONCAT(\"192.168.0.\", TO_STRING(f_integer)))", count);
+        assertProducerGrouping("f_version", "TO_VERSION(CONCAT(TO_STRING(f_integer), \".0.0-SNAPSHOT\"))", count);
+        assertProducerGrouping("@timestamp", "TO_DATETIME(TO_STRING(@timestamp))", count);
     }
 
     /**

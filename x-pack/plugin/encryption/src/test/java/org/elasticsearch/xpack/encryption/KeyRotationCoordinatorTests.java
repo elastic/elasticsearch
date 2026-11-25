@@ -38,7 +38,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
@@ -122,8 +121,6 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         return ClusterState.builder(CLUSTER_NAME)
             .metadata(Metadata.builder().put(project.build()).build())
             .nodes(nodes(isLocalMaster))
-            .putCompatibilityVersions("local", TransportVersion.current(), Map.of())
-            .putCompatibilityVersions("other", TransportVersion.current(), Map.of())
             .build();
     }
 
@@ -420,14 +417,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
      * assertion. The master warns once and waits for the upgrade.
      */
     public void testInstallWaitsForNodesOnOlderVersionsWithoutAskingThem() {
-        ClusterState state = ClusterState.builder(clusterStateWith(null, true))
-            .putCompatibilityVersions(
-                "other",
-                TransportVersionUtils.getPreviousVersion(KeyRotationCoordinator.CAN_PERSIST_KEY_CHECK),
-                Map.of()
-            )
-            .build();
-        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
+        ClusterState state = clusterStateWith(null, true);
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE))).thenReturn(true);
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
 
         MockLog.assertThatLogger(
             () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),

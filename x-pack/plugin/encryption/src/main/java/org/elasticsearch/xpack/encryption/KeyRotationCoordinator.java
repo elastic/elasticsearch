@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.encryption;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -36,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,8 +96,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     // how long the master waits for nodes to answer whether they can persist the key, and before asking again while some can't
     static final TimeValue PERSIST_CHECK_INTERVAL = TimeValue.timeValueSeconds(10);
 
-    // the version that added join request attributes, in the same change as the readiness check
-    static final TransportVersion CAN_PERSIST_KEY_CHECK = TransportVersion.fromName("join_request_attributes");
+    // a feature, not a transport version, since patch versions of different minors don't compare by their numeric minimum
+    static final NodeFeature CAN_PERSIST_KEY_CHECK = new NodeFeature("encryption.can_persist_key_check");
 
     /**
      * How frequently the project encryption key is rotated. {@link TimeValue#ZERO} disables rotation.
@@ -567,7 +567,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         persistCheckRecheck.set(false);
         // nodes on earlier versions don't know the action, and a node that receives an unknown action fails an assertion
-        if (state.getMinTransportVersion().supports(CAN_PERSIST_KEY_CHECK) == false) {
+        if (featureService.clusterHasFeature(state, CAN_PERSIST_KEY_CHECK) == false) {
             if (waitingForUpgrade.getAndSet(true) == false) {
                 logger.warn(
                     "project encryption key not {} yet: some nodes are on a version that can't report whether they can persist it."

@@ -203,7 +203,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
         assertThat(requests, empty());
     }
 
-    public void testAcceptsWholeBatchOnAnyTwoXx() {
+    public void testAcceptsWholeBatchOnTheSuccessStatuses() {
         for (int status : new int[] { 200, 201, 204 }) {
             requests.clear();
             statusFor = ids -> status;
@@ -230,13 +230,61 @@ public class HttpUsagePublisherTests extends ESTestCase {
 
     public void testStatusesThatAreNotKnownAreRetryableNotInvalid() {
         // A wrong url or a redirect lasts: dropping records because of it would be underbilling by mistake.
-        for (int status : new int[] { 301, 404, 405, 413, 415, 422 }) {
+        for (int status : new int[] { 301, 404, 405, 415, 422 }) {
             requests.clear();
             statusFor = ids -> status;
             PublishResult result = publisher.publish(records(3));
             assertWholeBatchFailure(result, PublishResult.FailureClass.RETRYABLE, String.valueOf(status));
             assertThat(requests, hasSize(1));
         }
+    }
+
+    public void testATwoXxThatDoesNotSayTheBatchWasWrittenIsHeldAndWarnedAbout() throws Exception {
+        // 202 is processing that is not finished and 207 can carry failures of single records: sending again is safe (ids are
+        // deduplicated by the Usage API), acknowledging is not.
+        for (int status : new int[] { 202, 206, 207 }) {
+            requests.clear();
+            statusFor = ids -> status;
+            try (MockLog mockLog = MockLog.capture(HttpUsagePublisher.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "held " + status,
+                        HttpUsagePublisher.class.getCanonicalName(),
+                        Level.WARN,
+                        "the Usage API answered with status [" + status + "]*the usage records stay pending"
+                    )
+                );
+                assertWholeBatchFailure(publisher.publish(records(4)), PublishResult.FailureClass.RETRYABLE, String.valueOf(status));
+                mockLog.assertAllExpectationsMatched();
+            }
+            assertThat(requests, hasSize(1));
+        }
+    }
+
+    public void testTooLargeBatchIsSplitUntilItFitsAndNothingIsDropped() {
+        List<UsageRecord> batch = records(10);
+        statusFor = ids -> ids.size() > 3 ? 413 : 201;
+
+        PublishResult result = publisher.publish(batch);
+
+        assertThat(result.acceptedIds(), equalTo(ids(batch)));
+        assertThat(result.failures(), empty());
+        assertIdsNeverChanged(batch);
+    }
+
+    public void testSingleRecordThatIsTooLargeIsHeldNotDropped() {
+        List<UsageRecord> batch = List.of(record("good-1"), record("good-2"), record("big"));
+        statusFor = ids -> ids.contains("big") ? 413 : 201;
+
+        PublishResult result = publisher.publish(batch);
+
+        assertThat(result.acceptedIds(), equalTo(Set.of("good-1", "good-2")));
+        assertThat(result.failures(), hasSize(1));
+        assertThat(result.failures().get(0).failureClass(), equalTo(PublishResult.FailureClass.RETRYABLE));
+        assertThat(result.failures().get(0).recordIds(), equalTo(Set.of("big")));
+
+        // On its own it cannot be split either: the whole batch is held.
+        assertWholeBatchFailure(publisher.publish(List.of(record("big"))), PublishResult.FailureClass.RETRYABLE, "413");
     }
 
     public void testAuthStatusesKeepTheWholeBatchWithoutIsolation() {
@@ -590,6 +638,14 @@ public class HttpUsagePublisherTests extends ESTestCase {
 
     public void testClassifyTable() {
         assertThat(HttpUsagePublisher.classify(201, "").failureClass(), nullValue());
+        assertThat(HttpUsagePublisher.classify(200, "").failureClass(), nullValue());
+        assertThat(HttpUsagePublisher.classify(204, "").failureClass(), nullValue());
+        assertThat(HttpUsagePublisher.classify(202, "").failureClass(), equalTo(PublishResult.FailureClass.RETRYABLE));
+        assertThat(HttpUsagePublisher.classify(207, "").failureClass(), equalTo(PublishResult.FailureClass.RETRYABLE));
+        assertThat(HttpUsagePublisher.classify(413, "").failureClass(), equalTo(PublishResult.FailureClass.RETRYABLE));
+        assertThat(HttpUsagePublisher.classify(413, "").split(), equalTo(true));
+        assertThat(HttpUsagePublisher.classify(400, "").split(), equalTo(true));
+        assertThat(HttpUsagePublisher.classify(403, "").split(), equalTo(false));
         assertThat(HttpUsagePublisher.classify(400, "x").failureClass(), equalTo(PublishResult.FailureClass.INVALID));
         assertThat(HttpUsagePublisher.classify(422, null).failureClass(), equalTo(PublishResult.FailureClass.RETRYABLE));
         assertThat(HttpUsagePublisher.classify(401, "").failureClass(), equalTo(PublishResult.FailureClass.AUTH));

@@ -26,7 +26,8 @@ public record PublishResult(Set<String> acceptedIds, List<Failure> failures) {
      */
     public enum FailureClass {
         /**
-         * A network or TLS error, a timeout, a 5xx, a 408, a 429 or any status that is not known, and a batch in which every record is
+         * A network or TLS error, a timeout, a 5xx, a 408, a 429, a 2xx that does not say that the batch was written, a 413 of a single
+         * record, or any status that is not known, and a batch in which every record is
          * rejected (which points at a problem that is not the records'): the records stay pending and are sent again with the same ids.
          */
         RETRYABLE,

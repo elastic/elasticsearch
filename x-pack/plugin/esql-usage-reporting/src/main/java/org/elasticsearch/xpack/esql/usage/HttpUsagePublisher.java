@@ -52,7 +52,9 @@ import javax.net.ssl.SSLParameters;
  * <p>
  * The OpenAPI specification of the Usage API lists only the {@code 201} answer. The statuses come from the documentation of the
  * usage data pipeline (201, 400, 401, 403, 500 and 503) and are mapped to failure classes by {@link #classify}, in one place so
- * that it is easy to change. A {@code 2xx} answer means that the whole batch was written: the API has no per-record answer.
+ * that it is easy to change. A {@code 201} (or a plain {@code 200} or {@code 204}) means that the whole batch was written: the API
+ * has no per-record answer. Any other {@code 2xx} does not say so ({@code 202} is processing that is not finished, {@code 207} can
+ * carry failures of single records), so the records stay pending; sending them again is safe because the Usage API deduplicates by id.
  * <p>
  * It blocks, so it runs on the reporter thread only. The client is rebuilt when the SSL profile reloads, so that a renewed
  * certificate is used without a restart. The protocols and cipher suites of the profile are applied to the client; its
@@ -121,17 +123,13 @@ public final class HttpUsagePublisher implements UsagePublisher {
             PublishResult.FailureClass failureClass = attempt.failureClass();
             if (failureClass == null) {
                 range.forEach(r -> accepted.add(r.id()));
+            } else if (attempt.split() && range.size() > 1) {
+                int middle = range.size() / 2;
+                ranges.push(range.subList(middle, range.size()));
+                ranges.push(range.subList(0, middle));
             } else {
                 switch (failureClass) {
-                    case INVALID -> {
-                        if (range.size() == 1) {
-                            failures.add(failure(range, failureClass, attempt.message()));
-                        } else {
-                            int middle = range.size() / 2;
-                            ranges.push(range.subList(middle, range.size()));
-                            ranges.push(range.subList(0, middle));
-                        }
-                    }
+                    case INVALID -> failures.add(failure(range, failureClass, attempt.message()));
                     case RETRYABLE, AUTH -> {
                         // Nothing more is sent: the records of this range and of the ranges not yet tried stay pending.
                         List<UsageRecord> remaining = new ArrayList<>(range);
@@ -196,7 +194,12 @@ public final class HttpUsagePublisher implements UsagePublisher {
             CompletableFuture<HttpResponse<String>> future = current.sendAsync(request, HttpUsagePublisher::bodySubscriber);
             try {
                 HttpResponse<String> response = future.get(requestTimeout.millis(), TimeUnit.MILLISECONDS);
-                return classify(response.statusCode(), response.body());
+                Attempt attempt = classify(response.statusCode(), response.body());
+                if (attempt.failureClass() != null && response.statusCode() >= 200 && response.statusCode() < 300) {
+                    // A success status that does not say that the batch was written: the records stay pending, which nobody sees otherwise.
+                    logger.warn("{}: the usage records stay pending", attempt.message());
+                }
+                return attempt;
             } catch (TimeoutException e) {
                 cancelExchange(future);
                 return retryable("request to the Usage API timed out after [" + requestTimeout + "]");
@@ -220,27 +223,29 @@ public final class HttpUsagePublisher implements UsagePublisher {
      * (404, 405) or a redirect lasts, and dropping every record because of it would be underbilling by mistake, while keeping
      * them pending is bounded by the store. The pipeline documents 201, 400 (malformed or invalid payload), 401 and 403 (identity),
      * and 500 and 503 (transient); it does not return 422, so a 422 comes from something else on the way and is retried.
+     * <p>
+     * A batch that is rejected as invalid (400) or as too large (413) is split. When it is a single record, a 400 is a record to drop
+     * and a 413 is not: nothing says that the record is bad, and smaller requests cannot be made, so it is held.
      */
     static Attempt classify(int status, String body) {
-        if (status >= 200 && status < 300) {
-            return new Attempt(null, null);
-        }
         String message = "the Usage API answered with status [" + status + "]" + bodySuffix(body);
         return switch (status) {
-            case 400 -> new Attempt(PublishResult.FailureClass.INVALID, message);
-            case 401, 403 -> new Attempt(PublishResult.FailureClass.AUTH, message);
-            default -> new Attempt(PublishResult.FailureClass.RETRYABLE, message);
+            case 200, 201, 204 -> new Attempt(null, false, null);
+            case 400 -> new Attempt(PublishResult.FailureClass.INVALID, true, message);
+            case 413 -> new Attempt(PublishResult.FailureClass.RETRYABLE, true, message);
+            case 401, 403 -> new Attempt(PublishResult.FailureClass.AUTH, false, message);
+            default -> new Attempt(PublishResult.FailureClass.RETRYABLE, false, message);
         };
     }
 
     /**
-     * What one request showed: {@code failureClass} null means the batch was accepted; {@code INVALID} means that the batch holds a
-     * record the API rejects, and is the only class that leads to a split.
+     * What one request showed: {@code failureClass} null means the batch was accepted; {@code split} means that a smaller request may
+     * succeed, so a batch of several records is split in halves before anything else is decided.
      */
-    record Attempt(PublishResult.FailureClass failureClass, String message) {}
+    record Attempt(PublishResult.FailureClass failureClass, boolean split, String message) {}
 
     private static Attempt retryable(String message) {
-        return new Attempt(PublishResult.FailureClass.RETRYABLE, message);
+        return new Attempt(PublishResult.FailureClass.RETRYABLE, false, message);
     }
 
     private static PublishResult.Failure failure(List<UsageRecord> records, PublishResult.FailureClass failureClass, String message) {

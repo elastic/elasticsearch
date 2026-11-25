@@ -4,7 +4,7 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [index_sort_expression]
+          capabilities: [index_sort_esql]
       reason: index.sort expression setting is parsed by ES|QL on newer nodes
 
 ---

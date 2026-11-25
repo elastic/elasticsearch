@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Parity tests for {@link BooleanFieldMapper#mapColumnBatch} against the row path.
@@ -369,7 +370,7 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
         assertFalse(
             "a dimension whose routing is extracted while mapping must not be columnar",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
     }
 

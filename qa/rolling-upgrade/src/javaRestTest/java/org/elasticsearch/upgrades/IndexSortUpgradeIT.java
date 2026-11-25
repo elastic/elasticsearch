@@ -36,25 +36,24 @@ public class IndexSortUpgradeIT extends AbstractRollingUpgradeTestCase {
 
         if (isOldCluster()) {
             int numShards = randomIntBetween(1, 3);
+            boolean useSortExpression = clusterHasCapability("PUT", "/{index}", List.of(), List.of("index_sort_expression")).orElse(false)
+                && randomBoolean();
             for (var config : configs) {
-                createIndex(
-                    config.indexName(),
-                    Settings.builder()
-                        .put("index.number_of_shards", numShards)
-                        .put("index.number_of_replicas", 0)
-                        .put("index.sort.field", config.fieldName())
-                        .put("index.sort.order", "desc")
-                        .build(),
-                    """
-                        {
-                            "properties": {
-                                "%s": {
-                                    "type": "%s"
-                                }
+                Settings.Builder settings = Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0);
+                if (useSortExpression) {
+                    settings.put("index.sort", config.fieldName() + " DESC");
+                } else {
+                    settings.put("index.sort.field", config.fieldName()).put("index.sort.order", "desc");
+                }
+                createIndex(config.indexName(), settings.build(), """
+                    {
+                        "properties": {
+                            "%s": {
+                                "type": "%s"
                             }
                         }
-                        """.formatted(config.fieldName(), config.fieldType())
-                );
+                    }
+                    """.formatted(config.fieldName(), config.fieldType()));
             }
         }
 

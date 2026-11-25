@@ -162,6 +162,8 @@ public final class EngineConfig {
 
     private final MergeMetrics mergeMetrics;
 
+    private final FlushMetrics flushMetrics;
+
     /**
      * Allows to pass an {@link ElasticsearchIndexDeletionPolicy} wrapper to egine implementations.
      */
@@ -201,6 +203,7 @@ public final class EngineConfig {
         MapperService mapperService,
         EngineResetLock engineResetLock,
         MergeMetrics mergeMetrics,
+        FlushMetrics flushMetrics,
         Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper,
         @Nullable IndexWriter.IndexReaderWarmer mergedSegmentWarmer
     ) {
@@ -252,6 +255,7 @@ public final class EngineConfig {
         this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
         this.engineResetLock = engineResetLock;
         this.mergeMetrics = mergeMetrics;
+        this.flushMetrics = flushMetrics;
         this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
         this.mergedSegmentWarmer = mergedSegmentWarmer;
     }
@@ -507,6 +511,10 @@ public final class EngineConfig {
         return mergeMetrics;
     }
 
+    public FlushMetrics getFlushMetrics() {
+        return flushMetrics;
+    }
+
     /**
      * @return an {@link ElasticsearchIndexDeletionPolicy} wrapper, to be use by engine implementations.
      */
@@ -555,6 +563,7 @@ public final class EngineConfig {
         private MapperService mapperService;
         private EngineResetLock engineResetLock;
         private MergeMetrics mergeMetrics;
+        private FlushMetrics flushMetrics = FlushMetrics.NOOP;
         private Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
         private IndexWriter.IndexReaderWarmer mergedSegmentWarmer;
 
@@ -591,6 +600,7 @@ public final class EngineConfig {
             this.mapperService = config.mapperService;
             this.engineResetLock = config.engineResetLock;
             this.mergeMetrics = config.mergeMetrics;
+            this.flushMetrics = config.flushMetrics;
             this.indexDeletionPolicyWrapper = config.indexDeletionPolicyWrapper;
             this.mergedSegmentWarmer = config.mergedSegmentWarmer;
         }
@@ -750,6 +760,11 @@ public final class EngineConfig {
             return this;
         }
 
+        public Builder flushMetrics(FlushMetrics flushMetrics) {
+            this.flushMetrics = flushMetrics;
+            return this;
+        }
+
         public Builder indexDeletionPolicyWrapper(
             Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
         ) {
@@ -789,6 +804,7 @@ public final class EngineConfig {
                 mapperService,
                 engineResetLock,
                 mergeMetrics,
+                flushMetrics,
                 indexDeletionPolicyWrapper,
                 mergedSegmentWarmer
             );

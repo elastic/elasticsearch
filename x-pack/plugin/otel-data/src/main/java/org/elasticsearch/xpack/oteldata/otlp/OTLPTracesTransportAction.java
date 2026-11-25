@@ -54,8 +54,6 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
     public static final String NAME = "indices:data/write/otlp/traces";
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
 
-    public static final String TYPE_TRACES = "traces";
-
     @Inject
     public OTLPTracesTransportAction(
         TransportService transportService,
@@ -86,21 +84,20 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
         for (int i = 0, resourceSpansListSize = resourceSpansList.size(); i < resourceSpansListSize; i++) {
             ResourceSpans resourceSpans = resourceSpansList.get(i);
             Resource resource = resourceSpans.getResource();
+            TargetIndex resourceSpanTargetIndex = TargetIndex.defaultForTraces().withAttributeOverrides(resource.getAttributesList());
+            // span event targets are resolved lazily as most spans don't have events
+            TargetIndex resourceEventTargetIndex = null;
             List<ScopeSpans> scopeSpansList = resourceSpans.getScopeSpansList();
             for (int j = 0, scopeSpansListSize = scopeSpansList.size(); j < scopeSpansListSize; j++) {
                 ScopeSpans scopeSpans = scopeSpansList.get(j);
                 InstrumentationScope scope = scopeSpans.getScope();
-                String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
+                TargetIndex scopeSpanTargetIndex = resourceSpanTargetIndex.withAttributeOverrides(scope.getAttributesList())
+                    .maybeApplyScopeBasedRouting(scope);
+                TargetIndex scopeEventTargetIndex = null;
                 List<Span> spansList = scopeSpans.getSpansList();
                 for (int k = 0, spansListSize = spansList.size(); k < spansListSize; k++) {
                     Span span = spansList.get(k);
-                    TargetIndex index = TargetIndex.evaluate(
-                        TYPE_TRACES,
-                        span.getAttributesList(),
-                        scopeRoutingDataset,
-                        scope.getAttributesList(),
-                        resource.getAttributesList()
-                    );
+                    TargetIndex index = scopeSpanTargetIndex.withAttributeOverrides(span.getAttributesList());
                     try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
                         spanDocumentBuilder.buildSpanDocument(
                             xContentBuilder,
@@ -123,13 +120,15 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                     List<Span.Event> eventsList = span.getEventsList();
                     for (int l = 0, eventsListSize = eventsList.size(); l < eventsListSize; l++) {
                         Span.Event event = eventsList.get(l);
-                        TargetIndex eventIndex = TargetIndex.evaluate(
-                            TargetIndex.TYPE_LOGS,
-                            event.getAttributesList(),
-                            scopeRoutingDataset,
-                            scope.getAttributesList(),
-                            resource.getAttributesList()
-                        );
+                        if (scopeEventTargetIndex == null) {
+                            if (resourceEventTargetIndex == null) {
+                                resourceEventTargetIndex = TargetIndex.defaultForLogs()
+                                    .withAttributeOverrides(resource.getAttributesList());
+                            }
+                            scopeEventTargetIndex = resourceEventTargetIndex.withAttributeOverrides(scope.getAttributesList())
+                                .maybeApplyScopeBasedRouting(scope);
+                        }
+                        TargetIndex eventIndex = scopeEventTargetIndex.withAttributeOverrides(event.getAttributesList());
                         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
                             spanEventDocumentBuilder.buildSpanEventDocument(
                                 xContentBuilder,

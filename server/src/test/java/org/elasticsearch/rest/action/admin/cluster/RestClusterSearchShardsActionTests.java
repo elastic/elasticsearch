@@ -53,23 +53,6 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
     }
 
-    public void testParseSearchShardsRequestWithSliceAllParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        verifyingClient.setExecuteVerifier((actionType, request) -> {
-            ClusterSearchShardsRequest clusterRequest = (ClusterSearchShardsRequest) request;
-            assertNull(clusterRequest.routing());
-            assertTrue(clusterRequest.isRoutingFromSlice());
-            assertEquals(SliceIndexing.SLICE_ALL, clusterRequest.searchSlice());
-            return emptyResponse();
-        });
-
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search_shards")
-            .withParams(Map.of(SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
-            .build();
-        action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
-    }
-
     public void testParseSearchShardsRequestRejectsRoutingAndSliceTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)

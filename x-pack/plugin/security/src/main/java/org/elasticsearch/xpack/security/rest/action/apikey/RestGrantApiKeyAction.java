@@ -129,6 +129,12 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GrantApiKeyRequest grantRequest = requestTranslator.translate(request);
         // The user-managed service account REST handlers have no ServerlessScope, so they are not activated in

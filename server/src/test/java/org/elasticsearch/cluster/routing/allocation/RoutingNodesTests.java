@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RelocationFailureInfo;
@@ -591,7 +592,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             routingNodes.node("node-1").getByShardId(shardId),
             "node-3",
             0L,
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
@@ -599,7 +600,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             routingNodes.node("node-2").getByShardId(shardId),
             "node-4",
             0L,
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
@@ -772,7 +773,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             routingNodes.node("node-1").getByShardId(shardId),
             "node-3",
             0L,
-            "test",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             recoveryPriority
         );

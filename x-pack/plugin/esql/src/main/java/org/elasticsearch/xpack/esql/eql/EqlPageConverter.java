@@ -34,21 +34,10 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Converts a bounded {@link EqlSearchResponse} into a single {@link Page} under the typed schema of the
@@ -71,16 +60,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
  * event envelope ({@link Event#index()}/{@link Event#id()}/{@link Event#source()}), not the fields API.
  */
 public final class EqlPageConverter {
-
-    /**
-     * The set of column types the converter can materialize from the EQL fields API. The analyzer
-     * ({@code ResolveEqlRelation}) gates every mapped field against this set — anything outside it becomes an
-     * {@link UnsupportedAttribute} — so {@link #norm} never sees a type without a matching arm. This is the
-     * single source of truth: extending support means adding a {@code norm} arm AND a type here.
-     */
-    public static final Set<DataType> CONVERTIBLE_TYPES = Set.copyOf(
-        EnumSet.of(KEYWORD, TEXT, LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME, IP, VERSION)
-    );
 
     private static final Map<String, Function<Event, Object>> METADATA_EXTRACTORS = Map.of(
         MetadataAttribute.INDEX,
@@ -259,7 +238,7 @@ public final class EqlPageConverter {
      * column's {@link org.elasticsearch.compute.data.ElementType}. The fields API renders values as whatever the
      * fetch phase produced (numbers can arrive boxed as {@code Integer} where {@code Long} is expected, dates as
      * epoch-millis strings), so every arm tolerates both {@link Number} and {@link String} rather than blind-casting.
-     * The {@code default} arm is an unreachable tripwire — the resolve-time gate ({@link #CONVERTIBLE_TYPES}) turns
+     * The {@code default} arm is an unreachable tripwire — the resolve-time gate ({@link EqlRelation#CONVERTIBLE_TYPES}) turns
      * any other type into an {@link UnsupportedAttribute} before it can reach here.
      */
     private static Object norm(Object value, DataType type) {

@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Resolved leaf for the {@code EQL <indexPattern> "<query>"} source command. Delegates execution to the EQL
@@ -48,7 +50,7 @@ import java.util.Objects;
  * values would stay correct (the converter dispatches by attribute class), the output schema would carry two
  * columns of the same name and a downstream {@code KEEP}/{@code SORT} could not disambiguate them.
  */
-public class EqlRelation extends LeafPlan {
+public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
 
     /**
      * EQL result mode, determined by a shallow parse of the query string in the ES|QL parser. This is the plan-node-owned
@@ -66,6 +68,24 @@ public class EqlRelation extends LeafPlan {
     public static final String SEQUENCE_COLUMN = "_sequence";
     public static final String SEQUENCE_STAGE_COLUMN = "_sequence_stage";
     public static final String JOIN_KEYS_COLUMN = "join_keys";
+
+    /**
+     * The set of column types the converter can materialize from the EQL fields API. The analyzer ({@code ResolveEqlRelation}) gates
+     * every mapped field against this set — anything outside it becomes an {@code UnsupportedAttribute}
+     */
+    public static final Set<DataType> CONVERTIBLE_TYPES = Set.copyOf(
+        EnumSet.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.LONG,
+            DataType.INTEGER,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.IP,
+            DataType.VERSION
+        )
+    );
 
     /**
      * The synthetic columns a sequence/sample result prepends, in schema order: {@code _sequence} (long, which
@@ -90,10 +110,9 @@ public class EqlRelation extends LeafPlan {
     private final boolean hasExplicitLimit;
     private final List<Attribute> output;
     /**
-     * The row {@code LIMIT} folded into the EQL request {@code size} by {@code PushLimitIntoEqlRelation}, or
-     * {@code null} when no limit was pushed. Applies in every mode: {@code size} bounds the number of matches and
-     * each match unnests to at least one row, so a pushed size can never yield fewer rows than the retained
-     * {@code LIMIT} trims to. Null means the request falls back to the ES|QL result-truncation cap.
+     * The row {@code LIMIT} that may lower the EQL request {@code size}, set by {@code PushLimitIntoEqlRelation}, or {@code null}
+     * when none was pushed. Each match unnests to at least one row, so a pushed size can never yield fewer rows than the retained
+     * {@code LIMIT} trims to.
      */
     private final Integer pushedLimit;
     /**

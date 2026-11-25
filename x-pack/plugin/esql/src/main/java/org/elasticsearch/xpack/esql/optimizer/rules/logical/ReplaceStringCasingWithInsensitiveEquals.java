@@ -56,6 +56,10 @@ public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.Opt
 
     private static Expression replaceChangeCase(LogicalOptimizerContext ctx, BinaryComparison bc, ChangeCase changeCase, boolean negated) {
         var foldedRight = BytesRefs.toString(bc.right().fold(ctx.foldCtx()));
+        if (foldedRight == null) {
+            // the comparison evaluates to null, negated or not
+            return Literal.of(bc, null);
+        }
         var field = unwrapCase(changeCase.field());
         var e = changeCase.caseType().matchesCase(foldedRight)
             ? new InsensitiveEquals(bc.source(), field, bc.right())

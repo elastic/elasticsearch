@@ -4159,6 +4159,33 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
+     * {@code TO_LONG(x)} and {@code TO_INTEGER(x)} on a union with a small numeric type, like {@code short}, resolve every type: the
+     * {@code short} is widened when converting. The conversions are serialized with the field, so none can be left as a surrogate.
+     */
+    public void testConversionOnUnionWithSmallNumericType() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("short", "long");
+        Map<String, Class<? extends Expression>> conversionClasses = Map.of("TO_LONG", ToLong.class, "TO_INTEGER", ToInteger.class);
+        for (Map.Entry<String, Class<? extends Expression>> function : conversionClasses.entrySet()) {
+            LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = " + function.getKey() + "(value)");
+
+            List<UnionTypeEsField> unionFields = new ArrayList<>();
+            plan.forEachDown(EsRelation.class, relation -> {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
+                        unionFields.add(union);
+                    }
+                }
+            });
+            assertThat(unionFields, hasSize(1));
+            Collection<Expression> conversions = unionFields.get(0).getConversionExpressions();
+            assertThat(conversions, hasSize(2));
+            assertThat(conversions, everyItem(instanceOf(function.getValue())));
+            assertThat(conversions, everyItem(not(instanceOf(OnlySurrogateExpression.class))));
+        }
+    }
+
+    /**
      * The conversions of a union run while loading the field, where other fields aren't available, so the base has to be a constant.
      */
     public void testConversionWithNonConstantBaseOnUnionFails() {

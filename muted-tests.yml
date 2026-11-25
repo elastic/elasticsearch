@@ -862,3 +862,25 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluate {TestCase=<double, 12 ints> null in 5}
   issue: https://github.com/elastic/elasticsearch/issues/167370
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testSerializationOfSimple {TestCase=<double, 7 ints> null in 2}
+  issue: https://github.com/elastic/elasticsearch/issues/167372
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateInManyThreads {TestCase=<integer>, <long>, <long>, <long>, <long>, <null>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>,
+    <long>, <long>}
+  issue: https://github.com/elastic/elasticsearch/issues/167374
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluatorToString {TestCase=<long>, <integer>, <null>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>,
+    <integer>, <integer>, <integer>, <integer>}
+  issue: https://github.com/elastic/elasticsearch/issues/167376
+- class: org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExecSerializationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testDeeplyNestedFields
+  issue: https://github.com/elastic/elasticsearch/issues/167380

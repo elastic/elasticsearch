@@ -900,3 +900,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluateBlockWithNulls {TestCase=<date, 16 dates> null in 14}
   issue: https://github.com/elastic/elasticsearch/issues/167397
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateBlockWithNulls {TestCase=<long, 19 longs> null in 8}
+  issue: https://github.com/elastic/elasticsearch/issues/167399

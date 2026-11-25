@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -59,7 +59,7 @@ public enum QuerySourceCommand {
             case UnresolvedExternalRelation relation -> sources.add(EXTERNAL);
             case UnresolvedEqlRelation relation -> sources.add(OTHER);
             // The subquery of `x IN (subquery)` filters the query, like a lookup, so only the side it filters is a source.
-            case AbstractSubqueryJoin join -> collect(join.left(), sources);
+            case AbstractInSubqueryJoin join -> collect(join.left(), sources);
             default -> plan.children().forEach(child -> collect(child, sources));
         }
     }

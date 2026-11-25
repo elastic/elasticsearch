@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -18,6 +19,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -69,6 +72,28 @@ public class QueryDurationMetricIT extends AbstractEsqlIntegTestCase {
 
         run(syncEsqlQueryRequest("FROM logs | LIMIT 1")).close();
         assertRecorded("FROM", null, "success");
+    }
+
+    public void testSourceCommandThroughView() {
+        String viewName = "metrics_view";
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, "TS metrics | STATS max(cpu)"))
+            )
+        );
+        try {
+            // Classify the source inside the resolved view, even though the query uses FROM to read it.
+            run(syncEsqlQueryRequest("FROM " + viewName + " | LIMIT 1")).close();
+            assertRecorded("TS", null, "success");
+        } finally {
+            assertAcked(
+                client().execute(
+                    DeleteViewAction.INSTANCE,
+                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                )
+            );
+        }
     }
 
     public void testFailure() {

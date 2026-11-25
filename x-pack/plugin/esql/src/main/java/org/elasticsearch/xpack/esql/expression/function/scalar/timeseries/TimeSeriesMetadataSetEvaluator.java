@@ -17,11 +17,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Evaluates {@link TimeSeriesMetadataSet}: the metadata with every field but the key copied, and the key written with
@@ -34,19 +34,22 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
     private final String key;
     private final List<String> path;
     private final ExpressionEvaluator value;
+    private final Set<String> roots;
 
     TimeSeriesMetadataSetEvaluator(
         DriverContext driverContext,
         ExpressionEvaluator metadata,
         String key,
         List<String> path,
-        ExpressionEvaluator value
+        ExpressionEvaluator value,
+        Set<String> roots
     ) {
         super(driverContext, metadata, value);
         this.metadata = metadata;
         this.key = key;
         this.path = path;
         this.value = value;
+        this.roots = roots;
     }
 
     @Override
@@ -64,7 +67,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
             MetadataWriter writer = new MetadataWriter(builder);
             if (container != null) {
                 try (XContentParser parser = parser(container)) {
-                    copy(parser, "", 0, writer, values);
+                    copy(parser, "", "", 0, writer, values);
                     end(parser);
                 }
             } else if (values.isEmpty() == false) {
@@ -76,29 +79,31 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
     }
 
     /**
-     * Copies the object {@code parser} is in, at {@code prefix}, leaving the key out wherever a field holds it and writing it
-     * at its path. {@code depth} is the number of path keys leading to this object, or -1 when the object is off the path.
+     * Copies the object {@code parser} is in, at path {@code prefix} with the label name prefix {@code label}, leaving the key
+     * out wherever a field holds it and writing it at its path. {@code depth} is the number of path keys leading to this
+     * object, or -1 when the object is off the path.
      */
-    private void copy(XContentParser parser, String prefix, int depth, MetadataWriter writer, List<String> values) throws IOException {
+    private void copy(XContentParser parser, String prefix, String label, int depth, MetadataWriter writer, List<String> values)
+        throws IOException {
         boolean write = depth >= 0 && values.isEmpty() == false;
         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
             String name = parser.currentName();
-            String field = prefix + name;
             XContentParser.Token token = parser.nextToken();
             int order = depth >= 0 ? name.compareTo(path.get(depth)) : -1;
             if (order == 0 && (token == XContentParser.Token.START_OBJECT) != (depth + 1 < path.size())) {
-                throw new IllegalArgumentException("time-series dimension [" + field + "] conflicts with key path " + path);
+                throw new IllegalArgumentException("time-series dimension [" + prefix + name + "] conflicts with key path " + path);
             }
             if (write && order > 0) {
                 write(writer, depth, values);
                 write = false;
             }
             if (token == XContentParser.Token.START_OBJECT) {
+                String object = prefix + name;
                 writer.startObject(name);
-                copy(parser, field + ".", order == 0 ? depth + 1 : -1, writer, values);
+                copy(parser, object + ".", labelPrefix(object, label + name, roots), order == 0 ? depth + 1 : -1, writer, values);
                 writer.endObject();
                 write &= order != 0;
-            } else if (PromqlLabels.labelName(field).equals(key)) {
+            } else if (isLabel(key, label, name)) {
                 parser.skipChildren();
             } else {
                 writer.field(name).copyCurrentStructure(parser);
@@ -155,12 +160,16 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
         return "TimeSeriesMetadataSetEvaluator[metadata=" + metadata + ", key=" + key + ", path=" + path + ", value=" + value + "]";
     }
 
-    record Factory(ExpressionEvaluator.Factory metadata, String key, List<String> path, ExpressionEvaluator.Factory value)
-        implements
-            ExpressionEvaluator.Factory {
+    record Factory(
+        ExpressionEvaluator.Factory metadata,
+        String key,
+        List<String> path,
+        ExpressionEvaluator.Factory value,
+        Set<String> roots
+    ) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesMetadataSetEvaluator(context, metadata.get(context), key, path, value.get(context));
+            return new TimeSeriesMetadataSetEvaluator(context, metadata.get(context), key, path, value.get(context), roots);
         }
 
         @Override

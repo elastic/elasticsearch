@@ -15,16 +15,27 @@ import java.util.List;
 public class TimeSeriesMetadataSetSerializationTests extends AbstractExpressionSerializationTests<TimeSeriesMetadataSet> {
     @Override
     protected TimeSeriesMetadataSet createTestInstance() {
-        return new TimeSeriesMetadataSet(randomSource(), randomChild(), randomChild(), randomChild(), randomPath());
+        return new TimeSeriesMetadataSet(
+            randomSource(),
+            randomChild(),
+            randomChild(),
+            randomChild(),
+            randomPath(),
+            TimeSeriesMetadataPathSerializationTests.randomRoots()
+        );
     }
 
     @Override
     protected TimeSeriesMetadataSet mutateInstance(TimeSeriesMetadataSet instance) {
         var children = new ArrayList<>(instance.children());
-        int index = randomInt(children.size());
+        int index = randomInt(children.size() + 1);
         if (index == children.size()) {
             List<String> path = randomValueOtherThan(instance.path(), TimeSeriesMetadataSetSerializationTests::randomPath);
-            return new TimeSeriesMetadataSet(instance.source(), children.get(0), children.get(1), children.get(2), path);
+            return new TimeSeriesMetadataSet(instance.source(), children.get(0), children.get(1), children.get(2), path, instance.roots());
+        }
+        if (index == children.size() + 1) {
+            List<String> roots = randomValueOtherThan(instance.roots(), TimeSeriesMetadataPathSerializationTests::randomRoots);
+            return new TimeSeriesMetadataSet(instance.source(), children.get(0), children.get(1), children.get(2), instance.path(), roots);
         }
         children.set(index, mutateExpression(children.get(index)));
         return instance.replaceChildren(children);

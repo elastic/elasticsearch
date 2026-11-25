@@ -32,6 +32,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase {
+    /** The {@code roots} of remote write, which keeps every label in a {@code labels} object. */
+    static final List<String> ROOTS = List.of("labels");
+
     public TimeSeriesMetadataPathTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -97,7 +100,7 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesMetadataPath(source, args.get(0), args.get(1));
+        return new TimeSeriesMetadataPath(source, args.get(0), args.get(1), ROOTS);
     }
 
     /** A key name must be a non-empty constant string, so the evaluator folds it once. */
@@ -109,13 +112,13 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
             Literal.NULL,
             field("key", DataType.KEYWORD)
         )) {
-            assertTrue(key.toString(), new TimeSeriesMetadataPath(Source.EMPTY, metadata, key).typeResolved().unresolved());
+            assertTrue(key.toString(), new TimeSeriesMetadataPath(Source.EMPTY, metadata, key, ROOTS).typeResolved().unresolved());
         }
     }
 
     /** Only a keyword {@code _timeseries} can be read. */
     public void testMetadataMustBeKeyword() {
-        var path = new TimeSeriesMetadataPath(Source.EMPTY, field("metadata", DataType.LONG), Literal.keyword(Source.EMPTY, "pod"));
+        var path = new TimeSeriesMetadataPath(Source.EMPTY, field("metadata", DataType.LONG), Literal.keyword(Source.EMPTY, "pod"), ROOTS);
         assertThat(path.typeResolved().message(), containsString("_timeseries"));
     }
 
@@ -133,7 +136,12 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
     }
 
     private void read(Object metadata) {
-        var path = new TimeSeriesMetadataPath(Source.EMPTY, field("metadata", DataType.KEYWORD), Literal.keyword(Source.EMPTY, "pod"));
+        var path = new TimeSeriesMetadataPath(
+            Source.EMPTY,
+            field("metadata", DataType.KEYWORD),
+            Literal.keyword(Source.EMPTY, "pod"),
+            ROOTS
+        );
         try (
             ExpressionEvaluator eval = evaluator(path).get(driverContext());
             Block block = eval.eval(row(Collections.singletonList(metadata)))

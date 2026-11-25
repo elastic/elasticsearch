@@ -21,6 +21,9 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 
 public class TimeSeriesMetadataFilterErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+    /** The {@code roots} of remote write, which keeps every label in a {@code labels} object. */
+    static final List<String> ROOTS = List.of("labels");
+
     @Override
     protected List<TestCaseSupplier> cases() {
         // Only the one-key signatures: error generation permutes every argument position, which longer signatures explode.
@@ -29,7 +32,7 @@ public class TimeSeriesMetadataFilterErrorTests extends ErrorsForCasesWithoutExa
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), false);
+        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), false, ROOTS);
     }
 
     @Override

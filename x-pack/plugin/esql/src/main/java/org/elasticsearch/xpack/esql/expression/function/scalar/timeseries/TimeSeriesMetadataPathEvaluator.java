@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /** Evaluates {@link TimeSeriesMetadataPath}: the values of one key, null when the key is absent. */
 final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFunction.AbstractEvaluator {
@@ -27,11 +28,13 @@ final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFu
 
     private final ExpressionEvaluator metadata;
     private final String key;
+    private final Set<String> roots;
 
-    TimeSeriesMetadataPathEvaluator(DriverContext driverContext, ExpressionEvaluator metadata, String key) {
+    TimeSeriesMetadataPathEvaluator(DriverContext driverContext, ExpressionEvaluator metadata, String key, Set<String> roots) {
         super(driverContext, metadata);
         this.metadata = metadata;
         this.key = key;
+        this.roots = roots;
     }
 
     @Override
@@ -44,7 +47,7 @@ final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFu
     ) throws IOException {
         if (container != null) {
             try (XContentParser parser = parser(container)) {
-                if (find(parser, "", key)) {
+                if (find(parser, "", "", key, roots)) {
                     // A null or empty value reads as absent, as TS_SET writes an absent label.
                     if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                         List<BytesRef> values = new ArrayList<>();
@@ -91,10 +94,10 @@ final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFu
         return "TimeSeriesMetadataPathEvaluator[metadata=" + metadata + ", key=" + key + "]";
     }
 
-    record Factory(ExpressionEvaluator.Factory metadata, String key) implements ExpressionEvaluator.Factory {
+    record Factory(ExpressionEvaluator.Factory metadata, String key, Set<String> roots) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesMetadataPathEvaluator(context, metadata.get(context), key);
+            return new TimeSeriesMetadataPathEvaluator(context, metadata.get(context), key, roots);
         }
 
         @Override

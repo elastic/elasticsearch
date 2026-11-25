@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
@@ -34,15 +35,21 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -51,25 +58,84 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Internal function that evaluates expressions on a metadata container: the keyword {@code _timeseries} JSON object of a series'
  * dimensions, which reads as the metadata it holds.
+ * <p>
+ * A container holds a dimension at the path its storage gives it: remote write keeps {@code pod} at {@code labels.pod}, OTel keeps
+ * {@code state} at {@code attributes.state}. A key names a dimension by its label name instead: its path below the innermost of the
+ * objects at {@link #roots} holding it, or its full path when none does. So {@code pod}, {@code labels.pod} and
+ * {@code attributes.pod} all have the label name {@code pod}, and a key {@code pod} matches each of them; a field below an object
+ * not in {@link #roots}, as {@code host.name}, keeps its full path. A function treats every field a key matches as that one key.
  */
 public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
-    protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments) {
+    /**
+     * Nodes that know the label container functions. A plan reaches a node only when it knows every function in it, so a
+     * translation emits these functions only when every node does.
+     */
+    public static final TransportVersion ENABLE_TSMETADATA_FN = TransportVersion.fromName("enable_tsmetadata_fn");
+
+    private final List<String> roots;
+
+    protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments, List<String> roots) {
         super(source, arguments);
+        this.roots = roots;
     }
 
     protected AbstractTimeSeriesMetadataFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.readStringCollectionAsImmutableList()
+        );
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(children());
+        out.writeStringCollection(roots);
         writeArguments(out);
     }
 
     /** Writes the arguments that are not expressions, after the children; a subclass reads them back in the same order. */
     protected void writeArguments(StreamOutput out) throws IOException {}
+
+    /** The paths of the objects below which a dimension is named by its path below the innermost one. */
+    public List<String> roots() {
+        return roots;
+    }
+
+    /**
+     * The roots of the mappings of the valid {@code resolutions}, in name order: the objects whose fields a query can also name
+     * by their path below the object, which are the {@code passthrough} objects.
+     */
+    public static List<String> roots(Collection<IndexResolution> resolutions) {
+        Set<String> roots = new TreeSet<>();
+        for (IndexResolution resolution : resolutions) {
+            if (resolution != null && resolution.isValid()) {
+                collectRoots(null, resolution.get().mapping(), roots);
+            }
+        }
+        return List.copyOf(roots);
+    }
+
+    private static void collectRoots(@Nullable String parent, Map<String, EsField> mapping, Set<String> roots) {
+        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+            String path = parent == null ? entry.getKey() : parent + "." + entry.getKey();
+            if (entry.getValue().isPassthrough()) {
+                roots.add(path);
+            }
+            collectRoots(path, entry.getValue().getProperties(), roots);
+        }
+    }
+
+    /** The label name of the dimension at {@code field}: its path below the innermost of {@code roots} holding it, or its full path. */
+    public static String labelName(String field, Collection<String> roots) {
+        for (int dot = field.lastIndexOf('.'); dot > 0; dot = field.lastIndexOf('.', dot - 1)) {
+            if (roots.contains(field.substring(0, dot))) {
+                return field.substring(dot + 1);
+            }
+        }
+        return field;
+    }
 
     /** The dimension names this function reads or writes: every argument after the metadata container by default. */
     public List<Expression> keys() {
@@ -115,6 +181,16 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         return Expressions.foldable(children());
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), roots);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && roots.equals(((AbstractTimeSeriesMetadataFunction) obj).roots);
+    }
+
     /** The name a key argument folds to; type resolution checks it is a non-empty string. */
     protected static String foldKey(Expression key, ToEvaluator toEvaluator) {
         return ((BytesRef) key.fold(toEvaluator.foldCtx())).utf8ToString();
@@ -126,6 +202,8 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
      * field path, see {@link #find}. Every function streams over the container: a read stops at its key, and a rewrite copies
      * the fields it keeps in their order, writing a set key at its sorted position, so it writes metadata in the
      * same form: two series with the same labels and values get equal bytes, whichever functions produced them.
+     * A walk carries the label name prefix of the object it is in, see {@link #labelPrefix}, so it names a field without
+     * cutting its path apart.
      * <p>
      * When the other arguments are constant on a page, the result depends on the metadata alone: constant metadata
      * is evaluated once, and a dictionary encoded one once per dictionary entry.
@@ -257,23 +335,39 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         }
 
         /**
-         * Moves {@code parser}, in an object at {@code prefix}, to the value of the field that holds {@code key}, returning false
-         * when no field does. A key is named by its field path as PromQL names it, see {@link PromqlLabels#labelName(String)}.
+         * Moves {@code parser}, in the object at path {@code prefix} whose fields have the label name prefix {@code label}, to
+         * the value of the first field whose label name is {@code key}, returning false when no field has it.
          */
-        static boolean find(XContentParser parser, String prefix, String key) throws IOException {
+        protected static boolean find(XContentParser parser, String prefix, String label, String key, Set<String> roots)
+            throws IOException {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                String field = prefix + parser.currentName();
+                String name = parser.currentName();
                 if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
-                    if (find(parser, field + ".", key)) {
+                    String object = prefix + name;
+                    if (find(parser, object + ".", labelPrefix(object, label + name, roots), key, roots)) {
                         return true;
                     }
-                } else if (PromqlLabels.labelName(field).equals(key)) {
+                } else if (isLabel(key, label, name)) {
                     return true;
                 } else {
                     parser.skipChildren();
                 }
             }
             return false;
+        }
+
+        /**
+         * The label name prefix of the fields of the object at {@code path}, whose own label name is {@code label}: none in an
+         * object at one of {@code roots}, whose fields are named by their names in it, and the object's label name and a dot
+         * otherwise.
+         */
+        protected static String labelPrefix(String path, String label, Set<String> roots) {
+            return roots.contains(path) ? "" : label + ".";
+        }
+
+        /** Whether the field {@code name}, in an object whose fields have the label name prefix {@code label}, is {@code key}. */
+        protected static boolean isLabel(String key, String label, String name) {
+            return key.length() == label.length() + name.length() && key.startsWith(label) && key.endsWith(name);
         }
 
         /** Opens {@code labels}, positioned on its object. */

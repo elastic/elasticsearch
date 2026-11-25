@@ -224,3 +224,37 @@ result:double | _timeseries:keyword
 6.0           | "{""labels"":{""cpu"":""system""}}"
 12.0          | "{""labels"":{""cpu"":""user""}}"
 ;
+
+// The outer without names a passthrough attribute by its alias: it is left out of the inner packing at its field path.
+// Ignored until a without over a without is accepted.
+nested_without_over_passthrough_attributes_outer_alias-Ignore
+required_capability: promql_command_v0
+required_capability: promql_without_grouping
+required_capability: promql_nested_aggregates
+required_capability: promql_nested_without
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=otel-metrics step=1h result=(sum without (state) (max without (cpu) (metrics.cpu_time)))
+| KEEP result, step, _timeseries
+| SORT step, _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+12.0          | 2024-05-10T01:00:00.000Z | {}
+;
+
+// The inner without names the attribute by its field name and the outer one by its alias.
+// Ignored until a without over a without is accepted.
+nested_without_over_passthrough_attributes_inner_field_outer_alias-Ignore
+required_capability: promql_command_v0
+required_capability: promql_without_grouping
+required_capability: promql_nested_aggregates
+required_capability: promql_nested_without
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=otel-metrics step=1h result=(sum without (cpu) (max without (attributes.state) (metrics.cpu_time)))
+| KEEP result, step, _timeseries
+| SORT step, _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+15.0          | 2024-05-10T01:00:00.000Z | {}
+;

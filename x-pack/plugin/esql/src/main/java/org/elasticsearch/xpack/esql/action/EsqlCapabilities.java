@@ -2840,6 +2840,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL reads and rewrites labels in {@code _timeseries} with the label container functions, which every node of the
+         * cluster must know: the shapes this admits, and the canonical {@code _timeseries} the command outputs. A cluster with a
+         * node that does not know them keeps rejecting those shapes. Snapshot only: a release build keeps translating as
+         * before. Gates test coverage of both.
+         */
+        PROMQL_TIMESERIES_METADATA_FUNCTIONS(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */
@@ -4357,6 +4365,12 @@ public class EsqlCapabilities {
          * refines the aggregate's, so no two series can collapse onto one label set.
          */
         PROMQL_LABEL_FUNCTIONS_V2(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL value transforms, range functions other than {@code first_over_time}/{@code last_over_time}, and arithmetic
+         * drop a {@code __name__} stored as a label, as Prometheus does.
+         */
+        FIX_PROMQL_DROP_STORED_METRIC_NAME(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.

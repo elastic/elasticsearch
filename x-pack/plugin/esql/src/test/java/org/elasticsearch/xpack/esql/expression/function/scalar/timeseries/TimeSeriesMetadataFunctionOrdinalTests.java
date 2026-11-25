@@ -51,6 +51,8 @@ import static org.hamcrest.Matchers.not;
  * values give through the per-row path.
  */
 public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
+    /** The {@code roots} of remote write, which keeps every label in a {@code labels} object. */
+    static final List<String> ROOTS = List.of("labels");
 
     private static final String[] CONTAINERS = {
         "{\"cluster\":\"prod\",\"pod\":\"one\"}",
@@ -67,18 +69,18 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     public void testReadReusesOrdinals() {
-        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS, DENSE, true);
+        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod"), ROOTS), CONTAINERS, DENSE, true);
     }
 
     public void testReadOfAbsentOrSeveralValuesKeepsRows() {
         // An absent key reads as null and a key of several values as one multi-valued position: neither fits a dictionary.
         String[] containers = { "{\"pod\":\"one\"}", "{\"cluster\":\"prod\"}", "{\"pod\":[\"one\",\"two\"]}" };
-        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), containers, DENSE, false);
+        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod"), ROOTS), containers, DENSE, false);
     }
 
     public void testKeepReusesOrdinals() {
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("cluster")), false),
+            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("cluster")), false, ROOTS),
             CONTAINERS,
             DENSE,
             true
@@ -87,7 +89,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
 
     public void testDropReusesOrdinals() {
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod"), keyword("absent")), true),
+            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod"), keyword("absent")), true, ROOTS),
             CONTAINERS,
             DENSE,
             true
@@ -96,7 +98,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
 
     public void testSetOfConstantReusesOrdinals() {
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("job")),
+            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("job"), ROOTS),
             CONTAINERS,
             DENSE,
             true
@@ -110,7 +112,8 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
                 c,
                 keyword("pod"),
                 new Literal(Source.EMPTY, null, DataType.KEYWORD),
-                List.of("pod")
+                List.of("pod"),
+                ROOTS
             ),
             CONTAINERS,
             DENSE,
@@ -121,7 +124,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     public void testSetOfColumnKeepsRows() {
         // The written value changes per row, so the result is not a function of the metadata alone.
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), field("job", DataType.KEYWORD), List.of("job")),
+            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), field("job", DataType.KEYWORD), List.of("job"), ROOTS),
             CONTAINERS,
             DENSE,
             false
@@ -132,26 +135,26 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
         // A rewrite of a null metadata is metadata, which reused ordinals would leave null.
         Integer[] ordinals = { 0, 1, null, 2, 0, null, 1, 2, 0, 1, 2, 0, 1, 2, 0 };
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true),
+            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true, ROOTS),
             CONTAINERS,
             ordinals,
             false
         );
-        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS, ordinals, false);
+        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod"), ROOTS), CONTAINERS, ordinals, false);
     }
 
     public void testConstantEvaluatesOnce() {
-        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS[0], true);
-        assertConstant(c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true), CONTAINERS[0], true);
+        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod"), ROOTS), CONTAINERS[0], true);
+        assertConstant(c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true, ROOTS), CONTAINERS[0], true);
         assertConstant(
-            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("job")),
+            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("job"), ROOTS),
             CONTAINERS[0],
             true
         );
         // A read of an absent key is null on every row.
-        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("absent")), CONTAINERS[0], true);
+        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("absent"), ROOTS), CONTAINERS[0], true);
         // A read of a key of several values is not one value, so it is evaluated per row.
-        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), "{\"pod\":[\"one\",\"two\"]}", false);
+        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod"), ROOTS), "{\"pod\":[\"one\",\"two\"]}", false);
     }
 
     /**
@@ -181,12 +184,12 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
 
     public void testNestedReadReusesOrdinals() {
         // A keyword _timeseries is the source's JSON object, with its objects: a key is named by its field path.
-        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), NESTED_CONTAINERS, DENSE, true);
+        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod"), ROOTS), NESTED_CONTAINERS, DENSE, true);
     }
 
     public void testNestedDropReusesOrdinals() {
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true),
+            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true, ROOTS),
             NESTED_CONTAINERS,
             DENSE,
             true
@@ -195,7 +198,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
 
     public void testNestedSetReusesOrdinals() {
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("labels", "job")),
+            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("labels", "job"), ROOTS),
             NESTED_CONTAINERS,
             DENSE,
             true
@@ -204,7 +207,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
 
     public void testSparseKeepsRows() {
         Integer[] ordinals = { 0, 1, 2 };
-        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS, ordinals, false);
+        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod"), ROOTS), CONTAINERS, ordinals, false);
     }
 
     /**

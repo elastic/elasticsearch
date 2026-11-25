@@ -31,6 +31,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunctionTestCase {
+    /** The {@code roots} of remote write, which keeps every label in a {@code labels} object. */
+    static final List<String> ROOTS = List.of("labels");
+
     public TimeSeriesMetadataFilterExcludeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -78,7 +81,7 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), true);
+        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), true, ROOTS);
     }
 
     /** A missing metadata is the empty one, so removing keys from it leaves it empty rather than null. */
@@ -96,7 +99,13 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
             Literal.NULL,
             field("key", DataType.KEYWORD)
         )) {
-            var transform = new TimeSeriesMetadataFilter(Source.EMPTY, metadata, List.of(Literal.keyword(Source.EMPTY, "pod"), key), true);
+            var transform = new TimeSeriesMetadataFilter(
+                Source.EMPTY,
+                metadata,
+                List.of(Literal.keyword(Source.EMPTY, "pod"), key),
+                true,
+                ROOTS
+            );
             assertTrue(key.toString(), transform.typeResolved().unresolved());
         }
     }
@@ -107,7 +116,8 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
             Source.EMPTY,
             field("metadata", DataType.LONG),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
-            true
+            true,
+            ROOTS
         );
         assertThat(transform.typeResolved().message(), containsString("_timeseries"));
     }
@@ -130,7 +140,8 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
             Source.EMPTY,
             field("metadata", DataType.KEYWORD),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
-            true
+            true,
+            ROOTS
         );
         try (
             ExpressionEvaluator eval = evaluator(transform).get(driverContext());

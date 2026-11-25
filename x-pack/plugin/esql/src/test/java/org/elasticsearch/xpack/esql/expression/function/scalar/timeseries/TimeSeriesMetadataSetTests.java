@@ -28,6 +28,9 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
+    /** The {@code roots} of remote write, which keeps every label in a {@code labels} object. */
+    static final List<String> ROOTS = List.of("labels");
+
     public TimeSeriesMetadataSetTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -136,7 +139,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
         List<String> path = key.foldable() && key.fold(FoldContext.small()) instanceof BytesRef name
             ? path(name.utf8ToString())
             : List.of("key");
-        return new TimeSeriesMetadataSet(source, args.get(0), key, args.get(2), path);
+        return new TimeSeriesMetadataSet(source, args.get(0), key, args.get(2), path, ROOTS);
     }
 
     /** A missing metadata is the empty one and a missing value removes the key: the result is the empty container. */
@@ -157,7 +160,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
         )) {
             assertTrue(
                 key.toString(),
-                new TimeSeriesMetadataSet(Source.EMPTY, metadata, key, value, List.of("key")).typeResolved().unresolved()
+                new TimeSeriesMetadataSet(Source.EMPTY, metadata, key, value, List.of("key"), ROOTS).typeResolved().unresolved()
             );
         }
     }
@@ -167,10 +170,15 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
         Expression metadata = field("metadata", DataType.KEYWORD);
         Expression value = field("value", DataType.KEYWORD);
         Expression pod = Literal.keyword(Source.EMPTY, "pod");
-        assertTrue(new TimeSeriesMetadataSet(Source.EMPTY, metadata, pod, value, List.of("labels", "pod")).typeResolved().resolved());
-        assertTrue(new TimeSeriesMetadataSet(Source.EMPTY, metadata, pod, value, List.of("pod")).typeResolved().resolved());
+        assertTrue(
+            new TimeSeriesMetadataSet(Source.EMPTY, metadata, pod, value, List.of("labels", "pod"), ROOTS).typeResolved().resolved()
+        );
+        assertTrue(new TimeSeriesMetadataSet(Source.EMPTY, metadata, pod, value, List.of("pod"), ROOTS).typeResolved().resolved());
         for (List<String> path : List.<List<String>>of(List.of(), List.of("job"), List.of("k8s", "pod"))) {
-            assertTrue(path.toString(), new TimeSeriesMetadataSet(Source.EMPTY, metadata, pod, value, path).typeResolved().unresolved());
+            assertTrue(
+                path.toString(),
+                new TimeSeriesMetadataSet(Source.EMPTY, metadata, pod, value, path, ROOTS).typeResolved().unresolved()
+            );
         }
     }
 }

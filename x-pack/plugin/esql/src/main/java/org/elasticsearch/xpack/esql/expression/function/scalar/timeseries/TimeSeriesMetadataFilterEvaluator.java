@@ -17,10 +17,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Evaluates {@link TimeSeriesMetadataFilter}: the metadata of the listed keys, or of every other key when
@@ -31,13 +31,23 @@ final class TimeSeriesMetadataFilterEvaluator extends AbstractTimeSeriesMetadata
 
     private final ExpressionEvaluator metadata;
     private final List<String> keys;
+    private final Set<String> keySet;
     private final boolean exclude;
+    private final Set<String> roots;
 
-    TimeSeriesMetadataFilterEvaluator(DriverContext driverContext, ExpressionEvaluator metadata, List<String> keys, boolean exclude) {
+    TimeSeriesMetadataFilterEvaluator(
+        DriverContext driverContext,
+        ExpressionEvaluator metadata,
+        List<String> keys,
+        boolean exclude,
+        Set<String> roots
+    ) {
         super(driverContext, metadata);
         this.metadata = metadata;
         this.keys = keys;
+        this.keySet = Set.copyOf(keys);
         this.exclude = exclude;
+        this.roots = roots;
     }
 
     @Override
@@ -53,7 +63,7 @@ final class TimeSeriesMetadataFilterEvaluator extends AbstractTimeSeriesMetadata
             builder.startObject();
             if (container != null) {
                 try (XContentParser parser = parser(container)) {
-                    copy(parser, "", new MetadataWriter(builder));
+                    copy(parser, "", "", new MetadataWriter(builder));
                     end(parser);
                 }
             }
@@ -62,16 +72,19 @@ final class TimeSeriesMetadataFilterEvaluator extends AbstractTimeSeriesMetadata
         result.appendBytesRef(scratch.bytesRefView());
     }
 
-    /** Copies the object {@code parser} is in, at {@code prefix}, with the keys this filter keeps. */
-    private void copy(XContentParser parser, String prefix, MetadataWriter writer) throws IOException {
+    /**
+     * Copies the object {@code parser} is in, at path {@code prefix} with the label name prefix {@code label}, with the keys
+     * this filter keeps.
+     */
+    private void copy(XContentParser parser, String prefix, String label, MetadataWriter writer) throws IOException {
         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
             String name = parser.currentName();
-            String field = prefix + name;
             if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                String object = prefix + name;
                 writer.startObject(name);
-                copy(parser, field + ".", writer);
+                copy(parser, object + ".", labelPrefix(object, label + name, roots), writer);
                 writer.endObject();
-            } else if (keys.contains(PromqlLabels.labelName(field)) != exclude) {
+            } else if (keySet.contains(label + name) != exclude) {
                 writer.field(name).copyCurrentStructure(parser);
             } else {
                 parser.skipChildren();
@@ -97,10 +110,12 @@ final class TimeSeriesMetadataFilterEvaluator extends AbstractTimeSeriesMetadata
         return "TimeSeriesMetadataFilterEvaluator[metadata=" + metadata + ", keys=" + keys + ", exclude=" + exclude + "]";
     }
 
-    record Factory(ExpressionEvaluator.Factory metadata, List<String> keys, boolean exclude) implements ExpressionEvaluator.Factory {
+    record Factory(ExpressionEvaluator.Factory metadata, List<String> keys, boolean exclude, Set<String> roots)
+        implements
+            ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesMetadataFilterEvaluator(context, metadata.get(context), keys, exclude);
+            return new TimeSeriesMetadataFilterEvaluator(context, metadata.get(context), keys, exclude, roots);
         }
 
         @Override

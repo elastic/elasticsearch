@@ -25,7 +25,6 @@ import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -193,30 +192,6 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         return false;
     }
 
-    private long getRequestBreakerTrippedCount() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
-        long tripped = 0;
-        for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.REQUEST);
-            if (breakerStats != null) {
-                tripped += breakerStats.getTrippedCount();
-            }
-        }
-        return tripped;
-    }
-
-    private long getRequestBreakerEstimated() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
-        long estimated = 0;
-        for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.REQUEST);
-            if (breakerStats != null) {
-                estimated += breakerStats.getEstimated();
-            }
-        }
-        return estimated;
-    }
-
     private void createAndPopulateIndex() {
         assertAcked(
             prepareCreate(INDEX_NAME, 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))).setMapping(
@@ -253,10 +228,8 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
     }
 
     private void assertQueryMemoryReleased(QueryBuilder query) throws Exception {
-        assertBusy(() -> assertEquals("Request breaker should be empty before search", 0L, getRequestBreakerEstimated()));
+        assertBusy(() -> assertEquals("Request breaker should be empty before search", 0L, getRequestBreakerUsed()));
         client().prepareSearch(INDEX_NAME).setQuery(query).get().decRef();
-        assertBusy(
-            () -> assertEquals("Request breaker memory should be released after search completes", 0L, getRequestBreakerEstimated())
-        );
+        assertBusy(() -> assertEquals("Request breaker memory should be released after search completes", 0L, getRequestBreakerUsed()));
     }
 }

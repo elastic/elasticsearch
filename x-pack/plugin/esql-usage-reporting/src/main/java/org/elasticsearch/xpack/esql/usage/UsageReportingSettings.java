@@ -61,7 +61,11 @@ public record UsageReportingSettings(
      */
     public static final Setting<String> URL = Setting.simpleString(PREFIX + "url", Property.NodeScope, Property.Filtered);
 
-    /** The reporting interval. It is also the {@code period_seconds} of each record, so it must divide an hour exactly. */
+    /**
+     * The reporting interval: the reporter drains at every wall-clock multiple of it, so it must divide an hour exactly. The
+     * {@code period_seconds} of a record is the window that its drain really covers, which is this interval only when every cycle runs
+     * on time: the first, a delayed and the final drain cover a shorter or longer window.
+     */
     public static final Setting<TimeValue> PERIOD = Setting.timeSetting(
         PREFIX + "period",
         TimeValue.timeValueMinutes(5),

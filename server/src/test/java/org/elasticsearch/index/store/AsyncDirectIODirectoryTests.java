@@ -36,7 +36,9 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.BeforeClass;
+import org.junit.runner.RunWith;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -46,6 +48,7 @@ import java.nio.file.Path;
 import static org.apache.lucene.store.FSDirectory.open;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
+@RunWith(ESRandomizedRunner.class)
 public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
 
     static {

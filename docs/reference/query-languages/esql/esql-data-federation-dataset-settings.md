@@ -97,7 +97,7 @@ $$$partition-spec$$$
     - **Conflicts with:** `partition_detection` set to `none`
     - **Related:** `partition_detection`, `partition_path`
 
-    For syntax, examples, and how folders are skipped, refer to [Skip folders with file column filters](esql-data-federation-partition-spec.md).
+    For syntax, examples, and how folders are skipped, refer to [Skip folders with file column filters](esql-data-federation-partition-spec.md). For VPC Flow Logs, CloudTrail, and Application Load Balancer layouts, refer to [](esql-data-federation-aws-logs.md).
 
     :::{dropdown} Behavior at query time
     A binding whose key isn't detected in the folder paths is ignored, and the query returns a warning.<br><br>Transform and unit names are case-insensitive. Keys and column names are case-sensitive.

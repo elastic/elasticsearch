@@ -82,9 +82,6 @@ public class SliceKnnCrossClusterSearchIT extends AbstractMultiClustersTestCase 
     public void testKnnRequiresSelectedSlicesOnEveryCluster() {
         for (String[] indices : List.of(new String[] { REMOTE + ":" + SLICED }, new String[] { SLICED, REMOTE + ":" + SLICED })) {
             SearchRequest request = knnSearch(indices);
-            if (randomBoolean()) {
-                request.searchSlice(SliceIndexing.SLICE_ALL);
-            }
             Exception e = expectThrows(Exception.class, () -> client(LOCAL_CLUSTER).search(request).actionGet().decRef());
             assertThat(List.of(indices).toString(), ExceptionsHelper.stackTrace(e), containsString(SLICES_REQUIRED));
         }

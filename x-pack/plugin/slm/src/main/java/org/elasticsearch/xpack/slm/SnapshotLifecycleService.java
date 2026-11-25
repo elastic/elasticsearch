@@ -81,8 +81,27 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         // track them here to avoid conditions where master listener events run after other
         // listeners that depend on what happened in the master listener
         final boolean prevIsMaster = this.isMaster;
+<<<<<<< HEAD
         if (prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
+=======
+        // NB if re-elected in a new term without a not-master state we don't notice, but that's ok: the registration persists and
+        // scheduleSnapshotJobs() re-derives from the cluster state on every update.
+        final boolean masterChanged = prevIsMaster != event.localNodeMaster();
+        this.isMaster = event.localNodeMaster();
+
+        for (ProjectMetadata metadata : event.state().metadata().projects().values()) {
+            SnapshotLifecycleProjectState project = getOrCreateProjectState(metadata.id());
+            if (masterChanged) {
+                if (this.isMaster) {
+                    project.scheduler.register(project.snapshotTask);
+                } else {
+                    project.scheduler.unregister(project.snapshotTask);
+                    cancelSnapshotJobs(project);
+                }
+            }
+
+>>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
             if (this.isMaster) {
                 scheduler.register(snapshotTask);
             } else {

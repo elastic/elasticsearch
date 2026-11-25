@@ -301,7 +301,8 @@ public class IndexLifecycleService
         // track them here to avoid conditions where master listener events run after other
         // listeners that depend on what happened in the master listener
         final boolean prevIsMaster = this.isMaster;
-        if (prevIsMaster != event.localNodeMaster()) {
+        // NB also treat a re-election in a new term as becoming master, even if there was no intervening no-master state
+        if (event.localNodeIsNewMaster() || prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
                 // we weren't the master, and now we are
@@ -331,6 +332,7 @@ public class IndexLifecycleService
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
+<<<<<<< HEAD
         if (event.localNodeMaster()) { // only act if we are master, otherwise
             // keep idle until elected
             final IndexLifecycleMetadata ilmMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
@@ -338,6 +340,27 @@ public class IndexLifecycleService
             if (ilmMetadata != null
                 && (event.previousState().nodes().isLocalNodeElectedMaster() == false
                     || ilmMetadata != event.previousState().metadata().custom(IndexLifecycleMetadata.TYPE))) {
+=======
+        // only act if we are master, otherwise keep idle until elected
+        if (event.localNodeMaster() == false) {
+            return;
+        }
+
+        // We're updating the policy registry cache here, which doesn't actually work with multiple projects because the policies from one
+        // project would overwrite the polices from another project. However, since we're not planning on running ILM in a multi-project
+        // cluster, we can ignore this.
+        for (var project : event.state().metadata().projects().values()) {
+            final IndexLifecycleMetadata ilmMetadata = project.custom(IndexLifecycleMetadata.TYPE);
+            if (ilmMetadata == null) {
+                continue;
+            }
+            final var previousProject = event.previousState().metadata().projects().get(project.id());
+            final IndexLifecycleMetadata previousIlmMetadata = previousProject == null
+                ? null
+                : previousProject.custom(IndexLifecycleMetadata.TYPE);
+            // NB if re-elected in a new term without a not-master state the registry is retained, so the metadata comparison suffices
+            if (event.previousState().nodes().isLocalNodeElectedMaster() == false || ilmMetadata != previousIlmMetadata) {
+>>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
                 policyRegistry.update(ilmMetadata);
             }
         }

@@ -66,13 +66,30 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
         if (clusterState.nodes().isLocalNodeElectedMaster()
             && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
             synchronized (this) {
+<<<<<<< HEAD
                 if (watching() || active == false) {
                     refreshExistingFileStateIfNeeded(clusterState);
                     return;
+=======
+                if (active == false) {
+                    return;
+                }
+                if (watching()) {
+                    if (event.localNodeIsNewMaster()) {
+                        // Re-elected in a new term without ever applying a state in which we were not master, so the watcher is still
+                        // running. Restart it, as would have happened across any other election, so that the file is processed again in
+                        // case processing it in the previous term failed to commit.
+                        stopWatcher();
+                    } else {
+                        refreshExistingFileStateIfNeeded(clusterState);
+                        return;
+                    }
+>>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
                 }
                 startWatcher();
             }
         } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
+            // NB only reached on a state in which the local node is not master, or the cluster is not recovered
             stopWatcher();
         }
     }

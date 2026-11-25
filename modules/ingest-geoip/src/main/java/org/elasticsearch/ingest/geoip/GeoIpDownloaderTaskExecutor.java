@@ -208,12 +208,37 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
 
+<<<<<<< HEAD:modules/ingest-geoip/src/main/java/org/elasticsearch/ingest/geoip/GeoIpDownloaderTaskExecutor.java
         if (taskIsBootstrapped.getAndSet(true) == false) {
             this.atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
             if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
                 startTask(() -> taskIsBootstrapped.set(false));
             } else {
                 stopTask(() -> taskIsBootstrapped.set(false));
+=======
+        // On every master election, reconcile each project so an upgraded master can recover the
+        // IpLocationDownloadConsumers custom (introduced in 9.5) even if the previous master (older
+        // version) didn't write it. Idempotent for 9.5 -> 9.5 handovers since both requestDownloads
+        // and cancelDownloadRequest short-circuit when the consumer is already in the desired state.
+        boolean masterChanged = event.localNodeIsNewMaster();
+
+        if (event.metadataChanged() == false && masterChanged == false) {
+            return;
+        }
+
+        for (var projectMetadata : event.state().metadata().projects().values()) {
+            ProjectId projectId = projectMetadata.id();
+
+            boolean hasIngestChanges = event.customMetadataChanged(projectId, IngestMetadata.TYPE);
+            boolean hasIndicesChanges = false;
+            boolean projectExisted = event.previousState().metadata().hasProject(projectId);
+            if (projectExisted) {
+                hasIndicesChanges = event.previousState()
+                    .metadata()
+                    .getProject(projectId)
+                    .indices()
+                    .equals(projectMetadata.indices()) == false;
+>>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747)):modules/ingest-ip-location/src/main/java/org/elasticsearch/ingest/iplocation/IngestIpLocationPlugin.java
             }
         }
 

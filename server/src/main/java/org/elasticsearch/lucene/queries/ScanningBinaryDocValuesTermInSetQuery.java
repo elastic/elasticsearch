@@ -16,12 +16,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefComparator;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.StringSorter;
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
-import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -34,41 +33,31 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
 
     private final PrefixCodedTerms termData;
     private final int termDataHashCode;
-    private final ByteRunAutomaton automaton;
+    private final ExactTermSet termSet;
 
     public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms, BinaryDocValuesFormat binaryFormat) {
         this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)), binaryFormat);
     }
 
     private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData, BinaryDocValuesFormat binaryFormat) {
-        this(fieldName, termData, buildAutomaton(termData), binaryFormat);
+        this(fieldName, termData, new ExactTermSet(termData), binaryFormat);
     }
 
     private ScanningBinaryDocValuesTermInSetQuery(
         String fieldName,
         PrefixCodedTerms termData,
-        ByteRunAutomaton automaton,
+        ExactTermSet termSet,
         BinaryDocValuesFormat binaryFormat
     ) {
-        super(fieldName, term -> automaton.run(term.bytes, term.offset, term.length), binaryFormat);
+        super(fieldName, termSet::contains, binaryFormat);
         this.termData = termData;
         this.termDataHashCode = termData.hashCode();
-        this.automaton = automaton;
+        this.termSet = termSet;
     }
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOf(this) + automaton.ramBytesUsed() + termData.ramBytesUsed();
-    }
-
-    private static ByteRunAutomaton buildAutomaton(PrefixCodedTerms termData) {
-        try {
-            return new ByteRunAutomaton(Automata.makeBinaryStringUnion(termData.iterator()), true);
-        } catch (java.io.IOException e) {
-            // Shouldn't happen since termData.iterator() provides an iterator implementation that never throws
-            assert false : e;
-            throw new UncheckedIOException(e);
-        }
+        return RamUsageEstimator.shallowSizeOf(this) + termSet.ramBytesUsed() + termData.ramBytesUsed();
     }
 
     private static PrefixCodedTerms packTerms(String field, List<BytesRef> terms) {
@@ -106,7 +95,7 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
 
     @Override
     protected float matchCost() {
-        // the cost for single term matching is 10, ByteRunAutomaton.run() is O(term length)
+        // the cost for single term matching is 10, a hash lookup is O(term length)
         // so this is only slightly slower than single term
         return 11;
     }
@@ -146,5 +135,55 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
     @Override
     public int hashCode() {
         return Objects.hash(classHash(), fieldName, termDataHashCode, binaryFormat);
+    }
+
+    private static final class ExactTermSet implements Accountable {
+        private final byte[] bytes;
+        private final int[] offsets;
+        private final int[] table;
+        private final int mask;
+
+        ExactTermSet(PrefixCodedTerms termData) {
+            int size = (int) termData.size();
+            int capacity = Integer.highestOneBit(Math.max(size * 2, 2) - 1) << 1;
+            this.mask = capacity - 1;
+            this.table = new int[capacity];
+            Arrays.fill(table, -1);
+            this.offsets = new int[size + 1];
+            BytesRefBuilder all = new BytesRefBuilder();
+            PrefixCodedTerms.TermIterator iterator = termData.iterator();
+            int ord = 0;
+            for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
+                offsets[ord] = all.length();
+                all.append(term);
+                ord++;
+            }
+            offsets[size] = all.length();
+            this.bytes = Arrays.copyOf(all.bytes(), all.length());
+            for (ord = 0; ord < size; ord++) {
+                int slot = StringHelper.murmurhash3_x86_32(bytes, offsets[ord], offsets[ord + 1] - offsets[ord], 0) & mask;
+                while (table[slot] != -1) {
+                    slot = (slot + 1) & mask;
+                }
+                table[slot] = ord;
+            }
+        }
+
+        boolean contains(BytesRef term) {
+            int slot = StringHelper.murmurhash3_x86_32(term.bytes, term.offset, term.length, 0) & mask;
+            for (int ord = table[slot]; ord != -1; ord = table[slot]) {
+                if (Arrays.equals(bytes, offsets[ord], offsets[ord + 1], term.bytes, term.offset, term.offset + term.length)) {
+                    return true;
+                }
+                slot = (slot + 1) & mask;
+            }
+            return false;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.sizeOf(bytes) + RamUsageEstimator.sizeOf(offsets)
+                + RamUsageEstimator.sizeOf(table);
+        }
     }
 }

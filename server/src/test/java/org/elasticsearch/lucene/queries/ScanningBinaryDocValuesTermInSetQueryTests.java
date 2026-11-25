@@ -24,10 +24,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
 
@@ -63,6 +66,49 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
             BinaryDocValuesFormat.SEPARATE_COUNT
         );
         assertEquals("ScanningBinaryDocValuesTermInSetQuery(fieldName=field,terms=[ascii,[ff 0 fe 1]])", query.toString("field"));
+    }
+
+    public void testManyTerms() throws Exception {
+        int numTerms = randomIntBetween(2000, 5000);
+        List<BytesRef> members = new ArrayList<>();
+        List<BytesRef> others = new ArrayList<>();
+        for (int i = 0; i < numTerms; i++) {
+            byte[] member = new byte[randomIntBetween(0, 20)];
+            random().nextBytes(member);
+            members.add(new BytesRef(member));
+            others.add(new BytesRef(Arrays.copyOf(member, member.length + 1)));
+        }
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (BytesRef term : members) {
+                writer.addDocument(singleValueDoc(term));
+            }
+            for (BytesRef term : others) {
+                writer.addDocument(singleValueDoc(term));
+            }
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                var format = BinaryDocValuesFormat.SEPARATE_COUNT;
+                Set<BytesRef> memberSet = new HashSet<>(members);
+                Set<BytesRef> otherSet = new HashSet<>(others);
+                long expectedMembers = members.stream().filter(memberSet::contains).count() + others.stream()
+                    .filter(memberSet::contains)
+                    .count();
+                long expectedOthers = members.stream().filter(otherSet::contains).count() + others.stream()
+                    .filter(otherSet::contains)
+                    .count();
+                assertEquals(expectedMembers, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", members, format)));
+                assertEquals(expectedOthers, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", others, format)));
+            }
+        }
+    }
+
+    private static Document singleValueDoc(BytesRef term) {
+        Document document = new Document();
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
+        field.add(term);
+        document.add(field);
+        document.add(new NumericDocValuesField("field.counts", 1));
+        return document;
     }
 
     public void testRawBytesTerms() throws Exception {

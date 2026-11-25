@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -429,20 +428,12 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         IndexMode templateIndexMode,
         Settings indexTemplateAndCreateRequestSettings
     ) {
-        var tmpIndexMetadata = IndexMetadata.builder(indexName);
-
-        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(indexTemplateAndCreateRequestSettings);
-        int dummyShards = indexTemplateAndCreateRequestSettings.getAsInt(
-            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-            dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
-        );
-        int shardReplicas = indexTemplateAndCreateRequestSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-        var finalResolvedSettings = Settings.builder()
+        Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, createdIndexVersion.get().get())
             .put(indexTemplateAndCreateRequestSettings)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
+        var finalResolvedSettings = Settings.builder()
+            .put(MetadataIndexTemplateService.temporaryIndexSettings(settings))
             .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), false);  // Avoid warnings for non-system indexes.
 
         if (IndexMode.isTsdb(templateIndexMode)) {
@@ -451,8 +442,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             finalResolvedSettings.putList(INDEX_ROUTING_PATH.getKey(), List.of("path"));
         }
 
-        tmpIndexMetadata.settings(finalResolvedSettings);
-        return tmpIndexMetadata.build();
+        return IndexMetadata.builder(indexName).settings(finalResolvedSettings).build();
     }
 
     /**

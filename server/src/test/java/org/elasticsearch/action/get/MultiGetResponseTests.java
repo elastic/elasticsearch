@@ -9,21 +9,32 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.GetResultTests;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -71,6 +82,78 @@ public class MultiGetResponseTests extends ESTestCase {
             }
 
         }
+    }
+
+    /** Items the serialization has handed out are not kept reachable by it. */
+    public void testSerializationDropsSerializedItems() throws Exception {
+        int items = randomIntBetween(2, 10);
+        List<WeakReference<GetResponse>> itemRefs = new ArrayList<>();
+        // the response is not kept in a local, which would keep every item reachable
+        Iterator<? extends ToXContent> serialization = unreferencedResponse(items, new BytesArray("{}"), itemRefs).toXContentChunked(
+            ToXContent.EMPTY_PARAMS
+        );
+        int serialized = randomIntBetween(1, items - 1);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        // the first two chunks open the object and the docs array
+        for (int i = 0; i < serialized + 2; i++) {
+            serialization.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+
+        // System.gc() is only a hint, so retry until the serialized items have been collected
+        assertBusy(() -> {
+            System.gc();
+            for (int i = 0; i < serialized; i++) {
+                assertNull("item [" + i + "] has been serialized", itemRefs.get(i).get());
+            }
+        });
+        for (int i = serialized; i < items; i++) {
+            assertNotNull("item [" + i + "] has not been serialized", itemRefs.get(i).get());
+        }
+        Reference.reachabilityFence(serialization);
+    }
+
+    public void testRestResponseDropsSerializedItems() throws Exception {
+        int items = randomIntBetween(2, 10);
+        List<WeakReference<GetResponse>> itemRefs = new ArrayList<>();
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest.Builder(xContentRegistry()).build(), randomBoolean());
+        // each source is larger than the buffer of the JSON generator, so with a size hint of one byte each call encodes one item
+        BytesArray source = new BytesArray("{\"payload\":\"" + randomAlphaOfLength(64 * 1024) + "\"}");
+        // the response is not kept in a local, which would keep every item reachable
+        new RestChunkedToXContentListener<MultiGetResponse>(channel).onResponse(unreferencedResponse(items, source, itemRefs));
+        ChunkedRestResponseBodyPart body = channel.capturedResponse().chunkedContent();
+        int serialized = randomIntBetween(1, items - 1);
+        for (int i = 0; i < serialized; i++) {
+            body.encodeChunk(1, BytesRefRecycler.NON_RECYCLING_INSTANCE).close();
+        }
+
+        assertBusy(() -> {
+            System.gc();
+            for (int i = 0; i < serialized; i++) {
+                assertNull("item [" + i + "] has been encoded", itemRefs.get(i).get());
+            }
+        });
+        for (int i = serialized; i < items; i++) {
+            assertNotNull("item [" + i + "] has not been encoded", itemRefs.get(i).get());
+        }
+        Reference.reachabilityFence(channel);
+    }
+
+    public void testSerializationLeavesResponseUnchanged() {
+        MultiGetResponse response = createTestInstance();
+        MultiGetItemResponse[] items = response.getResponses().clone();
+        String serialized = Strings.toString(ChunkedToXContent.wrapAsToXContent(response));
+        assertArrayEquals(items, response.getResponses());
+        assertThat(Strings.toString(ChunkedToXContent.wrapAsToXContent(response)), equalTo(serialized));
+    }
+
+    private static MultiGetResponse unreferencedResponse(int items, BytesReference source, List<WeakReference<GetResponse>> itemRefs) {
+        MultiGetItemResponse[] responses = new MultiGetItemResponse[items];
+        for (int i = 0; i < items; i++) {
+            GetResponse response = new GetResponse(new GetResult("index", Integer.toString(i), 0, 1, 1, true, source, null, null));
+            itemRefs.add(new WeakReference<>(response));
+            responses[i] = new MultiGetItemResponse(response, null);
+        }
+        return new MultiGetResponse(responses);
     }
 
     private static MultiGetResponse createTestInstance() {

@@ -377,9 +377,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         return ColumnGroup.SINGLE_OBJECT;
     }
 
+    /**
+     * Only the {@code {"lat": ..., "lon": ...}} object form is mapped in batches. The row path also accepts {@code z} and the GeoJSON
+     * {@code type} and {@code coordinates} keys, and treats any other key as malformed, so a batch with any of those falls back.
+     */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        return multiFields().iterator().hasNext() == false
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
+        return (relativeKeys.isEmpty() || relativeKeys.equals(Set.of(LAT_KEY, LON_KEY)))
+            && multiFields().iterator().hasNext() == false
             && fieldType().hasDocValues()
             && fieldType().indexType.hasPoints() == false
             && fieldType().isStored() == false

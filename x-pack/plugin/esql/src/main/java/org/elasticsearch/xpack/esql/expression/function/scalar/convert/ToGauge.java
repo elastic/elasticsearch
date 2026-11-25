@@ -127,7 +127,7 @@ public class ToGauge extends AbstractConvertFunction {
      * already a non-counter type (including {@link DataType#AGGREGATE_METRIC_DOUBLE}).
      */
     public static boolean isNoOpOnAllUnionTypes(TypeConflictedField tcf) {
-        return tcf.types().stream().allMatch(type -> type.isCounter() == false);
+        return tcf.types().stream().allMatch(type -> type.isCounter() == false && type != DataType.UNSUPPORTED);
     }
 
     @Override

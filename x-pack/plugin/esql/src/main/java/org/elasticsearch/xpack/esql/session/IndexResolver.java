@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -676,7 +677,16 @@ public class IndexResolver {
                     fields.put(parent, obj);
                 } else if (firstUnsupportedParent == null && obj instanceof UnsupportedEsField unsupportedParent) {
                     firstUnsupportedParent = unsupportedParent;
-                }
+                } else if (firstUnsupportedParent == null
+                    && obj instanceof TypeConflictedField conflictedParent
+                    && conflictedParent.types().contains(UNSUPPORTED)) {
+                        // A parent that is unsupported in some indices is as unsupported for its sub-fields as one that is unsupported
+                        // everywhere, as it was before it kept its unsupported types.
+                        firstUnsupportedParent = new UnsupportedEsField(
+                            conflictedParent.getName(),
+                            List.of(conflictedParent.unsupportedOriginalTypesToIndices().keySet().iterator().next())
+                        );
+                    }
                 fields = obj.getProperties();
                 name = name.substring(nextDot + 1);
             }
@@ -1091,8 +1101,12 @@ public class IndexResolver {
     }
 
     private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
-        String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
-        return new UnsupportedEsField(name, List.of(originalType));
+        return new UnsupportedEsField(name, List.of(originalType(fc)));
+    }
+
+    /** The name of the type of a field that ES|QL doesn't support, as the users know it. */
+    private static String originalType(IndexFieldCapabilities fc) {
+        return fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
     }
 
     private static EsField conflictingTypes(
@@ -1104,19 +1118,43 @@ public class IndexResolver {
         EsField.TimeSeriesFieldType timeSeriesFieldType,
         boolean inNestedScope
     ) {
+        // Every node supports lenient casts, which are null for the types a field has that they don't convert, including the ones
+        // that ES|QL doesn't support: the field keeps them, as the type UNSUPPORTED. Only compact fields can: the others are for the
+        // nodes that don't.
+        boolean keepsUnsupportedTypes = indexDedupCache != null
+            && fieldsInfo.minTransportVersion() != null
+            && fieldsInfo.minTransportVersion().supports(ConvertFunction.LENIENT_CAST);
         Map<DataType, Set<String>> typesToIndices = new TreeMap<>();
+        Map<String, Set<String>> unsupportedOriginalTypes = new TreeMap<>();
+        IndexFieldCapabilities firstUnsupported = null;
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null && isLeaf(fc, fieldsInfo) && fieldsInfo.inNestedScope(fc, ir.get()) == inNestedScope) {
-                DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
+                DataType type = keepsUnsupportedTypes
+                    ? resolvedType(fc, fieldsInfo)
+                    : EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
-                    return unsupported(name, fc);
+                    if (keepsUnsupportedTypes == false) {
+                        return unsupported(name, fc);
+                    }
+                    firstUnsupported = firstUnsupported == null ? fc : firstUnsupported;
+                    unsupportedOriginalTypes.computeIfAbsent(originalType(fc), _key -> new TreeSet<>()).add(ir.getIndexName());
                 }
                 typesToIndices.computeIfAbsent(type, _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
+        if (typesToIndices.size() == 1 && firstUnsupported != null) {
+            // Every type is unsupported, which is not a conflict of types.
+            return unsupported(name, firstUnsupported);
+        }
         if (indexDedupCache != null) {
-            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache, timeSeriesFieldType);
+            return CompactInvalidMappedField.mappedEverywhere(
+                name,
+                typesToIndices,
+                unsupportedOriginalTypes,
+                indexDedupCache,
+                timeSeriesFieldType
+            );
         }
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((type, indices) -> stringKeyed.put(type.typeName(), indices));

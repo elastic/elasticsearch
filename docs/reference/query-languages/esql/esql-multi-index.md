@@ -155,6 +155,23 @@ A `MATCH` search on a converted union-typed field, such as `MATCH(TO_TEXT(messag
 [runtime search](/reference/query-languages/esql/esql-runtime-search.md): it scans values row by row instead of
 using the index, and analyzes `text` values with the `standard` analyzer rather than the analyzers in the mappings.
 
+### Types that can't be converted [esql-multi-index-union-unconvertible]
+```{applies_to}
+stack: ga 9.7+
+serverless: ga
+```
+A [type conversion function](functions-operators/type-conversion-functions.md), or a cast with `::`, of a union-typed field doesn't have to accept every type of the union. {{esql}} converts the values of the types it can convert, and the field is `null` in the indices that map any other type. The response has a warning that names the types, and usually the indices.
+
+For example, if `client_ip` is `ip` in `events_ip`, and `keyword` in `events_keyword`, `client_ip::long` returns `null` for the rows of `events_ip`, as an `ip` can't be converted to a `long`, and the converted value for the rows of `events_keyword` that have a number. Casting it to `keyword` first, with `client_ip::keyword::long`, converts the values of both.
+
+A type that {{esql}} doesn't support, like `rank_feature`, is also a type of the union that is `null`. Without a cast, a field with a type {{esql}} doesn't support is [unsupported](esql-multi-index.md#esql-multi-index-invalid-mapping) in the query, as before.
+
+The warning says that the field is `null` in the indices that map the types that couldn't be converted, but not that the other indices have values: `null` is also the value of a document that has no value. These conversions still fail the query, as they can't return `null` for a type they don't convert, or need a constant: [`TO_GAUGE`](functions-operators/type-conversion-functions/to_gauge.md), [`TO_COUNTER`](functions-operators/type-conversion-functions/to_counter.md), [`TO_DATEPERIOD`](functions-operators/type-conversion-functions/to_dateperiod.md), [`TO_TIMEDURATION`](functions-operators/type-conversion-functions/to_timeduration.md), and [`TO_LONG`](functions-operators/type-conversion-functions/to_long.md) or [`TO_INTEGER`](functions-operators/type-conversion-functions/to_integer.md) with a `base`, which don't accept a union type, even of strings. Cast the field to `keyword` first to use them.
+
+The values of a converted field are not the values of the index: a search on the field, such as `MATCH(client_ip::long, "1")`, doesn't use the index, and doesn't match the types that were converted to `null`.
+
+Every node of the query, including the remote clusters, must support these conversions. Otherwise the function must accept every type of the field, as before, or the query fails.
+
 ### Date and date_nanos union type [esql-multi-index-date-date-nanos-union]
 ```{applies_to}
 stack: ga 9.2.0

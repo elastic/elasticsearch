@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -21,7 +20,6 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -197,22 +195,18 @@ public class LenientCastAnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * Fields of an unsupported type and fields mapped to several types are not an input type the cast can be lenient about.
+     * Fields of an unsupported type are not an input type the cast can be lenient about. Fields mapped to several types are covered by
+     * {@link LenientUnionCastAnalyzerTests}.
      */
-    public void testUnsupportedAndMultiTypedFieldsStayStrict() {
+    public void testUnsupportedFieldsStayStrict() {
         EsField unsupported = new UnsupportedEsField("unsupported", List.of("flattened"));
-        EsField multiTyped = new InvalidMappedField("multi_typed", Map.of("ip", Set.of("test1"), "keyword", Set.of("test2")));
         TestAnalyzer analyzer = analyzer().addIndex(
             "test*",
-            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("unsupported", unsupported, "multi_typed", multiTyped)))
+            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("unsupported", unsupported)))
         ).stripErrorPrefix(true);
         analyzer.error(
             "FROM test* | EVAL x = unsupported::long | LIMIT 1",
             containsString("Cannot use field [unsupported] with unsupported type [flattened]")
-        );
-        analyzer.error(
-            "FROM test* | EVAL x = multi_typed::long | LIMIT 1",
-            containsString("Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types")
         );
     }
 

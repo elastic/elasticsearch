@@ -38,11 +38,10 @@ import static org.hamcrest.Matchers.instanceOf;
 public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
     private static final String USER = "alice";
     private static final String CREATE_DOCUMENT_ACTION = "indices:data/write/index:op_type/create";
-    private static final String AUTO_CREATE_ACTION = "indices:admin/auto_create";
 
-    public void testExistingDestinationNeedsCreateDoc() {
+    public void testDestinationNeedsCreateDoc() {
         FakeChecker checker = new FakeChecker("create_doc");
-        authorizeSucceeds(authorizer(checker), true);
+        authorizeSucceeds(authorizer(checker));
 
         assertThat(checker.requests, hasSize(1));
         var privileges = checker.requests.getFirst().indexPrivileges();
@@ -52,35 +51,9 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
         assertThat(checker.requests.getFirst().username(), equalTo(USER));
     }
 
-    public void testExistingDestinationWithoutCreateDocIsForbidden() {
-        assertForbidden(
-            authorizeFails(authorizer(new FakeChecker("read", "create_index", "auto_configure")), "dest", true),
-            CREATE_DOCUMENT_ACTION
-        );
-    }
-
-    public void testMissingDestinationAsksForCreateDocAndCreation() {
-        FakeChecker checker = new FakeChecker("create_doc", "create_index");
-        authorizeSucceeds(authorizer(checker), false);
-        assertThat(
-            List.of(checker.requests.getFirst().indexPrivileges()[0].getPrivileges()),
-            containsInAnyOrder("create_doc", "create_index", "auto_configure")
-        );
-    }
-
-    public void testMissingDestinationPassesWithAutoConfigure() {
-        authorizeSucceeds(authorizer(new FakeChecker("create_doc", "auto_configure")), false);
-    }
-
-    public void testMissingDestinationWithoutAnyWayToCreateItIsForbiddenOnAutoCreate() {
-        assertForbidden(authorizeFails(authorizer(new FakeChecker("create_doc")), "dest", false), AUTO_CREATE_ACTION);
-    }
-
-    public void testMissingDestinationWithoutCreateDocIsForbiddenEvenWithAutoCreate() {
-        assertForbidden(
-            authorizeFails(authorizer(new FakeChecker("create_index", "auto_configure")), "dest", false),
-            CREATE_DOCUMENT_ACTION
-        );
+    /** Neither reading the destination nor being allowed to create it lets a caller write to it. */
+    public void testDestinationWithoutCreateDocIsForbidden() {
+        assertForbidden(authorizeFails(authorizer(new FakeChecker("read", "create_index", "auto_configure")), "dest"));
     }
 
     public void testMissingAuthenticationFails() {
@@ -89,14 +62,14 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
             new FakeChecker("create_doc"),
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        assertThat(authorizeFails(authorizer, "dest", true), instanceOf(IllegalStateException.class));
+        assertThat(authorizeFails(authorizer, "dest"), instanceOf(IllegalStateException.class));
     }
 
     /** Security reads a leading slash as a regular expression and a star as a wildcard, which would authorize more than one index. */
     public void testNameSecurityWouldReadAsAPatternIsRejectedWithoutAskingSecurity() {
         for (String name : List.of("/.*/", "/dest/", "dest*", "*", "-dest", "a,b", "remote:dest", "")) {
-            FakeChecker checker = new FakeChecker("create_doc", "create_index", "auto_configure");
-            Exception e = authorizeFails(authorizer(checker), name, randomBoolean());
+            FakeChecker checker = new FakeChecker("create_doc");
+            Exception e = authorizeFails(authorizer(checker), name);
             assertThat(name, e, instanceOf(InvalidIndexNameException.class));
             assertThat(name, ((InvalidIndexNameException) e).status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(name, checker.requests, empty());
@@ -129,22 +102,25 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
         return new HasPrivilegesIntoDestinationAuthorizer(() -> USER, checker, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
-    private static Exception authorizeFails(IntoDestinationAuthorizer authorizer, String destination, boolean exists) {
+    private static Exception authorizeFails(IntoDestinationAuthorizer authorizer, String destination) {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        authorizer.authorize(destination, exists, future);
+        authorizer.authorize(destination, future);
         ExecutionException e = expectThrows(ExecutionException.class, future::get);
         return (Exception) e.getCause();
     }
 
-    private static void authorizeSucceeds(IntoDestinationAuthorizer authorizer, boolean exists) {
+    private static void authorizeSucceeds(IntoDestinationAuthorizer authorizer) {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        authorizer.authorize("dest", exists, future);
+        authorizer.authorize("dest", future);
         safeGet(future);
     }
 
-    private static void assertForbidden(Exception e, String action) {
+    private static void assertForbidden(Exception e) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(((ElasticsearchSecurityException) e).status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), equalTo("action [" + action + "] is unauthorized for user [" + USER + "] on indices [dest]"));
+        assertThat(
+            e.getMessage(),
+            equalTo("action [" + CREATE_DOCUMENT_ACTION + "] is unauthorized for user [" + USER + "] on indices [dest]")
+        );
     }
 }

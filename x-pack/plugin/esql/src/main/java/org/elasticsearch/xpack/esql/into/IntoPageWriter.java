@@ -251,12 +251,6 @@ public final class IntoPageWriter {
             return new ElasticsearchStatusException(Strings.format(format, args), RestStatus.BAD_REQUEST);
         }
 
-        /** Whether an index template matches the name, so that a write to a destination that does not exist would create it from it. */
-        public static boolean matchesTemplate(ProjectMetadata project, String target) {
-            return MetadataIndexTemplateService.findV2Template(project, target, false) != null
-                || MetadataIndexTemplateService.findV1Templates(project, target, Boolean.FALSE).isEmpty() == false;
-        }
-
         private static boolean routesFromSource(ProjectMetadata project, String target) {
             IndexAbstraction abstraction = project.getIndicesLookup().get(target);
             if (abstraction == null) {
@@ -264,7 +258,8 @@ public final class IntoPageWriter {
                 // is what resolves that routing, so a match is rejected.
                 // TODO: the design allows a destination that a composable template matches, which the first bulk creates. Resolve the
                 // template's routing and pipeline here instead of rejecting every match.
-                return matchesTemplate(project, target);
+                return MetadataIndexTemplateService.findV2Template(project, target, false) != null
+                    || MetadataIndexTemplateService.findV1Templates(project, target, Boolean.FALSE).isEmpty() == false;
             }
             Index writeIndex = abstraction.getWriteIndex();
             return writeIndex != null

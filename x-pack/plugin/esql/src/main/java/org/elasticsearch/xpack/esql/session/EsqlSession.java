@@ -3789,8 +3789,8 @@ public class EsqlSession {
      * allowed to write to each of them. Fails with the denial a bulk would give otherwise. Nothing about a destination is reported
      * before this, so a caller who may not write cannot tell whether it exists.
      * <p>
-     * A destination that does not exist is an error, unless an index template matches it, which is then to create it. Only a caller
-     * who was authorized is told so.
+     * A destination that does not exist is an error, since {@code INTO} does not create indices. Only a caller who was authorized is
+     * told so.
      * <p>
      * Date math is resolved here, once, and the resolved name replaces the typed one in the plan. The authorization, the planning
      * checks and the writer, on whichever node it runs, then all see one name, instead of each resolving the expression again and
@@ -3814,13 +3814,11 @@ public class EsqlSession {
         );
         String target = resolved.collect(Into.class).getFirst().destination();
         boolean exists = project.getIndicesLookup().containsKey(target);
-        authorizer.authorize(target, exists, listener.map(ignored -> {
-            if (exists == false && IntoPageWriter.Factory.matchesTemplate(project, target) == false) {
-                throw new ElasticsearchStatusException(
-                    "INTO destination [{}] does not exist, and no index template matches it",
-                    RestStatus.NOT_FOUND,
-                    target
-                );
+        authorizer.authorize(target, listener.map(ignored -> {
+            // TODO: the design allows a destination that a composable template matches, which the first bulk creates. Let it through
+            // here once that is supported, and have the authorizer ask for the privileges that create it.
+            if (exists == false) {
+                throw new ElasticsearchStatusException("INTO destination [{}] does not exist", RestStatus.NOT_FOUND, target);
             }
             return resolved;
         }));

@@ -23,7 +23,6 @@ into_writer:
     - names: ['into-existing', 'into-missing']
       privileges:
         - create_doc
-        - auto_configure
     # ES|QL needs some read privilege to run at all; it is on an unrelated index so the writer has no read access to a destination
     - names: ['into-unrelated']
       privileges:

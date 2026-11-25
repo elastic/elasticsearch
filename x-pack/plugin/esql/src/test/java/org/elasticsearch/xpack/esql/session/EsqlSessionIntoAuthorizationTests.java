@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -31,8 +30,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * What {@link EsqlSession#authorizeIntoDestinations} asks the authorizer, and the plan it hands on. That the authorization comes
@@ -41,6 +38,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
     private static final String EXISTING = "existing";
+    private static final String DATE_MATH_RESOLVED = "logs-2026.01.01";
 
     private final List<String> asked = new ArrayList<>();
 
@@ -49,30 +47,19 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
     }
 
-    public void testAuthorizerIsToldWhetherTheDestinationExists() throws Exception {
-        authorize(grantingAuthorizer(), "ROW x = 1 | INTO " + EXISTING);
-        authorize(grantingAuthorizer(), "ROW x = 1 | INTO templated-index");
-        assertThat(asked, contains(EXISTING + ":true", "templated-index:false"));
-    }
-
-    /** A bulk would create the destination from the template, so INTO may too. */
-    public void testMissingDestinationThatATemplateMatchesIsNotAnError() throws Exception {
-        authorize(grantingAuthorizer(), "ROW x = 1 | INTO templated-index");
-    }
-
-    public void testMissingDestinationThatNoTemplateMatchesIsAnErrorForAnAuthorizedCaller() {
+    public void testMissingDestinationIsAnErrorForAnAuthorizedCaller() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> authorize(grantingAuthorizer(), "ROW x = 1 | INTO nothing")
         );
         assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(e.getMessage(), containsString("INTO destination [nothing] does not exist"));
-        assertThat("the caller is authorized before being told", asked, contains("nothing:false"));
+        assertThat("the caller is authorized before being told", asked, contains("nothing"));
     }
 
     /** Whether a destination exists is only for a caller who may write to it. */
     public void testDeniedCallerIsNotToldThatADestinationDoesNotExist() {
-        IntoDestinationAuthorizer denying = (destination, exists, listener) -> listener.onFailure(
+        IntoDestinationAuthorizer denying = (destination, listener) -> listener.onFailure(
             new ElasticsearchSecurityException("denied", RestStatus.FORBIDDEN)
         );
         ElasticsearchSecurityException e = expectThrows(
@@ -83,33 +70,27 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
     }
 
     public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
-        LogicalPlan authorized = authorize(grantingAuthorizer(), "ROW x = 1 | INTO <logs-{now/d}>");
+        // A fixed date, as now/d could roll over to the next day between the name and the query
+        LogicalPlan authorized = authorize(grantingAuthorizer(), "ROW x = 1 | INTO <logs-{2026.01.01||/d}>");
 
-        assertThat(asked.size(), equalTo(1));
-        String name = asked.getFirst().substring(0, asked.getFirst().lastIndexOf(':'));
-        assertThat(name, startsWith("logs-"));
-        assertThat(name, not(containsString("<")));
-        assertThat(name, not(containsString("{")));
+        assertThat(asked, contains(DATE_MATH_RESOLVED));
         // Everything after this, on whichever node, writes to the name that was authorized
-        assertThat(authorized.collect(Into.class).getFirst().destination(), equalTo(name));
+        assertThat(authorized.collect(Into.class).getFirst().destination(), equalTo(DATE_MATH_RESOLVED));
     }
 
     private IntoDestinationAuthorizer grantingAuthorizer() {
-        return (destination, exists, listener) -> {
-            asked.add(destination + ":" + exists);
+        return (destination, listener) -> {
+            asked.add(destination);
             listener.onResponse(null);
         };
     }
 
     /** Authorizes the destination of the query, returning the plan that results, or throwing what the authorization failed with. */
     private static LogicalPlan authorize(IntoDestinationAuthorizer authorizer, String query) throws Exception {
-        IndexMetadata existing = IndexMetadata.builder(EXISTING)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(index(EXISTING), false)
+            .put(index(DATE_MATH_RESOLVED), false)
             .build();
-        IndexTemplateMetadata template = IndexTemplateMetadata.builder("template").patterns(List.of("logs-*", "templated-*")).build();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(existing, false).put(template).build();
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
         EsqlSession.authorizeIntoDestinations(authorizer, TEST_PARSER.parseQuery(query), project, future);
         try {
@@ -117,5 +98,13 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         } catch (ExecutionException e) {
             throw (Exception) e.getCause();
         }
+    }
+
+    private static IndexMetadata index(String name) {
+        return IndexMetadata.builder(name)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
     }
 }

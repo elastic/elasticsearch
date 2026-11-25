@@ -32,10 +32,10 @@ public interface IntoDestinationAuthorizer {
      *
      * @param destination the concrete name the write goes to, with date math already resolved
      */
-    void authorize(String destination, boolean destinationExists, ActionListener<Void> listener);
+    void authorize(String destination, ActionListener<Void> listener);
 
     static IntoDestinationAuthorizer allowAll() {
-        return (destination, destinationExists, listener) -> listener.onResponse(null);
+        return (destination, listener) -> listener.onResponse(null);
     }
 
     /**
@@ -59,9 +59,9 @@ public interface IntoDestinationAuthorizer {
             ),
             executor
         );
-        return (destination, destinationExists, listener) -> {
+        return (destination, listener) -> {
             var authorizer = transportService.getRequestHandler(HasPrivilegesAction.NAME) != null ? secured : allowAll();
-            authorizer.authorize(destination, destinationExists, listener);
+            authorizer.authorize(destination, listener);
         };
     }
 }

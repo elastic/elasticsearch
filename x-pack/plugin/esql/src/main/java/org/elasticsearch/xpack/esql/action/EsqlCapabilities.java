@@ -3202,6 +3202,12 @@ public class EsqlCapabilities {
         EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
 
         /**
+         * EQL source command errors give positions in both queries, a view named as its target is rejected pointing to {@code FROM},
+         * and its synthetic columns shadow mapped fields of the same name, with a warning. Part of #165570.
+         */
+        EQL_COMMAND_ERRORS_AND_SHADOWED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,

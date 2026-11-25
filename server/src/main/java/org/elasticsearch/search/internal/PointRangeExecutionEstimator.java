@@ -42,7 +42,8 @@ final class PointRangeExecutionEstimator implements LeafExecutionEstimator {
         return PointRangeQueryCostEstimator.executionBytesForLeaf(
             scorer.cost(),
             ctx.reader().maxDoc(),
-            values.size() == values.getDocCount(),
+            values.size(),
+            values.getDocCount(),
             coversAllValues(values),
             pointRangeQuery.getNumDims(),
             pointRangeQuery.getBytesPerDim()

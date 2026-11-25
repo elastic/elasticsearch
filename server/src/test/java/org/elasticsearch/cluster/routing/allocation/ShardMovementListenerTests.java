@@ -67,6 +67,12 @@ public class ShardMovementListenerTests extends ESTestCase {
             public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
                 throw new RuntimeException("boom");
             }
+
+            @Override
+            public String toString() {
+                // failure reporting must not call plugin code that can throw, or the isolation is lost
+                throw new AssertionError("toString must not be called");
+            }
         };
         final var composite = ShardMovementListener.composite(List.of(received1, failing, received2));
 

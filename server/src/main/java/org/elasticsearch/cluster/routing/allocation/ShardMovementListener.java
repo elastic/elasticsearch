@@ -171,10 +171,16 @@ public interface ShardMovementListener {
         }
 
         private void onFailure(Exception e) {
+            // the class name rather than the listener itself, as toString() is plugin code that could throw outside this try/catch
             if (warned.compareAndSet(false, true)) {
-                logger.warn(() -> "shard movement listener [" + delegate + "] failed, further failures will be logged at DEBUG", e);
+                logger.warn(
+                    () -> "shard movement listener ["
+                        + delegate.getClass().getName()
+                        + "] failed, further failures will be logged at DEBUG",
+                    e
+                );
             } else if (logger.isDebugEnabled()) {
-                logger.debug(() -> "shard movement listener [" + delegate + "] failed", e);
+                logger.debug(() -> "shard movement listener [" + delegate.getClass().getName() + "] failed", e);
             }
         }
     }

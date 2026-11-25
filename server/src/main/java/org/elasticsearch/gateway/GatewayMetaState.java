@@ -491,10 +491,8 @@ public class GatewayMetaState implements Closeable {
         @Override
         public void close() throws IOException {
             try {
-                final long timeoutSeconds = 10;
-                if (ThreadPool.terminate(threadPoolExecutor, timeoutSeconds, TimeUnit.SECONDS) == false) {
-                    logger.warn("asynchronous persisted state writes did not complete within [{}s]", timeoutSeconds);
-                }
+                ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+                // doesn't matter if this drops a pending write on shutdown
             } finally {
                 persistedState.close();
             }

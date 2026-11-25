@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167475
+summary: Scan ip doc values once for terms queries on unindexed fields
+type: bug

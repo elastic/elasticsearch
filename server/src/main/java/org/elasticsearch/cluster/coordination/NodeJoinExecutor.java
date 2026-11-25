@@ -322,14 +322,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             for (final var joiningNode : taskContext.getTask().nodes()) {
                 final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
                 if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
-                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
+                    logger.info("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
                     nodesBuilder.remove(nodeWithSameId.getId());
                     compatibilityVersions.remove(nodeWithSameId.getId());
                     nodeFeatures.remove(nodeWithSameId.getId());
                 }
                 final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
                 if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
-                    logger.debug(
+                    logger.info(
                         "removing existing node [{}], which conflicts with incoming join from [{}]",
                         nodeWithSameAddress,
                         joiningNode

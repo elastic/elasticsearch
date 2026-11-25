@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -43,6 +46,7 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,6 +58,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -70,7 +75,9 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
     private static final String INDEX = "eql_events";
     private static final String PARTIAL_PATTERN = "eql_partial_*";
     private static final String PARTIAL_SEQUENCE = "sequence [process where value == 1 or fail_me == 1] [process where value == 3]";
-    private static final List<String> PARTIAL_SEQUENCE_IDS = List.of("ok1", "ok3");
+    private static final String PARTIAL_EVENT = "process where value == 1 or fail_me == 1";
+    private static final String PARTIAL_SAMPLE = "sample by host [process where value == 1 or fail_me == 1] [process where value == 3]";
+    private static final List<String> PARTIAL_MATCH_IDS = List.of("ok1", "ok3");
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -343,20 +350,72 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         assertThat(e, not(instanceOf(VerificationException.class)));
     }
 
-    public void testEventQueryWarnsOnALostShard() throws Exception {
+    public void testEventQueryReportsALostShard() throws Exception {
         setupFailingShardIndices();
-        String query = "EQL " + PARTIAL_PATTERN + " \"process where value == 1 or fail_me == 1\" METADATA _id | KEEP _id";
+        assertPartialResults(partialQuery(PARTIAL_EVENT), List.of("ok1"));
+    }
+
+    public void testQueryThatLosesNoShardIsNotPartial() throws Exception {
+        setupFailingShardIndices();
+        String query = partialQuery("process where value == 1");
+        CapturedQuery result = runCapturingWarnings(syncEsqlQueryRequest(query).allowPartialResults(true));
+        assertThat(ids(result), equalTo(List.of("ok1")));
+        assertFalse(result.partial());
+        assertThat(result.localCluster().getFailures(), empty());
+        assertThat(result.localCluster().getStatus(), not(equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL)));
+    }
+
+    public void testSampleQueryReportsALostShard() throws Exception {
+        setupFailingShardIndices();
+        assertPartialResults(partialQuery(PARTIAL_SAMPLE), PARTIAL_MATCH_IDS);
+        assertThat(eqlSearchIds(partialSearch(PARTIAL_SAMPLE)), equalTo(PARTIAL_MATCH_IDS));
+    }
+
+    public void testForkBranchesReportALostShard() throws Exception {
+        setupFailingShardIndices();
+        String query = "EQL " + PARTIAL_PATTERN + " \"" + PARTIAL_EVENT + "\" METADATA _id | FORK (WHERE true) (WHERE true) | KEEP _id";
+        assertPartialResults(query, List.of("ok1", "ok1"));
+    }
+
+    public void testInSubqueryReportsALostShard() throws Exception {
+        setupFailingShardIndices();
+        String query = "FROM eql_partial_ok METADATA _id | WHERE value IN (EQL "
+            + PARTIAL_PATTERN
+            + " \""
+            + PARTIAL_EVENT
+            + "\" | KEEP value) | KEEP _id";
         assertPartialResults(query, List.of("ok1"));
+    }
+
+    public void testInSubqueryOfAnEqlQueryReportsALostShard() throws Exception {
+        setupFailingShardIndices();
+        String query = "EQL eql_partial_ok \"process where true\" METADATA _id | WHERE value IN (EQL "
+            + PARTIAL_PATTERN
+            + " \""
+            + PARTIAL_EVENT
+            + "\" | KEEP value) | KEEP _id";
+        assertPartialResults(query, List.of("ok1"));
+    }
+
+    public void testLostShardFailsTheQueryWhenPartialResultsAreDisallowed() {
+        setupFailingShardIndices();
+        for (String eql : List.of(PARTIAL_EVENT, PARTIAL_SEQUENCE, PARTIAL_SAMPLE)) {
+            EsqlQueryRequest request = syncEsqlQueryRequest(partialQuery(eql)).allowPartialResults(false);
+            Exception e = expectThrows(Exception.class, () -> run(request).close());
+            Throwable cause = ExceptionsHelper.unwrap(e, IllegalStateException.class);
+            assertNotNull(eql + ": " + ExceptionsHelper.stackTrace(e), cause);
+            assertThat(eql, cause.getMessage(), equalTo("Accessing failing field"));
+        }
     }
 
     public void testPartialSequenceResultsFollowTheEqlClusterDefault() throws Exception {
         setupFailingShardIndices();
         assertPartialResults(partialSequenceQuery(""), List.of());
-        assertThat(eqlSearchIds(partialSequenceSearch()), empty());
+        assertThat(eqlSearchIds(partialSearch(PARTIAL_SEQUENCE)), empty());
         updateClusterSettings(Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey(), true));
         try {
-            assertPartialResults(partialSequenceQuery(""), PARTIAL_SEQUENCE_IDS);
-            assertThat(eqlSearchIds(partialSequenceSearch()), equalTo(PARTIAL_SEQUENCE_IDS));
+            assertPartialResults(partialSequenceQuery(""), PARTIAL_MATCH_IDS);
+            assertThat(eqlSearchIds(partialSearch(PARTIAL_SEQUENCE)), equalTo(PARTIAL_MATCH_IDS));
         } finally {
             updateClusterSettings(Settings.builder().putNull(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey()));
         }
@@ -364,7 +423,7 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     public void testWithOptionOverridesTheEqlClusterDefaultForPartialSequences() throws Exception {
         setupFailingShardIndices();
-        assertPartialResults(partialSequenceQuery(" WITH {\"allow_partial_sequence_results\": true}"), PARTIAL_SEQUENCE_IDS);
+        assertPartialResults(partialSequenceQuery(" WITH {\"allow_partial_sequence_results\": true}"), PARTIAL_MATCH_IDS);
         updateClusterSettings(Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey(), true));
         try {
             assertPartialResults(partialSequenceQuery(" WITH {\"allow_partial_sequence_results\": false}"), List.of());
@@ -497,7 +556,7 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
                 .indices()
                 .prepareCreate("eql_partial_ok")
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "value", "type=long")
+                .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "value", "type=long", "host", "type=keyword")
         );
         assertAcked(
             client().admin()
@@ -508,22 +567,23 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
                     {"properties":{
                       "@timestamp":{"type":"date"},
                       "event.category":{"type":"keyword"},
-                      "value":{"type":"long"}
+                      "value":{"type":"long"},
+                      "host":{"type":"keyword"}
                     },
                     "runtime":{"fail_me":{"type":"long","script":{"source":"","lang":"failing_field"}}}}""")
         );
         client().prepareBulk()
             .add(
                 new IndexRequest("eql_partial_ok").id("ok1")
-                    .source("@timestamp", "2026-07-22T10:00:00Z", "event.category", "process", "value", 1)
+                    .source("@timestamp", "2026-07-22T10:00:00Z", "event.category", "process", "value", 1, "host", "h1")
             )
             .add(
                 new IndexRequest("eql_partial_fail").id("fail2")
-                    .source("@timestamp", "2026-07-22T10:00:01Z", "event.category", "process", "value", 2)
+                    .source("@timestamp", "2026-07-22T10:00:01Z", "event.category", "process", "value", 2, "host", "h1")
             )
             .add(
                 new IndexRequest("eql_partial_ok").id("ok3")
-                    .source("@timestamp", "2026-07-22T10:00:02Z", "event.category", "process", "value", 3)
+                    .source("@timestamp", "2026-07-22T10:00:02Z", "event.category", "process", "value", 3, "host", "h1")
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -531,32 +591,50 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     private void assertPartialResults(String query, List<String> expectedIds) throws Exception {
         CapturedQuery result = runCapturingWarnings(syncEsqlQueryRequest(query).allowPartialResults(true));
-        assertThat(result.rows().stream().map(row -> Objects.toString(row.get(0))).sorted().toList(), equalTo(expectedIds));
-        assertTrue(
-            "a lost shard must surface as a partial-results warning, got: " + result.warnings(),
-            result.warnings().stream().anyMatch(w -> w.contains("EQL query returned partial results"))
-        );
+        assertThat(ids(result), equalTo(expectedIds));
+        assertTrue("a lost shard must mark the response partial", result.partial());
+        List<String> eqlWarnings = result.warnings().stream().filter(w -> w.contains("EQL")).toList();
+        assertThat(eqlWarnings, everyItem(containsString("EQL query used the default size")));
+        EsqlExecutionInfo.Cluster local = result.localCluster();
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat("the lost shard is listed once", local.getFailures(), hasSize(1));
+        ShardSearchFailure lost = local.getFailures().get(0);
+        assertThat(lost.index(), equalTo("eql_partial_fail"));
+        assertThat(lost.shardId(), equalTo(0));
+        assertThat(lost.reason(), containsString("Accessing failing field"));
+    }
+
+    private static List<String> ids(CapturedQuery result) {
+        return result.rows().stream().map(row -> Objects.toString(row.get(0))).sorted().toList();
+    }
+
+    private static String partialQuery(String eql) {
+        return "EQL " + PARTIAL_PATTERN + " \"" + eql + "\" METADATA _id | KEEP _id";
     }
 
     private static String partialSequenceQuery(String with) {
         return "EQL " + PARTIAL_PATTERN + " \"" + PARTIAL_SEQUENCE + "\" METADATA _id" + with + " | KEEP _id";
     }
 
-    private static EqlSearchRequest partialSequenceSearch() {
-        return new EqlSearchRequest().indices(PARTIAL_PATTERN).query(PARTIAL_SEQUENCE).allowPartialSearchResults(true);
+    private static EqlSearchRequest partialSearch(String eql) {
+        return new EqlSearchRequest().indices(PARTIAL_PATTERN).query(eql).allowPartialSearchResults(true);
     }
 
-    private record CapturedQuery(List<List<Object>> rows, List<String> warnings) {}
+    private record CapturedQuery(List<List<Object>> rows, List<String> warnings, boolean partial, EsqlExecutionInfo.Cluster localCluster) {}
 
     private CapturedQuery runCapturingWarnings(EsqlQueryRequest request) throws Exception {
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<List<List<Object>>> rows = new AtomicReference<>(List.of());
         List<String> warnings = new CopyOnWriteArrayList<>();
+        AtomicBoolean partial = new AtomicBoolean();
+        AtomicReference<EsqlExecutionInfo.Cluster> localCluster = new AtomicReference<>();
         AtomicReference<Exception> failure = new AtomicReference<>();
         client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
             try {
                 rows.set(getValuesList(response));
+                partial.set(response.isPartial());
+                localCluster.set(response.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
                 ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
                     .getThreadPool()
                     .getThreadContext();
@@ -572,7 +650,7 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         if (failure.get() != null) {
             throw new AssertionError("query must not fail", failure.get());
         }
-        return new CapturedQuery(rows.get(), warnings);
+        return new CapturedQuery(rows.get(), warnings, partial.get(), localCluster.get());
     }
 
     private List<String> esqlIds(String eqlQuery, QueryBuilder filter) {

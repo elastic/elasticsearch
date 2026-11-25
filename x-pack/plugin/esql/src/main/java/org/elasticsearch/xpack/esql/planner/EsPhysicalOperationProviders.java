@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -420,6 +421,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             fieldName = getFieldName((Attribute) convert.field());
             conversion = potentiallyUnmapped;
+        }
+        if (conversion instanceof ConvertFunction convert && convert.convertsInput() == false) {
+            // The conversion doesn't convert the type this shard maps the field as: it's null for every row, whatever the field has.
+            // The loader is not even asked for, as the field can be of a type no loader exists for.
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
@@ -969,7 +975,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             BlockLoader loader
         ) {
             Expression conversion = conversionFor(unionTypes, this, name);
-            return conversion == null
+            return conversion == null || (conversion instanceof ConvertFunction convert && convert.convertsInput() == false)
                 ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                 : ValuesSourceReaderOperator.loadAndConvert(loader, new TypeConverter((EsqlScalarFunction) conversion));
         }

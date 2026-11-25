@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -3121,29 +3122,49 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * Reproducer for #150375.
+     * Reproducer for #150375. Below {@link ConvertFunction#LENIENT_CAST} it fails. Otherwise the mapped type the cast doesn't accept is
+     * {@code null}, and the query warns about it.
      */
-    public void testTwoLeggedPunkExplicitCastRejectingMappedTypeFails() {
+    public void testTwoLeggedPunkExplicitCastRejectingMappedType() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        analyzer().addIndex(partialIpIndex())
-            .statementError(
-                setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"),
-                containsString("Mapped types [ip] of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]")
-            );
+        String query = "FROM idx* | EVAL x = partial_ip::integer | KEEP x";
+        if (minimumVersion.supports(ConvertFunction.LENIENT_CAST) == false) {
+            analyzer().addIndex(partialIpIndex())
+                .statementError(
+                    setUnmappedLoad(query),
+                    containsString("Mapped types [ip] of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]")
+                );
+            return;
+        }
+        var plan = analyzer().addIndex(partialIpIndex()).statement(setUnmappedLoad(query));
+        assertTrue(plan.resolved());
+        assertThat(EsqlTestUtils.singleValue(plan.output()).dataType(), equalTo(DataType.INTEGER));
+        assertWarnings("Field [partial_ip] of type [ip] cannot be converted to [INTEGER] and will be null where it has that type.");
     }
 
     /**
-     * Reproducer for #150375.
+     * Reproducer for #150375. Below {@link ConvertFunction#LENIENT_CAST} it fails. Otherwise the function is {@code null} where the field
+     * is unmapped, as it doesn't accept the {@code keyword} the field is loaded as, and the query warns about it.
      */
-    public void testTwoLeggedPunkConvertFunctionRejectingKeywordFails() {
+    public void testTwoLeggedPunkConvertFunctionRejectingKeyword() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        analyzer().addIndex(partialIpIndex())
-            .statementError(
-                setUnmappedLoad("FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x"),
-                containsString("[partial_ip] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(partial_ip)] does not accept [KEYWORD]")
-            );
+        String query = "FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x";
+        if (minimumVersion.supports(ConvertFunction.LENIENT_CAST) == false) {
+            analyzer().addIndex(partialIpIndex())
+                .statementError(
+                    setUnmappedLoad(query),
+                    containsString(
+                        "[partial_ip] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(partial_ip)] does not accept [KEYWORD]"
+                    )
+                );
+            return;
+        }
+        var plan = analyzer().addIndex(partialIpIndex()).statement(setUnmappedLoad(query));
+        assertTrue(plan.resolved());
+        assertThat(EsqlTestUtils.singleValue(plan.output()).dataType(), equalTo(DataType.DOUBLE));
+        assertWarnings("Field [partial_ip] of type [ip] cannot be converted to [DOUBLE] and will be null where it has that type.");
     }
 
     private static EsIndex partialIpIndex() {

@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -36,6 +37,14 @@ public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeE
     public abstract Expression getUnmappedConversionExpression();
 
     public abstract Collection<Expression> getConversionExpressions();
+
+    /**
+     * Whether some conversion is {@code null} for the type it converts from, because it doesn't convert that type. The values of the
+     * field are then not the values of the index: they can't be searched through the field.
+     */
+    public boolean hasAlwaysNullConversions() {
+        return getConversionExpressions().stream().anyMatch(e -> e instanceof ConvertFunction convert && convert.convertsInput() == false);
+    }
 
     /**
      * Wraps an existing union-type field's per-(index|type) conversions with another conversion expression on top, so the

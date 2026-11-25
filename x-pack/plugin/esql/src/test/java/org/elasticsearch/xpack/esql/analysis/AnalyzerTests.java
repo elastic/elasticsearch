@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -4056,14 +4057,13 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). When
-     * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), the
-     * conversion function can't resolve every leg, so the field falls through to the generic
-     * ambiguous-type-conflict error rather than being implicitly converted. This pins that
-     * "forbid for now" boundary so intentionally widening TO_TEXT's accepted union legs is a
-     * deliberate, test-breaking change. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
-     * for the supported workaround (an explicit inner cast to a type TO_TEXT does accept).
+     * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), a lenient
+     * conversion is {@code null} for that leg and warns about it. Below {@link ConvertFunction#LENIENT_CAST}, the field falls
+     * through to the generic ambiguous-type-conflict error rather than being implicitly converted.
+     * See union_types.csv-spec#multiIndexIpToTextWithExplicitCast for the workaround (an explicit inner cast to a type TO_TEXT does
+     * accept) that keeps the values of the leg.
      */
-    public void testToTextOnNonStringUnionTypeFails() {
+    public void testToTextOnNonStringUnionType() {
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
                 fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
@@ -4072,15 +4072,21 @@ public class AnalyzerTests extends AnalyzerTestCase {
             List.of()
         );
         IndexResolution resolution = mergedResolution("foo,bar", caps);
-        analyzer().addIndex(resolution)
-            .error(
-                "FROM foo, bar | EVAL x = TO_TEXT(value)",
-                equalTo(
-                    "Found 1 problem\n"
-                        + "line 1:34: Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[ip] in [foo], [keyword] in [bar]"
-                )
-            );
+        if (minimumVersion.supports(ConvertFunction.LENIENT_CAST) == false) {
+            analyzer().addIndex(resolution)
+                .error(
+                    "FROM foo, bar | EVAL x = TO_TEXT(value)",
+                    equalTo(
+                        "Found 1 problem\n"
+                            + "line 1:34: Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: "
+                            + "[ip] in [foo], [keyword] in [bar]"
+                    )
+                );
+            return;
+        }
+        LogicalPlan plan = analyzer().addIndex(resolution).query("FROM foo, bar | EVAL x = TO_TEXT(value) | KEEP x | LIMIT 1");
+        assertTrue(plan.resolved());
+        assertWarnings("Field [value] of type [ip] in [foo] cannot be converted to [TEXT] and will be null in those indices.");
     }
 
     private static FieldCapabilitiesResponse unionOfValueTypes(String fooType, String barType) {
@@ -6394,8 +6400,23 @@ public class AnalyzerTests extends AnalyzerTestCase {
     /**
      * Reproducer for #150375.
      */
-    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFails() {
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleType() {
         IndexResolution index = indexWithDateDateNanosUnionType();
+        if (minimumVersion.supports(ConvertFunction.LENIENT_CAST)) {
+            // The types the cast doesn't accept are null, and the query warns about them.
+            assertTrue(
+                analyzer().addIndex(index).query("FROM index* | EVAL x = date_and_date_nanos::double | KEEP x | LIMIT 1").resolved()
+            );
+            assertWarnings(
+                "Field [date_and_date_nanos] of type [date_nanos] cannot be converted to [DOUBLE] and will be null where it has that type."
+            );
+            assertTrue(analyzer().addIndex(index).query("FROM index* | EVAL x = date_and_date_nanos::ip | KEEP x | LIMIT 1").resolved());
+            assertWarnings(
+                "Field [date_and_date_nanos] of type [datetime] cannot be converted to [IP] and will be null where it has that type.",
+                "Field [date_and_date_nanos] of type [date_nanos] cannot be converted to [IP] and will be null where it has that type."
+            );
+            return;
+        }
         analyzer().addIndex(index)
             .error(
                 "FROM index* | EVAL x = date_and_date_nanos::double",

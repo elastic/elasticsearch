@@ -976,6 +976,10 @@ public abstract class FullTextFunction extends Function
      * minimum transport version predates {@code compact_multi_type_es_field}).
      */
     private static boolean isUnsafeAnalysisConversion(DataType targetType, FieldAttribute fieldAttribute) {
+        if (fieldAttribute.field() instanceof UnionTypeEsField unionTypeEsField && unionTypeEsField.hasAlwaysNullConversions()) {
+            // Where a conversion is null, the field has no values, whatever the index has.
+            return true;
+        }
         if (targetType != TEXT && targetType != KEYWORD && targetType != DENSE_VECTOR) {
             return false;
         }

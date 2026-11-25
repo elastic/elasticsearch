@@ -209,7 +209,7 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
             return;
         }
 
-        if (event.nodesDelta().masterNodeChanged()) {
+        if (event.masterChanged()) {
             // new master does not have any mapping size estimation data, publish everything
             updateMappingMetricsForAllIndices(event.state().version());
             recentlyStartedShards.clear();

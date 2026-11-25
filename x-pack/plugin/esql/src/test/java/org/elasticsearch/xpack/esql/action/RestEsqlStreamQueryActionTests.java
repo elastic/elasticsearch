@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,7 +32,13 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class RestEsqlStreamQueryActionTests extends ESTestCase {
 
-    private final RestEsqlStreamQueryAction handler = new RestEsqlStreamQueryAction(new EsqlCapabilities.Builder(false).build());
+    private final RestEsqlStreamQueryAction handler = new RestEsqlStreamQueryAction(
+        new EsqlCapabilities.Builder(false).build(),
+        () -> true,
+        null,
+        null,
+        null
+    );
 
     public void testRoute() {
         assertThat(handler.getName(), equalTo("esql_stream_query"));
@@ -50,20 +57,18 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
     public void testColumnarRejected() {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         esqlRequest.columnar(true);
-        expectThrows(
-            IllegalArgumentException.class,
-            containsString("columnar"),
-            () -> RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(Map.of()), null)
-        );
+        expectThrows(IllegalArgumentException.class, containsString("columnar"), () -> {
+            RestRequest request = requestWithParams(Map.of());
+            RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
+        });
     }
 
     public void testFormatMustBeNdjson() {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
-        expectThrows(
-            IllegalArgumentException.class,
-            allOf(containsString("ndjson"), containsString("csv")),
-            () -> RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(Map.of("format", "csv")), null)
-        );
+        expectThrows(IllegalArgumentException.class, allOf(containsString("ndjson"), containsString("csv")), () -> {
+            RestRequest request = requestWithParams(Map.of("format", "csv"));
+            RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
+        });
     }
 
     /**
@@ -87,7 +92,8 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         boolean allowPartial = randomBoolean();
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         Map<String, String> params = Map.of("allow_partial_results", "" + allowPartial);
-        RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(params), null);
+        RestRequest request = requestWithParams(params);
+        RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
         assertThat(esqlRequest.allowPartialResults(), equalTo(allowPartial));
     }
 
@@ -194,14 +200,46 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         );
     }
 
-    public void testStoreOtherThanNoneIsRejected() {
-        for (String store : new String[] { "overflow", "all", "bogus" }) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> parseStream("{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}")
-            );
-            assertThat(e.getMessage(), equalTo("[store] only supports [none] for now, got [" + store + "]"));
+    public void testValidStoreValuesAreAccepted() throws IOException {
+        for (StreamOptions.Store store : StreamOptions.Store.values()) {
+            String body = "{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}";
+            if (store == StreamOptions.Store.NONE || EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
+                assertThat(parseStream(body).options().store(), equalTo(store));
+            } else {
+                expectThrows(XContentParseException.class, () -> parseStream(body));
+            }
         }
+    }
+
+    public void testStoreIsRejectedWhenBatchIndexingIsNotSupported() {
+        assumeTrue("the stored modes need the feature flag", EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled());
+        RestEsqlStreamQueryAction unsupported = new RestEsqlStreamQueryAction(
+            new EsqlCapabilities.Builder(false).build(),
+            () -> false,
+            null,
+            null,
+            null
+        );
+        StreamOptions.Store store = randomFrom(StreamOptions.Store.OVERFLOW, StreamOptions.Store.ALL);
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray("{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}"),
+            XContentType.JSON
+        ).build();
+
+        expectThrows(
+            IllegalArgumentException.class,
+            equalTo("[store] set to [" + store + "] requires batch indexing"),
+            () -> unsupported.handleRequest(request, new FakeRestChannel(request, true), null)
+        );
+    }
+
+    public void testUnknownStoreIsRejected() {
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> parseStream("{\"query\": \"FROM idx\", \"store\": \"bogus\"}")
+        );
+        String accepted = EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled() ? "[none, overflow, all]" : "[none]";
+        assertThat(e.getCause().getMessage(), equalTo("[store] must be one of " + accepted + ", got [bogus]"));
     }
 
     public void testInvalidLimitsAreRejected() {

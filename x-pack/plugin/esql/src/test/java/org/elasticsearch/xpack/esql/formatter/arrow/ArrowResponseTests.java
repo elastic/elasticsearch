@@ -30,6 +30,7 @@ import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
+import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
@@ -1609,6 +1610,7 @@ public class ArrowResponseTests extends ESTestCase {
             conversionCount.incrementAndGet();
             return value;
         });
+        var nodes = new ArrayList<ArrowFieldNode>();
         var bufs = new ArrayList<ArrowBuf>();
         var bufWriters = new ArrayList<BlockArrowFormatter.BufWriter>();
         var releasables = new ArrayList<Releasable>();
@@ -1617,8 +1619,11 @@ public class ArrowResponseTests extends ESTestCase {
             BytesRefBlock block = builder.appendBytesRef(new BytesRef("one")).appendNull().appendBytesRef(new BytesRef("two")).build();
             RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
         ) {
-            formatter.convert(block, false, bufs, bufWriters, releasables);
+            formatter.convert(block, false, nodes, bufs, bufWriters, releasables);
             assertEquals(2, conversionCount.get());
+            assertEquals(1, nodes.size());
+            assertEquals(3, nodes.getFirst().getLength());
+            assertEquals(1, nodes.getFirst().getNullCount());
 
             for (BlockArrowFormatter.BufWriter writer : bufWriters) {
                 writer.write(out);
@@ -1626,6 +1631,170 @@ public class ArrowResponseTests extends ESTestCase {
             assertEquals(2, conversionCount.get());
         } finally {
             Releasables.close(releasables);
+        }
+    }
+
+    public void testTransformedBytesRefAllNullShortCircuit() throws IOException {
+        AtomicInteger conversionCount = new AtomicInteger();
+        var formatter = new BlockArrowFormatter.TransformedBytesRef(DataType.KEYWORD, Types.MinorType.VARCHAR, (value, scratch) -> {
+            conversionCount.incrementAndGet();
+            return value;
+        });
+        for (boolean asList : new boolean[] { false, true }) {
+            var nodes = new ArrayList<ArrowFieldNode>();
+            var bufs = new ArrayList<ArrowBuf>();
+            var bufWriters = new ArrayList<BlockArrowFormatter.BufWriter>();
+            var releasables = new ArrayList<Releasable>();
+            try (
+                Block nullBlock = blockFactory.newConstantNullBlock(4);
+                RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
+            ) {
+                formatter.convert(nullBlock, asList, nodes, bufs, bufWriters, releasables);
+                assertEquals(0, conversionCount.get());
+                assertTrue("All-null block should not allocate a transformed block", releasables.isEmpty());
+                if (asList) {
+                    assertEquals(2, nodes.size());
+                    assertEquals(4, nodes.get(0).getLength());
+                    assertEquals(4, nodes.get(0).getNullCount());
+                    assertEquals(0, nodes.get(1).getLength());
+                    assertEquals(0, nodes.get(1).getNullCount());
+                } else {
+                    assertEquals(1, nodes.size());
+                    assertEquals(4, nodes.getFirst().getLength());
+                    assertEquals(4, nodes.getFirst().getNullCount());
+                }
+                for (int i = 0; i < bufWriters.size(); i++) {
+                    assertEquals(bufs.get(i).writerIndex(), bufWriters.get(i).write(out));
+                }
+            } finally {
+                Releasables.close(releasables);
+            }
+        }
+    }
+
+    public void testAsJsonSingleValuedEmptyBytesRefBecomesNull() throws IOException {
+        for (DataType type : List.of(DataType.SOURCE, DataType.FLATTENED)) {
+            BytesRefBlock mixedBlock;
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(5)) {
+                mixedBlock = builder.appendBytesRef(new BytesRef())
+                    .appendBytesRef(new BytesRef("{\"a\":1}"))
+                    .appendNull()
+                    .appendBytesRef(new BytesRef())
+                    .appendBytesRef(new BytesRef("{\"b\":2}"))
+                    .build();
+            }
+            BytesRefBlock allEmptyBlock;
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
+                allEmptyBlock = builder.appendBytesRef(new BytesRef()).appendBytesRef(new BytesRef()).build();
+            }
+
+            ArrowResponse response = new ArrowResponse(
+                List.of(new ArrowResponse.Column(type, "json")),
+                List.of(new Page(mixedBlock), new Page(allEmptyBlock))
+            );
+            try (
+                mixedBlock;
+                allEmptyBlock;
+                ReleasableBytesReference bytes = serializeBlocksDirectly(response);
+                ArrowStreamReader reader = new ArrowStreamReader(bytes.streamInput(), ALLOCATOR);
+                VectorSchemaRoot root = reader.getVectorSchemaRoot()
+            ) {
+                assertTrue(reader.loadNextBatch());
+                VarCharVector vector = (VarCharVector) root.getVector("json");
+                assertEquals(5, vector.getValueCount());
+                assertEquals(3, vector.getNullCount());
+                assertTrue(vector.isNull(0));
+                assertFalse(vector.isNull(1));
+                assertEquals("{\"a\":1}", new String(vector.get(1), StandardCharsets.UTF_8));
+                assertTrue(vector.isNull(2));
+                assertTrue(vector.isNull(3));
+                assertFalse(vector.isNull(4));
+                assertEquals("{\"b\":2}", new String(vector.get(4), StandardCharsets.UTF_8));
+
+                assertTrue(reader.loadNextBatch());
+                assertEquals(2, vector.getValueCount());
+                assertEquals(2, vector.getNullCount());
+                assertTrue(vector.isNull(0));
+                assertTrue(vector.isNull(1));
+
+                assertFalse(reader.loadNextBatch());
+            }
+        }
+    }
+
+    public void testAsJsonMultivaluedEmptyBytesRefHandledCleanly() throws IOException {
+        for (DataType type : List.of(DataType.SOURCE, DataType.FLATTENED)) {
+            BytesRefBlock mixedBlock;
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(6)) {
+                // Row 0: multivalued with leading/trailing empties -> shrinks to 1 element
+                builder.beginPositionEntry()
+                    .appendBytesRef(new BytesRef())
+                    .appendBytesRef(new BytesRef("{\"a\":1}"))
+                    .appendBytesRef(new BytesRef())
+                    .endPositionEntry();
+                // Row 1: multivalued with all empties -> becomes null position
+                builder.beginPositionEntry().appendBytesRef(new BytesRef()).appendBytesRef(new BytesRef()).endPositionEntry();
+                // Row 2: explicit null
+                builder.appendNull();
+                // Row 3: multivalued with middle empty -> shrinks to 2 elements
+                builder.beginPositionEntry()
+                    .appendBytesRef(new BytesRef("{\"b\":2}"))
+                    .appendBytesRef(new BytesRef())
+                    .appendBytesRef(new BytesRef("{\"c\":3}"))
+                    .endPositionEntry();
+                // Row 4: single empty value -> becomes null position
+                builder.appendBytesRef(new BytesRef());
+                // Row 5: single valid value -> 1 element list
+                builder.appendBytesRef(new BytesRef("{\"d\":4}"));
+                mixedBlock = builder.build();
+            }
+            BytesRefBlock allEmptyMultivalued;
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
+                builder.beginPositionEntry().appendBytesRef(new BytesRef()).appendBytesRef(new BytesRef()).endPositionEntry();
+                builder.appendBytesRef(new BytesRef());
+                allEmptyMultivalued = builder.build();
+            }
+
+            ArrowResponse response = new ArrowResponse(
+                List.of(new ArrowResponse.Column(type, "json")),
+                List.of(new Page(mixedBlock), new Page(allEmptyMultivalued))
+            );
+            try (
+                mixedBlock;
+                allEmptyMultivalued;
+                ReleasableBytesReference bytes = serializeBlocksDirectly(response);
+                ArrowStreamReader reader = new ArrowStreamReader(bytes.streamInput(), ALLOCATOR);
+                VectorSchemaRoot root = reader.getVectorSchemaRoot()
+            ) {
+                assertTrue(reader.loadNextBatch());
+                ListVector listVector = (ListVector) root.getVector("json");
+                assertEquals(6, listVector.getValueCount());
+                assertEquals(3, listVector.getNullCount());
+                assertListLayout(listVector, 0, 1, 1, 1, 3, 3, 4);
+                assertFalse(listVector.isNull(0));
+                assertTrue(listVector.isNull(1));
+                assertTrue(listVector.isNull(2));
+                assertFalse(listVector.isNull(3));
+                assertTrue(listVector.isNull(4));
+                assertFalse(listVector.isNull(5));
+
+                VarCharVector dataVector = (VarCharVector) listVector.getDataVector();
+                assertEquals(4, dataVector.getValueCount());
+                assertEquals(0, dataVector.getNullCount());
+                assertEquals("{\"a\":1}", new String(dataVector.get(0), StandardCharsets.UTF_8));
+                assertEquals("{\"b\":2}", new String(dataVector.get(1), StandardCharsets.UTF_8));
+                assertEquals("{\"c\":3}", new String(dataVector.get(2), StandardCharsets.UTF_8));
+                assertEquals("{\"d\":4}", new String(dataVector.get(3), StandardCharsets.UTF_8));
+
+                assertTrue(reader.loadNextBatch());
+                assertEquals(2, listVector.getValueCount());
+                assertEquals(2, listVector.getNullCount());
+                assertListLayout(listVector, 0, 0, 0);
+                assertTrue(listVector.isNull(0));
+                assertTrue(listVector.isNull(1));
+
+                assertFalse(reader.loadNextBatch());
+            }
         }
     }
 
@@ -1642,11 +1811,15 @@ public class ArrowResponseTests extends ESTestCase {
         assertThat(ordinalBlock, instanceOf(OrdinalBytesRefBlock.class));
         assertEquals(0, ((OrdinalBytesRefBlock) ordinalBlock).getOrdinalsBlock().getInt(1));
 
+        var nodes = new ArrayList<ArrowFieldNode>();
         var bufs = new ArrayList<ArrowBuf>();
         var releasables = new ArrayList<Releasable>();
         try {
-            ArrowResponse.ESQL_FORMATTERS.get(DataType.VERSION).convert(ordinalBlock, false, bufs, new ArrayList<>(), releasables);
+            ArrowResponse.ESQL_FORMATTERS.get(DataType.VERSION).convert(ordinalBlock, false, nodes, bufs, new ArrayList<>(), releasables);
             assertEquals(version.length(), bufs.getLast().writerIndex());
+            assertEquals(1, nodes.size());
+            assertEquals(2, nodes.getFirst().getLength());
+            assertEquals(1, nodes.getFirst().getNullCount());
         } finally {
             Releasables.close(releasables);
         }

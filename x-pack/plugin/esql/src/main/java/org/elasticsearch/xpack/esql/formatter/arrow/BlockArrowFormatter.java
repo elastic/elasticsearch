@@ -113,75 +113,39 @@ public abstract class BlockArrowFormatter {
         return false;
     }
 
-    // Block.nullValuesCount was more efficient but was removed in https://github.com/elastic/elasticsearch/pull/108916
-    protected int nullValuesCount(Block block) {
-        if (block.mayHaveNulls() == false) {
-            return 0;
-        }
-
-        if (block.areAllValuesNull()) {
-            return block.getPositionCount();
-        }
-
-        int count = 0;
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            if (block.isNull(i)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     public interface BufWriter {
         long write(RecyclerBytesStreamOutput out) throws IOException;
     }
 
     /**
-     * Add Arrow field nodes for this block.
-     * Override for nested types that contribute multiple nodes (e.g., struct) when using the 5-argument {@link #convert}.
+     * Add Arrow field nodes and convert a block into Arrow buffers.
+     *
+     * @param block the ESQL block
+     * @param asList whether to encode values as an Arrow list. The encoding is fixed for the column even when a page
+     *               contains only single values or nulls.
+     * @param nodes Arrow field nodes describing value and null counts
+     * @param bufs arrow buffers, used to track sizes
+     * @param bufWriters buffer writers, that will do the actual work of writing the data
+     * @param releasables resources retained until the deferred buffer writers have completed
      */
-    protected void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
-        if (asList) {
-            // List node
-            nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
-            // Value vector, does not contain nulls.
-            nodes.add(new ArrowFieldNode(block.getTotalValueCount(), 0));
-        } else {
-
-            nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
-        }
-    }
-
-    /**
-     * Add Arrow field nodes and convert a block into Arrow buffers in a single pass.
-     * Override instead of {@link #addFieldNodes} and the 5-argument {@link #convert} when node counts and buffers share
-     * per-page decoding work.
-     */
-    public void convert(
+    public abstract void convert(
         Block block,
         boolean asList,
         List<ArrowFieldNode> nodes,
         List<ArrowBuf> bufs,
         List<BufWriter> bufWriters,
         List<Releasable> releasables
-    ) {
-        addFieldNodes(block, asList, nodes);
-        convert(block, asList, bufs, bufWriters, releasables);
-    }
+    );
 
     /**
-     * Convert a block into Arrow buffers.
-     * @param block the ESQL block
-     * @param asList whether to encode values as an Arrow list. The encoding is fixed for the column even when a page
-     *               contains only single values or nulls.
-     * @param bufs arrow buffers, used to track sizes
-     * @param bufWriters buffer writers, that will do the actual work of writing the data
-     * @param releasables resources retained until the deferred buffer writers have completed
+     * Add Arrow field nodes for a non-nested type (either a single vector node, or a list node plus its value vector node).
      */
-    public void convert(Block block, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
-        throw new UnsupportedOperationException(
-            "Use convert(Block, boolean, List<ArrowFieldNode>, List<ArrowBuf>, List<BufWriter>, List<Releasable>)"
-        );
+    protected static void addSimpleFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
+        nodes.add(new ArrowFieldNode(block.getPositionCount(), block.nullValuesCount()));
+        if (asList) {
+            // Value vector, does not contain nulls.
+            nodes.add(new ArrowFieldNode(block.getTotalValueCount(), 0));
+        }
     }
 
     /**
@@ -200,9 +164,17 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             FloatBlock block = (FloatBlock) b;
             assert asList;
+            addSimpleFieldNodes(block, true, nodes);
             addListOffsets(bufs, bufWriters, block);
             accumulateVectorValidity(bufs, bufWriters, block, true);
 
@@ -234,8 +206,16 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             DoubleBlock block = (DoubleBlock) b;
+            addSimpleFieldNodes(block, asList, nodes);
 
             if (asList) {
                 addListOffsets(bufs, bufWriters, block);
@@ -278,8 +258,16 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             IntBlock block = (IntBlock) b;
+            addSimpleFieldNodes(block, asList, nodes);
 
             if (asList) {
                 addListOffsets(bufs, bufWriters, block);
@@ -325,8 +313,16 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             LongBlock block = (LongBlock) b;
+            addSimpleFieldNodes(block, asList, nodes);
 
             if (asList) {
                 addListOffsets(bufs, bufWriters, block);
@@ -387,8 +383,16 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             BooleanBlock block = (BooleanBlock) b;
+            addSimpleFieldNodes(block, asList, nodes);
 
             if (asList) {
                 addListOffsets(bufs, bufWriters, block);
@@ -443,8 +447,16 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             BytesRefBlock block = (BytesRefBlock) b;
+            addSimpleFieldNodes(block, asList, nodes);
 
             if (asList) {
                 addListOffsets(bufs, bufWriters, block);
@@ -556,10 +568,21 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            if (b.areAllValuesNull()) {
+                super.convert(b, asList, nodes, bufs, bufWriters, releasables);
+                return;
+            }
             BytesRefBlock transformed = transformValues((BytesRefBlock) b);
             releasables.add(transformed);
-            super.convert(transformed, asList, bufs, bufWriters, releasables);
+            super.convert(transformed, asList, nodes, bufs, bufWriters, releasables);
         }
 
         private BytesRefBlock transformValues(BytesRefBlock block) {
@@ -573,26 +596,60 @@ public abstract class BlockArrowFormatter {
                     int start = block.getFirstValueIndex(position);
                     int end = start + block.getValueCount(position);
                     if (end - start == 1) {
-                        if (emptyAsNull() && block.getBytesRef(start, scratch).length == 0) {
-                            builder.appendNull();
+                        BytesRef bytes = block.getBytesRef(start, scratch);
+                        if (bytes.length == 0) {
+                            if (emptyAsNull()) {
+                                builder.appendNull();
+                            } else {
+                                builder.appendBytesRef(bytes);
+                            }
                         } else {
-                            convertAndAppend(builder, block, start, scratch);
+                            builder.appendBytesRef(valueConverter.apply(bytes, scratch));
                         }
-                        continue;
+                    } else if (emptyAsNull()) {
+                        appendNonEmptyMultivaluedPosition(builder, block, start, end, scratch);
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                            convertAndAppend(builder, block, valueIndex, scratch);
+                        }
+                        builder.endPositionEntry();
                     }
-                    builder.beginPositionEntry();
-                    for (int valueIndex = start; valueIndex < end; valueIndex++) {
-                        convertAndAppend(builder, block, valueIndex, scratch);
-                    }
-                    builder.endPositionEntry();
                 }
                 return builder.build();
             }
         }
 
+        private void appendNonEmptyMultivaluedPosition(
+            BytesRefBlock.Builder builder,
+            BytesRefBlock block,
+            int start,
+            int end,
+            BytesRef scratch
+        ) {
+            boolean opened = false;
+            for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                BytesRef bytes = block.getBytesRef(valueIndex, scratch);
+                if (bytes.length == 0) {
+                    continue;
+                }
+                if (opened == false) {
+                    builder.beginPositionEntry();
+                    opened = true;
+                }
+                builder.appendBytesRef(valueConverter.apply(bytes, scratch));
+            }
+            if (opened) {
+                builder.endPositionEntry();
+            } else {
+                builder.appendNull();
+            }
+        }
+
         /**
-         * Whether zero-length single values must be emitted as null rather than passed through unconverted. Needed when an
-         * empty value isn't valid for the target type (e.g. {@code arrow.json}).
+         * Whether zero-length values must be treated as null/absent rather than passed through unconverted. Needed when an
+         * empty value isn't valid for the target type (e.g. {@code arrow.json}). Single empty values become null; in
+         * multivalued positions empty elements are skipped, and a position whose elements are all empty becomes null.
          */
         protected boolean emptyAsNull() {
             return false;
@@ -707,34 +764,22 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
-            int count = block.getPositionCount();
-            if (asList) {
-                int valueCount = block.getTotalValueCount();
-                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));  // list
-                nodes.add(new ArrowFieldNode(valueCount, 0));                  // struct (items have no independent nulls)
-                nodes.add(new ArrowFieldNode(valueCount, 0));                  // from
-                nodes.add(new ArrowFieldNode(valueCount, 0));                  // to
-            } else {
-                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));
-                if (block.areAllValuesNull()) {
-                    nodes.add(new ArrowFieldNode(count, count));
-                    nodes.add(new ArrowFieldNode(count, count));
-                } else {
-                    LongRangeBlock rangeBlock = (LongRangeBlock) block;
-                    nodes.add(new ArrowFieldNode(count, nullValuesCount(rangeBlock.getFromBlock())));
-                    nodes.add(new ArrowFieldNode(count, nullValuesCount(rangeBlock.getToBlock())));
-                }
-            }
-        }
-
-        @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             LongRangeBlock block = (LongRangeBlock) b;
             int count = block.getPositionCount();
 
             if (asList) {
                 int valueCount = block.getTotalValueCount();
+                addSimpleFieldNodes(block, true, nodes);
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // from
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // to
                 addListOffsets(bufs, bufWriters, block);
                 // Struct validity: empty — items inside a list entry are never null in ES|QL
                 bufs.add(dummyArrowBuf(0));
@@ -758,14 +803,19 @@ public abstract class BlockArrowFormatter {
                     return (long) valueCount * Long.BYTES;
                 });
             } else {
+                nodes.add(new ArrowFieldNode(count, block.nullValuesCount()));
                 // Struct validity bitmap
                 accumulateVectorValidity(bufs, bufWriters, block, false);
                 if (block.areAllValuesNull()) {
+                    nodes.add(new ArrowFieldNode(count, count));
+                    nodes.add(new ArrowFieldNode(count, count));
                     // ConstantNullBlock: getFromBlock()/getToBlock() return `this`, and getLong() throws.
                     // Write all-null validity and zeroed data for both children.
                     addAllNullChildBuffers(bufs, bufWriters, count);
                     addAllNullChildBuffers(bufs, bufWriters, count);
                 } else {
+                    nodes.add(new ArrowFieldNode(count, block.getFromBlock().nullValuesCount()));
+                    nodes.add(new ArrowFieldNode(count, block.getToBlock().nullValuesCount()));
                     addChildBuffers(bufs, bufWriters, count, block.getFromBlock());
                     addChildBuffers(bufs, bufWriters, count, block.getToBlock());
                 }
@@ -819,34 +869,22 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
-            int count = block.getPositionCount();
-            if (asList) {
-                int valueCount = block.getTotalValueCount();
-                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));  // list
-                nodes.add(new ArrowFieldNode(valueCount, 0));                  // struct (items have no independent nulls)
-                nodes.add(new ArrowFieldNode(valueCount, 0));                  // from
-                nodes.add(new ArrowFieldNode(valueCount, 0));                  // to
-            } else {
-                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));
-                if (block.areAllValuesNull()) {
-                    nodes.add(new ArrowFieldNode(count, count));
-                    nodes.add(new ArrowFieldNode(count, count));
-                } else {
-                    DoubleRangeBlock rangeBlock = (DoubleRangeBlock) block;
-                    nodes.add(new ArrowFieldNode(count, nullValuesCount(rangeBlock.getDoubleFromBlock())));
-                    nodes.add(new ArrowFieldNode(count, nullValuesCount(rangeBlock.getDoubleToBlock())));
-                }
-            }
-        }
-
-        @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             DoubleRangeBlock block = (DoubleRangeBlock) b;
             int count = block.getPositionCount();
 
             if (asList) {
                 int valueCount = block.getTotalValueCount();
+                addSimpleFieldNodes(block, true, nodes);
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // from
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // to
                 addListOffsets(bufs, bufWriters, block);
                 // Struct validity: empty — items inside a list entry are never null in ES|QL
                 bufs.add(dummyArrowBuf(0));
@@ -870,14 +908,19 @@ public abstract class BlockArrowFormatter {
                     return (long) valueCount * Double.BYTES;
                 });
             } else {
+                nodes.add(new ArrowFieldNode(count, block.nullValuesCount()));
                 // Struct validity bitmap
                 accumulateVectorValidity(bufs, bufWriters, block, false);
                 if (block.areAllValuesNull()) {
+                    nodes.add(new ArrowFieldNode(count, count));
+                    nodes.add(new ArrowFieldNode(count, count));
                     // ConstantNullBlock's child accessors return `this`, and getDouble() throws.
                     // Write all-null validity and zeroed data for both children.
                     addAllNullChildBuffers(bufs, bufWriters, count);
                     addAllNullChildBuffers(bufs, bufWriters, count);
                 } else {
+                    nodes.add(new ArrowFieldNode(count, block.getDoubleFromBlock().nullValuesCount()));
+                    nodes.add(new ArrowFieldNode(count, block.getDoubleToBlock().nullValuesCount()));
                     addChildBuffers(bufs, bufWriters, count, block.getDoubleFromBlock());
                     addChildBuffers(bufs, bufWriters, count, block.getDoubleToBlock());
                 }
@@ -955,56 +998,29 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
+        public void convert(
+            Block block,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
-            DoubleBlock min = aggregate.minBlock();
-            DoubleBlock max = aggregate.maxBlock();
-            DoubleBlock sum = aggregate.sumBlock();
-            IntBlock count = aggregate.countBlock();
             int positions = block.getPositionCount();
-            int minNulls = 0;
-            int maxNulls = 0;
-            int sumNulls = 0;
-            int countNulls = 0;
-            int summaryNulls = 0;
-            if (block.mayHaveNulls()) {
-                for (int position = 0; position < positions; position++) {
-                    boolean minNull = min.isNull(position);
-                    boolean maxNull = max.isNull(position);
-                    boolean sumNull = sum.isNull(position);
-                    boolean countNull = count.isNull(position);
-                    minNulls += minNull ? 1 : 0;
-                    maxNulls += maxNull ? 1 : 0;
-                    sumNulls += sumNull ? 1 : 0;
-                    countNulls += countNull ? 1 : 0;
-                    if (minNull && maxNull && sumNull && countNull) {
-                        summaryNulls++;
-                    }
-                }
-            }
-            // The struct and each of its children have one slot per row.
-            nodes.add(new ArrowFieldNode(positions, summaryNulls));
-            nodes.add(new ArrowFieldNode(positions, minNulls));
-            nodes.add(new ArrowFieldNode(positions, maxNulls));
-            nodes.add(new ArrowFieldNode(positions, sumNulls));
-            nodes.add(new ArrowFieldNode(positions, countNulls));
-        }
-
-        @Override
-        public void convert(Block block, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
-            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
             if (summaryMayBeNull(aggregate)) {
+                nodes.add(new ArrowFieldNode(positions, block.nullValuesCount()));
                 accumulateVectorValidity(bufs, bufWriters, block, false);
             } else {
                 // The block reports nulls if any metric may be null, but a summary is only null when all four are.
-                bufs.add(dummyArrowBuf(0));
-                bufWriters.add(out -> 0);
+                nodes.add(new ArrowFieldNode(positions, 0));
+                addEmptyValidity(bufs, bufWriters);
             }
             // Child accessors on ConstantNullBlock return the null block itself, which primitive formatters also accept.
-            DOUBLE_FORMATTER.convert(aggregate.minBlock(), false, bufs, bufWriters, releasables);
-            DOUBLE_FORMATTER.convert(aggregate.maxBlock(), false, bufs, bufWriters, releasables);
-            DOUBLE_FORMATTER.convert(aggregate.sumBlock(), false, bufs, bufWriters, releasables);
-            COUNT_FORMATTER.convert(aggregate.countBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.minBlock(), false, nodes, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.maxBlock(), false, nodes, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.sumBlock(), false, nodes, bufs, bufWriters, releasables);
+            COUNT_FORMATTER.convert(aggregate.countBlock(), false, nodes, bufs, bufWriters, releasables);
         }
 
         private static boolean summaryMayBeNull(AggregateMetricDoubleBlock aggregate) {
@@ -1056,31 +1072,37 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
-            TDigestBlock digests = (TDigestBlock) block;
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            TDigestBlock block = (TDigestBlock) b;
             int positions = block.getPositionCount();
-            int centroids = centroidOffsets(digests)[positions];
-            nodes.add(new ArrowFieldNode(positions, nullValuesCount(block))); // struct
-            nodes.add(new ArrowFieldNode(positions, absentCount(digests, TDigestHolder::getMin))); // min
-            nodes.add(new ArrowFieldNode(positions, absentCount(digests, TDigestHolder::getMax))); // max
-            nodes.add(new ArrowFieldNode(positions, absentCount(digests, TDigestHolder::getSum))); // sum
+            int[] offsets = centroidOffsets(block);
+            int centroids = offsets[positions];
+            int minAbsent = absentCount(block, TDigestHolder::getMin);
+            int maxAbsent = absentCount(block, TDigestHolder::getMax);
+            int sumAbsent = absentCount(block, TDigestHolder::getSum);
+
+            nodes.add(new ArrowFieldNode(positions, block.nullValuesCount())); // struct
+            nodes.add(new ArrowFieldNode(positions, minAbsent)); // min
+            nodes.add(new ArrowFieldNode(positions, maxAbsent)); // max
+            nodes.add(new ArrowFieldNode(positions, sumAbsent)); // sum
             nodes.add(new ArrowFieldNode(positions, 0)); // centroids list
             nodes.add(new ArrowFieldNode(centroids, 0)); // centroids values
             nodes.add(new ArrowFieldNode(positions, 0)); // counts list
             nodes.add(new ArrowFieldNode(centroids, 0)); // counts values
-        }
-
-        @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
-            TDigestBlock block = (TDigestBlock) b;
-            int[] offsets = centroidOffsets(block);
 
             // Struct validity
             accumulateVectorValidity(bufs, bufWriters, block, false);
 
-            addDoubleChild(bufs, bufWriters, block, TDigestHolder::getMin);
-            addDoubleChild(bufs, bufWriters, block, TDigestHolder::getMax);
-            addDoubleChild(bufs, bufWriters, block, TDigestHolder::getSum);
+            addDoubleChild(bufs, bufWriters, block, TDigestHolder::getMin, minAbsent);
+            addDoubleChild(bufs, bufWriters, block, TDigestHolder::getMax, maxAbsent);
+            addDoubleChild(bufs, bufWriters, block, TDigestHolder::getSum, sumAbsent);
 
             addListChild(bufs, bufWriters, block, offsets, Double.BYTES, (out, it) -> out.writeDoubleLE(it.currentMean()));
             addListChild(bufs, bufWriters, block, offsets, Long.BYTES, (out, it) -> out.writeLongLE(it.currentCount()));
@@ -1127,10 +1149,11 @@ public abstract class BlockArrowFormatter {
             List<ArrowBuf> bufs,
             List<BufWriter> bufWriters,
             TDigestBlock block,
-            ToDoubleFunction<TDigestHolder> getter
+            ToDoubleFunction<TDigestHolder> getter,
+            int absentCount
         ) {
             int positions = block.getPositionCount();
-            if (absentCount(block, getter) == 0) {
+            if (absentCount == 0) {
                 bufs.add(dummyArrowBuf(0));
                 bufWriters.add(out -> 0);
             } else {
@@ -1216,30 +1239,27 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
-            int[] indexes = itemIndexes(block, asList);
-            int items = indexes.length;
-            int values = offsets((BytesRefBlock) block, indexes)[items];
-            if (asList) {
-                nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
-                nodes.add(new ArrowFieldNode(items, 0));
-            } else {
-                nodes.add(new ArrowFieldNode(items, nullValuesCount(block)));
-            }
-            nodes.add(new ArrowFieldNode(items, 0));
-            nodes.add(new ArrowFieldNode(values, 0));
-            nodes.add(new ArrowFieldNode(items, 0));
-            nodes.add(new ArrowFieldNode(values, 0));
-        }
-
-        @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             BytesRefBlock block = (BytesRefBlock) b;
             int[] indexes = itemIndexes(block, asList);
+            int items = indexes.length;
             int[] offsets = offsets(block, indexes);
+            int values = offsets[items];
+            addSimpleFieldNodes(block, asList, nodes);
             if (asList) {
                 addListOffsets(bufs, bufWriters, block);
             }
+            nodes.add(new ArrowFieldNode(items, 0));
+            nodes.add(new ArrowFieldNode(values, 0));
+            nodes.add(new ArrowFieldNode(items, 0));
+            nodes.add(new ArrowFieldNode(values, 0));
             accumulateVectorValidity(bufs, bufWriters, block, asList);
             addNonNullableListBuffers(bufs, bufWriters, offsets, Double.BYTES, out -> writeBuckets(block, indexes, out, true));
             addNonNullableListBuffers(bufs, bufWriters, offsets, Long.BYTES, out -> writeBuckets(block, indexes, out, false));
@@ -1406,12 +1426,9 @@ public abstract class BlockArrowFormatter {
             int minAbsent = absentCount(minBlock, indexes);
             int maxAbsent = absentCount(maxBlock, indexes);
 
+            addSimpleFieldNodes(block, asList, nodes);
             if (asList) {
-                nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block))); // list
-                nodes.add(new ArrowFieldNode(items, 0)); // struct
                 addListOffsets(bufs, bufWriters, block);
-            } else {
-                nodes.add(new ArrowFieldNode(items, nullValuesCount(block))); // struct
             }
             accumulateVectorValidity(bufs, bufWriters, block, asList);
 
@@ -1682,25 +1699,19 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
-            int count = block.getPositionCount();
-            if (multivalued) {
-                int valueCount = block.getTotalValueCount();
-                nodes.add(new ArrowFieldNode(count, nullValuesCount(block))); // list
-                nodes.add(new ArrowFieldNode(valueCount, 0)); // struct (items have no independent nulls)
-                for (int i = 0; i < Component.values().length; i++) {
-                    nodes.add(new ArrowFieldNode(valueCount, 0));
-                }
-            } else {
-                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));
-                for (int i = 0; i < Component.values().length; i++) {
-                    nodes.add(new ArrowFieldNode(count, 0));
-                }
+        public void convert(
+            Block b,
+            boolean multivalued,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            addSimpleFieldNodes(b, multivalued, nodes);
+            int valueCount = arrowValueCount(b, multivalued);
+            for (int i = 0; i < Component.values().length; i++) {
+                nodes.add(new ArrowFieldNode(valueCount, 0));
             }
-        }
-
-        @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             if (multivalued) {
                 addListOffsets(bufs, bufWriters, b);
             }
@@ -1753,7 +1764,15 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block block, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        public void convert(
+            Block block,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            addSimpleFieldNodes(block, asList, nodes);
             // Null vector in arrow has no associated buffers
             // See https://arrow.apache.org/docs/format/Columnar.html#null-layout
         }

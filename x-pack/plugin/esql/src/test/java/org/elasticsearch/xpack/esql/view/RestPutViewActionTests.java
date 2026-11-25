@@ -101,7 +101,9 @@ public class RestPutViewActionTests extends ESTestCase {
                 );
                 final Response response;
                 if (action == ValidateViewAction.INSTANCE) {
-                    response = (Response) new ValidateViewAction.Response(validationWarning);
+                    response = (Response) new ValidateViewAction.Response(
+                        validationWarning == null ? List.of() : List.of(validationWarning)
+                    );
                 } else if (action == PutViewAction.INSTANCE) {
                     response = (Response) AcknowledgedResponse.TRUE;
                 } else {

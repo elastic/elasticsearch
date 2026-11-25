@@ -142,6 +142,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.tables.putAll(source.tables);
     }
 
+    /**
+     * Copies {@code source}, except that the copy is synchronous or asynchronous as given.
+     */
+    EsqlQueryRequest(EsqlQueryRequest source, boolean async) {
+        this(source);
+        this.async = async;
+    }
+
     public EsqlQueryRequest() {}
 
     public EsqlQueryRequest(StreamInput in) throws IOException {

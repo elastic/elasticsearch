@@ -35,6 +35,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
 import org.junit.Before;
@@ -42,12 +44,15 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -301,6 +306,8 @@ public class ViewServiceTests extends ESTestCase {
     }
 
     public void testAcceptsLet() {
+        // Not referencing a named subquery is worth a warning, see testValidateViewWarnsOnUnreferencedLet, and no reason to reject
+        validatePutView("let-view", "LET unused = (FROM metrics); FROM other");
         validatePutView("let-view", "LET a = (FROM metrics | KEEP cpu); LET b = (FROM a | WHERE cpu > 1); FROM b");
         validatePutView("let-view", "LET a = (FROM metrics | KEEP host); FROM other | WHERE host IN (FROM a)");
     }
@@ -309,11 +316,6 @@ public class ViewServiceTests extends ESTestCase {
      * Named subquery errors depend only on the definition, so the view is rejected when it is stored, and not only when it is queried.
      */
     public void testRejectsLetErrors() {
-        expectThrows(
-            ParsingException.class,
-            containsString("LET subquery [unused] is declared but never referenced"),
-            () -> validatePutView("let-view", "LET unused = (FROM metrics); FROM other")
-        );
         expectThrows(
             ParsingException.class,
             containsString("Subqueries are not supported in LOOKUP JOIN"),
@@ -334,10 +336,45 @@ public class ViewServiceTests extends ESTestCase {
     public void testValidateViewFailsOnLetErrors() {
         var e = expectThrows(
             ParsingException.class,
-            () -> validateView(viewService, new View("let-view", "LET unused = (FROM metrics); FROM other", null, false))
+            () -> validateView(viewService, new View("let-view", "LET b = (FROM metrics); TS b | STATS c = COUNT(*)", null, false))
         );
-        assertThat(e.getMessage(), containsString("LET subquery [unused] is declared but never referenced"));
+        assertThat(e.getMessage(), containsString("Subqueries are not supported in TS command"));
         assertThat(viewService.get(ProjectId.DEFAULT, "let-view"), nullValue());
+    }
+
+    public void testValidateViewWarnsOnUnreferencedLet() {
+        View view = new View("let-view", "LET a = (FROM metrics);\nLET b = (FROM metrics); FROM other", null, false);
+        assertThat(
+            validateView(viewService, view),
+            contains(
+                "Line 1:5 (in view [let-view]): LET subquery [a] is declared but never referenced",
+                "Line 2:5 (in view [let-view]): LET subquery [b] is declared but never referenced"
+            )
+        );
+        assertThat(viewService.get(ProjectId.DEFAULT, "let-view"), nullValue());
+    }
+
+    /**
+     * The analysis is handed the whole definition, named subqueries included, so that it covers the unreferenced ones too. What
+     * it finds in them is reported next to the warning about not referencing them.
+     */
+    public void testValidateViewWarnsOnUnreferencedLetThatIsNotValid() {
+        var analyzed = new AtomicReference<EsqlStatement>();
+        var service = new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> {
+            analyzed.set(statement);
+            listener.onFailure(new VerificationException("Found 1 problem\nline 1:20: Unknown index [missing]"));
+        });
+
+        var warnings = validateView(service, new View("let-view", "LET unused = (FROM missing); FROM other", null, false));
+
+        assertThat(analyzed.get().letBindings().stream().map(LetBinding::name).toList(), contains("unused"));
+        assertThat(
+            warnings,
+            contains(
+                "Line 1:5 (in view [let-view]): LET subquery [unused] is declared but never referenced",
+                "view [let-view] query is not valid: Found 1 problem line 1:20: Unknown index [missing]"
+            )
+        );
     }
 
     private void validatePutView(String name, String query) {
@@ -397,7 +434,7 @@ public class ViewServiceTests extends ESTestCase {
 
         var warning = validateView(service, new View("v", "FROM missing", null, false));
 
-        assertThat(warning, equalTo("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]"));
+        assertThat(warning, contains("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]"));
         assertThat(service.get(ProjectId.DEFAULT, "v"), nullValue());
     }
 
@@ -412,12 +449,12 @@ public class ViewServiceTests extends ESTestCase {
             new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
             new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
         )) {
-            assertThat(validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false)), nullValue());
+            assertThat(validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false)), empty());
         }
     }
 
     public void testValidateViewDoesNotWarnWhenQueryIsValid() {
-        assertThat(validateView(viewService, new View("v", "FROM some-index", null, false)), nullValue());
+        assertThat(validateView(viewService, new View("v", "FROM some-index", null, false)), empty());
     }
 
     public void testPutViewDoesNotAnalyze() {
@@ -432,8 +469,8 @@ public class ViewServiceTests extends ESTestCase {
         return new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onFailure(failure));
     }
 
-    private String validateView(ViewService service, View view) {
-        var future = new PlainActionFuture<String>();
+    private List<String> validateView(ViewService service, View view) {
+        var future = new PlainActionFuture<List<String>>();
         service.validateView(ProjectId.DEFAULT, view, future);
         return future.actionGet(10, TimeUnit.SECONDS);
     }

@@ -61,13 +61,13 @@ public class RestPutViewAction extends BaseRestHandler {
             );
             boolean validate = request.paramAsBoolean("validate", false);
             return channel -> {
-                final var warning = new AtomicReference<String>();
+                final var warnings = new AtomicReference<List<String>>(List.of());
                 final var restListener = new RestToXContentListener<AcknowledgedResponse>(channel);
                 SubscribableListener.<Void>newForked(l -> {
                     if (validate) {
                         // validation runs on current node, actual update below performed on elected master only
                         client.execute(ValidateViewAction.INSTANCE, new ValidateViewAction.Request(view), l.map(response -> {
-                            warning.set(response.warning());
+                            warnings.set(response.warnings());
                             return null;
                         }));
                     } else {
@@ -78,8 +78,8 @@ public class RestPutViewAction extends BaseRestHandler {
                     .addListener(ActionListener.wrap(response -> {
                         // Warnings are added right before the response is sent, in whichever context that happens, because the stages
                         // above may complete on other threads, or before this listener is subscribed.
-                        if (warning.get() != null) {
-                            HeaderWarning.addWarning("{}", warning.get());
+                        for (String warning : warnings.get()) {
+                            HeaderWarning.addWarning("{}", warning);
                         }
                         restListener.onResponse(response);
                     }, restListener::onFailure));

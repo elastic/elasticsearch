@@ -4717,6 +4717,12 @@ public class EsqlCapabilities {
         NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
 
         /**
+         * A {@code LET} named subquery that is declared but never referenced is analyzed like a referenced one and gets a
+         * warning, instead of failing the query.
+         */
+        NAMED_SUBQUERY_LET_UNREFERENCED_WARNING,
+
+        /**
          * {@code DESCRIBE} returns one row per input column with its role, origin, metric type and unit.
          */
         DESCRIBE_COMMAND,

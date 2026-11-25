@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.RelationClass;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -54,6 +55,16 @@ public class LetResolverTests extends ESTestCase {
     private static LogicalPlan parseAndResolveLet(String query) {
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
         return LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
+    }
+
+    private static LetResolver.Resolution resolveLet(String query) {
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
+        return LetResolver.resolve(
+            statement.plan(),
+            statement.letBindings(),
+            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT,
+            PlanSize.CLUSTER_SETTING_SOURCE
+        );
     }
 
     /** Creates a bare UnresolvedRelation for the given pattern string. */
@@ -135,28 +146,44 @@ public class LetResolverTests extends ESTestCase {
     // Unreferenced named subqueries
     // -----------------------------------------------------------------------
 
-    public void testUnreferencedNamedSubqueryRejected() {
-        expectThrows(
-            ParsingException.class,
-            containsString("line 1:5: LET subquery [unused] is declared but never referenced"),
-            () -> parseAndResolveLet("LET unused = (FROM no_such_index | EVAL x = no_such_fn(y)); ROW a = 1")
+    /** An unreferenced named subquery is left out of the plan and reported, for the caller to analyze and to warn about. */
+    public void testUnreferencedNamedSubqueryReported() {
+        LetResolver.Resolution resolution = resolveLet("LET unused = (FROM no_such_index | EVAL x = no_such_fn(y)); ROW a = 1");
+        assertThat(resolution.plan().collect(UnresolvedRelation.class), hasSize(0));
+        assertThat(resolution.unreferenced(), hasSize(1));
+        LetBinding unused = resolution.unreferenced().get(0);
+        assertThat(unused.name(), equalTo("unused"));
+        assertThat(
+            unused.plan().collect(UnresolvedRelation.class).stream().map(ur -> ur.indexPattern().indexPattern()).toList(),
+            contains("no_such_index")
         );
+        assertThat(LetResolver.unreferencedWarning(unused), equalTo("Line 1:5: LET subquery [unused] is declared but never referenced"));
     }
 
-    public void testSeveralUnreferencedNamedSubqueriesRejected() {
-        expectThrows(
-            ParsingException.class,
-            containsString("LET subqueries [a, c] are declared but never referenced"),
-            () -> parseAndResolveLet("LET a = (FROM idx); LET b = (FROM idx); LET c = (FROM idx); FROM b")
-        );
+    public void testSeveralUnreferencedNamedSubqueriesReported() {
+        LetResolver.Resolution resolution = resolveLet("LET a = (FROM idx); LET b = (FROM idx); LET c = (FROM idx); FROM b");
+        assertThat(resolution.unreferenced().stream().map(LetBinding::name).toList(), contains("a", "c"));
     }
 
-    /** A reference from a named subquery that is itself never referenced still counts: only the outer one is reported. */
-    public void testNamedSubqueryReferencedOnlyByUnreferencedOneRejected() {
-        expectThrows(
-            ParsingException.class,
-            containsString("LET subquery [b] is declared but never referenced"),
-            () -> parseAndResolveLet("LET a = (FROM idx); LET b = (FROM a); FROM idx")
+    /**
+     * A reference from a named subquery that is itself never referenced still counts: only the outer one is reported, and its
+     * body has the inner one substituted, so analyzing it covers both.
+     */
+    public void testNamedSubqueryReferencedOnlyByUnreferencedOneIsPartOfIt() {
+        LetResolver.Resolution resolution = resolveLet("LET a = (FROM idx | LIMIT 5); LET b = (FROM a | LIMIT 3); FROM other");
+        assertThat(resolution.unreferenced().stream().map(LetBinding::name).toList(), contains("b"));
+        LogicalPlan bBody = resolution.unreferenced().get(0).plan();
+        assertThat(bBody, instanceOf(Limit.class));
+        assertLimitOver(binding(((Limit) bBody).child(), "a"), "idx");
+    }
+
+    public void testUnreferencedWarningNamesTheView() {
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement("LET unused = (FROM idx); FROM other");
+        LetBinding declared = statement.letBindings().get(0);
+        LetBinding inView = new LetBinding(declared.source().withViewName("my_view"), declared.name(), declared.plan());
+        assertThat(
+            LetResolver.unreferencedWarning(inView),
+            equalTo("Line 1:5 (in view [my_view]): LET subquery [unused] is declared but never referenced")
         );
     }
 

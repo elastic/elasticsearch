@@ -26,7 +26,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -303,11 +302,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             return skipper.docCount() == reader.maxDoc();
         }
         PointValues points = reader.getPointValues(field);
-        if (points != null) {
-            return points.getDocCount() == reader.maxDoc();
-        }
-        // A binary numeric column has no skipper and no points, but its metadata knows how many documents have a value
-        return reader.getBinaryDocValues(field) instanceof ColumnarNumericBinaryDocValues column && column.isDense();
+        return points != null && points.getDocCount() == reader.maxDoc();
     }
 
     private static boolean isHostNameSingletonInSegment(LeafReaderContext context, SortField sortField) throws IOException {

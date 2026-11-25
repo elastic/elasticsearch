@@ -528,6 +528,56 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertTrue(TemplatePartitionDetector.walkableGlob("*/*.parquet"));
     }
 
+    /**
+     * Numeric account stays {@code *}; string region splices mid-glob. That literal is a pre-bound
+     * placeholder, not a layout reject — otherwise the walk never starts and listing goes flat.
+     */
+    public void testWalkLayoutBindsSplicedPlaceholderLiteral() {
+        TemplatePartitionDetector.WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/AWSLogs/"),
+            "*/vpcflowlogs/us-east-1/*/*/*/*.log.gz",
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}/{month}/{day}"
+        );
+        assertNotNull(layout);
+        assertEquals(Set.of("account", "year", "month", "day"), layout.placeholderKeys());
+        assertEquals("us-east-1", layout.prefixBindings().get("region"));
+        assertFalse(layout.prefixBindings().containsKey("account"));
+        assertTrue(layout.level(0).isPlaceholder());
+        assertEquals("account", layout.level(0).name());
+        assertTrue(layout.level(1).globSpelled());
+        assertEquals("vpcflowlogs", layout.level(1).literal());
+        assertTrue(layout.level(2).globSpelled());
+        assertEquals("us-east-1", layout.level(2).literal());
+        assertTrue(layout.level(3).isPlaceholder());
+        assertEquals("year", layout.level(3).name());
+        Map<String, String> bound = layout.bindings("/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026");
+        assertEquals("012345678901", bound.get("account"));
+        assertEquals("us-east-1", bound.get("region"));
+        assertEquals("2026", bound.get("year"));
+    }
+
+    /**
+     * Repeated placeholder whose spellings disagree cannot be trusted. Trailing {@code *} keeps the
+     * glob walkable so this is {@code bindIfAgree}, not the no-directory-star gate. Prefix dirs used
+     * to last-win; they now reject too.
+     */
+    public void testWalkLayoutRejectsDisagreeingSplicedPlaceholder() {
+        StoragePath prefix = StoragePath.of("s3://bucket/logs/");
+        assertNull(TemplatePartitionDetector.walkLayout(prefix, "foo/bar/*/*.parquet", "{x}/{x}/{y}"));
+        TemplatePartitionDetector.WalkLayout agreed = TemplatePartitionDetector.walkLayout(prefix, "foo/foo/*/*.parquet", "{x}/{x}/{y}");
+        assertNotNull(agreed);
+        assertEquals("foo", agreed.prefixBindings().get("x"));
+        assertEquals(Set.of("y"), agreed.placeholderKeys());
+        assertNull(TemplatePartitionDetector.walkLayout(StoragePath.of("s3://bucket/logs/foo/bar/"), "*/*.parquet", "{x}/{x}/{y}"));
+        TemplatePartitionDetector.WalkLayout prefixAgreed = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/logs/foo/foo/"),
+            "*/*.parquet",
+            "{x}/{x}/{y}"
+        );
+        assertNotNull(prefixAgreed);
+        assertEquals("foo", prefixAgreed.prefixBindings().get("x"));
+    }
+
     private static Map<String, Object> values(PartitionMetadata result, List<StorageEntry> files, String path) {
         for (int i = 0; i < files.size(); i++) {
             if (files.get(i).path().toString().equals(path)) {

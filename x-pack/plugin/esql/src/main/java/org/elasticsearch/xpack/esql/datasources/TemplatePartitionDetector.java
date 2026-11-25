@@ -322,7 +322,13 @@ public final class TemplatePartitionDetector implements PartitionDetector {
     /**
      * Maps remaining glob-directory levels onto {@code template} by the same right-alignment rewrite
      * and {@link #columnValue} use. {@code null} when the glob is not a fixed-depth walk, the prefix
-     * plus glob cannot cover the template, or a glob literal disagrees with a template literal.
+     * plus glob cannot cover the template, a glob literal disagrees with a template literal, or two
+     * spellings of the same placeholder disagree.
+     * <p>
+     * A glob-free literal at a placeholder (an exact-string splice such as region {@code us-east-1}
+     * while a numeric account stays {@code *}) is a pre-bound value, not a reject. The walk still
+     * enumerates remaining {@code *} placeholders. Two prefix dirs for the same placeholder that
+     * decode differently used to last-win; that now returns {@code null}.
      */
     @Nullable
     public static WalkLayout walkLayout(StoragePath prefix, String glob, String template) {
@@ -341,6 +347,30 @@ public final class TemplatePartitionDetector implements PartitionDetector {
             return null;
         }
         int offset = fullDirCount - segments.size();
+        LinkedHashMap<String, String> prefixBindings = new LinkedHashMap<>();
+        for (int t = 0; t < segments.size(); t++) {
+            int fullIdx = offset + t;
+            if (fullIdx >= prefixDirs.size()) {
+                break;
+            }
+            String dir = prefixDirs.get(fullIdx);
+            switch (segments.get(t)) {
+                case TemplateSegment.Placeholder(String name) -> {
+                    if (bindIfAgree(
+                        prefixBindings,
+                        ReservedPartitionNames.surface(name),
+                        HivePartitionDetector.decodePartitionValue(dir)
+                    ) == false) {
+                        return null;
+                    }
+                }
+                case TemplateSegment.Literal(String value) -> {
+                    if (value.equals(dir) == false) {
+                        return null;
+                    }
+                }
+            }
+        }
         List<WalkLayout.Level> levels = new ArrayList<>(globDirCount);
         Set<String> keys = new HashSet<>();
         boolean placeholderLevel = false;
@@ -352,13 +382,19 @@ public final class TemplatePartitionDetector implements PartitionDetector {
             }
             switch (segments.get(templateIdx)) {
                 case TemplateSegment.Placeholder(String name) -> {
-                    if ("*".equals(globParts[i]) == false) {
-                        return null;
-                    }
                     String surface = ReservedPartitionNames.surface(name);
-                    levels.add(WalkLayout.Level.placeholder(surface));
-                    keys.add(surface);
-                    placeholderLevel = true;
+                    if ("*".equals(globParts[i])) {
+                        levels.add(WalkLayout.Level.placeholder(surface));
+                        keys.add(surface);
+                        placeholderLevel = true;
+                    } else {
+                        // Exact string already in this slot. globSpelled skip is the glob text (raw);
+                        // prefixBindings stores the decoded value for {x}/{x} / prefix agreement.
+                        if (bindIfAgree(prefixBindings, surface, HivePartitionDetector.decodePartitionValue(globParts[i])) == false) {
+                            return null;
+                        }
+                        levels.add(WalkLayout.Level.globSpelled(globParts[i]));
+                    }
                 }
                 case TemplateSegment.Literal(String value) -> {
                     if ("*".equals(globParts[i]) == false && value.equals(globParts[i]) == false) {
@@ -375,26 +411,13 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         if (placeholderLevel == false) {
             return null;
         }
-        LinkedHashMap<String, String> prefixBindings = new LinkedHashMap<>();
-        for (int t = 0; t < segments.size(); t++) {
-            int fullIdx = offset + t;
-            if (fullIdx >= prefixDirs.size()) {
-                break;
-            }
-            String dir = prefixDirs.get(fullIdx);
-            switch (segments.get(t)) {
-                case TemplateSegment.Placeholder(String name) -> prefixBindings.put(
-                    ReservedPartitionNames.surface(name),
-                    HivePartitionDetector.decodePartitionValue(dir)
-                );
-                case TemplateSegment.Literal(String value) -> {
-                    if (value.equals(dir) == false) {
-                        return null;
-                    }
-                }
-            }
-        }
         return new WalkLayout(List.copyOf(levels), Set.copyOf(keys), Map.copyOf(prefixBindings), offset, List.copyOf(segments));
+    }
+
+    /** {@code false} when {@code key} is already bound to a different decoded spelling. */
+    private static boolean bindIfAgree(LinkedHashMap<String, String> into, String key, String decoded) {
+        String previous = into.put(key, decoded);
+        return previous == null || previous.equals(decoded);
     }
 
     private static boolean hasPlaceholder(List<TemplateSegment> segments) {
@@ -434,8 +457,8 @@ public final class TemplatePartitionDetector implements PartitionDetector {
 
     /**
      * Remaining glob-directory roles for a TEMPLATE walk. {@link #prefixBindings()} are placeholders
-     * already spelled in the listing prefix (exact-string splice); {@link #bindings(String)} adds
-     * folders listed so far, including the current directory.
+     * already spelled in the listing prefix or as a glob-free literal in a remaining slot (exact-string
+     * splice); {@link #bindings(String)} adds folders listed so far, including the current directory.
      */
     public record WalkLayout(
         List<Level> levels,
@@ -484,7 +507,11 @@ public final class TemplatePartitionDetector implements PartitionDetector {
                 return new Level(null, value, false);
             }
 
-            /** Glob already spelled this name: a sibling cannot match and is skipped. */
+            /**
+             * Glob already spelled this name: a sibling cannot match and is skipped.
+             * Skip compares this raw glob text to {@code objectName()}; decoded agreement lives in
+             * {@link WalkLayout#prefixBindings()}.
+             */
             static Level globSpelled(String value) {
                 return new Level(null, value, true);
             }

@@ -2724,6 +2724,52 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Numeric account stays {@code *}; string region still splices. The walk must enumerate account folders
+     * (padded and unpadded typed matches both kept) and never flat-list {@code AWSLogs/}. Splicing
+     * {@code String.valueOf} of the long would miss the padded sibling.
+     */
+    public void testTemplateNumericAccountSplicedRegionWalks() throws IOException {
+        List<StorageEntry> tree = new ArrayList<>(awsVpcTree());
+        tree.add(ListingWalkHarness.entry("s3://bucket/AWSLogs/12345678901/vpcflowlogs/us-east-1/2026/06/05/unpadded.log.gz"));
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        var hints = List.of(
+            hint("account", PartitionFilterHintExtractor.Operator.EQUALS, 12345678901L),
+            hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east-1"),
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
+            hint("day", PartitionFilterHintExtractor.Operator.EQUALS, 5)
+        );
+
+        assertEquals(
+            "numeric account stays *; string region splices",
+            "s3://bucket/AWSLogs/*/vpcflowlogs/us-east-1/*/*/*/*.log.gz",
+            GlobExpander.rewriteGlobWithHints(
+                AWS_LOGS_GLOB,
+                hints,
+                new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, AWS_LOGS_TEMPLATE)
+            )
+        );
+
+        FileList result = GlobExpander.expand(AWS_LOGS_GLOB, provider, hints, templateAwsLogs(), MAX, MAX);
+
+        assertEquals(
+            List.of(
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz",
+                "s3://bucket/AWSLogs/12345678901/vpcflowlogs/us-east-1/2026/06/05/unpadded.log.gz"
+            ),
+            paths(result)
+        );
+        assertEquals(typedTemplateMatches(tree, AWS_LOGS_TEMPLATE, hints), paths(result));
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/AWSLogs/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
+        // RULE tree: other account / other region must drop even without ALWAYS_FINISH.
+        for (String path : paths(result)) {
+            assertFalse(path, path.contains("/999999999999/"));
+            assertFalse(path, path.contains("/us-west-2/"));
+        }
+    }
+
+    /**
      * A missing exact region folder stays on the spliced account prefix. The retry must not drop account and
      * list {@code AWSLogs/}. The empty prefix still keeps one sibling file as a schema-inference anchor.
      */

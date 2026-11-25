@@ -319,15 +319,33 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             return null;
         }
 
-        List<String> violations = MinHashParamBoundsDetection.getViolations(indexMetadata.getSettings());
+        List<String> violations = MinHashIndexParamBounds.indexSettingsViolations(indexMetadata.getSettings());
         if (violations.isEmpty()) {
             return null;
         }
 
+        if (isNotDataStreamIndex(indexMetadata, project) && DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false)) {
+            // This index must be reindexed before upgrading, and the reindex copies its settings to the new index, which rejects them.
+            // Data stream backing indices are reported on their data stream instead.
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                MinHashIndexParamBounds.DEPRECATION_MESSAGE,
+                MinHashIndexParamBounds.DEPRECATION_HELP_URL,
+                "Reindexing index ["
+                    + indexMetadata.getIndex().getName()
+                    + "] will fail: it defines [min_hash] filters that new indices reject: "
+                    + String.join(" ", violations)
+                    + " "
+                    + MinHashIndexParamBounds.REINDEX_REMEDIATION,
+                false,
+                null
+            );
+        }
+
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            MinHashParamBoundsDetection.DEPRECATION_MESSAGE,
-            MinHashParamBoundsDetection.DEPRECATION_HELP_URL,
+            MinHashIndexParamBounds.DEPRECATION_MESSAGE,
+            MinHashIndexParamBounds.DEPRECATION_HELP_URL,
             "The following [min_hash] filters on index ["
                 + indexMetadata.getIndex().getName()
                 + "] can't be used on new indices: "

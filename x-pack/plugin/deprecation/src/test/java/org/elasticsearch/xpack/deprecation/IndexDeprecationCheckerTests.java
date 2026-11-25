@@ -30,6 +30,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -532,8 +533,14 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         );
 
         // Only the filter that exceeds the bounds is reported, not one within them or a filter of another type.
+        // Older indices must be reindexed before upgrading, which raises the issue to critical.
         assertThat(
-            issuesFor.apply(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)),
+            issuesFor.apply(
+                IndexVersionUtils.randomVersionBetween(
+                    DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)
+                )
+            ),
             contains(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,

@@ -15,6 +15,10 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 /**
  * Bounds on the parameters of a {@code min_hash} token filter defined in index settings. They are enforced for indices
  * created on or after {@link IndexVersions#MIN_HASH_INDEX_PARAM_BOUNDS}; older indices that exceed them keep working but
@@ -38,7 +42,49 @@ public final class MinHashIndexParamBounds {
      */
     public static final long MAX_HASH_ENTRIES = 100_000;
 
+    public static final String DEPRECATION_MESSAGE = "min_hash token filter parameters exceed the limits for new indices";
+    public static final String DEPRECATION_HELP_URL = "https://www.elastic.co/docs/reference/text-analysis/analysis-minhash-tokenfilter";
+
+    /**
+     * How to unblock a reindex, such as an upgrade migration, that copies the source index's settings to the new index.
+     */
+    public static final String REINDEX_REMEDIATION = "Before reindexing, close the affected indices, lower hash_count, bucket_count, "
+        + "or hash_set_size in their settings, and reopen them, or mark them read-only instead. Lowering the parameters changes the "
+        + "hashes the filter produces.";
+
     private MinHashIndexParamBounds() {}
+
+    /**
+     * @return a description for each {@code min_hash} filter in the index or template settings that exceeds the bounds
+     */
+    public static List<String> indexSettingsViolations(@Nullable Settings settings) {
+        if (settings == null || settings.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> violations = new ArrayList<>();
+        Map<String, Settings> filters = settings.getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
+        for (Map.Entry<String, Settings> filter : filters.entrySet()) {
+            Settings filterSettings = filter.getValue();
+            if ("min_hash".equals(filterSettings.get("type")) == false) {
+                continue;
+            }
+
+            String violation;
+            try {
+                violation = filterSettingsViolation(filterSettings);
+            } catch (SettingsException e) {
+                // The filter's settings cannot be parsed. We should never hit this scenario, as such a filter cannot be added in the first
+                // place. If we somehow do, the index will fail to open downstream.
+                continue;
+            }
+
+            if (violation != null) {
+                violations.add("[" + filter.getKey() + "]: " + violation);
+            }
+        }
+        return violations;
+    }
 
     /**
      * Like {@link #violation(int, int, int)}, reading the parameters from a filter's settings and applying the filter's
@@ -47,7 +93,7 @@ public final class MinHashIndexParamBounds {
      * @throws SettingsException when the filter's settings cannot be parsed
      */
     @Nullable
-    public static String violation(Settings filterSettings) {
+    public static String filterSettingsViolation(Settings filterSettings) {
         return violation(
             filterSettings.getAsInt("hash_count", MinHashFilter.DEFAULT_HASH_COUNT),
             filterSettings.getAsInt("bucket_count", MinHashFilter.DEFAULT_BUCKET_COUNT),

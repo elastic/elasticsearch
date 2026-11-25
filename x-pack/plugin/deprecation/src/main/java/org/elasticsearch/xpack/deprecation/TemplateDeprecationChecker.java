@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -165,15 +166,15 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
     }
 
     private DeprecationIssue minHashParamBoundsIssue(Settings settings, String templateKind) {
-        List<String> violations = MinHashParamBoundsDetection.getViolations(settings);
+        List<String> violations = MinHashIndexParamBounds.indexSettingsViolations(settings);
         if (violations.isEmpty()) {
             return null;
         }
 
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            MinHashParamBoundsDetection.DEPRECATION_MESSAGE,
-            MinHashParamBoundsDetection.DEPRECATION_HELP_URL,
+            MinHashIndexParamBounds.DEPRECATION_MESSAGE,
+            MinHashIndexParamBounds.DEPRECATION_HELP_URL,
             "The following [min_hash] filters in this "
                 + templateKind
                 + " can't be used on new indices: "

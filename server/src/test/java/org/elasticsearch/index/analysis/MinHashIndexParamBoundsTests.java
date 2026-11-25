@@ -51,20 +51,20 @@ public class MinHashIndexParamBoundsTests extends ESTestCase {
         );
     }
 
-    public void testViolationFromSettings() {
+    public void testFilterSettingsViolation() {
         // The defaults are 1 * 512 * 1.
-        assertNull(MinHashIndexParamBounds.violation(Settings.EMPTY));
+        assertNull(MinHashIndexParamBounds.filterSettingsViolation(Settings.EMPTY));
         assertEquals(
             MinHashIndexParamBounds.violation(1, 512, 200),
-            MinHashIndexParamBounds.violation(Settings.builder().put("hash_set_size", 200).build())
+            MinHashIndexParamBounds.filterSettingsViolation(Settings.builder().put("hash_set_size", 200).build())
         );
     }
 
-    public void testViolationFromUnparseableSettings() {
+    public void testFilterSettingsViolationUnparseableSettings() {
         for (String key : List.of("hash_count", "bucket_count", "hash_set_size")) {
             SettingsException e = expectThrows(
                 SettingsException.class,
-                () -> MinHashIndexParamBounds.violation(Settings.builder().put(key, "not_a_number").build())
+                () -> MinHashIndexParamBounds.filterSettingsViolation(Settings.builder().put(key, "not_a_number").build())
             );
             assertEquals("Failed to parse int setting [" + key + "] with value [not_a_number]", e.getMessage());
         }

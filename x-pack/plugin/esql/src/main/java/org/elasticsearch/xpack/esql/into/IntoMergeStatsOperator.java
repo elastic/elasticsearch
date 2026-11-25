@@ -191,7 +191,8 @@ public final class IntoMergeStatsOperator implements Operator {
         refresher.refresh(ActionListener.runAfter(ActionListener.wrap(skippedClosedMembers -> {
             if (skippedClosedMembers) {
                 refreshWarning = Strings.format(
-                    "index refresh for INTO [%s] skipped the closed indices of the destination",
+                    "index refresh for INTO [%s] may have skipped closed indices of the destination, "
+                        + "so the documents may not be searchable yet",
                     refresher.destination()
                 );
             }

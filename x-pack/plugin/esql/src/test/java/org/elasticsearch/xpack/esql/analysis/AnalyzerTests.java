@@ -139,7 +139,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
@@ -1410,15 +1409,23 @@ public class AnalyzerTests extends AnalyzerTestCase {
         }
     }
 
-    public void testNoImplicitLimitOnDescribe() {
-        as(basic().query("from test | describe"), LocalRelation.class);
+    public void testImplicitLimitOnDescribeIsTheNumberOfColumns() {
+        int columns = basic().query("from test | limit 0").output().size();
+        for (String query : List.of(
+            "from test | describe",
+            "from test | describe | keep name, type",
+            "from test | describe | where type == \"keyword\" | eval n = name | sort name",
+            "from test | describe | stats c = count(*) by type",
+            "from test | describe | dissect name \"%{a}_%{b}\""
+        )) {
+            var limit = as(basic().query(query), Limit.class);
+            assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(columns));
+        }
     }
 
-    public void testImplicitLimitAfterDescribe() {
-        var limit = as(basic().query("from test | describe | where type == \"keyword\""), Limit.class);
+    public void testImplicitLimitAfterDescribeAddingRows() {
+        var limit = as(basic().query("from test | describe | mv_expand unit"), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        limit = as(basic().query("from test | describe | limit " + (MAX_LIMIT + 1)), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
     }
 
     public void testImplicitDefaultLimitAfterLimitBy() {

@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Fast-path gzip inflate must stay byte-identical to {@link java.util.zip.GZIPInputStream} on the page corpus:
- * empty, header flags, multi-member, bad CRC, bad ISIZE, truncation, trailing junk, destLen
+ * empty, header flags, corrupt FHCRC, multi-member, bad CRC, bad ISIZE, truncation, trailing junk, destLen
  * too small or too large. Extra uncompressed bytes keep today's page-header error; trailing
  * junk after a complete member is ignored like {@link java.util.zip.GZIPInputStream}, not rejected like the
  * text-codec decoder.
@@ -70,6 +70,13 @@ public class GzipPageInflaterTests extends ESTestCase {
         byte[] second = randomByteArrayOfLength(between(1, 2048));
         byte[] gz = concat(gzip(first), gzip(second));
         assertFastMatchesInputStream(gz, first.length + second.length);
+    }
+
+    public void testCorruptHeaderCrc() throws IOException {
+        byte[] data = compressibleBytes(between(1, 2048));
+        byte[] gz = gzipWithHeaderFields(data, false, false, false, true);
+        gz[10] ^= 0x55; // first FHCRC byte after the 10-byte fixed header
+        assertFastMatchesInputStreamFailure(gz, data.length, "Corrupt GZIP header");
     }
 
     public void testBadCrc() throws IOException {

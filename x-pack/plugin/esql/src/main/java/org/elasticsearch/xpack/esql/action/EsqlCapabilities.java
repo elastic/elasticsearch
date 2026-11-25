@@ -5105,6 +5105,13 @@ public class EsqlCapabilities {
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
+        /**
+         * The options of {@code TO_IP(x, {...})} are validated when {@code x} is mapped to different types across indices (a union
+         * type). Older nodes silently ignored unknown options there, and reported an invalid option value without the position of
+         * the call.
+         */
+        UNION_TYPES_VALIDATE_TO_IP_OPTIONS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -116,6 +116,47 @@ public class PushdownLiteralConversionTests extends ESTestCase {
         assertThat(((Number) ((Literal) gte.right()).value()).intValue(), equalTo(6));
     }
 
+    public void testIntegerGreaterThanMaxPlusHalfIsContradiction() {
+        Expression rewritten = PushdownLiteralConversion.rewrite(
+            new GreaterThan(SRC, field("id", DataType.INTEGER), new Literal(SRC, 2147483647.5, DataType.DOUBLE), null)
+        );
+        LessThan lt = asInstanceOf(LessThan.class, rewritten);
+        assertThat(((Number) ((Literal) lt.right()).value()).intValue(), equalTo(Integer.MIN_VALUE));
+    }
+
+    public void testIntegerGreaterThanOrEqualMaxPlusHalfIsContradiction() {
+        Expression rewritten = PushdownLiteralConversion.rewrite(
+            new GreaterThanOrEqual(SRC, field("id", DataType.INTEGER), new Literal(SRC, 2147483647.5, DataType.DOUBLE), null)
+        );
+        LessThan lt = asInstanceOf(LessThan.class, rewritten);
+        assertThat(((Number) ((Literal) lt.right()).value()).intValue(), equalTo(Integer.MIN_VALUE));
+    }
+
+    public void testIntegerLessThanMinMinusHalfIsContradiction() {
+        Expression rewritten = PushdownLiteralConversion.rewrite(
+            new LessThan(SRC, field("id", DataType.INTEGER), new Literal(SRC, -2147483648.5, DataType.DOUBLE), null)
+        );
+        LessThan lt = asInstanceOf(LessThan.class, rewritten);
+        assertThat(((Number) ((Literal) lt.right()).value()).intValue(), equalTo(Integer.MIN_VALUE));
+    }
+
+    public void testIntegerLessThanOrEqualMinMinusHalfIsContradiction() {
+        Expression rewritten = PushdownLiteralConversion.rewrite(
+            new LessThanOrEqual(SRC, field("id", DataType.INTEGER), new Literal(SRC, -2147483648.5, DataType.DOUBLE), null)
+        );
+        LessThan lt = asInstanceOf(LessThan.class, rewritten);
+        assertThat(((Number) ((Literal) lt.right()).value()).intValue(), equalTo(Integer.MIN_VALUE));
+    }
+
+    public void testLongGreaterThanDoubleWidensToGteCeil() {
+        Expression rewritten = PushdownLiteralConversion.rewrite(
+            new GreaterThan(SRC, field("id", DataType.LONG), new Literal(SRC, 5.5, DataType.DOUBLE), null)
+        );
+        GreaterThanOrEqual gte = asInstanceOf(GreaterThanOrEqual.class, rewritten);
+        assertThat(gte.right().dataType(), equalTo(DataType.LONG));
+        assertThat(((Number) ((Literal) gte.right()).value()).longValue(), equalTo(6L));
+    }
+
     public void testIntegerLessThanOrEqualDoubleFloors() {
         Expression rewritten = PushdownLiteralConversion.rewrite(
             new LessThanOrEqual(SRC, field("id", DataType.INTEGER), new Literal(SRC, 5.5, DataType.DOUBLE), null)

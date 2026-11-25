@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 166897
+pr: 166985
+summary: Fix case conversion comparisons with multi-valued constants
+type: bug

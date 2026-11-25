@@ -25,18 +25,22 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -178,10 +182,11 @@ public final class MapKeys {
             return hidden;
         }
         maps.removeIf(map -> isOpen(input, map, name) == false);
-        if (maps.isEmpty()) {
-            return null;
-        }
-        // rule 5: per row, the nearest map that the row has
+        return maps.isEmpty() ? null : valueRead(name, maps, source);
+    }
+
+    /** Rule 5 for a read from the value: per row, the nearest of {@code maps} that the row has. */
+    private static Expression valueRead(String name, List<Attribute> maps, Source source) {
         maps.sort(Comparator.comparing((Attribute map) -> map.name().length()).reversed());
         Attribute farthest = maps.get(maps.size() - 1);
         Expression read = keyRead(source, farthest, name.substring(farthest.name().length() + 1));
@@ -191,6 +196,105 @@ public final class MapKeys {
             read = new Case(source, new IsNotNull(source, map), List.of(nearer, read));
         }
         return read;
+    }
+
+    /**
+     * Rule 1 and 5 at a union: every branch provides the children that the scope reading the union names. A branch that reads an
+     * index has them from its shards. A branch that only has the map provides the child by reading the key from the value, as a
+     * hidden column on top of the branch, so that the union merges the children of its branches by name. Without it the rows of
+     * such a branch would be null for a name that another branch answers.
+     * <p>
+     * A view is a source: its body is not looked into, and a projection inside it does not close the map for the query that reads
+     * it. A subquery is not a source, so rule 4 applies across its body.
+     *
+     * @param names the names the scope that reads the union refers to, see {@link #namesAskedOfSources}
+     */
+    static BranchPlan provideChildren(BranchPlan union, Set<String> names) {
+        if (names.isEmpty()) {
+            return union;
+        }
+        List<LogicalPlan> branches = union.children();
+        List<LogicalPlan> newBranches = new ArrayList<>(branches.size());
+        boolean changed = false;
+        for (int i = 0; i < branches.size(); i++) {
+            LogicalPlan branch = branches.get(i);
+            if (branch.resolved()) {
+                boolean isView = union.isViewBranch(i);
+                List<Attribute> output = branch.output();
+                Set<String> columns = new HashSet<>();
+                for (Attribute attribute : output) {
+                    columns.add(attribute.name());
+                }
+                List<Alias> children = new ArrayList<>();
+                for (String name : names) {
+                    if (columns.contains(name)) {
+                        continue;
+                    }
+                    List<Attribute> maps = new ArrayList<>();
+                    for (Attribute column : output) {
+                        if (isMap(column.dataType()) && name.startsWith(column.name() + ".") && (isView || isOpen(branch, column, name))) {
+                            maps.add(column);
+                        }
+                    }
+                    if (maps.isEmpty() == false) {
+                        children.add(new Alias(branch.source(), name, valueRead(name, maps, branch.source()), null, true));
+                    }
+                }
+                if (children.isEmpty() == false) {
+                    branch = new Eval(branch.source(), branch, children);
+                    changed = true;
+                }
+            }
+            newBranches.add(branch);
+        }
+        return changed ? (BranchPlan) union.replaceChildren(newBranches) : union;
+    }
+
+    /**
+     * The names that the sources of the scope {@code scope} are asked for: the dotted names it refers to outside view bodies, and
+     * for each of them the name it had before every {@code RENAME} of the scope. For {@code RENAME attrs AS a | WHERE a.foo == "x"}
+     * the source answers {@code attrs.foo}, and the rename carries that child to {@code a.foo} (rule 3). This only adds names: a
+     * name that is asked for without need is a hidden child that nothing reads.
+     */
+    public static Set<String> namesAskedOfSources(LogicalPlan scope) {
+        Set<String> names = new LinkedHashSet<>();
+        Map<String, String> renames = new LinkedHashMap<>();
+        ViewUtils.forEachOutsideViews(scope, node -> {
+            node.forEachExpression(UnresolvedAttribute.class, ua -> {
+                if (isKeyName(ua)) {
+                    names.add(ua.name());
+                }
+            });
+            if (node instanceof Rename rename) {
+                for (Alias renaming : rename.renamings()) {
+                    if (renaming.child() instanceof NamedExpression before && before instanceof UnresolvedPattern == false) {
+                        renames.put(renaming.name() + ".", before.name() + ".");
+                    }
+                }
+            } else if (node instanceof Project project) {
+                for (NamedExpression projection : project.projections()) {
+                    if (projection instanceof Alias alias && alias.child() instanceof Attribute before) {
+                        renames.put(alias.name() + ".", before.name() + ".");
+                    }
+                }
+            }
+        });
+        if (renames.isEmpty()) {
+            return names;
+        }
+        Deque<String> pending = new ArrayDeque<>(names);
+        while (pending.isEmpty() == false) {
+            String name = pending.pop();
+            for (Map.Entry<String, String> rename : renames.entrySet()) {
+                if (name.startsWith(rename.getKey())) {
+                    String before = rename.getValue() + name.substring(rename.getKey().length());
+                    if (names.add(before)) {
+                        pending.push(before);
+                    }
+                }
+            }
+        }
+        return names;
     }
 
     /**

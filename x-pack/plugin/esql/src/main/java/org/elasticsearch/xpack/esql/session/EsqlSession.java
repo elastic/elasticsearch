@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.LetResolver;
+import org.elasticsearch.xpack.esql.analysis.MapKeys;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -203,12 +204,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -619,6 +618,11 @@ public class EsqlSession {
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved)
         )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
+        }
+        if (boundaryPreservation == ViewBoundaryPreservation.NONE && Boolean.TRUE.equals(QuerySettings.MAP_TYPES.get(resolved))) {
+            // SET map_types does not reach into a view: its body is resolved as without the setting, and the view provides the
+            // children of the maps it outputs at its boundary (MapKeys). Both need the view branches.
+            boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
         }
         viewResolver.replaceViews(
             parsedPlan,
@@ -2182,7 +2186,8 @@ public class EsqlSession {
         // mirroring the decision in execute(): ViewCompaction (an analyzer rule reading AnalyzerContext.preserveViewBoundaries()) must not
         // collapse the lone-view wrappers that ResolveUnmapped null-fills outer references on. esql-planning#2273.
         boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
-            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings);
+            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings)
+            || mapTypes(configuration);
 
         resolveIndicesAndAnalyze(
             parsed,
@@ -2305,32 +2310,8 @@ public class EsqlSession {
         if (mapTypes(configuration) == false) {
             return names;
         }
-        Map<String, String> renames = new HashMap<>();
-        ViewUtils.forEachOutsideViews(parsed, node -> {
-            if (node instanceof Rename rename) {
-                for (Alias renaming : rename.renamings()) {
-                    if (renaming.child() instanceof UnresolvedAttribute ua && ua instanceof UnresolvedPattern == false) {
-                        renames.put(renaming.name() + ".", ua.name() + ".");
-                    }
-                }
-            }
-        });
-        if (renames.isEmpty()) {
-            return names;
-        }
         Set<String> result = new HashSet<>(names);
-        Deque<String> pending = new ArrayDeque<>(names);
-        while (pending.isEmpty() == false) {
-            String name = pending.pop();
-            for (Map.Entry<String, String> rename : renames.entrySet()) {
-                if (name.startsWith(rename.getKey())) {
-                    String before = rename.getValue() + name.substring(rename.getKey().length());
-                    if (result.add(before)) {
-                        pending.push(before);
-                    }
-                }
-            }
-        }
+        result.addAll(MapKeys.namesAskedOfSources(parsed));
         return result;
     }
 

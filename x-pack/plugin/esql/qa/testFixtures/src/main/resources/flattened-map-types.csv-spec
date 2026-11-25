@@ -188,3 +188,38 @@ id:keyword | host:keyword
 f1         | a
 k1         | k
 ;
+
+// Rule 4 across a subquery, which is not a source: its KEEP closes the map, so its rows have no child of that name
+keysOfAMapThatASubqueryClosed
+required_capability: map_types_setting
+required_capability: subquery_in_from_command
+
+SET map_types=true\;
+FROM flattened_paths_keyword, (FROM flattened_paths_mapped | KEEP id, attributes)
+| WHERE attributes.host IN ("a", "k")
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+k1         | k
+;
+
+// Rule 4 and 5: the wildcard keeps the map open, and the union merges the children of both branches
+keysOfAMapThatASubqueryKeptOpen
+required_capability: map_types_setting
+required_capability: subquery_in_from_command
+
+SET map_types=true\;
+FROM flattened_paths_keyword, (FROM flattened_paths_mapped | KEEP id, attributes*)
+| WHERE attributes.host IN ("a", "k")
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+k1         | k
+;

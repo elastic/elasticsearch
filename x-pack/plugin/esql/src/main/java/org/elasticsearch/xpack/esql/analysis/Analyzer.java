@@ -1819,26 +1819,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // The keys that FROM resolved are children of their maps, not columns, before any name is resolved against them
                 plan = MapKeys.hideKeys(plan);
             }
-            if (context.viewSettings().isEmpty()) {
+            if (context.viewSettings().isEmpty() && context.mapTypes() == false) {
                 return super.apply(plan, context);
             }
-            return applyInViewScope(plan, context);
+            return applyInViewScope(plan, context, context.mapTypes() ? MapKeys.namesAskedOfSources(plan) : Set.of());
         }
 
-        private LogicalPlan applyInViewScope(LogicalPlan plan, AnalyzerContext context) {
+        /**
+         * @param scopeNames with map types, the names that the scope {@code plan} is in asks of its sources, see
+         *                   {@code MapKeys#namesAskedOfSources}: the caller's query outside every view body
+         */
+        private LogicalPlan applyInViewScope(LogicalPlan plan, AnalyzerContext context, Set<String> scopeNames) {
             List<LogicalPlan> children = plan.children();
             List<LogicalPlan> newChildren = new ArrayList<>(children.size());
             boolean changed = false;
             for (int i = 0; i < children.size(); i++) {
                 AnalyzerContext childContext = context;
+                Set<String> childNames = scopeNames;
                 if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
                     childContext = context.forViewBody(resolutionForView(context, branchPlan.branchIdentity(i).settingsViewName()));
+                    // the setting does not reach into a view, so its body asks nothing of its sources
+                    childNames = Set.of();
                 }
-                LogicalPlan newChild = applyInViewScope(children.get(i), childContext);
+                LogicalPlan newChild = applyInViewScope(children.get(i), childContext, childNames);
                 changed |= newChild != children.get(i);
                 newChildren.add(newChild);
             }
             LogicalPlan current = changed ? plan.replaceChildren(newChildren) : plan;
+            if (context.mapTypes() && current instanceof BranchPlan branchPlan) {
+                // Before the union and the commands above it are resolved, so that they see the children as they see columns
+                current = MapKeys.provideChildren(branchPlan, scopeNames);
+            }
             if (current.analyzed() || current.resolved()) {
                 return current;
             }

@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSubqueryJoinWithHashJoin;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoinLowering;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.Before;
 
@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 
 /**
  * Captures the analyzed and logically optimized plans of {@code LEFT OUTER JOIN} on a subquery. The optimized plan has the
- * {@link HashJoin} that {@link SubqueryJoinLowering} replaces the {@link SubqueryJoin} with.
+ * {@link HashJoin} that {@link ReplaceSubqueryJoinWithHashJoin} replaces the {@link SubqueryJoin} with.
  */
 public class LogicalPlanOptimizerSubqueryJoinGoldenTests extends GoldenTestCase {
 

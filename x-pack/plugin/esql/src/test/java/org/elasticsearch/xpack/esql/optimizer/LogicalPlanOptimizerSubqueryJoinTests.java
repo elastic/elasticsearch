@@ -54,7 +54,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
         VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(query));
         assertThat(
             e.getMessage(),
-            containsString("JOIN subquery cannot return column [m] of type [AGGREGATE_METRIC_DOUBLE]; remove it with KEEP or DROP")
+            containsString("LEFT OUTER JOIN cannot return column [m] of type [AGGREGATE_METRIC_DOUBLE]; remove it with KEEP or DROP")
         );
     }
 
@@ -69,7 +69,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
             VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(query));
             assertThat(
                 e.getMessage(),
-                containsString(search.getValue() + " cannot be used after a JOIN on a subquery when it targets an indexed field")
+                containsString(search.getValue() + " cannot be used after LEFT OUTER JOIN when it targets an indexed field")
             );
         }
     }
@@ -85,7 +85,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
             """));
         assertThat(
             e.getMessage(),
-            containsString("line 5:9: [MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+            containsString("line 5:9: [MATCH] function cannot be used after LEFT OUTER JOIN when it targets an indexed field")
         );
     }
 
@@ -99,7 +99,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
             """));
         assertThat(
             e.getMessage(),
-            containsString("[MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+            containsString("[MATCH] function cannot be used after LEFT OUTER JOIN when it targets an indexed field")
         );
     }
 
@@ -113,7 +113,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
             """));
         assertThat(
             e.getMessage(),
-            containsString("line 4:38: [MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+            containsString("line 4:38: [MATCH] function cannot be used after LEFT OUTER JOIN when it targets an indexed field")
         );
     }
 
@@ -126,7 +126,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
             """));
         assertThat(
             e.getMessage(),
-            containsString("line 4:18: [MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+            containsString("line 4:18: [MATCH] function cannot be used after LEFT OUTER JOIN when it targets an indexed field")
         );
     }
 

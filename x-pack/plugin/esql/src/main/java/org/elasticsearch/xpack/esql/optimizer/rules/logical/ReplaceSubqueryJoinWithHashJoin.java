@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical.join;
+package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -21,6 +21,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,21 +37,18 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 /**
- * Replaces each {@link SubqueryJoin} of an optimized plan with a {@link HashJoin} whose build side is the subquery. The session runs
- * the subquery as a sub-plan and swaps in its result, as it does for PromQL's joins (see {@link HashJoin#firstSubPlan}), and the
- * join runs on the coordinator.
+ * Replaces each {@link SubqueryJoin} with a {@link HashJoin} whose build side is the subquery. The session runs the subquery as a
+ * sub-plan and swaps in its result, as it does for PromQL's joins (see {@link HashJoin#firstSubPlan}), and the join runs on the
+ * coordinator.
  * <p>
- * The join stays a {@link SubqueryJoin} through optimization and verification, which have rules and checks of their own for it
- * (see {@link IndependentSubqueryJoin}), and is replaced right after them, so that no optimizer rule sees the {@link HashJoin}.
+ * The other rules treat the subquery as a query of its own (see {@link IndependentSubqueryJoin}), which a {@link HashJoin} is not,
+ * so this runs after all of them. The verifier then sees the {@link HashJoin}, which checks what the join can't run (see
+ * {@link HashJoin.Kind}). The plan's output doesn't change.
  */
-public final class SubqueryJoinLowering {
+public final class ReplaceSubqueryJoinWithHashJoin extends Rule<LogicalPlan, LogicalPlan> {
 
-    private SubqueryJoinLowering() {}
-
-    /**
-     * Replaces every {@link SubqueryJoin} in {@code plan}, which must be optimized and verified. The plan's output doesn't change.
-     */
-    public static LogicalPlan lower(LogicalPlan plan) {
+    @Override
+    public LogicalPlan apply(LogicalPlan plan) {
         List<Lowered> lowered = new ArrayList<>();
         LogicalPlan result = plan.transformUp(SubqueryJoin.class, join -> {
             Project project = toHashJoin(join);
@@ -114,11 +116,20 @@ public final class SubqueryJoinLowering {
             leftKeys,
             rightKeys,
             join.rightOutputFields(),
-            false,
-            join.config().type(),
-            true
+            kind(join),
+            join.config().type()
         );
         return new Project(source, hashJoin, join.output());
+    }
+
+    private static HashJoin.Kind kind(SubqueryJoin join) {
+        if (join.config().type() == JoinTypes.LEFT) {
+            return HashJoin.Kind.ESQL_LEFT_OUTER_JOIN;
+        }
+        if (join.config().type() == JoinTypes.INNER) {
+            return HashJoin.Kind.ESQL_INNER_JOIN;
+        }
+        throw new IllegalStateException("unsupported JOIN type [" + join.config().type().joinName() + "]");
     }
 
     /**

@@ -38,7 +38,7 @@ public class SubqueryJoinKeyTypeTests extends ESTestCase {
         List<Attribute> leftKeys = List.of(leftKey);
         List<Attribute> rightKeys = List.of(rightKey);
         return List.of(
-            new HashJoin(Source.EMPTY, left, right, leftKeys, rightKeys, List.of(), true),
+            new HashJoin(Source.EMPTY, left, right, leftKeys, rightKeys, List.of(), HashJoin.Kind.PROMQL_ONE_TO_ONE),
             new InlineJoin(Source.EMPTY, left, right, JoinTypes.LEFT, leftKeys, rightKeys),
             new SemiJoin(Source.EMPTY, left, right, leftKeys, rightKeys),
             new AntiJoin(Source.EMPTY, left, right, leftKeys, rightKeys),

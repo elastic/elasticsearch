@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -16,17 +15,14 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -37,13 +33,13 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  * A {@code JOIN} whose right side is a subquery written by the user, as in {@code FROM a | LEFT OUTER JOIN (FROM b | ...) ON key}.
  * <p>
  * The subquery is an independent query: it runs before the main query and only its result reaches the join, so plan walks that
- * reason about the main query stop at its right side (see {@link IndependentSubqueryJoin}). Once the plan is optimized,
- * {@link SubqueryJoinLowering} replaces this node with a {@link HashJoin} that the coordinator runs, so it is never serialized.
+ * reason about the main query stop at its right side (see {@link IndependentSubqueryJoin}). The optimizer's last rule replaces this
+ * node with a {@link HashJoin} that the coordinator runs, so it is never serialized.
  * <p>
  * The subquery's columns are {@link Join#makeReference references} in the join's output: they come from the subquery's result,
  * not from an index the main query reads, so rules that look fields up in the main query's indices must not see them as fields.
  */
-public class SubqueryJoin extends Join implements IndependentSubqueryJoin, PostOptimizationPlanVerificationAware {
+public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
 
     public SubqueryJoin(Source source, LogicalPlan left, LogicalPlan subquery, JoinConfig config) {
         super(source, left, subquery, config, ExecuteLocation.ANY);
@@ -146,65 +142,6 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin, PostO
     }
 
     /**
-     * Checks the subquery's columns after optimization, once the columns that nothing reads have been pruned from it: the hash join
-     * copies a matched row's columns with {@code Block#lookup}, which some block types do not implement.
-     */
-    @Override
-    public void postOptimizationVerification(Failures failures) {
-        for (Attribute rightField : rightOutputFields()) {
-            if (supportsPayloadType(rightField.dataType()) == false) {
-                failures.add(
-                    fail(
-                        rightField,
-                        "JOIN subquery cannot return column [{}] of type [{}]; remove it with KEEP or DROP",
-                        rightField.name(),
-                        rightField.dataType()
-                    )
-                );
-            }
-        }
-    }
-
-    /**
-     * Rejects an index search that stays above the join after optimization. The join runs on the coordinator, and so does
-     * everything above it, where there are no documents to search. A search on a left field in a {@code WHERE} is pushed below
-     * the join, but one that also reads the subquery's columns, or sits in the filter of an aggregate function or in a
-     * {@code SCORE}, stays above it. A search on a column the join produces scans the values in the page and runs anywhere.
-     */
-    @Override
-    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
-        return SubqueryJoin::checkIndexSearchesAbove;
-    }
-
-    private static void checkIndexSearchesAbove(LogicalPlan plan, Failures failures) {
-        if (plan instanceof InlineJoin inlineJoin) {
-            // The aggregation of an INLINE STATS reads its input through a stub, so the join is looked for on the left side.
-            if (IndependentSubqueryJoin.anyMatchInMainScope(inlineJoin.left(), SubqueryJoin.class::isInstance)) {
-                inlineJoin.right().forEachDown(node -> rejectIndexSearches(node, failures));
-            }
-        } else if (plan instanceof UnaryPlan unary
-            && IndependentSubqueryJoin.anyMatchInMainScope(unary.child(), SubqueryJoin.class::isInstance)) {
-                rejectIndexSearches(unary, failures);
-            }
-    }
-
-    private static void rejectIndexSearches(LogicalPlan plan, Failures failures) {
-        plan.forEachExpression(FullTextFunction.class, search -> {
-            if (search.isRuntimeSearch() == false) {
-                failures.add(
-                    fail(
-                        search,
-                        "[{}] {} cannot be used after a JOIN on a subquery{}",
-                        search.functionName(),
-                        search.functionType(),
-                        search.supportsRuntimeSearch() ? " when it targets an indexed field" : ""
-                    )
-                );
-            }
-        });
-    }
-
-    /**
      * Same as {@code LOOKUP JOIN}: numeric keys of different types match by value, with one exception. An {@code unsigned_long}
      * only matches another {@code unsigned_long}: its common type with a signed integer cannot hold negative values, and a common
      * floating-point type would round it. For now, though, {@link AbstractInSubqueryJoin#isSubqueryJoinUnsupported} rejects every
@@ -219,20 +156,6 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin, PostO
             return areTypesCompatible(leftType, rightType);
         }
         return leftType.noText() == rightType.noText();
-    }
-
-    /**
-     * Whether the join can copy a subquery column of this type into its output.
-     */
-    static boolean supportsPayloadType(DataType dataType) {
-        return switch (dataType) {
-            // Block#lookup is not implemented for these block types.
-            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, DATE_RANGE, DOUBLE_RANGE, DOC_DATA_TYPE, PARTIAL_AGG -> false;
-            case UNSUPPORTED, NULL, BOOLEAN, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, LONG, INTEGER, UNSIGNED_LONG, DOUBLE, SHORT,
-                BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, DATETIME, DATE_NANOS, IP, VERSION, OBJECT, SOURCE, DATE_PERIOD,
-                TIME_DURATION, GEO_POINT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX, TSID_DATA_TYPE,
-                TIME_SERIES_METADATA_DATA_TYPE, HISTOGRAM, DENSE_VECTOR, FLATTENED -> true;
-        };
     }
 
     /**

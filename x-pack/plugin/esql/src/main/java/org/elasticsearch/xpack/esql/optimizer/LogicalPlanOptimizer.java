@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRel
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSubqueryJoinWithHashJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTsInfoWithMetricsInfo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
@@ -106,8 +107,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNu
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.PlanFetch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoinLowering;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
@@ -158,6 +157,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         new Batch<>("Single Pass Time Series", Limiter.ONCE, new UseSinglePassTimeSeriesAggregate()),
         cleanup(),
         warnings(),
+        // After every other rule, which treat the subquery of a JOIN as a query of its own.
+        new Batch<>("Replace Subquery Joins", Limiter.ONCE, new ReplaceSubqueryJoinWithHashJoin()),
         // Last, so no other rule meets a Fetch, and the plan already has the cut and the commands the mapper splits it at.
         new Batch<>("Plan Fetch", Limiter.ONCE, new PlanFetch()),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
@@ -181,11 +182,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         );
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
-        }
-        if (optimized.anyMatch(SubqueryJoin.class::isInstance)) {
-            // Only now, so that verification checks the JOIN on a subquery itself rather than the hash join that runs it.
-            optimized = SubqueryJoinLowering.lower(optimized);
-            optimized.forEachUp(LogicalPlan::setOptimized);
         }
         optimized.setOptimized();
         return optimized;

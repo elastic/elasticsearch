@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -398,7 +399,8 @@ public abstract class FullTextFunction extends Function
      * Its aggregation is left to {@link #readsLuceneDocuments}, that tells it from the one of a {@code STATS}.
      */
     private static boolean executesOnCoordinator(LogicalPlan lp) {
-        if (lp instanceof Aggregate || lp instanceof InlineStats || lp instanceof InlineJoin) {
+        // The hash join of an ES|QL JOIN rejects the searches above it itself.
+        if (lp instanceof Aggregate || lp instanceof InlineStats || lp instanceof InlineJoin || HashJoin.isEsqlJoin(lp)) {
             return false;
         }
         return lp instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR;
@@ -1013,7 +1015,11 @@ public abstract class FullTextFunction extends Function
                 // a runtime search scans the values already in the page, so it runs there just as well. This check
                 // sees the final answer from isRuntimeSearch(), running after push-down has settled it.
                 if (isRuntimeSearch() == false
-                    && f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
+                    && f.anyMatch(
+                        p -> p instanceof Join join
+                            && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR
+                            && HashJoin.isEsqlJoin(join) == false
+                    )) {
                     failures.add(
                         fail(
                             this,

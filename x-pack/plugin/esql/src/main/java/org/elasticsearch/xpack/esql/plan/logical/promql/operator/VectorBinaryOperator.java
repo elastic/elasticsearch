@@ -479,7 +479,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             probeInput.fields(),
             buildInput.fields(),
             added,
-            match.grouping() == Joining.NONE
+            match.grouping() == Joining.NONE ? HashJoin.Kind.PROMQL_ONE_TO_ONE : HashJoin.Kind.PROMQL_MANY_TO_ONE
         );
     }
 

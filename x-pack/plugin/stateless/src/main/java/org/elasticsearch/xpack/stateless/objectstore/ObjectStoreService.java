@@ -367,17 +367,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     );
 
     /**
-     * How often to capture hot threads while a batched compound commit (VBCC) upload is in flight. Set to {@code 0} to disable.
-     */
-    public static final Setting<TimeValue> OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL = Setting.timeSetting(
-        "stateless.object_store.upload_hot_threads_log_interval",
-        TimeValue.ZERO,
-        TimeValue.ZERO,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Translog uploads that exceed this threshold are logged at WARN instead of DEBUG level.
      */
     public static final Setting<TimeValue> OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING = Setting.timeSetting(

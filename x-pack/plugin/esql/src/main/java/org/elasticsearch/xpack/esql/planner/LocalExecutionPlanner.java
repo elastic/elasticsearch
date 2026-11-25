@@ -92,6 +92,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
@@ -1898,7 +1899,12 @@ public class LocalExecutionPlanner {
         }
 
         // Load the "positions" of each match
-        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, join.repeatedKeys(), join.source()), layout);
+        if (join.repeatedKeys()) {
+            // A probe row gets one position for each build row it matches: give each match a row of its own before loading its values.
+            // Pages hold as many matches as LOOKUP JOIN's lookup pages, so a probe row with many matches doesn't make one huge page.
+            source = source.with(new MvExpandOperator.Factory(positionsChannel, LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE), layout);
+        }
 
         // Load the "values" from each match
         int loadedFields = 0;

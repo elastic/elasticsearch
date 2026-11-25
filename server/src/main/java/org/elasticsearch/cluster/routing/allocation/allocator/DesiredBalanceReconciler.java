@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -520,11 +522,11 @@ public class DesiredBalanceReconciler {
 
                     final var routingNode = routingNodes.node(shardRouting.currentNodeId());
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                    final BalancedShardsAllocator.MoveType moveType;
+                    final MoveType moveType;
                     if (canRemainDecision.type() == Decision.Type.NO) {
-                        moveType = BalancedShardsAllocator.MoveType.CANNOT_REMAIN;
+                        moveType = MoveType.CANNOT_REMAIN;
                     } else if (canRemainDecision.type() == Decision.Type.NOT_PREFERRED) {
-                        moveType = BalancedShardsAllocator.MoveType.NOT_PREFERRED;
+                        moveType = MoveType.NOT_PREFERRED;
                     } else {
                         // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
                         continue;
@@ -542,7 +544,7 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            moveType.reason(),
+                            MoveReason.of(moveType, canRemainDecision.label()),
                             allocation.changes(),
                             moveType.recoveryPriority()
                         );
@@ -634,13 +636,14 @@ public class DesiredBalanceReconciler {
                             rebalanceTarget.getId()
                         );
 
+                        final var moveReason = rebalanceReason(shardRouting);
                         routingNodes.relocateShard(
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
+                            moveReason,
                             allocation.changes(),
-                            BalancedShardsAllocator.MoveType.REBALANCE.recoveryPriority()
+                            moveReason.type().recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
@@ -687,6 +690,17 @@ public class DesiredBalanceReconciler {
                     )
                 );
             }
+        }
+
+        /**
+         * A shard reaching {@link #balance()} may remain where it is as far as the reconciler's deciders are concerned, so the only
+         * explanation for the move is the computation's, when it recorded one. The relocation is also prioritised by that reason, so a
+         * move the computation made because the copy cannot (or should not) remain is recovered with the matching priority.
+         */
+        private MoveReason rebalanceReason(ShardRouting shardRouting) {
+            final var computedReason = desiredBalance.computedMoveReasons()
+                .get(new DesiredBalance.ShardCopy(shardRouting.shardId(), shardRouting.currentNodeId()));
+            return computedReason != null ? computedReason : MoveReason.REBALANCE;
         }
 
         private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {

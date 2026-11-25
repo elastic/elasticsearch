@@ -19,6 +19,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -238,12 +239,24 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      * @throws IOException on test setup failure
      */
     public void testSamplingConsistency() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
-        textFieldType.setFielddata(true);
-
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(10_000);
         indexWriterConfig.setRAMBufferSizeMB(10_000); // flush on open to have a single segment
+        assertSamplingConsistency(indexWriterConfig, randomBoolean());
+    }
+
+    public void testSamplingConsistencyOverSeveralSegments() throws IOException {
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
+        indexWriterConfig.setMaxBufferedDocs(1_000);
+        indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+        // An aggregator for each segment would count its background over all the segments.
+        assertSamplingConsistency(indexWriterConfig, false);
+    }
+
+    private void assertSamplingConsistency(IndexWriterConfig indexWriterConfig, boolean splitLeavesIntoSeparateAggregators)
+        throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
+        textFieldType.setFielddata(true);
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             addManyMixedTextDocs(w);
@@ -267,7 +280,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     reader,
                     new AggTestConfig(randomSamplerAggregationBuilder, textFieldType).withQuery(
                         randomBoolean() ? Queries.ALL_DOCS_INSTANCE : new TermQuery(new Term("text", "common"))
-                    )
+                    ).withSplitLeavesIntoSeperateAggregators(splitLeavesIntoSeparateAggregators)
                 );
                 SignificantStringTerms terms = randomSampler.getAggregations().get("sig_text");
                 assertThat(Strings.toString(terms), terms.subsetSize, equalTo(terms.supersetSize));

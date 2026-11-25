@@ -673,6 +673,18 @@ public class ExternalFailuresTests extends ESTestCase {
         namesakeEndpoint.setDetail("refused by [" + endpoint + "]");
         assertThat(namesakeEndpoint.getMessage(), containsString("reading [" + endpoint + "]"));
         assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(namesakeEndpoint));
+
+        // And a condition whose renderer never names the object has no slot at all, so the first bracketed copy of
+        // the name is the provider's. Masking "the first occurrence" would have taken exactly that one.
+        var noSlot = new ExternalClientException(
+            ExternalException.Condition.CREDENTIALS_EXPIRED,
+            StoragePath.of("s3://bucket/" + endpoint),
+            "",
+            ""
+        );
+        noSlot.setDetail("refused by [" + endpoint + "]");
+        assertThat(noSlot.getMessage(), not(containsString("expired or invalid [")));
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(noSlot));
     }
 
     public void testAnUnmarkedTypedFailureIsStillCheckedInFull() {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
+
 /**
  * Marker thrown by the CSV tokenisers (Jackson and the bracket-aware path) when a single
  * row cannot be parsed. The single point of truth for what to do with it lives in
@@ -32,12 +34,21 @@ final class MalformedRowException extends RuntimeException {
      * Shared message template for the structural fault factories below: keeps the two splitter
      * copies aligned and routes every long-row excerpt through {@link CsvErrorMessages#summarizeAround}
      * so the printed window is anchored on {@code offset} (the parser's known fault index).
+     * <p>
+     * The window is the file's own text, and an unclosed quote is exactly the record that runs on past a newline, so
+     * it is escaped here, where it is quoted. The message reaches the {@code Warning} header and the node log, which
+     * both read brackets and newlines structurally; escaped anywhere later, the bracket pair this template writes
+     * around the excerpt would be escaped with it.
      */
     static MalformedRowException unclosedQuotedField(String line, int offset) {
-        return new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarizeAround(line, offset) + "]");
+        return new MalformedRowException(
+            "Unclosed quoted field in line [" + ErrorExcerpts.summarizeEscaped(CsvErrorMessages.summarizeAround(line, offset)) + "]"
+        );
     }
 
     static MalformedRowException unclosedBracketCell(String line, int offset) {
-        return new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarizeAround(line, offset) + "]");
+        return new MalformedRowException(
+            "Unclosed bracket cell in line [" + ErrorExcerpts.summarizeEscaped(CsvErrorMessages.summarizeAround(line, offset)) + "]"
+        );
     }
 }

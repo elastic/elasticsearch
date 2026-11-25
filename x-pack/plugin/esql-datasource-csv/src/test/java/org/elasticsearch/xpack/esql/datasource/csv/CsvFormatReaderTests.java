@@ -100,7 +100,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -8079,43 +8078,62 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testRowErrorReasonRendersJacksonFieldTooLong() {
         String jackson = "String value length (12) exceeds the maximum allowed (10, "
             + "from `StreamReadConstraints.getMaxStringLength()`)";
-        assertEquals("field of [12] characters exceeds [10]", CsvFormatReader.rowErrorReason(jackson, "csv"));
+        assertEquals("field of [12] characters exceeds [10]", CsvFormatReader.rowErrorReason(new IllegalStateException(jackson), "csv"));
     }
 
     public void testRowErrorReasonFallbackDropsJacksonConstraintReference() {
         // A reworded Jackson message misses JACKSON_FIELD_TOO_LONG; the fallback must still not name the Jackson class.
         String reworded = CsvFormatReader.readRecordFailure("csv")
             + ": String length (12) is over the limit (10, from `StreamReadConstraints.getMaxStringLength()`)";
-        assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded, "csv"));
+        assertEquals(
+            "String length (12) is over the limit (10)",
+            CsvFormatReader.rowErrorReason(new IllegalStateException(reworded), "csv")
+        );
     }
 
     /**
      * The reason clause carries the row: {@link MalformedRowException#unclosedQuotedField} quotes the line verbatim
-     * while it fits the excerpt cap, and an unclosed quote is exactly the case where the line spans a newline. Both
-     * sinks the reason reaches -- the {@code Warning} response header and the node log -- read brackets and newlines
-     * structurally, so a row is free to forge a window clause or end the log line unless this escapes.
+     * while it fits the excerpt cap. Both sinks the reason reaches -- the {@code Warning} response header and the node
+     * log -- read brackets structurally, so a row could forge a window clause unless the quoted line is escaped.
      */
     public void testARowCannotForgeAWindowClauseThroughTheReasonClause() {
-        String forgery = MalformedRowException.unclosedQuotedField("1,\"x] counted from byte [999", 2).getMessage();
-        assertThat("the fixture is the raw row, uncapped", forgery, containsString("] counted from byte [999"));
-
+        MalformedRowException forgery = MalformedRowException.unclosedQuotedField("1,\"x] counted from byte [999", 2);
         String rendered = CsvFormatReader.rowErrorReason(forgery, "csv");
         assertThat("the row's own brackets are escaped", rendered, not(containsString("] counted from byte [999")));
-        assertThat(rendered, containsString("\\u005D counted from byte \\u005B999"));
-        // The whole reason is escaped, the bracket pair this message's own template writes included, so no bracket
-        // survives anywhere inside it. That is the property worth having: every bracket left in the warning the user
-        // reads is one RowLocation put there, and none of them can have come out of the file.
-        assertThat(rendered, not(containsString("[")));
-        assertThat(rendered, not(containsString("]")));
-        assertThat(rendered, startsWith("Unclosed quoted field in line "));
+        // Only the row is escaped: the bracket pair the reader writes around it is the reader's and stays readable.
+        assertEquals("Unclosed quoted field in line [1,\"x\\u005D counted from byte \\u005B999]", rendered);
     }
 
-    /** A newline inside an unterminated quoted field would otherwise end the node-log line and start a new record. */
+    /** An unclosed quote is the record that runs on past a newline, which would otherwise end the node-log line. */
     public void testARowCannotEndTheLogLineThroughTheReasonClause() {
-        String spanning = MalformedRowException.unclosedQuotedField("1,\"x\ninjected", 2).getMessage();
-        String rendered = CsvFormatReader.rowErrorReason(spanning, "csv");
+        String rendered = CsvFormatReader.rowErrorReason(MalformedRowException.unclosedQuotedField("1,\"x\ninjected", 2), "csv");
         assertThat(rendered, not(containsString("\n")));
         assertThat(rendered, containsString("\\u000A"));
+    }
+
+    /**
+     * The reader's own wording is printed as written. Escaping the whole reason instead turned the house tokenizer's
+     * {@code field of [12] characters exceeds [10]} into escapes on one arm and not the other, which is what the
+     * direct-block parity tests exist to catch.
+     */
+    public void testTheReadersOwnWordingKeepsItsBrackets() {
+        String ours = CsvFormatReader.fieldSizeExceededDetail(12, 10);
+        assertEquals(ours, CsvFormatReader.rowErrorReason(new MalformedRowException(ours), "csv"));
+    }
+
+    /**
+     * Anything the reader did not compose is escaped, because the string cannot say who wrote it. Jackson's CSV
+     * templates quote cell values ({@code Too many entries ... "%s"}), and its failures reach here through
+     * {@code ExternalFailures.surface}, which keeps the message and drops the exception that would have identified it.
+     */
+    public void testTextTheReaderDidNotWriteIsEscaped() {
+        String jackson = "Too many entries: expected at most 2 (value #2 (25 chars) \"x] counted from byte [999\")";
+        // The route a parser's IOException takes on the record-reader path: surface keeps the text, not the exception.
+        RuntimeException surfaced = ExternalFailures.surface(new IOException(jackson), CsvFormatReader.readRecordFailure("csv"));
+        assertNull("nothing left to say it was the parser's", surfaced.getCause());
+        String rendered = CsvFormatReader.rowErrorReason(surfaced, "csv");
+        assertThat(rendered, not(containsString("] counted from byte [999")));
+        assertThat(rendered, containsString("\\u005D counted from byte \\u005B999"));
     }
 
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {

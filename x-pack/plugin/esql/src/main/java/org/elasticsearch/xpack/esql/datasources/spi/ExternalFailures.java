@@ -230,26 +230,32 @@ public final class ExternalFailures {
      * renderer rather than through a reader, and the mark cannot answer it: these failures are the provider's, and
      * exempting them wholesale is what {@link #noStoragePathLeakedBesideQuotedInput} refuses to do.
      * <p>
-     * One occurrence goes and no other. The templates bracket the name, so {@code [name]} is what is removed and a
-     * basename of {@code a} cannot blank every {@code a} in the sentence; and the first bracketed occurrence is the
-     * renderer's, because {@link ExternalException.Condition#render} puts the template before the detail code and the
-     * remedy, and {@link ExternalException#getMessage} appends the reader's own detail and the dataset context after
-     * all of it. So everything the provider wrote is still read in full, which is where an SDK endpoint host or a bare
-     * filesystem path would actually appear -- even in the case that prompted this, an endpoint whose text happens to
-     * equal the basename, where blanking every occurrence would have hidden the provider's copy along with ours.
+     * Only the slot the condition's template wrote goes, and only when it wrote one. {@link
+     * ExternalException.Condition#render} puts the template first, before the detail code and the remedy, and {@link
+     * ExternalException#getMessage} appends the reader's own detail and the dataset context after all of it, so the
+     * template rendered alone is a prefix of the message and the slot is found inside that prefix rather than by
+     * searching the whole sentence. The templates bracket the name, so {@code [name]} is what is removed and a basename
+     * of {@code a} cannot blank every {@code a}. A condition that overrides {@code render} names no object, and the
+     * mask does nothing there. Everything the provider wrote is therefore still read in full, including an endpoint
+     * it brackets under the same spelling as the object -- which is where an SDK host or a bare filesystem path would
+     * actually appear.
      */
     private static String messageOutsideRenderedBasename(Throwable e) {
         String msg = e.getMessage();
         if (msg == null) {
             return null;
         }
-        if (e instanceof ExternalException external) {
+        if (e instanceof ExternalException external && external.condition() != null) {
             String objectName = external.objectName();
             if (objectName.isEmpty() == false) {
-                String rendered = "[" + objectName + "]";
-                int at = msg.indexOf(rendered);
-                if (at >= 0) {
-                    return msg.substring(0, at) + "[]" + msg.substring(at + rendered.length());
+                // The condition's own template, rendered with nothing after it: the prefix of the message this
+                // renderer wrote. A condition that overrides render() never names the object, and then there is no
+                // slot to mask -- any occurrence of the name is someone else's text.
+                String template = external.condition().render(objectName, "", "");
+                String slot = "[" + objectName + "]";
+                int at = template.indexOf(slot);
+                if (at >= 0 && msg.startsWith(template)) {
+                    return msg.substring(0, at) + "[]" + msg.substring(at + slot.length());
                 }
             }
         }
@@ -472,9 +478,9 @@ public final class ExternalFailures {
         boolean serverSide = e.status().getStatus() >= 500;
         // Exactly 500, not every server-side status: the record is for an invariant breach raised with nothing under
         // it, and the band above 500 is mostly the opposite of that. An object rewritten under a read is a causeless
-        // 503 that every storage provider raises and that ends the query for the client to retry, so admitting the
-        // band would put a WARN and a stack in the log for an expected storage condition, on every query it happens
-        // to.
+        // 503 that ends the query for the client to retry against the new generation -- nothing retries it here --
+        // so admitting the band would put a WARN and a stack in the log for an expected storage condition, on every
+        // query it happens to.
         boolean causelessInvariantBreach = hasCause == false && e.status() == RestStatus.INTERNAL_SERVER_ERROR;
         if (hasCause || causelessInvariantBreach) {
             Level level;

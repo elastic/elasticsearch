@@ -2380,7 +2380,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         capturedErrors = new ArrayList<>(MAX_CAPTURED_SAMPLING_ERRORS);
                     }
                     if (capturedErrors.size() < MAX_CAPTURED_SAMPLING_ERRORS) {
-                        capturedErrors.add(rowErrorReason(e.getMessage(), format));
+                        capturedErrors.add(rowErrorReason(e, format));
                     }
                     if (policy.isBudgetExceeded(errorCount, totalRowCount)) {
                         throw budgetExceededSamplingError(
@@ -2512,7 +2512,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + "]"
                 + RowLocation.objectClause(" of", sourceLocation)
                 + ": "
-                + rowErrorReason(cause != null ? cause.getMessage() : "(no message)", format)
+                + rowErrorReason(cause, format)
                 + "; set [error_mode] to [skip_row] to skip the row instead"
         );
         result.markMessageQuotesInput();
@@ -2554,26 +2554,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The reason clause of a row the reader could not parse: the cause message without the
-     * {@link #readRecordFailure} prefix the record iterator adds, escaped and capped by
-     * {@link ErrorExcerpts#summarizeEscaped}.
+     * The reason clause of a row the reader could not parse: the failure's message without the
+     * {@link #readRecordFailure} prefix the record iterator adds, capped by {@link ErrorExcerpts}.
      * Jackson's over-{@code max_field_size} message is rendered as {@link #fieldSizeExceededDetail}, so the
      * Jackson arm and the house tokenizer report an over-long field in the same words. Any other message loses its
      * {@link #JACKSON_CONSTRAINT_REFERENCE}.
      * <p>
-     * Escaped because the message carries the row: {@link MalformedRowException#unclosedQuotedField} and
-     * {@link MalformedRowException#unclosedBracketCell} quote the line itself, verbatim while it fits the excerpt
-     * cap. Both sinks this reason reaches -- the {@code Warning} response header and the node log -- read brackets
-     * and newlines structurally, so an unterminated quote spanning a newline would otherwise end the log line, and a
-     * row holding {@code ] counted from byte [} would otherwise close the clause it sits in and forge a window.
-     * NDJSON's parser text is escaped at its own print site for the same reason.
-     * <p>
-     * The whole reason goes through the escape, the brackets of these messages' own templates included. Keeping
-     * those would leave two kinds of bracket in one clause and no way for a reader to tell them apart, which is the
-     * forgery itself rather than a defence against it. Escaping all of them makes a plainer promise: every bracket
-     * left in the warning is one the location clause wrote.
+     * The reason reaches the {@code Warning} header and the node log, which read brackets and newlines structurally,
+     * so text the reader did not write is escaped. That is decided on the failure rather than on the string, because
+     * the string cannot say who wrote it: a {@link MalformedRowException} and the record-cap refusal carry this
+     * reader's own wording, brackets included, and are printed as written -- the one part of them that quotes the file
+     * was escaped where it was quoted. Anything else is escaped, a parser's text above all: Jackson's templates quote
+     * cell values and header cells, and its failures arrive through {@link ExternalFailures#surface}, which keeps the
+     * message and drops the exception that would have said it was Jackson's.
      */
-    static String rowErrorReason(String message, String format) {
+    static String rowErrorReason(Throwable failure, String format) {
+        if (failure == null) {
+            return "(no message)";
+        }
+        String message = failure.getMessage();
         String prefix = readRecordFailure(format) + ": ";
         String reason = message != null && message.startsWith(prefix) ? message.substring(prefix.length()) : message;
         if (reason != null) {
@@ -2583,7 +2582,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             reason = JACKSON_CONSTRAINT_REFERENCE.matcher(reason).replaceAll("");
         }
-        return ErrorExcerpts.summarizeEscaped(reason);
+        boolean composedHere = failure instanceof MalformedRowException || isRecordCapDrop(failure);
+        return composedHere ? ErrorExcerpts.summarize(reason) : ErrorExcerpts.summarizeEscaped(reason);
     }
 
     /** The reason for a value that does not fit its column's type. */
@@ -5429,7 +5429,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                     // pragma-dependent count.
                                     recordCapDropped = true;
                                 }
-                                onRowError(rowErrorReason(e.getMessage(), format), e, EMPTY_ROW, true);
+                                onRowError(rowErrorReason(e, format), e, EMPTY_ROW, true);
                             }
                         }
                     }
@@ -6685,7 +6685,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         try {
                             return splitAndConvertQuoted(buf, from, to);
                         } catch (MalformedRowException e) {
-                            onRowError(rowErrorReason(e.getMessage(), format), e, EMPTY_ROW, true);
+                            onRowError(rowErrorReason(e, format), e, EMPTY_ROW, true);
                             return false;
                         }
                     }
@@ -6703,7 +6703,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     try {
                         return splitAndConvertQuoted(buf, from, to);
                     } catch (MalformedRowException e) {
-                        onRowError(rowErrorReason(e.getMessage(), format), e, EMPTY_ROW, true);
+                        onRowError(rowErrorReason(e, format), e, EMPTY_ROW, true);
                         return false;
                     }
                 }

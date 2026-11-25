@@ -17,16 +17,26 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceSelection;
@@ -34,11 +44,16 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -61,8 +76,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.HashMap.newHashMap;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
@@ -74,6 +91,9 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 abstract class DataNodeRequestSender {
 
     private static final Logger LOGGER = LogManager.getLogger(DataNodeRequestSender.class);
+    private static final org.apache.logging.log4j.Logger OBSERVER_LOGGER = org.apache.logging.log4j.LogManager.getLogger(
+        DataNodeRequestSender.class
+    );
 
     /**
      * Query order according to the
@@ -93,6 +113,10 @@ abstract class DataNodeRequestSender {
     private final TransportService transportService;
     private final Executor searchExecutor;
     private final CancellableTask rootTask;
+    private final ThreadPool threadPool;
+    private final TimeValue routingWaitTimeout;
+    private final ShardResolutionMetrics metrics;
+    private ProjectId projectId;
 
     private final String clusterAlias;
     private final OriginalIndices originalIndices;
@@ -105,10 +129,26 @@ abstract class DataNodeRequestSender {
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
+    private final Set<DiscoveryNode> refusedNodes = ConcurrentCollections.newConcurrentSet();
+    /**
+     * Copies that failed as unavailable, by allocation id. The value is whether the copy was active when sent.
+     */
+    private final Map<ShardId, Map<String, Boolean>> triedCopies = ConcurrentCollections.newConcurrentMap();
     private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
-    private boolean reportedFailure = false; // guarded by sendingLock
+    // Written under sendingLock, but also read without the lock by RoutingWait#start(), so that a wait polled from
+    // waitsToStart but not yet added to activeWaits still ends with QUERY_FAILED instead of running until timeout.
+    private volatile boolean reportedFailure = false;
     private final AtomicInteger remainingUnavailableShardResolutionAttempts;
+    private final AtomicBoolean attemptsExhaustedCounted = new AtomicBoolean();
+
+    private final Set<ShardId> waitingShards = new HashSet<>(); // guarded by sendingLock
+    private final Map<ShardId, Long> stallDeadlines = new HashMap<>(); // guarded by sendingLock
+    private boolean clusterServiceClosed; // guarded by sendingLock
+    private final Queue<EndedWait> endedWaits = ConcurrentCollections.newQueue();
+    private final Queue<RoutingWait> waitsToStart = ConcurrentCollections.newQueue();
+    private final Set<RoutingWait> activeWaits = ConcurrentCollections.newConcurrentSet();
+    private final AtomicBoolean hooksRegistered = new AtomicBoolean();
 
     DataNodeRequestSender(
         ClusterService clusterService,
@@ -122,13 +162,18 @@ abstract class DataNodeRequestSender {
         String clusterAlias,
         boolean allowPartialResults,
         int concurrentRequests,
-        int unavailableShardResolutionAttempts
+        int unavailableShardResolutionAttempts,
+        TimeValue routingWaitTimeout,
+        ShardResolutionMetrics metrics
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.transportService = transportService;
         this.searchExecutor = searchExecutor;
         this.rootTask = rootTask;
+        this.threadPool = transportService.getThreadPool();
+        this.routingWaitTimeout = routingWaitTimeout;
+        this.metrics = metrics;
         this.originalIndices = originalIndices;
         this.requestFilter = requestFilter;
         this.slices = slices;
@@ -158,6 +203,7 @@ abstract class DataNodeRequestSender {
             // pool after ExternalSourceResolver completes on that pool.
             EsqlPlugin.externalBlobStorePool()
         );
+        projectId = projectResolver.getProjectId();
         final long startTimeInNanos = System.nanoTime();
         searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
             try (var computeListener = new ComputeListener(runOnTaskFailure, listener.map(completionInfo -> {
@@ -216,26 +262,119 @@ abstract class DataNodeRequestSender {
             while (sendingLock.tryLock()) {
                 try {
                     if (changed.compareAndSet(true, false)) {
+                        applyEndedWaits();
                         var pendingRetries = new HashSet<ShardId>();
                         for (ShardId shardId : pendingShardIds) {
-                            if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                            if (waitingShards.contains(shardId) == false && targetShards.getShard(shardId).remainingNodes.isEmpty()) {
                                 if (isRetryableFailure(shardFailures.get(shardId))) {
                                     pendingRetries.add(shardId);
                                 }
                             }
                         }
-                        if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
-                            for (var entry : resolveShards(pendingRetries).entrySet()) {
-                                targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                        Set<ShardId> parkedThisPass = new HashSet<>();
+                        ResolvedShards resolved = null;
+                        boolean counted = false;
+                        final boolean cancelled = rootTask.isCancelled();
+                        final boolean finished = cancelled == false && isQueryFinished();
+                        if (cancelled || finished) {
+                            // Apply the reading only to the retry candidates. Shards still holding a node go to sendRequest
+                            // and are handled via onSkip, as on main; a fatal failure recorded elsewhere is not turned into a
+                            // skip here.
+                            for (ShardId shardId : pendingRetries) {
+                                if (cancelled) {
+                                    trackShardLevelFailure(
+                                        shardId,
+                                        true,
+                                        new TaskCancelledException(rootTask.getReasonCancelled()),
+                                        null,
+                                        NodeFailure.OTHER
+                                    );
+                                } else {
+                                    skipShard(shardId);
+                                }
+                            }
+                        } else if (pendingRetries.isEmpty() == false) {
+                            final boolean budgetLeft = remainingUnavailableShardResolutionAttempts.get() > 0;
+                            Set<ShardId> shardsToResolve = new HashSet<>();
+                            for (ShardId shardId : pendingRetries) {
+                                ShardFailure failure = shardFailures.get(shardId);
+                                if (routingWaitTimeout.millis() != 0
+                                    || budgetLeft
+                                    || failure.lastRefused
+                                    || Long.valueOf(Long.MIN_VALUE).equals(stallDeadlines.get(shardId))) {
+                                    shardsToResolve.add(shardId);
+                                } else {
+                                    countAttemptsExhausted();
+                                }
+                            }
+                            if (shardsToResolve.isEmpty() == false) {
+                                resolved = resolveShards(shardsToResolve);
+                            }
+                            final long now = threadPool.relativeTimeInMillis();
+                            for (ShardId shardId : shardsToResolve) {
+                                ShardFailure failure = shardFailures.get(shardId);
+                                List<DiscoveryNode> remainingNodes = targetShards.getShard(shardId).remainingNodes;
+                                List<ShardCopy> copies = resolved.copies.get(shardId);
+                                if (routingWaitTimeout.millis() == 0) {
+                                    List<DiscoveryNode> nodes = eligibleActiveCopies(copies);
+                                    if (nodes.isEmpty() == false && (failure.lastRefused || budgetLeft)) {
+                                        remainingNodes.addAll(nodes);
+                                        counted |= failure.lastRefused == false;
+                                    } else if (nodes.isEmpty() == false && failure.lastRefused == false) {
+                                        countAttemptsExhausted();
+                                    }
+                                    continue;
+                                }
+                                if (clusterServiceClosed) {
+                                    continue;
+                                }
+                                Long deadline = stallDeadlines.get(shardId);
+                                if (deadline != null && deadline == Long.MIN_VALUE) {
+                                    remainingNodes.addAll(eligibleActiveCopies(copies));
+                                    stallDeadlines.remove(shardId);
+                                    shardFailures.computeIfPresent(
+                                        shardId,
+                                        (ignored, current) -> new ShardFailure(current.fatal, false, current.lastRefused, current.failure)
+                                    );
+                                    continue;
+                                }
+                                RoutingAnswer answer = untriedCopies(copies, triedCopies.getOrDefault(shardId, Map.of()), refusedNodes);
+                                switch (answer.kind) {
+                                    case COPY -> {
+                                        if (failure.lastRefused || budgetLeft) {
+                                            remainingNodes.addAll(answer.nodes);
+                                            stallDeadlines.remove(shardId);
+                                            counted |= failure.lastRefused == false;
+                                        } else {
+                                            countAttemptsExhausted();
+                                        }
+                                    }
+                                    case NONE_YET -> {
+                                        if (failure.lastRefused || budgetLeft) {
+                                            waitingShards.add(shardId);
+                                            parkedThisPass.add(shardId);
+                                            stallDeadlines.putIfAbsent(shardId, now + routingWaitTimeout.millis());
+                                        } else {
+                                            countAttemptsExhausted();
+                                        }
+                                    }
+                                    case GONE -> stallDeadlines.remove(shardId);
+                                }
+                            }
+                            if (counted) {
+                                remainingUnavailableShardResolutionAttempts.decrementAndGet();
                             }
                         }
                         for (ShardId shardId : pendingShardIds) {
                             if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+                                && waitingShards.contains(shardId) == false
                                 && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
                                 shardFailures.compute(
                                     shardId,
                                     (k, v) -> new ShardFailure(
                                         true,
+                                        false,
+                                        v != null && v.lastRefused,
                                         v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
                                     )
                                 );
@@ -246,7 +385,27 @@ abstract class DataNodeRequestSender {
                                 && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
                             reportedFailure = true;
                             reportFailures(computeListener);
+                            RoutingWait queuedWait;
+                            while ((queuedWait = waitsToStart.poll()) != null) {
+                                queuedWait.end(WaitOutcome.QUERY_FAILED);
+                            }
+                            for (RoutingWait wait : List.copyOf(activeWaits)) {
+                                wait.end(WaitOutcome.QUERY_FAILED);
+                            }
                         } else {
+                            if (parkedThisPass.isEmpty() == false) {
+                                long deadline = parkedThisPass.stream().mapToLong(stallDeadlines::get).min().orElseThrow();
+                                waitsToStart.add(
+                                    new RoutingWait(
+                                        resolved.state,
+                                        parkedThisPass,
+                                        deadline,
+                                        computeListener.acquireAvoid(),
+                                        targetShards,
+                                        computeListener
+                                    )
+                                );
+                            }
                             for (NodeRequest request : selectNodeRequests(targetShards)) {
                                 sendOneNodeRequest(targetShards, computeListener, request);
                             }
@@ -255,6 +414,12 @@ abstract class DataNodeRequestSender {
                 } finally {
                     sendingLock.unlock();
                 }
+                if (sendingLock.isHeldByCurrentThread() == false) {
+                    RoutingWait wait;
+                    while ((wait = waitsToStart.poll()) != null) {
+                        wait.start();
+                    }
+                }
                 // recheck after releasing the lock as another response might have set changed, but failed to acquire the lock
                 if (changed.get() == false) {
                     break;
@@ -262,6 +427,59 @@ abstract class DataNodeRequestSender {
             }
         } finally {
             listener.onResponse(null);
+        }
+    }
+
+    private void applyEndedWaits() {
+        assert sendingLock.isHeldByCurrentThread();
+        final boolean cancelled = rootTask.isCancelled();
+        final boolean finished = cancelled == false && isQueryFinished();
+        EndedWait ended;
+        while ((ended = endedWaits.poll()) != null) {
+            WaitOutcome outcome = cancelled ? WaitOutcome.CANCELLED : finished ? WaitOutcome.QUERY_FINISHED : ended.outcome;
+            RoutingWait endedRoutingWait = ended.routingWait;
+            for (ShardId shardId : endedRoutingWait.shards) {
+                waitingShards.remove(shardId);
+                switch (outcome) {
+                    case ROUTING_CHANGED -> {
+                    }
+                    case TIMED_OUT -> stallDeadlines.computeIfPresent(
+                        shardId,
+                        (ignored, deadline) -> deadline <= endedRoutingWait.deadlineMillis ? Long.MIN_VALUE : deadline
+                    );
+                    case CLUSTER_SERVICE_CLOSED -> clusterServiceClosed = true;
+                    case CANCELLED -> {
+                        shardFailures.remove(shardId);
+                        trackShardLevelFailure(
+                            shardId,
+                            true,
+                            new TaskCancelledException(rootTask.getReasonCancelled()),
+                            null,
+                            NodeFailure.OTHER
+                        );
+                    }
+                    case QUERY_FINISHED -> skipShard(shardId);
+                    case QUERY_FAILED -> {
+                        pendingShardIds.remove(shardId);
+                        stallDeadlines.remove(shardId);
+                    }
+                }
+            }
+        }
+    }
+
+    private void skipShard(ShardId shardId) {
+        if (pendingShardIds.remove(shardId)) {
+            skippedShards.incrementAndGet();
+        }
+        waitingShards.remove(shardId);
+        shardFailures.remove(shardId);
+        stallDeadlines.remove(shardId);
+    }
+
+    private void countAttemptsExhausted() {
+        if (attemptsExhaustedCounted.compareAndSet(false, true)) {
+            metrics.attemptsExhausted();
         }
     }
 
@@ -301,6 +519,14 @@ abstract class DataNodeRequestSender {
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
+        final ClusterState applied = clusterService.state();
+        final Map<ShardId, SentCopy> sent = new HashMap<>();
+        for (DataNodeRequest.Shard shard : request.shards) {
+            SentCopy copy = sentCopy(applied, shard.shardId(), request.node);
+            if (copy != null) {
+                sent.put(shard.shardId(), copy);
+            }
+        }
         final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shards, request.aliasFilters, new NodeListener() {
 
@@ -324,7 +550,7 @@ abstract class DataNodeRequestSender {
                     }
                     for (var entry : response.shardLevelFailures().entrySet()) {
                         final ShardId shardId = entry.getKey();
-                        trackShardLevelFailure(shardId, false, entry.getValue());
+                        trackShardLevelFailure(shardId, false, entry.getValue(), sent.get(shardId), NodeFailure.OTHER);
                         pendingShardIds.add(shardId);
                     }
                     onAfterRequest();
@@ -337,11 +563,14 @@ abstract class DataNodeRequestSender {
             }
 
             @Override
-            public void onFailure(Exception e, boolean receivedData) {
+            public void onFailure(Exception e, boolean receivedData, NodeFailure nodeFailure) {
                 try {
+                    if (nodeFailure == NodeFailure.REFUSED) {
+                        refusedNodes.add(request.node);
+                    }
                     for (var shard : request.shards) {
                         ShardId shardId = shard.shardId();
-                        trackShardLevelFailure(shardId, receivedData, e);
+                        trackShardLevelFailure(shardId, receivedData, e, sent.get(shardId), nodeFailure);
                         pendingShardIds.add(shardId);
                     }
                     onAfterRequest();
@@ -380,9 +609,39 @@ abstract class DataNodeRequestSender {
     interface NodeListener {
         void onResponse(DataNodeComputeResponse response);
 
-        void onFailure(Exception e, boolean receivedData);
+        default void onFailure(Exception e, boolean receivedData) {
+            onFailure(e, receivedData, classifyNodeFailure(e));
+        }
+
+        void onFailure(Exception e, boolean receivedData, NodeFailure nodeFailure);
 
         void onSkip();
+    }
+
+    /** What a failed transport request says about the node it targeted. */
+    enum NodeFailure {
+        REFUSED,
+        UNREACHABLE,
+        OTHER
+    }
+
+    static NodeFailure classifyNodeFailure(Exception e) {
+        if (e instanceof RemoteTransportException) {
+            return ExceptionsHelper.unwrapCause(e) instanceof NodeClosedException ? NodeFailure.REFUSED : NodeFailure.OTHER;
+        }
+        if (e instanceof ConnectTransportException
+            || (e instanceof SendRequestTransportException && e.getCause() instanceof ConnectTransportException)) {
+            return NodeFailure.UNREACHABLE;
+        }
+        return NodeFailure.OTHER;
+    }
+
+    /**
+     * The admission gate only refuses opens, so a refusal reported by the data request came from further downstream.
+     */
+    static NodeFailure classifyDataRequestFailure(Exception e) {
+        NodeFailure nodeFailure = classifyNodeFailure(e);
+        return nodeFailure == NodeFailure.REFUSED ? NodeFailure.OTHER : nodeFailure;
     }
 
     private static Exception unwrapFailure(ShardId shardId, Exception e) {
@@ -396,19 +655,35 @@ abstract class DataNodeRequestSender {
         }
     }
 
-    private void trackShardLevelFailure(ShardId shardId, boolean fatal, Exception originalEx) {
+    private void trackShardLevelFailure(
+        ShardId shardId,
+        boolean fatal,
+        Exception originalEx,
+        @Nullable SentCopy sentCopy,
+        NodeFailure nodeFailure
+    ) {
         final Exception e = unwrapFailure(shardId, originalEx);
         final boolean isTaskCanceledException = ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
         final boolean isCircuitBreakerException = ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
+        final boolean resolvable = switch (nodeFailure) {
+            case REFUSED, UNREACHABLE -> true;
+            case OTHER -> e instanceof NoShardAvailableActionException;
+        };
+        if (resolvable && nodeFailure != NodeFailure.REFUSED && sentCopy != null) {
+            triedCopies.computeIfAbsent(shardId, ignored -> ConcurrentCollections.newConcurrentMap())
+                .merge(sentCopy.allocationId, sentCopy.active, Boolean::logicalOr);
+        }
         shardFailures.compute(shardId, (k, current) -> {
             boolean mergedFatal = fatal || isTaskCanceledException || isCircuitBreakerException;
             return current == null
-                ? new ShardFailure(mergedFatal, e)
+                ? new ShardFailure(mergedFatal, resolvable, nodeFailure == NodeFailure.REFUSED, e)
                 : new ShardFailure(
                     mergedFatal || current.fatal,
+                    resolvable && current.resolvable,
+                    nodeFailure == NodeFailure.REFUSED,
                     // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage,
                     // especially when handling many shards.
-                    isTaskCanceledException || e instanceof NoShardAvailableActionException ? current.failure : e
+                    isTaskCanceledException || resolvable ? current.failure : e
                 );
         });
     }
@@ -440,10 +715,63 @@ abstract class DataNodeRequestSender {
 
     record NodeRequest(DiscoveryNode node, List<DataNodeRequest.Shard> shards, Map<Index, AliasFilter> aliasFilters) {}
 
-    private record ShardFailure(boolean fatal, Exception failure) {}
+    private record ShardFailure(boolean fatal, boolean resolvable, boolean lastRefused, Exception failure) {}
 
     private static boolean isRetryableFailure(ShardFailure failure) {
-        return failure != null && failure.fatal == false && failure.failure instanceof NoShardAvailableActionException;
+        return failure != null && failure.fatal == false && failure.resolvable;
+    }
+
+    /** How a copy participates in a retry decision. */
+    enum CopyState {
+        ACTIVE,
+        RELOCATION_TARGET,
+        INITIALIZING
+    }
+
+    /** One searchable shard copy, identified by its stable allocation id. */
+    record ShardCopy(DiscoveryNode node, String allocationId, CopyState state) {}
+
+    /** Routing copies and the exact state from which they were resolved. */
+    record ResolvedShards(ClusterState state, Map<ShardId, List<ShardCopy>> copies) {}
+
+    /** The routing identity recorded atomically with sending a node request. */
+    record SentCopy(String allocationId, boolean active) {}
+
+    /** The three possible answers when routing is compared with the copies already tried. */
+    enum Untried {
+        COPY,
+        NONE_YET,
+        GONE
+    }
+
+    /** For {@link Untried#COPY}, {@code nodes} contains active copies followed by relocation targets. */
+    record RoutingAnswer(Untried kind, List<DiscoveryNode> nodes) {}
+
+    static RoutingAnswer untriedCopies(@Nullable List<ShardCopy> copies, Map<String, Boolean> tried, Set<DiscoveryNode> refused) {
+        if (copies == null || copies.isEmpty()) {
+            return new RoutingAnswer(Untried.GONE, List.of());
+        }
+        List<DiscoveryNode> nodes = new ArrayList<>();
+        for (ShardCopy copy : copies) {
+            if (copy.state == CopyState.INITIALIZING || refused.contains(copy.node)) {
+                continue;
+            }
+            Boolean activeWhenTried = tried.get(copy.allocationId);
+            if (activeWhenTried == null || (activeWhenTried == false && copy.state == CopyState.ACTIVE)) {
+                nodes.add(copy.node);
+            }
+        }
+        return nodes.isEmpty() ? new RoutingAnswer(Untried.NONE_YET, List.of()) : new RoutingAnswer(Untried.COPY, nodes);
+    }
+
+    private List<DiscoveryNode> eligibleActiveCopies(@Nullable List<ShardCopy> copies) {
+        if (copies == null) {
+            return List.of();
+        }
+        return copies.stream()
+            .filter(copy -> copy.state == CopyState.ACTIVE && refusedNodes.contains(copy.node) == false)
+            .map(ShardCopy::node)
+            .toList();
     }
 
     /**
@@ -588,28 +916,288 @@ abstract class DataNodeRequestSender {
         return false;
     }
 
+    ResolvedShards resolveShards(Set<ShardId> shardIds) {
+        ClusterState state = clusterService.state();
+        return new ResolvedShards(state, resolve(state, projectId, shardIds));
+    }
+
     /**
-     * Attempts to resolve shards locations after they have been moved
+     * Resolves without throwing or consulting thread context, since routing-wait predicates run on the cluster applier thread.
      */
-    Map<ShardId, List<DiscoveryNode>> resolveShards(Set<ShardId> shardIds) {
-        var project = projectResolver.getProjectState(clusterService.state());
-        var nodes = Maps.<ShardId, List<DiscoveryNode>>newMapWithExpectedSize(shardIds.size());
-        for (var shardId : shardIds) {
-            List<DiscoveryNode> allocatedNodes;
-            try {
-                allocatedNodes = project.routingTable()
-                    .shardRoutingTable(shardId)
-                    .allShards()
-                    .filter(shard -> shard.active() && shard.isSearchable())
-                    .map(shard -> project.cluster().nodes().get(shard.currentNodeId()))
-                    .toList();
-            } catch (Exception ignored) {
-                // If the target index is deleted or the target shard is not found after the query has started,
-                // we skip resolving its new shard routing, and that shard will not be retried.
+    static Map<ShardId, List<ShardCopy>> resolve(ClusterState state, ProjectId projectId, Set<ShardId> shardIds) {
+        RoutingTable routingTable = state.globalRoutingTable().routingTables().get(projectId);
+        if (routingTable == null) {
+            return Map.of();
+        }
+        Map<ShardId, List<ShardCopy>> result = new HashMap<>();
+        for (ShardId shardId : shardIds) {
+            IndexRoutingTable index = routingTable.index(shardId.getIndex());
+            if (index == null) {
                 continue;
             }
-            nodes.put(shardId, allocatedNodes);
+            IndexShardRoutingTable shardTable = index.shard(shardId.id());
+            if (shardTable == null) {
+                continue;
+            }
+            List<ShardCopy> copies = new ArrayList<>();
+            List<ShardRouting> routings = shardTable.allShards().toList();
+            for (ShardRouting shard : routings) {
+                if (shard.active() && shard.isSearchable()) {
+                    addCopy(state, copies, shard, CopyState.ACTIVE);
+                }
+            }
+            for (ShardRouting shard : routings) {
+                if (shard.relocating() && shard.isSearchable()) {
+                    addCopy(state, copies, shard.getTargetRelocatingShard(), CopyState.RELOCATION_TARGET);
+                }
+            }
+            for (ShardRouting shard : routings) {
+                if (shard.initializing() && shard.isSearchable()) {
+                    addCopy(state, copies, shard, CopyState.INITIALIZING);
+                }
+            }
+            result.put(shardId, copies);
         }
-        return nodes;
+        return result;
+    }
+
+    private static void addCopy(ClusterState state, List<ShardCopy> copies, ShardRouting shard, CopyState copyState) {
+        DiscoveryNode node = state.nodes().get(shard.currentNodeId());
+        if (node != null && shard.allocationId() != null) {
+            copies.add(new ShardCopy(node, shard.allocationId().getId(), copyState));
+        }
+    }
+
+    /**
+     * Finds which allocation was targeted using one applied state, so later routing changes cannot rewrite the send's identity.
+     */
+    @Nullable
+    SentCopy sentCopy(ClusterState applied, ShardId shardId, DiscoveryNode node) {
+        RoutingTable routingTable = applied.globalRoutingTable().routingTables().get(projectId);
+        if (routingTable == null) {
+            return null;
+        }
+        IndexRoutingTable index = routingTable.index(shardId.getIndex());
+        IndexShardRoutingTable shardTable = index == null ? null : index.shard(shardId.id());
+        if (shardTable == null) {
+            return null;
+        }
+        for (ShardRouting shard : shardTable.allShards().toList()) {
+            if (node.getId().equals(shard.currentNodeId()) && (shard.active() || shard.initializing())) {
+                return new SentCopy(shard.allocationId().getId(), shard.active());
+            }
+            if (shard.relocating()) {
+                ShardRouting target = shard.getTargetRelocatingShard();
+                if (node.getId().equals(target.currentNodeId())) {
+                    return new SentCopy(target.allocationId().getId(), false);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Whether the query has stopped consuming pages and therefore needs no more shard work. */
+    abstract boolean isQueryFinished();
+
+    /** Adds a listener for the transition described by {@link #isQueryFinished()}. */
+    abstract void addQueryFinishedListener(ActionListener<Void> listener);
+
+    private enum WaitOutcome {
+        ROUTING_CHANGED,
+        TIMED_OUT,
+        CLUSTER_SERVICE_CLOSED,
+        CANCELLED,
+        QUERY_FINISHED,
+        QUERY_FAILED
+    }
+
+    private record EndedWait(RoutingWait routingWait, WaitOutcome outcome) {}
+
+    /** One bounded routing wait shared by every shard parked in a single sending pass. */
+    private final class RoutingWait {
+        private final ClusterState observed;
+        private final Set<ShardId> shards;
+        private final long deadlineMillis;
+        private final ActionListener<Void> reference;
+        private final Supplier<ThreadContext.StoredContext> context;
+        private final TargetShards targetShards;
+        private final ComputeListener computeListener;
+        private final AtomicBoolean ended = new AtomicBoolean();
+        private final ObserverCallback callback = new ObserverCallback(this);
+        private volatile Scheduler.Cancellable timer;
+
+        private RoutingWait(
+            ClusterState observed,
+            Set<ShardId> shards,
+            long deadlineMillis,
+            ActionListener<Void> reference,
+            TargetShards targetShards,
+            ComputeListener computeListener
+        ) {
+            this.observed = observed;
+            this.shards = Set.copyOf(shards);
+            this.deadlineMillis = deadlineMillis;
+            this.reference = reference;
+            this.targetShards = targetShards;
+            this.computeListener = computeListener;
+            this.context = threadPool.getThreadContext().newRestorableContext(false);
+        }
+
+        private void start() {
+            // Register in activeWaits first, then read the terminating signals: the pass that reports a failure sets
+            // reportedFailure before it sweeps activeWaits, so one of start() and the pass sees the other and the wait
+            // does not run until its timeout while holding a reference on the compute listener.
+            activeWaits.add(this);
+            if (hooksRegistered.compareAndSet(false, true)) {
+                rootTask.addListener(() -> endAll(WaitOutcome.CANCELLED));
+                addQueryFinishedListener(ActionListener.running(() -> endAll(WaitOutcome.QUERY_FINISHED)));
+            }
+            if (rootTask.isCancelled()) {
+                end(WaitOutcome.CANCELLED);
+                return;
+            }
+            if (isQueryFinished()) {
+                end(WaitOutcome.QUERY_FINISHED);
+                return;
+            }
+            if (reportedFailure) {
+                end(WaitOutcome.QUERY_FAILED);
+                return;
+            }
+            final TimeValue remaining = TimeValue.timeValueMillis(Math.max(0L, deadlineMillis - threadPool.relativeTimeInMillis()));
+            metrics.routingWaitStarted();
+            LOGGER.debug(
+                "waiting for newer shard routing for [{}] shards for up to [{}] from cluster state version [{}]",
+                shards.size(),
+                remaining,
+                observed.version()
+            );
+            try {
+                timer = threadPool.schedule(() -> end(WaitOutcome.TIMED_OUT), remaining, threadPool.generic());
+                if (ended.get()) {
+                    timer.cancel();
+                }
+                ClusterStateObserver observer = new ClusterStateObserver(
+                    observed,
+                    clusterService,
+                    remaining,
+                    OBSERVER_LOGGER,
+                    threadPool.getThreadContext()
+                );
+                observer.waitForNextChange(callback, state -> {
+                    RoutingWait wait = callback.wait.get();
+                    return wait == null || wait.showsUntriedCopyOrGone(state);
+                });
+            } catch (Exception e) {
+                // The catch is broad; without this line a bug in the start of the wait looks like a closing cluster service.
+                LOGGER.debug("failed to start routing wait, treating as cluster service close", e);
+                end(WaitOutcome.CLUSTER_SERVICE_CLOSED);
+            }
+        }
+
+        private boolean showsUntriedCopyOrGone(ClusterState state) {
+            Map<ShardId, List<ShardCopy>> copies = resolve(state, projectId, shards);
+            for (ShardId shardId : shards) {
+                RoutingAnswer answer = untriedCopies(copies.get(shardId), triedCopies.getOrDefault(shardId, Map.of()), refusedNodes);
+                if (answer.kind != Untried.NONE_YET) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * A rejected hand-off fails this sender's compute-listener slot. The existing compute service then either fails the
+         * request, or records that failure in a partial local-cluster result when partial results are allowed.
+         */
+        private void end(WaitOutcome outcome) {
+            if (ended.compareAndSet(false, true) == false) {
+                return;
+            }
+            activeWaits.remove(this);
+            callback.wait.set(null);
+            Scheduler.Cancellable currentTimer = timer;
+            if (currentTimer != null) {
+                currentTimer.cancel();
+            }
+            if (outcome == WaitOutcome.TIMED_OUT) {
+                metrics.routingWaitTimedOut();
+            }
+            AtomicReference<Exception> handoffFailure = new AtomicReference<>();
+            searchExecutor.execute(new AbstractRunnable() {
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+
+                @Override
+                protected void doRun() {
+                    try (ThreadContext.StoredContext ignored = context.get()) {
+                        endedWaits.add(new EndedWait(RoutingWait.this, outcome));
+                        trySendingRequestsForPendingShards(targetShards, computeListener);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    handoffFailure.compareAndSet(null, e);
+                }
+
+                @Override
+                public void onAfter() {
+                    Exception failure = handoffFailure.get();
+                    if (failure == null) {
+                        reference.onResponse(null);
+                        return;
+                    }
+                    Exception retained = shards.stream()
+                        .map(shardFailures::get)
+                        .filter(java.util.Objects::nonNull)
+                        .map(ShardFailure::failure)
+                        .findFirst()
+                        .orElse(failure);
+                    reference.onFailure(retained);
+                }
+            });
+        }
+    }
+
+    private void endAll(WaitOutcome outcome) {
+        for (RoutingWait wait : List.copyOf(activeWaits)) {
+            wait.end(outcome);
+        }
+    }
+
+    /** The observer may outlive its wait, so ending the wait clears the only reference to its state. */
+    private static final class ObserverCallback implements ClusterStateObserver.Listener {
+        private final AtomicReference<RoutingWait> wait;
+
+        private ObserverCallback(RoutingWait wait) {
+            this.wait = new AtomicReference<>(wait);
+        }
+
+        @Override
+        public void onNewClusterState(ClusterState state) {
+            RoutingWait current = wait.get();
+            if (current != null) {
+                current.end(WaitOutcome.ROUTING_CHANGED);
+            }
+        }
+
+        @Override
+        public void onClusterServiceClose() {
+            RoutingWait current = wait.get();
+            if (current != null) {
+                current.end(WaitOutcome.CLUSTER_SERVICE_CLOSED);
+            }
+        }
+
+        @Override
+        public void onTimeout(TimeValue elapsed) {
+            RoutingWait current = wait.get();
+            if (current != null) {
+                current.end(WaitOutcome.TIMED_OUT);
+            }
+        }
     }
 }

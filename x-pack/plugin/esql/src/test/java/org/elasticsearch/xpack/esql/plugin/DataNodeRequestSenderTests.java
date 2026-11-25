@@ -14,10 +14,24 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -26,20 +40,33 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.CopyState;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeFailure;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.ShardCopy;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.Untried;
 import org.junit.After;
 import org.junit.Before;
 
@@ -87,6 +114,7 @@ import static org.hamcrest.Matchers.not;
 public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     private ThreadPool threadPool;
+    private ClusterService clusterService;
     private Executor executor = null;
 
     private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
@@ -112,13 +140,16 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             settings,
             MeterRegistry.NOOP,
             (s, allocatedProcessors) -> Map.of(),
-            new FixedExecutorBuilder(Settings.EMPTY, ThreadPool.Names.SEARCH, numThreads, 1024, "", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(Settings.EMPTY, ThreadPool.Names.SEARCH, numThreads, 1024, "", EsExecutors.TaskTrackingConfig.DEFAULT),
+            new FixedExecutorBuilder(Settings.EMPTY, ThreadPool.Names.GENERIC, numThreads, 1024, "", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
         executor = threadPool.executor(ThreadPool.Names.SEARCH);
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
 
     @After
     public void shutdownThreadPool() {
+        clusterService.close();
         terminate(threadPool);
     }
 
@@ -678,6 +709,250 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(attempt.get(), equalTo(1));
     }
 
+    public void testNodeFailureClassification() {
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(new RemoteTransportException("remote", new NodeClosedException(node1))),
+            equalTo(NodeFailure.REFUSED)
+        );
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME)),
+            equalTo(NodeFailure.UNREACHABLE)
+        );
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(new NodeNotConnectedException(node1, "not connected")),
+            equalTo(NodeFailure.UNREACHABLE)
+        );
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(
+                new SendRequestTransportException(node1, "action", new NodeNotConnectedException(node1, "not connected"))
+            ),
+            equalTo(NodeFailure.UNREACHABLE)
+        );
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(
+                new SendRequestTransportException(node1, "action", new NodeClosedException(DiscoveryNodeUtils.create("coordinator")))
+            ),
+            equalTo(NodeFailure.OTHER)
+        );
+        assertThat(
+            DataNodeRequestSender.classifyDataRequestFailure(new RemoteTransportException("remote", new NodeClosedException(node1))),
+            equalTo(NodeFailure.OTHER)
+        );
+    }
+
+    public void testUntriedCopies() {
+        ShardCopy active = new ShardCopy(node1, "active", CopyState.ACTIVE);
+        ShardCopy target = new ShardCopy(node2, "target", CopyState.RELOCATION_TARGET);
+        ShardCopy initializing = new ShardCopy(node3, "initializing", CopyState.INITIALIZING);
+
+        var answer = DataNodeRequestSender.untriedCopies(List.of(active, target, initializing), Map.of(), Set.of());
+        assertThat(answer.kind(), equalTo(Untried.COPY));
+        assertThat(answer.nodes(), contains(node1, node2));
+
+        answer = DataNodeRequestSender.untriedCopies(
+            List.of(active, target, initializing),
+            Map.of("active", true, "target", false),
+            Set.of()
+        );
+        assertThat(answer.kind(), equalTo(Untried.NONE_YET));
+
+        answer = DataNodeRequestSender.untriedCopies(List.of(initializing), Map.of(), Set.of());
+        assertThat(answer.kind(), equalTo(Untried.NONE_YET));
+
+        answer = DataNodeRequestSender.untriedCopies(List.of(active), Map.of("active", false), Set.of());
+        assertThat("an initializing send is eligible once the same allocation starts", answer.kind(), equalTo(Untried.COPY));
+
+        answer = DataNodeRequestSender.untriedCopies(List.of(active), Map.of(), Set.of(node1));
+        assertThat(answer.kind(), equalTo(Untried.NONE_YET));
+
+        assertThat(DataNodeRequestSender.untriedCopies(List.of(), Map.of(), Set.of()).kind(), equalTo(Untried.GONE));
+        assertThat(DataNodeRequestSender.untriedCopies(null, Map.of(), Set.of()).kind(), equalTo(Untried.GONE));
+    }
+
+    public void testLastTryAtTimeoutReachesRecoveredCopy() {
+        AtomicInteger requests = new AtomicInteger();
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        newSender(
+            SliceSelection.UNSPECIFIED,
+            false,
+            -1,
+            List.of(targetShard(shard1, node1)),
+            shardIds -> Map.of(shard1.shardId(), List.of(node1)),
+            (node, shards, aliasFilters, listener) -> runWithDelay(() -> {
+                if (requests.incrementAndGet() == 1) {
+                    listener.onResponse(
+                        new DataNodeComputeResponse(
+                            DriverCompletionInfo.EMPTY,
+                            Map.of(shard1.shardId(), new ShardNotFoundException(shard1.shardId()))
+                        )
+                    );
+                } else {
+                    listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
+                }
+            }),
+            TimeValue.timeValueMillis(50)
+        ).startComputeOnDataNodes(Set.of("index"), () -> {}, ignored -> {}, future);
+
+        ComputeResponse response = safeGet(future);
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(requests.get(), equalTo(2));
+    }
+
+    public void testQueryFinishedDuringWaitSkipsShard() throws Exception {
+        SubscribableListener<Void> queryFinished = new SubscribableListener<>();
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        AtomicBoolean firstFailureHandled = new AtomicBoolean();
+        newSender(
+            SliceSelection.UNSPECIFIED,
+            true,
+            -1,
+            List.of(targetShard(shard1, node1)),
+            shardIds -> Map.of(shard1.shardId(), List.of(node1)),
+            (node, shards, aliasFilters, listener) -> runWithDelay(() -> {
+                listener.onResponse(
+                    new DataNodeComputeResponse(
+                        DriverCompletionInfo.EMPTY,
+                        Map.of(shard1.shardId(), new ShardNotFoundException(shard1.shardId()))
+                    )
+                );
+                firstFailureHandled.set(true);
+            }),
+            TimeValue.timeValueSeconds(30),
+            queryFinished
+        ).startComputeOnDataNodes(Set.of("index"), () -> {}, ignored -> {}, future);
+
+        assertBusy(() -> assertTrue(firstFailureHandled.get()));
+        assertFalse(future.isDone());
+        queryFinished.onResponse(null);
+        ComputeResponse response = safeGet(future);
+        assertThat(response.skippedShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
+    public void testCancellationFromNonTransportThread() throws Exception {
+        AtomicReference<CancellableTask> task = new AtomicReference<>();
+        AtomicBoolean firstFailureHandled = new AtomicBoolean();
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        newSender(
+            SliceSelection.UNSPECIFIED,
+            false,
+            -1,
+            List.of(targetShard(shard1, node1)),
+            shardIds -> Map.of(shard1.shardId(), List.of(node1)),
+            (node, shards, aliasFilters, listener) -> runWithDelay(() -> {
+                listener.onResponse(
+                    new DataNodeComputeResponse(
+                        DriverCompletionInfo.EMPTY,
+                        Map.of(shard1.shardId(), new ShardNotFoundException(shard1.shardId()))
+                    )
+                );
+                firstFailureHandled.set(true);
+            }),
+            TimeValue.timeValueSeconds(30),
+            new SubscribableListener<>(),
+            task::set
+        ).startComputeOnDataNodes(Set.of("index"), () -> {}, ignored -> {}, future);
+
+        assertBusy(() -> {
+            assertTrue(firstFailureHandled.get());
+            assertFalse(future.isDone());
+        });
+        Thread cancellingThread = new Thread(() -> TaskCancelHelper.cancel(task.get(), "test cancellation"));
+        cancellingThread.start();
+        cancellingThread.join();
+
+        TaskCancelledException failure = expectThrows(TaskCancelledException.class, future::actionGet);
+        assertThat(failure.getMessage(), containsString("test cancellation"));
+    }
+
+    public void testSynchronousQueryFinishAfterParking() {
+        DiscoveryNode coldNode = DiscoveryNodeUtils.builder("cold-node").roles(Set.of(DATA_COLD_NODE_ROLE)).build();
+        SubscribableListener<Void> queryFinished = new SubscribableListener<>();
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        newSender(
+            SliceSelection.UNSPECIFIED,
+            true,
+            1,
+            List.of(targetShard(shard1, node1), targetShard(shard2, coldNode)),
+            shardIds -> Map.of(shard1.shardId(), List.of(node1)),
+            (node, shards, aliasFilters, listener) -> {
+                if (node.equals(node1)) {
+                    listener.onResponse(
+                        new DataNodeComputeResponse(
+                            DriverCompletionInfo.EMPTY,
+                            Map.of(shard1.shardId(), new ShardNotFoundException(shard1.shardId()))
+                        )
+                    );
+                } else {
+                    queryFinished.onResponse(null);
+                    listener.onSkip();
+                }
+            },
+            TimeValue.timeValueSeconds(30),
+            queryFinished
+        ).startComputeOnDataNodes(Set.of("index"), () -> {}, ignored -> {}, future);
+
+        ComputeResponse response = safeGet(future);
+        assertThat(response.skippedShards, equalTo(2));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
+    public void testNewerRoutingEndsWaitAndRetriesOnNewCopy() throws Exception {
+        AtomicBoolean waitStarted = new AtomicBoolean();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        ClusterServiceUtils.setState(clusterService, routingState(1, node1, "allocation-1"));
+        PlainActionFuture<ComputeResponse> future = sendRequests(
+            false,
+            -1,
+            List.of(targetShard(shard1, node1)),
+            null,
+            (node, shards, aliasFilters, listener) -> runWithDelay(() -> {
+                sent.add(nodeRequest(node, shards));
+                if (node.equals(node1)) {
+                    listener.onResponse(
+                        new DataNodeComputeResponse(
+                            DriverCompletionInfo.EMPTY,
+                            Map.of(shard1.shardId(), new ShardNotFoundException(shard1.shardId()))
+                        )
+                    );
+                    waitStarted.set(true);
+                } else {
+                    listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
+                }
+            }),
+            TimeValue.timeValueSeconds(30)
+        );
+
+        assertBusy(() -> assertTrue(waitStarted.get()));
+        assertFalse(future.isDone());
+        ClusterServiceUtils.setState(clusterService, routingState(2, node2, "allocation-2"));
+        ComputeResponse response = safeGet(future);
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+    }
+
+    private ClusterState routingState(long version, DiscoveryNode assignedNode, String allocationId) {
+        var routing = TestShardRouting.shardRoutingBuilder(shard1.shardId(), assignedNode.getId(), true, ShardRoutingState.STARTED)
+            .withAllocationId(AllocationId.newInitializing(allocationId))
+            .build();
+        ShardId shard0 = new ShardId(shard1.shardId().getIndex(), 0);
+        var routing0 = TestShardRouting.shardRoutingBuilder(shard0, node1.getId(), true, ShardRoutingState.STARTED)
+            .withAllocationId(AllocationId.newInitializing("allocation-0"))
+            .build();
+        var shardTable0 = new IndexShardRoutingTable.Builder(shard0).addShard(routing0);
+        var shardTable = new IndexShardRoutingTable.Builder(shard1.shardId()).addShard(routing);
+        var indexTable = IndexRoutingTable.builder(shard1.shardId().getIndex())
+            .addIndexShard(shardTable0)
+            .addIndexShard(shardTable)
+            .build();
+        var projectRouting = RoutingTable.builder().add(indexTable).build();
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .version(version)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2))
+            .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, projectRouting).build())
+            .build();
+    }
+
     static DataNodeRequestSender.TargetShard targetShard(DataNodeRequest.Shard shard, DiscoveryNode... nodes) {
         return new DataNodeRequestSender.TargetShard(
             shard.shardId(),
@@ -752,6 +1027,20 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         return future;
     }
 
+    PlainActionFuture<ComputeResponse> sendRequests(
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender,
+        TimeValue routingWaitTimeout
+    ) {
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        newSender(SliceSelection.UNSPECIFIED, allowPartialResults, concurrentRequests, shards, resolver, sender, routingWaitTimeout)
+            .startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, ignored -> {}, future);
+        return future;
+    }
+
     private DataNodeRequestSender newSender(
         SliceSelection slices,
         boolean allowPartialResults,
@@ -759,6 +1048,64 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         List<DataNodeRequestSender.TargetShard> shards,
         Resolver resolver,
         Sender sender
+    ) {
+        return newSender(slices, allowPartialResults, concurrentRequests, shards, resolver, sender, TimeValue.ZERO);
+    }
+
+    private DataNodeRequestSender newSender(
+        SliceSelection slices,
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender,
+        TimeValue routingWaitTimeout
+    ) {
+        return newSender(
+            slices,
+            allowPartialResults,
+            concurrentRequests,
+            shards,
+            resolver,
+            sender,
+            routingWaitTimeout,
+            new SubscribableListener<>()
+        );
+    }
+
+    private DataNodeRequestSender newSender(
+        SliceSelection slices,
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender,
+        TimeValue routingWaitTimeout,
+        SubscribableListener<Void> queryFinished
+    ) {
+        return newSender(
+            slices,
+            allowPartialResults,
+            concurrentRequests,
+            shards,
+            resolver,
+            sender,
+            routingWaitTimeout,
+            queryFinished,
+            ignored -> {}
+        );
+    }
+
+    private DataNodeRequestSender newSender(
+        SliceSelection slices,
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender,
+        TimeValue routingWaitTimeout,
+        SubscribableListener<Void> queryFinished,
+        Consumer<CancellableTask> taskConsumer
     ) {
         TransportService transportService = MockTransportService.createNewService(
             Settings.EMPTY,
@@ -774,9 +1121,10 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
         );
+        taskConsumer.accept(task);
         return new DataNodeRequestSender(
-            null,
-            null,
+            clusterService,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             transportService,
             executor,
             task,
@@ -786,8 +1134,20 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             "",
             allowPartialResults,
             concurrentRequests,
-            10
+            10,
+            routingWaitTimeout,
+            ShardResolutionMetrics.NOOP
         ) {
+            @Override
+            boolean isQueryFinished() {
+                return queryFinished.isDone();
+            }
+
+            @Override
+            void addQueryFinishedListener(ActionListener<Void> listener) {
+                queryFinished.addListener(listener);
+            }
+
             @Override
             void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {
                 runWithDelay(
@@ -798,8 +1158,24 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             }
 
             @Override
-            Map<ShardId, List<DiscoveryNode>> resolveShards(Set<ShardId> shardIds) {
-                return resolver.resolve(shardIds);
+            ResolvedShards resolveShards(Set<ShardId> shardIds) {
+                if (resolver == null) {
+                    return super.resolveShards(shardIds);
+                }
+                Map<ShardId, List<ShardCopy>> copies = new HashMap<>();
+                resolver.resolve(shardIds)
+                    .forEach(
+                        (shardId, nodes) -> copies.put(
+                            shardId,
+                            nodes.stream().map(node -> new ShardCopy(node, node.getId(), CopyState.ACTIVE)).toList()
+                        )
+                    );
+                return new ResolvedShards(clusterService.state(), copies);
+            }
+
+            @Override
+            SentCopy sentCopy(org.elasticsearch.cluster.ClusterState applied, ShardId shardId, DiscoveryNode node) {
+                return resolver == null ? super.sentCopy(applied, shardId, node) : new SentCopy(node.getId(), true);
             }
 
             @Override

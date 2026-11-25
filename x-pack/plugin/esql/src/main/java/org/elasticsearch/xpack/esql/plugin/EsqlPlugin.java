@@ -281,6 +281,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
+     * Bounds how long a sender waits for newer routing after every currently eligible copy has failed as unavailable.
+     * Zero disables the wait and restores the previous active-copy routing retry, while retaining node-failure classification.
+     */
+    public static final Setting<TimeValue> SHARD_ROUTING_WAIT_TIMEOUT = Setting.timeSetting(
+        "esql.query.shard_routing_wait_timeout",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Controls whether LOOKUP JOIN uses the streaming lookup operator, which streams pages to the
      * lookup node instead of performing a request per input page. Acts as an escape hatch to fall
      * back to the non-streaming operator; even when enabled, streaming is only used if all target
@@ -757,6 +769,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
                 QUERY_ALLOW_PARTIAL_RESULTS,
+                SHARD_ROUTING_WAIT_TIMEOUT,
                 LOOKUP_JOIN_STREAMING,
                 FLATTENED_ENABLED,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,

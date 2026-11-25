@@ -611,9 +611,11 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(transportService.getTelemetryProvider()).thenReturn(org.elasticsearch.telemetry.TelemetryProvider.NOOP);
 
         Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.add(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
+        registered.add(EsqlPlugin.SHARD_ROUTING_WAIT_TIMEOUT);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registered);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);

@@ -79,6 +79,7 @@ final class ComputeResponse extends TransportResponse {
                     0,
                     0,
                     SearchLoadMetrics.EMPTY,
+                    0L,
                     in.readCollectionAsImmutableList(DriverProfile::readFrom),
                     List.of(),
                     java.util.Map.of(),

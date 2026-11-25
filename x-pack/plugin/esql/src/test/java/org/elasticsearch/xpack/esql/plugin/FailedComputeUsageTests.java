@@ -113,7 +113,9 @@ public class FailedComputeUsageTests extends ComputeTestCase {
         long cpuNanos = randomLongBetween(0, loadNanos);
         computeLoad.charging((nanos, cpu, finishNanos) -> {}).charge(loadNanos, cpuNanos, System.nanoTime());
 
-        ComputeService.failWithUsage(listener, failure, List.of(first, second), planningBytesRead, computeLoad, false);
+        long peakMemoryBytes = randomNonNegativeLong();
+
+        ComputeService.failWithUsage(listener, failure, List.of(first, second), planningBytesRead, computeLoad, peakMemoryBytes, false);
 
         assertThat(reportedFailure.get(), sameInstance(failure));
         assertThat(reportedUsage.get().bytesRead(), equalTo(1_100 + planningBytesRead));
@@ -121,6 +123,7 @@ public class FailedComputeUsageTests extends ComputeTestCase {
         assertThat(reportedUsage.get().readCpuNanos(), equalTo(12L));
         assertThat(reportedUsage.get().searchLoad().loadNanos(), equalTo(loadNanos));
         assertThat(reportedUsage.get().searchLoad().cpuNanos(), equalTo(cpuNanos));
+        assertThat(reportedUsage.get().peakMemoryBytes(), equalTo(peakMemoryBytes));
     }
 
     public void testPlainListenerGetsAPlainFailure() {
@@ -129,7 +132,7 @@ public class FailedComputeUsageTests extends ComputeTestCase {
         AtomicReference<Exception> reportedFailure = new AtomicReference<>();
         ActionListener<DriverCompletionInfo> listener = ActionListener.wrap(info -> fail("the compute failed"), reportedFailure::set);
 
-        ComputeService.failWithUsage(listener, failure, List.of(driver), 0, new QueryLoad(), false);
+        ComputeService.failWithUsage(listener, failure, List.of(driver), 0, new QueryLoad(), 0, false);
 
         assertThat(reportedFailure.get(), sameInstance(failure));
     }

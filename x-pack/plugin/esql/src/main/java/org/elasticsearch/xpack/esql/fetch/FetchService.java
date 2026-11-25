@@ -544,12 +544,13 @@ public final class FetchService {
                     new PlanTimeProfile(),
                     0L,
                     new QueryLoad(),
+                    0L,
                     false,
                     null,
                     null
                 );
             }
-            return DriverCompletionInfo.excludingProfiles(drivers, 0L, new QueryLoad(), false);
+            return DriverCompletionInfo.excludingProfiles(drivers, 0L, new QueryLoad(), 0L, false);
         }
 
         private void fail(Exception e) {

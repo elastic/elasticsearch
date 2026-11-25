@@ -3011,6 +3011,28 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeDriverNanos,
         boolean includeSearchLoad
     ) {
+        return getResultMatcher(
+            includePartial,
+            includeDocumentsFound,
+            includeTimestamps,
+            includeRollupMetrics,
+            includeReadCpuNanos,
+            includeDriverNanos,
+            includeSearchLoad,
+            false
+        );
+    }
+
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics,
+        boolean includeReadCpuNanos,
+        boolean includeDriverNanos,
+        boolean includeSearchLoad,
+        boolean includeSearchPeakMemory
+    ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
@@ -3037,6 +3059,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 mapMatcher = mapMatcher.entry("search_load_nanos", IntOrLongMatcher.isIntOrLong());
                 mapMatcher = mapMatcher.entry("search_cpu_nanos", IntOrLongMatcher.isIntOrLong());
                 mapMatcher = mapMatcher.entry("search_waiting_nanos", IntOrLongMatcher.isIntOrLong());
+            }
+            if (includeSearchPeakMemory) {
+                // Added with the search_peak_memory TV. Older nodes don't emit it.
+                mapMatcher = mapMatcher.entry("search_peak_memory_bytes", IntOrLongMatcher.isIntOrLong());
             }
         }
         if (includeTimestamps) {
@@ -3080,7 +3106,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             result.containsKey("rows_emitted"),
             result.containsKey("read_cpu_nanos"),
             result.containsKey("driver_nanos"),
-            result.containsKey("search_load_nanos")
+            result.containsKey("search_load_nanos"),
+            result.containsKey("search_peak_memory_bytes")
         );
     }
 

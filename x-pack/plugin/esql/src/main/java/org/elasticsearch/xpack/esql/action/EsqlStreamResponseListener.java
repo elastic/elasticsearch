@@ -799,6 +799,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                             b.field("search_load_nanos", ci.searchLoad().loadNanos());
                             b.field("search_cpu_nanos", ci.searchLoad().cpuNanos());
                             b.field("search_waiting_nanos", ci.searchLoad().waitingNanos());
+                            b.field("search_peak_memory_bytes", ci.peakMemoryBytes());
                         }
                         if (footer.clusters() != null) {
                             b.field("_clusters");

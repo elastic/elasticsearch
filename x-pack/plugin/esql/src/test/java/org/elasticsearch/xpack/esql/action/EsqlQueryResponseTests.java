@@ -798,6 +798,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 8888,
                 9999,
                 new SearchLoadMetrics(11, 12, 13),
+                0L,
                 null,
                 true,
                 null,
@@ -847,6 +848,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 8888, // cpu_nanos
                 9999, // driver_nanos
                 new SearchLoadMetrics(1212, 1313, 1414), // search_load
+                1515, // search_peak_memory_bytes
                 null,
                 true,
                 null,
@@ -872,6 +874,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 1212,
                   "search_cpu_nanos" : 1313,
                   "search_waiting_nanos" : 1414,
+                  "search_peak_memory_bytes" : 1515,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -903,6 +906,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -941,6 +945,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "search_load_nanos" : 0,
                       "search_cpu_nanos" : 0,
                       "search_waiting_nanos" : 0,
+                      "search_peak_memory_bytes" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -980,6 +985,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1016,6 +1022,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 0,
                 0,
                 SearchLoadMetrics.EMPTY,
+                0L,
                 null,
                 true,
                 null,
@@ -1070,6 +1077,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1109,6 +1117,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1143,6 +1152,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1199,6 +1209,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1256,6 +1267,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1305,6 +1317,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1372,7 +1385,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     equalTo(
                         "{\"documents_found\":0,\"values_loaded\":0,\"rows_emitted\":0,\"bytes_read\":0,\"read_nanos\":0,"
                             + "\"read_cpu_nanos\":0,\"cpu_nanos\":0,\"driver_nanos\":0,"
-                            + "\"search_load_nanos\":0,\"search_cpu_nanos\":0,\"search_waiting_nanos\":0,"
+                            + "\"search_load_nanos\":0,\"search_cpu_nanos\":0,\"search_waiting_nanos\":0,\"search_peak_memory_bytes\":0,"
                             + "\"columns\":[{\"name\":\"id\",\"type\":\"integer\"},{\"name\":\"_source\",\"type\":\"_source\"}],"
                             + "\"values\":[[1,"
                             + firstSource
@@ -1395,6 +1408,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "search_load_nanos" : 0,
                       "search_cpu_nanos" : 0,
                       "search_waiting_nanos" : 0,
+                      "search_peak_memory_bytes" : 0,
                       "columns" : [
                         {
                           "name" : "id",
@@ -1477,6 +1491,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "search_load_nanos" : 0,
                       "search_cpu_nanos" : 0,
                       "search_waiting_nanos" : 0,
+                      "search_peak_memory_bytes" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -1551,6 +1566,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "search_load_nanos" : 0,
                           "search_cpu_nanos" : 0,
                           "search_waiting_nanos" : 0,
+                          "search_peak_memory_bytes" : 0,
                           "all_columns" : [
                             {
                               "name" : "foo",
@@ -1650,6 +1666,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "search_load_nanos" : 0,
                   "search_cpu_nanos" : 0,
                   "search_waiting_nanos" : 0,
+                  "search_peak_memory_bytes" : 0,
                   "columns" : [
                     {
                       "name" : "foo",

@@ -96,6 +96,7 @@ public class ComputeResponseBwcWarningsTests extends ESTestCase {
             0,
             0,
             SearchLoadMetrics.EMPTY,
+            0L,
             List.of(),
             List.of(),
             Map.of(),

@@ -34,6 +34,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
             base + 6,
             base + 7,
             new SearchLoadMetrics(base + 8, base + 9, base + 10),
+            base + 11,
             List.of(),
             List.of(),
             Map.of(),
@@ -53,6 +54,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         assertThat(actual.cpuNanos(), equalTo(expected.cpuNanos()));
         assertThat(actual.driverNanos(), equalTo(expected.driverNanos()));
         assertThat(actual.searchLoad(), equalTo(expected.searchLoad()));
+        assertThat(actual.peakMemoryBytes(), equalTo(expected.peakMemoryBytes()));
     }
 
     public void testRoundTrip() {
@@ -68,6 +70,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         FailedComputeUsageHeader.take(threadContext);
         assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.NAME));
         assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.SEARCH_LOAD_NAME));
+        assertFalse(threadContext.getResponseHeaders().containsKey(FailedComputeUsageHeader.PEAK_MEMORY_NAME));
         assertThat(FailedComputeUsageHeader.take(threadContext), sameInstance(DriverCompletionInfo.EMPTY));
     }
 
@@ -86,6 +89,17 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         assertThat(taken.cpuNanos(), equalTo(16L + 106L));
     }
 
+    /**
+     * Peaks on different nodes need not overlap, so several peaks take the highest, in any order.
+     */
+    public void testSeveralPeaksTakeTheHighest() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        for (long base : shuffledList(List.of(10L, 100L, 50L))) {
+            FailedComputeUsageHeader.write(threadContext, usage(base));
+        }
+        assertThat(FailedComputeUsageHeader.take(threadContext).peakMemoryBytes(), equalTo(111L));
+    }
+
     public void testValuesThatCannotBeReadAreIgnoredAndStillRemoved() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.addResponseHeader(FailedComputeUsageHeader.NAME, "2:1,2,3,4,5,6,7,8");
@@ -102,14 +116,16 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
     }
 
     /**
-     * The search load goes in a header of its own, so a coordinator that reads only the other counters still reads them.
+     * The search load and the peak memory go in headers of their own, so a coordinator that reads only the other counters still
+     * reads them.
      */
-    public void testSearchLoadHasAHeaderOfItsOwn() {
+    public void testSearchLoadAndPeakMemoryHaveHeadersOfTheirOwn() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         FailedComputeUsageHeader.write(threadContext, usage(10));
         Map<String, List<String>> headers = threadContext.getResponseHeaders();
         assertThat(headers.get(FailedComputeUsageHeader.NAME), equalTo(List.of("1:10,11,12,13,14,15,16,17")));
         assertThat(headers.get(FailedComputeUsageHeader.SEARCH_LOAD_NAME), equalTo(List.of("1:18,19,20")));
+        assertThat(headers.get(FailedComputeUsageHeader.PEAK_MEMORY_NAME), equalTo(List.of("1:21")));
     }
 
     /**
@@ -127,6 +143,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
             0,
             0,
             new SearchLoadMetrics(0, 0, 7),
+            0L,
             List.of(),
             List.of(),
             Map.of(),
@@ -157,7 +174,8 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
      */
     public void testHeaderCarriesAllTheCountersOfTheCompletionInfo() {
         long counters = Arrays.stream(DriverCompletionInfo.class.getRecordComponents()).filter(c -> c.getType() == long.class).count();
-        assertThat(counters, equalTo((long) FailedComputeUsageHeader.FIELDS));
+        // the peak memory has a header of its own
+        assertThat(counters, equalTo(FailedComputeUsageHeader.FIELDS + 1L));
         long searchLoadCounters = Arrays.stream(SearchLoadMetrics.class.getRecordComponents())
             .filter(c -> c.getType() == long.class)
             .count();

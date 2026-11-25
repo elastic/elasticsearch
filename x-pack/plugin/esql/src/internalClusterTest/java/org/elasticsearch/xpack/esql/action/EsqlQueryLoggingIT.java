@@ -379,13 +379,16 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 "driver_nanos",
                 "search_load_nanos",
                 "search_cpu_nanos",
-                "search_waiting_nanos" }) {
+                "search_waiting_nanos",
+                "search_peak_memory_bytes" }) {
                 String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
                 assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
             }
             if (hits > 0) {
                 // the drivers that read the shards charged them
                 assertThat(Long.parseLong(message.get(EsqlLogProducer.PROFILE_PREFIX + "search_load_nanos")), greaterThan(0L));
+                // and allocated their pages through the query's breaker
+                assertThat(Long.parseLong(message.get(EsqlLogProducer.PROFILE_PREFIX + "search_peak_memory_bytes")), greaterThan(0L));
             }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
             if (filter != null) {
@@ -580,7 +583,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             "driver_nanos",
             "search_load_nanos",
             "search_cpu_nanos",
-            "search_waiting_nanos" }) {
+            "search_waiting_nanos",
+            "search_peak_memory_bytes" }) {
             String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
             assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
         }

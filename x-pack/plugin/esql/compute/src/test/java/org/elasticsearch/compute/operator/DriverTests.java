@@ -1733,7 +1733,7 @@ public class DriverTests extends ESTestCase {
             Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), healthy, between(1, 1000), healthyFuture);
             expectThrows(IllegalStateException.class, () -> failingFuture.actionGet(30, TimeUnit.SECONDS));
             healthyFuture.actionGet(30, TimeUnit.SECONDS);
-            DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(failing, healthy), 0, new QueryLoad(), false);
+            DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(failing, healthy), 0, new QueryLoad(), 0L, false);
             assertThat(info.bytesRead(), equalTo(1_100L));
             assertThat(info.readNanos(), equalTo(30L));
             assertThat(info.readCpuNanos(), equalTo(12L));
@@ -1747,7 +1747,7 @@ public class DriverTests extends ESTestCase {
 
     private static void assertFinishedWithUsage(Driver driver, long bytesRead, long readNanos, long readCpuNanos) {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
-        DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(driver), 0, new QueryLoad(), false);
+        DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(driver), 0, new QueryLoad(), 0L, false);
         assertThat(info.bytesRead(), equalTo(bytesRead));
         assertThat(info.readNanos(), equalTo(readNanos));
         assertThat(info.readCpuNanos(), equalTo(readCpuNanos));

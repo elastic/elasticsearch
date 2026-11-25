@@ -1359,7 +1359,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             if (running != null && running.load() == batchLoad) {
                 TaskLoadAttribution.chargeSoFar(running, System.nanoTime());
             }
-            return DriverCompletionInfo.excludingProfiles(List.of(), 0L, batchLoad, false);
+            return DriverCompletionInfo.excludingProfiles(List.of(), 0L, batchLoad, 0L, false);
         }
 
         private void acquireSearchContexts(

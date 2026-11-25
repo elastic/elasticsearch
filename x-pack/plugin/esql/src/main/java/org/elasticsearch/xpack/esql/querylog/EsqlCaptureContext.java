@@ -136,7 +136,8 @@ public class EsqlCaptureContext extends QueryCaptureContext {
                 response.readCpuNanos(),
                 response.cpuNanos(),
                 response.driverNanos(),
-                response.searchLoad()
+                response.searchLoad(),
+                response.peakMemoryBytes()
             )
         );
     }
@@ -151,7 +152,8 @@ public class EsqlCaptureContext extends QueryCaptureContext {
         long readCpuNanos,
         long cpuNanos,
         long driverNanos,
-        SearchLoadMetrics searchLoad
+        SearchLoadMetrics searchLoad,
+        long peakMemoryBytes
     ) {}
 
     @Override

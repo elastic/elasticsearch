@@ -337,7 +337,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 BatchExchangeStatusResponse response;
                 if (failure == null) {
                     DriverCompletionInfo completionInfo = batchDriver != null
-                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L, new QueryLoad(), false)
+                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L, new QueryLoad(), 0L, false)
                         : DriverCompletionInfo.EMPTY;
                     response = new BatchExchangeStatusResponse(completionInfo.bytesRead(), completionInfo.warnings());
                 } else {

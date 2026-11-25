@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -76,90 +79,131 @@ public class QueryPlanningBenchmark {
         BenchmarkLogging.configure();
     }
 
-    /**
-     * The width of the index. {@code FILLNULL ... ON *} mirrors every column in a {@code COALESCE} alias, so planning
-     * cost grows with the field count; the sweep follows the 1k/5k/10k shape called for in #163220.
-     */
-    @Param({ "1000", "5000", "10000" })
-    public int fields;
+    /** Fixed width of the index that {@link #manyFields} plans against, which the nightly chart for it has always tracked. */
+    private static final int MANY_FIELDS = 10_000;
 
-    private Analyzer analyzer;
-    private LogicalPlanOptimizer defaultOptimizer;
-    private Configuration config;
-    private EsqlParser parser;
+    private Planner manyFieldsPlanner;
+
+    /**
+     * Holds the width of the index for {@link #manyFieldsFillNull} only, so that the {@link #manyFields} result keeps its single
+     * series. A {@code @Param} on the benchmark class itself would make JMH run every benchmark method once per value, and the
+     * existing nightly chart for {@code manyFields}, which filters on the benchmark name alone, would then average the widths.
+     */
+    @State(Scope.Benchmark)
+    public static class FillNullWidth {
+        /**
+         * {@code FILLNULL ... ON *} mirrors every column in a {@code COALESCE} alias, so planning cost grows with the field
+         * count; the sweep follows the 1k/5k/10k shape called for in #163220.
+         */
+        @Param({ "1000", "5000", "10000" })
+        public int fields;
+
+        private Planner planner;
+
+        @Setup
+        public void setup() {
+            planner = new Planner(fields);
+        }
+    }
+
+    /**
+     * An index of {@code fields} text fields with the parser, analyzer and optimizer that plan queries against it.
+     */
+    private static final class Planner {
+        private final EsqlParser parser;
+        private final Analyzer analyzer;
+        private final LogicalPlanOptimizer optimizer;
+
+        Planner(int fields) {
+            var config = new Configuration(
+                Instant.now(),
+                Locale.US,
+                null,
+                null,
+                QueryPragmas.EMPTY,
+                AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+                AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+                "",
+                false,
+                Map.of(),
+                System.nanoTime(),
+                false,
+                AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+                AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
+                ResolvedSettings.EMPTY,
+                Map.of()
+            );
+
+            var mapping = LinkedHashMap.<String, EsField>newLinkedHashMap(fields);
+            for (int i = 0; i < fields; i++) {
+                // We're creating a standard index, so none of these fields should be marked as dimensions.
+                mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
+            }
+
+            var esIndex = new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
+
+            var functionRegistry = new EsqlFunctionRegistry();
+            // FILLNULL is a dev-only command, so force the dev version on regardless of how the benchmark jar was built.
+            var parser = new EsqlParser(new EsqlConfig(true, functionRegistry));
+
+            // Assume all nodes are on the current version for the benchmark.
+            TransportVersion minimumVersion = TransportVersion.current();
+
+            var analyzer = new Analyzer(
+                new AnalyzerContext(
+                    config,
+                    functionRegistry,
+                    PromqlFunctionRegistry.INSTANCE,
+                    EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
+                    null,
+                    Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
+                    Map.of(),
+                    Map.of(),
+                    new EnrichResolution(),
+                    InferenceResolution.EMPTY,
+                    ExternalSourceResolution.EMPTY,
+                    minimumVersion,
+                    UNMAPPED_FIELDS.defaultValue(),
+                    null,
+                    IpLocationResolution.SERVICE_UNAVAILABLE,
+                    false,
+                    Map.of(),
+                    // The default flags cap FILLNULL at 1,000 columns, which fails verification of the 5,000 and 10,000 field cases.
+                    EsqlFlags.withMaxFillNullFields(fields),
+                    Map.of()
+                ),
+                new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
+            );
+            var optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), minimumVersion));
+
+            this.parser = parser;
+            this.analyzer = analyzer;
+            this.optimizer = optimizer;
+        }
+
+        LogicalPlan plan(String query) {
+            var parsed = parser.parseQuery(query, new QueryParams(), new InferenceSettings(Settings.EMPTY));
+            var analyzed = analyzer.analyze(parsed);
+            return optimizer.optimize(analyzed);
+        }
+    }
 
     @Setup
     public void setup() {
-        this.config = new Configuration(
-            Instant.now(),
-            Locale.US,
-            null,
-            null,
-            QueryPragmas.EMPTY,
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            "",
-            false,
-            Map.of(),
-            System.nanoTime(),
-            false,
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
-            ResolvedSettings.EMPTY,
-            Map.of()
-        );
-
-        var mapping = LinkedHashMap.<String, EsField>newLinkedHashMap(fields);
-        for (int i = 0; i < fields; i++) {
-            // We're creating a standard index, so none of these fields should be marked as dimensions.
-            mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
-        }
-
-        var esIndex = new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
-
-        var functionRegistry = new EsqlFunctionRegistry();
-        // FILLNULL is a dev-only command, so force the dev version on regardless of how the benchmark jar was built.
-        parser = new EsqlParser(new EsqlConfig(true, functionRegistry));
-
-        // Assume all nodes are on the current version for the benchmark.
-        TransportVersion minimumVersion = TransportVersion.current();
-
-        analyzer = new Analyzer(
-            new AnalyzerContext(
-                config,
-                functionRegistry,
-                PromqlFunctionRegistry.INSTANCE,
-                EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
-                Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
-                Map.of(),
-                new EnrichResolution(),
-                InferenceResolution.EMPTY,
-                minimumVersion,
-                UNMAPPED_FIELDS.defaultValue()
-            ),
-            new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
-        );
-        defaultOptimizer = new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), minimumVersion));
-    }
-
-    private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.parseQuery(query, new QueryParams(), new InferenceSettings(Settings.EMPTY));
-        var analyzed = analyzer.analyze(parsed);
-        var optimized = optimizer.optimize(analyzed);
-        return optimized;
+        manyFieldsPlanner = new Planner(MANY_FIELDS);
     }
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan(parser, analyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+        blackhole.consume(manyFieldsPlanner.plan("FROM test | LIMIT 10"));
     }
 
     /**
-     * The {@link #manyFields} query with a {@code FILLNULL DEFAULT ON *} added: the delta between the two is the planning
-     * cost of mirroring every column in a {@code COALESCE}, which is what #163220 asks to track at 1k/5k/10k fields.
+     * A {@code FILLNULL DEFAULT ON *} added to the {@link #manyFields} query: the delta between the two at 10,000 fields is the
+     * planning cost of mirroring every column in a {@code COALESCE}, which #163220 asks to track at 1k/5k/10k fields.
      */
     @Benchmark
-    public void manyFieldsFillNull(Blackhole blackhole) {
-        blackhole.consume(plan(parser, analyzer, defaultOptimizer, "FROM test | FILLNULL DEFAULT ON * | LIMIT 10"));
+    public void manyFieldsFillNull(FillNullWidth width, Blackhole blackhole) {
+        blackhole.consume(width.planner.plan("FROM test | FILLNULL DEFAULT ON * | LIMIT 10"));
     }
 }

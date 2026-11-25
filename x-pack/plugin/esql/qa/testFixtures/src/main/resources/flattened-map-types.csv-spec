@@ -260,6 +260,7 @@ f2         | null                    | null
 
 // Rule 1 and 3: an enrich policy is a source too, and the map it brings replaces the column [attributes.host]
 keysOfAMapFromAnEnrichPolicy
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: map_types_setting
 required_capability: enrich_load
 

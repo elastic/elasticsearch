@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -371,22 +373,33 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchSearchLoadMetrics() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                final AtomicBoolean listenerCompleted = new AtomicBoolean();
+                final Releasable fetchRef = fetchRefs.acquire();
                 final ActionListener<SearchLoadMetrics> listener = ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(SearchLoadMetrics searchLoadMetrics) {
+                        listenerCompleted.set(true);
                         searchCopyDemands = searchLoadMetrics.searchCopyDemands();
                         nodeSearchCapacities = searchLoadMetrics.nodeSearchCapacities();
                     }
 
                     @Override
                     public void onFailure(Exception e) {
+                        listenerCompleted.set(true);
                         logger.warn("failed to fetch search load metrics", e);
                         searchCopyDemands = Map.of();
                         nodeSearchCapacities = Map.of();
                     }
-                }, fetchRefs.acquire());
-                // A throw before the collector notifies its listener must still release the refresh reference.
-                ActionListener.run(listener, l -> searchLoadMetricsCollector.collectSearchLoadMetrics(clusterStateSupplier.get(), l));
+                }, fetchRef);
+                try {
+                    // An Exception before the collector notifies its listener is forwarded to onFailure, which releases fetchRef.
+                    ActionListener.run(listener, l -> searchLoadMetricsCollector.collectSearchLoadMetrics(clusterStateSupplier.get(), l));
+                } finally {
+                    // ActionListener.run does not catch Error. Release the ref here or currentRefresh stays set.
+                    if (listenerCompleted.get() == false) {
+                        fetchRef.close();
+                    }
+                }
             }
         }
 

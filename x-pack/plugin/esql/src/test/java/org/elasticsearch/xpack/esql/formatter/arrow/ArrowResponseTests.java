@@ -545,9 +545,21 @@ public class ArrowResponseTests extends ESTestCase {
                 builder.append(ExponentialHistogram.empty());
             } else {
                 var histogramBuilder = ExponentialHistogram.builder(randomIntBetween(-2, 4), ExponentialHistogramCircuitBreaker.noop());
-                histogramBuilder.setNegativeBucket(-1, randomLongBetween(1, 1000));
-                histogramBuilder.setPositiveBucket(1, randomLongBetween(1, 1000));
-                histogramBuilder.zeroBucket(ZeroBucket.create(0.0, randomLongBetween(0, 100)));
+                int negativeBuckets = randomIntBetween(0, 5);
+                long bucketIndex = randomLongBetween(-10, 10);
+                for (int i = 0; i < negativeBuckets; i++) {
+                    histogramBuilder.setNegativeBucket(bucketIndex, randomLongBetween(1, 1000));
+                    bucketIndex += randomIntBetween(1, 5);
+                }
+                int positiveBuckets = randomIntBetween(0, 5);
+                bucketIndex = randomLongBetween(-10, 10);
+                for (int i = 0; i < positiveBuckets; i++) {
+                    histogramBuilder.setPositiveBucket(bucketIndex, randomLongBetween(1, 1000));
+                    bucketIndex += randomIntBetween(1, 5);
+                }
+                double zeroThreshold = randomBoolean() ? 0.0 : randomDouble() * 10;
+                long zeroCount = randomBoolean() ? 0 : randomLongBetween(1, 100);
+                histogramBuilder.zeroBucket(ZeroBucket.create(zeroThreshold, zeroCount));
                 try (var histogram = histogramBuilder.build()) {
                     builder.append(histogram);
                 }
@@ -678,8 +690,8 @@ public class ArrowResponseTests extends ESTestCase {
     // Tests
 
     /**
-     * Every response type must have an Arrow formatter or an explicit pending implementation. Compare the enum values
-     * rather than their output names, which can be shared by different types, and include types under construction.
+     * Every response type must have an Arrow formatter. Compare the enum values rather than their output names, which can
+     * be shared by different types.
      */
     public void testTypeSupportConsistency() {
         var responseTypes = EnumSet.noneOf(DataType.class);
@@ -689,16 +701,7 @@ public class ArrowResponseTests extends ESTestCase {
             }
         }
 
-        var arrowTypes = EnumSet.noneOf(DataType.class);
-        arrowTypes.addAll(ArrowResponse.ESQL_FORMATTERS.keySet());
-        for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
-            assertTrue("Formatter is both implemented and pending for [" + type + "]", arrowTypes.add(type));
-        }
-        assertEquals("Arrow formatters must cover exactly the response types", responseTypes, arrowTypes);
-        assertTrue(
-            "Unimplemented Arrow response types: " + ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS,
-            ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS.isEmpty()
-        );
+        assertEquals("Arrow formatters must cover exactly the response types", responseTypes, ArrowResponse.ESQL_FORMATTERS.keySet());
     }
 
     public void testOutputTypesHaveTextSupport() {
@@ -742,26 +745,6 @@ public class ArrowResponseTests extends ESTestCase {
                     exception.getMessage()
                 );
             }
-        }
-    }
-
-    public void testPendingResponseTypesRejected() {
-        for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
-            assertTrue("Pending formatter must be for a response type [" + type + "]", DataType.isRepresentableInOutput(type));
-            assertFalse(
-                "Pending formatter must not be registered as implemented [" + type + "]",
-                ArrowResponse.ESQL_FORMATTERS.containsKey(type)
-            );
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                "Expected Arrow output to reject pending type [" + type + "]",
-                () -> new ArrowResponse(List.of(new ArrowResponse.Column(type, "pending")), List.of())
-            );
-            assertEquals(
-                "Unexpected rejection for pending type [" + type + "]",
-                "ES|QL type [" + type.outputType() + "] is not supported by the Arrow format",
-                exception.getMessage()
-            );
         }
     }
 

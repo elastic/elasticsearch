@@ -27,11 +27,11 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.ToDoubleFunction;
-import java.util.function.ToLongFunction;
 
 public abstract class BlockArrowFormatter {
 
@@ -138,10 +137,10 @@ public abstract class BlockArrowFormatter {
     }
 
     /**
-     * Add Arrow field nodes for this block. Must be called before {@link #convert}.
-     * Override for nested types that contribute multiple nodes (e.g., struct).
+     * Add Arrow field nodes for this block.
+     * Override for nested types that contribute multiple nodes (e.g., struct) when using the 5-argument {@link #convert}.
      */
-    public void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
+    protected void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
         if (asList) {
             // List node
             nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
@@ -154,6 +153,23 @@ public abstract class BlockArrowFormatter {
     }
 
     /**
+     * Add Arrow field nodes and convert a block into Arrow buffers in a single pass.
+     * Override instead of {@link #addFieldNodes} and the 5-argument {@link #convert} when node counts and buffers share
+     * per-page decoding work.
+     */
+    public void convert(
+        Block block,
+        boolean asList,
+        List<ArrowFieldNode> nodes,
+        List<ArrowBuf> bufs,
+        List<BufWriter> bufWriters,
+        List<Releasable> releasables
+    ) {
+        addFieldNodes(block, asList, nodes);
+        convert(block, asList, bufs, bufWriters, releasables);
+    }
+
+    /**
      * Convert a block into Arrow buffers.
      * @param block the ESQL block
      * @param asList whether to encode values as an Arrow list. The encoding is fixed for the column even when a page
@@ -162,13 +178,11 @@ public abstract class BlockArrowFormatter {
      * @param bufWriters buffer writers, that will do the actual work of writing the data
      * @param releasables resources retained until the deferred buffer writers have completed
      */
-    public abstract void convert(
-        Block block,
-        boolean asList,
-        List<ArrowBuf> bufs,
-        List<BufWriter> bufWriters,
-        List<Releasable> releasables
-    );
+    public void convert(Block block, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+        throw new UnsupportedOperationException(
+            "Use convert(Block, boolean, List<ArrowFieldNode>, List<ArrowBuf>, List<BufWriter>, List<Releasable>)"
+        );
+    }
 
     /**
      * Encodes dense vectors as Arrow lists with {@code float32} elements. Byte and bit vector elements have already been
@@ -1320,25 +1334,121 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
-            ExponentialHistogramBlock histograms = (ExponentialHistogramBlock) block;
+        public void convert(
+            Block b,
+            boolean asList,
+            List<ArrowFieldNode> nodes,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            ExponentialHistogramBlock block = (ExponentialHistogramBlock) b;
             int[] indexes = itemIndexes(block, asList);
             int items = indexes.length;
+
+            int[] scales = new int[items];
+            long[] zeroCounts = new long[items];
+            double[] zeroThresholds = new double[items];
+            int[] positiveOffsets = new int[items + 1];
+            int[] negativeOffsets = new int[items + 1];
+            LongVector positiveIndices;
+            LongVector positiveCounts;
+            LongVector negativeIndices;
+            LongVector negativeCounts;
+            try (
+                LongVector.Builder positiveIndicesBuilder = block.blockFactory().newLongVectorBuilder(items);
+                LongVector.Builder positiveCountsBuilder = block.blockFactory().newLongVectorBuilder(items);
+                LongVector.Builder negativeIndicesBuilder = block.blockFactory().newLongVectorBuilder(items);
+                LongVector.Builder negativeCountsBuilder = block.blockFactory().newLongVectorBuilder(items)
+            ) {
+                ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
+                int positiveTotal = 0;
+                int negativeTotal = 0;
+                for (int item = 0; item < items; item++) {
+                    int index = indexes[item];
+                    if (index >= 0) {
+                        var histogram = block.getExponentialHistogram(index, scratch);
+                        scales[item] = histogram.scale();
+                        var zero = histogram.zeroBucket();
+                        zeroCounts[item] = zero.count();
+                        double threshold = zero.zeroThreshold();
+                        zeroThresholds[item] = Double.isNaN(threshold) ? 0 : threshold;
+                        positiveTotal = appendBuckets(
+                            histogram.positiveBuckets().iterator(),
+                            positiveIndicesBuilder,
+                            positiveCountsBuilder,
+                            positiveTotal
+                        );
+                        negativeTotal = appendBuckets(
+                            histogram.negativeBuckets().iterator(),
+                            negativeIndicesBuilder,
+                            negativeCountsBuilder,
+                            negativeTotal
+                        );
+                    }
+                    positiveOffsets[item + 1] = positiveTotal;
+                    negativeOffsets[item + 1] = negativeTotal;
+                }
+                positiveIndices = positiveIndicesBuilder.build();
+                releasables.add(positiveIndices);
+                positiveCounts = positiveCountsBuilder.build();
+                releasables.add(positiveCounts);
+                negativeIndices = negativeIndicesBuilder.build();
+                releasables.add(negativeIndices);
+                negativeCounts = negativeCountsBuilder.build();
+                releasables.add(negativeCounts);
+            }
+
+            DoubleBlock sumBlock = block.getSumBlock();
+            DoubleBlock minBlock = block.getMinBlock();
+            DoubleBlock maxBlock = block.getMaxBlock();
+            int sumAbsent = absentCount(sumBlock, indexes);
+            int minAbsent = absentCount(minBlock, indexes);
+            int maxAbsent = absentCount(maxBlock, indexes);
+
             if (asList) {
                 nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block))); // list
                 nodes.add(new ArrowFieldNode(items, 0)); // struct
+                addListOffsets(bufs, bufWriters, block);
             } else {
                 nodes.add(new ArrowFieldNode(items, nullValuesCount(block))); // struct
             }
+            accumulateVectorValidity(bufs, bufWriters, block, asList);
+
             nodes.add(new ArrowFieldNode(items, 0)); // scale
-            nodes.add(new ArrowFieldNode(items, absentCount(histograms.getSumBlock(), indexes))); // sum
-            nodes.add(new ArrowFieldNode(items, absentCount(histograms.getMinBlock(), indexes))); // min
-            nodes.add(new ArrowFieldNode(items, absentCount(histograms.getMaxBlock(), indexes))); // max
+            addIntChild(bufs, bufWriters, scales);
+
+            nodes.add(new ArrowFieldNode(items, sumAbsent)); // sum
+            addDoubleSubBlockChild(bufs, bufWriters, sumBlock, indexes, sumAbsent);
+
+            nodes.add(new ArrowFieldNode(items, minAbsent)); // min
+            addDoubleSubBlockChild(bufs, bufWriters, minBlock, indexes, minAbsent);
+
+            nodes.add(new ArrowFieldNode(items, maxAbsent)); // max
+            addDoubleSubBlockChild(bufs, bufWriters, maxBlock, indexes, maxAbsent);
+
             nodes.add(new ArrowFieldNode(items, 0)); // zero
             nodes.add(new ArrowFieldNode(items, 0)); // zero.count
             nodes.add(new ArrowFieldNode(items, 0)); // zero.threshold
-            addBucketNodes(nodes, items, bucketOffsets(histograms, indexes, true)[items]);
-            addBucketNodes(nodes, items, bucketOffsets(histograms, indexes, false)[items]);
+            addEmptyValidity(bufs, bufWriters); // zero struct
+            addLongChild(bufs, bufWriters, zeroCounts);
+            addDoubleChild(bufs, bufWriters, zeroThresholds);
+
+            addBucketNodes(nodes, items, positiveIndices.getPositionCount());
+            addBucketBuffers(bufs, bufWriters, positiveOffsets, positiveIndices, positiveCounts);
+
+            addBucketNodes(nodes, items, negativeIndices.getPositionCount());
+            addBucketBuffers(bufs, bufWriters, negativeOffsets, negativeIndices, negativeCounts);
+        }
+
+        private static int appendBuckets(BucketIterator buckets, LongVector.Builder indices, LongVector.Builder counts, int total) {
+            while (buckets.hasNext()) {
+                indices.appendLong(buckets.peekIndex());
+                counts.appendLong(buckets.peekCount());
+                total = Math.addExact(total, 1);
+                buckets.advance();
+            }
+            return total;
         }
 
         private static void addBucketNodes(List<ArrowFieldNode> nodes, int positions, int buckets) {
@@ -1349,23 +1459,16 @@ public abstract class BlockArrowFormatter {
             nodes.add(new ArrowFieldNode(buckets, 0)); // counts
         }
 
-        @Override
-        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
-            ExponentialHistogramBlock block = (ExponentialHistogramBlock) b;
-            int[] indexes = itemIndexes(block, asList);
-            if (asList) {
-                addListOffsets(bufs, bufWriters, block);
-            }
-            accumulateVectorValidity(bufs, bufWriters, block, asList);
-            addScalarChild(bufs, bufWriters, block, indexes, Integer.BYTES, ExponentialHistogram::scale);
-            addDoubleSubBlockChild(bufs, bufWriters, block.getSumBlock(), indexes);
-            addDoubleSubBlockChild(bufs, bufWriters, block.getMinBlock(), indexes);
-            addDoubleSubBlockChild(bufs, bufWriters, block.getMaxBlock(), indexes);
-            addEmptyValidity(bufs, bufWriters); // zero struct
-            addScalarChild(bufs, bufWriters, block, indexes, Long.BYTES, h -> h.zeroBucket().count());
-            addNonNullableDoubleChild(bufs, bufWriters, block, indexes, h -> h.zeroBucket().zeroThreshold());
-            addBucketBuffers(bufs, bufWriters, block, indexes, true);
-            addBucketBuffers(bufs, bufWriters, block, indexes, false);
+        private static void addBucketBuffers(
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            int[] offsets,
+            LongVector indices,
+            LongVector counts
+        ) {
+            addEmptyValidity(bufs, bufWriters); // bucket struct
+            addNonNullableListBuffers(bufs, bufWriters, offsets, Long.BYTES, out -> writeLongs(out, indices));
+            addNonNullableListBuffers(bufs, bufWriters, offsets, Long.BYTES, out -> writeLongs(out, counts));
         }
 
         private static int absentCount(DoubleBlock subBlock, int[] indexes) {
@@ -1384,9 +1487,15 @@ public abstract class BlockArrowFormatter {
             return count;
         }
 
-        private static void addDoubleSubBlockChild(List<ArrowBuf> bufs, List<BufWriter> bufWriters, DoubleBlock subBlock, int[] indexes) {
+        private static void addDoubleSubBlockChild(
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            DoubleBlock subBlock,
+            int[] indexes,
+            int absentCount
+        ) {
             int items = indexes.length;
-            if (absentCount(subBlock, indexes) == 0) {
+            if (absentCount == 0) {
                 addEmptyValidity(bufs, bufWriters);
             } else {
                 bufs.add(dummyArrowBuf(bitSetLength(items)));
@@ -1424,100 +1533,48 @@ public abstract class BlockArrowFormatter {
             });
         }
 
-        private static void addBucketBuffers(
-            List<ArrowBuf> bufs,
-            List<BufWriter> bufWriters,
-            ExponentialHistogramBlock block,
-            int[] indexes,
-            boolean positive
-        ) {
-            int[] offsets = bucketOffsets(block, indexes, positive);
-            addEmptyValidity(bufs, bufWriters); // bucket struct
-            addNonNullableListBuffers(bufs, bufWriters, offsets, Long.BYTES, out -> writeBuckets(block, indexes, positive, out, true));
-            addNonNullableListBuffers(bufs, bufWriters, offsets, Long.BYTES, out -> writeBuckets(block, indexes, positive, out, false));
-        }
-
-        private static int[] bucketOffsets(ExponentialHistogramBlock block, int[] indexes, boolean positive) {
-            int[] offsets = new int[indexes.length + 1];
-            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-            long total = 0;
-            for (int item = 0; item < indexes.length; item++) {
-                if (indexes[item] >= 0) {
-                    var histogram = block.getExponentialHistogram(indexes[item], scratch);
-                    total += (positive ? histogram.positiveBuckets() : histogram.negativeBuckets()).bucketCount();
-                }
-                offsets[item + 1] = Math.toIntExact(total);
-            }
-            return offsets;
-        }
-
-        private static long writeBuckets(
-            ExponentialHistogramBlock block,
-            int[] indexes,
-            boolean positive,
-            RecyclerBytesStreamOutput out,
-            boolean indices
-        ) throws IOException {
-            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-            long bytes = 0;
-            for (int index : indexes) {
-                if (index < 0) {
-                    continue;
-                }
-                var histogram = block.getExponentialHistogram(index, scratch);
-                BucketIterator buckets = (positive ? histogram.positiveBuckets() : histogram.negativeBuckets()).iterator();
-                while (buckets.hasNext()) {
-                    out.writeLongLE(indices ? buckets.peekIndex() : buckets.peekCount());
-                    bytes += Long.BYTES;
-                    buckets.advance();
-                }
-            }
-            return bytes;
-        }
-
-        private static void addScalarChild(
-            List<ArrowBuf> bufs,
-            List<BufWriter> bufWriters,
-            ExponentialHistogramBlock block,
-            int[] indexes,
-            int width,
-            ToLongFunction<ExponentialHistogram> getter
-        ) {
+        private static void addIntChild(List<ArrowBuf> bufs, List<BufWriter> bufWriters, int[] values) {
             addEmptyValidity(bufs, bufWriters);
-            long bytes = (long) indexes.length * width;
+            long bytes = (long) values.length * Integer.BYTES;
             bufs.add(dummyArrowBuf(bytes));
             bufWriters.add(out -> {
-                ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-                for (int index : indexes) {
-                    long value = index < 0 ? 0 : getter.applyAsLong(block.getExponentialHistogram(index, scratch));
-                    if (width == Integer.BYTES) {
-                        out.writeIntLE(Math.toIntExact(value));
-                    } else {
-                        out.writeLongLE(value);
-                    }
+                for (int value : values) {
+                    out.writeIntLE(value);
                 }
                 return bytes;
             });
         }
 
-        private static void addNonNullableDoubleChild(
-            List<ArrowBuf> bufs,
-            List<BufWriter> bufWriters,
-            ExponentialHistogramBlock block,
-            int[] indexes,
-            ToDoubleFunction<ExponentialHistogram> getter
-        ) {
+        private static void addLongChild(List<ArrowBuf> bufs, List<BufWriter> bufWriters, long[] values) {
             addEmptyValidity(bufs, bufWriters);
-            long bytes = (long) indexes.length * Double.BYTES;
+            long bytes = (long) values.length * Long.BYTES;
             bufs.add(dummyArrowBuf(bytes));
             bufWriters.add(out -> {
-                ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-                for (int index : indexes) {
-                    double value = index < 0 ? 0 : getter.applyAsDouble(block.getExponentialHistogram(index, scratch));
-                    out.writeDoubleLE(Double.isNaN(value) ? 0 : value);
+                for (long value : values) {
+                    out.writeLongLE(value);
                 }
                 return bytes;
             });
+        }
+
+        private static void addDoubleChild(List<ArrowBuf> bufs, List<BufWriter> bufWriters, double[] values) {
+            addEmptyValidity(bufs, bufWriters);
+            long bytes = (long) values.length * Double.BYTES;
+            bufs.add(dummyArrowBuf(bytes));
+            bufWriters.add(out -> {
+                for (double value : values) {
+                    out.writeDoubleLE(value);
+                }
+                return bytes;
+            });
+        }
+
+        private static long writeLongs(RecyclerBytesStreamOutput out, LongVector values) throws IOException {
+            int count = values.getPositionCount();
+            for (int i = 0; i < count; i++) {
+                out.writeLongLE(values.getLong(i));
+            }
+            return (long) count * Long.BYTES;
         }
     }
 

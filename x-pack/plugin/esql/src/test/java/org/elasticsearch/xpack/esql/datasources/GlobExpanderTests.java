@@ -6234,6 +6234,27 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2023")));
     }
 
+    /**
+     * The walk collector throws once matched files exceed {@code max_discovered_files}. A file-set bound
+     * must still return the first matching files rather than fail FIRST_FILE_WINS on a large pruned set.
+     */
+    public void testBoundedWalkDiscoveryCapFallsBackToBoundedDrain() throws Exception {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2024/b.parquet", 100),
+            entry("s3://bucket/data/year=2024/c.parquet", 100),
+            entry("s3://bucket/data/year=2025/d.parquet", 100)
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList result = expandSync("s3://bucket/data/**", provider, hints, HIVE_ON, 2, MAX, MAX, 1, 4, () -> false);
+
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
+        assertTrue(result.isTruncated());
+        assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2025")));
+    }
+
     private static void assertCommaSharesDirectoryCeiling(FileList union, TreeStubProvider shared, int oneCost, int ceiling) {
         assertThat(
             "comma segments must not each get a fresh copy of the ceiling",

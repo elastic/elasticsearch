@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -1654,23 +1655,36 @@ public final class GlobExpander {
         boolean suppressValueFilter = false;
         if (walkComputed || wouldWalk(prefix, glob, hints, partitionConfig, folderRange)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
-            PartitionPruningWalk.WalkResult walk = walkComputed
-                ? precomputedWalk
-                : PartitionPruningWalk.tryWalk(
-                    provider,
-                    prefix,
-                    matcher,
-                    nameFilter,
-                    partitionHints,
-                    maxDiscoveredFiles,
-                    glob,
-                    folderRange,
-                    fileHints.isEmpty() ? null : fileHints::matches,
-                    maxListedObjects,
-                    maxDirectoryListings,
-                    cancelled,
-                    walkPathTemplate(partitionConfig)
-                );
+            PartitionPruningWalk.WalkResult walk;
+            if (walkComputed) {
+                walk = precomputedWalk;
+            } else {
+                try {
+                    walk = PartitionPruningWalk.tryWalk(
+                        provider,
+                        prefix,
+                        matcher,
+                        nameFilter,
+                        partitionHints,
+                        maxDiscoveredFiles,
+                        glob,
+                        folderRange,
+                        fileHints.isEmpty() ? null : fileHints::matches,
+                        maxListedObjects,
+                        maxDirectoryListings,
+                        cancelled,
+                        walkPathTemplate(partitionConfig)
+                    );
+                } catch (DiscoveredFilesLimitException e) {
+                    // Walk cannot stop at the file-set bound: the collector throws once matched.size()
+                    // exceeds maxDiscoveredFiles. A bound still needs some files, so fall through to
+                    // the bounded flat drain rather than failing FIRST_FILE_WINS on a large pruned set.
+                    if (extents.boundsFileSet() == false) {
+                        throw e;
+                    }
+                    walk = null;
+                }
+            }
             // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
             // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
             // through to the flat listing with the value filter still on — Stage 2 keeps one excluded file.
@@ -2345,6 +2359,31 @@ public final class GlobExpander {
 
                         @Override
                         public void onFailure(Exception e) {
+                            if (extents.boundsFileSet() && e instanceof DiscoveredFilesLimitException) {
+                                ActionListener.completeWith(
+                                    listener,
+                                    () -> doExpandGlob(
+                                        pattern,
+                                        provider,
+                                        hints,
+                                        partitionConfig,
+                                        maxDiscoveredFiles,
+                                        maxGlobExpansion,
+                                        maxListedObjects,
+                                        nameFilter,
+                                        fileOrder,
+                                        extents,
+                                        memory,
+                                        isCancelled,
+                                        allowRewrite,
+                                        folderRange,
+                                        maxDirectoryListings,
+                                        null,
+                                        true
+                                    )
+                                );
+                                return;
+                            }
                             listener.onFailure(e);
                         }
                     },
@@ -3792,6 +3831,8 @@ public final class GlobExpander {
                     continue;
                 }
                 int next = index;
+                // Sync completions continue this loop; async ones recurse from the listener.
+                AtomicBoolean inCaller = new AtomicBoolean(true);
                 expandGlobWithRewriteFallbackAsync(
                     trimmed,
                     expansion.counted,
@@ -3809,12 +3850,18 @@ public final class GlobExpander {
                     expansion.fanOutExecutor,
                     ActionListener.wrap(expanded -> {
                         expansion.union.absorb(expanded);
-                        expandCommaSegmentAsync(next, expansion);
+                        if (inCaller.compareAndSet(true, false) == false) {
+                            expandCommaSegmentAsync(next, expansion);
+                        }
                     }, expansion.listener::onFailure),
                     expansion.folderRange,
                     expansion.counted.remaining()
                 );
-                return;
+                if (inCaller.compareAndSet(true, false)) {
+                    return;
+                }
+                index = next;
+                continue;
             }
             try {
                 addLiteralCommaSegment(expansion.union, expansion.counted, segmentPath, expansion.maxDiscoveredFiles);

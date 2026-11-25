@@ -623,6 +623,31 @@ took:
   - exists: esql.datasources.queries.cpu_nanos.total
 
 ---
+"Datasource query CPU telemetry of unsuccessful queries":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_cpu_by_outcome ]
+      reason: "Datasource per-component CPU counters of failed and cancelled queries present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # per-component CPU counters (ns) of the queries that failed or were cancelled, apart from the ones of the queries that
+  # succeeded; always emitted, values are 0 if no such query ran
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.execution
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.read
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.planning
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.total
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.execution
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.read
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.planning
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.total
+
+---
 "Datasource failure reason telemetry":
   - requires:
       test_runner_features: [ capabilities ]
@@ -813,96 +838,3 @@ took:
   - exists: esql.datasources.config.datasets.changes.by_op.updated
   - exists: esql.datasources.config.datasets.changes.by_op.deleted
   - exists: esql.datasources.config.datasets.changes.by_op.rejected
-
----
-"Queries by client":
-  - requires:
-      test_runner_features: [ capabilities, headers ]
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [ ]
-          capabilities: [ usage_queries_by_client ]
-      reason: "Queries are split by client from the X-elastic-product-origin header"
-
-  - do: { xpack.usage: { } }
-  - length: { esql.queries: 9 }
-  - set: { esql.queries.rest.total: rest_total }
-  - set: { esql.queries.rest.failed: rest_failed }
-  - set: { esql.queries.kibana.total: kibana_total }
-  - set: { esql.queries.kibana.failed: kibana_failed }
-  - set: { esql.queries.fleet.total: fleet_total }
-  - set: { esql.queries.other.total: other_total }
-  - set: { esql.queries.other.failed: other_failed }
-  - set: { esql.queries._all.total: all_total }
-
-  - do:
-      esql.query:
-        body:
-          query: 'ROW a = 1 | LIMIT 1'
-
-  - do: { xpack.usage: { } }
-  - gt: { esql.queries.rest.total: $rest_total }
-  - match: { esql.queries.kibana.total: $kibana_total }
-  - match: { esql.queries.fleet.total: $fleet_total }
-  - match: { esql.queries.other.total: $other_total }
-  - gt: { esql.queries._all.total: $all_total }
-  - set: { esql.queries.rest.total: rest_total }
-  - set: { esql.queries._all.total: all_total }
-
-  - do:
-      headers:
-        X-elastic-product-origin: kibana
-      esql.query:
-        body:
-          query: 'ROW a = 1 | LIMIT 1'
-
-  - do: { xpack.usage: { } }
-  - match: { esql.queries.rest.total: $rest_total }
-  - gt: { esql.queries.kibana.total: $kibana_total }
-  - match: { esql.queries.fleet.total: $fleet_total }
-  - match: { esql.queries.other.total: $other_total }
-  - gt: { esql.queries._all.total: $all_total }
-  - set: { esql.queries.kibana.total: kibana_total }
-  - set: { esql.queries._all.total: all_total }
-
-  - do:
-      headers:
-        X-elastic-product-origin: fleet
-      esql.query:
-        body:
-          query: 'ROW a = 1 | LIMIT 1'
-
-  - do: { xpack.usage: { } }
-  - match: { esql.queries.rest.total: $rest_total }
-  - match: { esql.queries.kibana.total: $kibana_total }
-  - gt: { esql.queries.fleet.total: $fleet_total }
-  - match: { esql.queries.other.total: $other_total }
-  - gt: { esql.queries._all.total: $all_total }
-  - set: { esql.queries._all.total: all_total }
-
-  - do:
-      headers:
-        X-elastic-product-origin: my-app
-      esql.query:
-        body:
-          query: 'ROW a = 1 | LIMIT 1'
-
-  - do: { xpack.usage: { } }
-  - match: { esql.queries.rest.total: $rest_total }
-  - match: { esql.queries.kibana.total: $kibana_total }
-  - gt: { esql.queries.other.total: $other_total }
-  - gt: { esql.queries._all.total: $all_total }
-
-  - do:
-      catch: bad_request
-      headers:
-        X-elastic-product-origin: kibana
-      esql.query:
-        body:
-          query: 'FROM test | STATS m = MAX(missing_field)'
-
-  - do: { xpack.usage: { } }
-  - gt: { esql.queries.kibana.failed: $kibana_failed }
-  - match: { esql.queries.rest.failed: $rest_failed }
-  - match: { esql.queries.other.failed: $other_failed }

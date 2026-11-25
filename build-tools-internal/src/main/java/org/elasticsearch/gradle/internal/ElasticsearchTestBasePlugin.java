@@ -80,6 +80,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         final boolean isCi = buildParams.get().getCi();
 
         project.getTasks().withType(Test.class).configureEach(test -> {
+            test.useJUnitPlatform();
+
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
             test.getReports().getHtml().getRequired().set(isCi == false);
 
@@ -164,7 +166,16 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 System.out.println("disable assertions");
                 test.setEnableAssertions(false);
             }
-            Map<String, String> sysprops = Map.of("java.awt.headless", "true", "tests.artifact", project.getName(), "jna.nosys", "true");
+            Map<String, String> sysprops = Map.of(
+                "java.awt.headless",
+                "true",
+                "tests.artifact",
+                project.getName(),
+                "jna.nosys",
+                "true",
+                "junit.vintage.discovery.issue.reporting.enabled",
+                "false"
+            );
             test.systemProperties(sysprops);
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability
@@ -173,7 +184,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
                 nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
             } else {
-                test.systemProperty("tests.seed", buildParams.get().getTestSeed());
+                test.systemProperty("tests.seed", buildParams.get().getTestSeedProvider().get());
             }
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability

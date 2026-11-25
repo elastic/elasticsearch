@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -326,7 +326,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             (term) -> indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(term),
-                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()).blobFile(),
+                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()).bccBlob(),
                             new MutableObjectStoreUploadTracker() {
                                 @Override
                                 public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
@@ -393,7 +393,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     blobReads.incrementAndGet();
-                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BccBlob.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store", blobName);
@@ -403,7 +403,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     blobReads.incrementAndGet();
-                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BccBlob.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store, position: {} length: {}", blobName, position, length);
@@ -782,7 +782,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             );
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(
                 internalLocation.getKey(),
-                internalLocation.getValue().blobFile()
+                internalLocation.getValue().bccBlob()
             );
             final var cacheFileReader = new CacheFileReader(
                 cacheFile,
@@ -846,7 +846,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BlobFile blobFile,
+                        BccBlob bccBlob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
@@ -858,7 +858,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
-                            blobFile,
+                            bccBlob,
                             objectStoreUploadTracker,
                             totalBytesReadFromObjectStore,
                             totalBytesReadFromIndexing,

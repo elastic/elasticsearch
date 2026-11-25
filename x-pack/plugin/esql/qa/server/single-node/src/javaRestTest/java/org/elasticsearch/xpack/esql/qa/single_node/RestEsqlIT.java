@@ -146,15 +146,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 
-    public void testStreamingNotAllowed() throws IOException {
-        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+    public void testStreamingParameterNotAcceptedOnQuery() {
         Request request = new Request("POST", "/_query");
         request.addParameter("streaming", "true");
         request.addParameter("format", "ndjson");
         request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
-        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            containsString("contains unrecognized parameter: [streaming]"),
+            () -> client().performRequest(request)
+        );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("contains unrecognized parameter: [streaming]"));
+    }
+
+    public void testStreamingEndpointNotAvailableOnReleaseBuilds() {
+        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+        Request request = new Request("POST", "/_query/stream");
+        request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            containsString("no handler found for uri"),
+            () -> client().performRequest(request)
+        );
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testDoNotLogWithInfo() throws IOException {
@@ -364,9 +378,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             switch (description) {
                 case "data" -> assertMap(
                     sig,
+                    // No EvalOperator: the sum reads the long itself, instead of a TO_DOUBLE of it.
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
-                        .item("EvalOperator")
                         .item("AggregationOperator")
                         .item("ExchangeSinkOperator")
                 );

@@ -71,6 +71,12 @@ public class RestActivateProfileAction extends SecurityBaseRestHandler implement
         return "xpack_security_activate_profile";
     }
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
+
     // package-private for tests
     static ActivateProfileRequest fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);

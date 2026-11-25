@@ -85,7 +85,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withSchema", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
-        Map.entry("withBlockFactory", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withBlockFactory", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withSchemaSampleShare", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withSchemaSampleBytes", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
@@ -190,6 +190,13 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
                             "wither [" + m.getName() + "] must share [" + field + "] with its parent",
                             fieldOf(receiver, field),
                             fieldOf(product, field)
+                        );
+                    }
+                    if (m.getName().equals("withBlockFactory")) {
+                        assertNotSame(
+                            "withBlockFactory must copy onto the distinct factory, not keep the node's",
+                            fieldOf(receiver, "blockFactory"),
+                            fieldOf(product, "blockFactory")
                         );
                     }
                 }

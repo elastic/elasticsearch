@@ -68,6 +68,7 @@ import org.junit.Before;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -1183,6 +1184,31 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertEquals(0L, readBreaker[0].getUsed());
         assertEquals(0L, nodeBreaker.getUsed());
+    }
+
+    /**
+     * {@code withBlockFactory} (every split after the per-query factory) and {@code withReadConfig}
+     * (every file) copy the reader with the same {@code WITH} options. Rebuilding {@code CsvMapper}
+     * there is wasted work; the copy must keep the receiver's mapper.
+     */
+    public void testWithBlockFactoryReusesSharedCsvMapper() {
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        CsvFormatReader nodeReader = new CsvFormatReader(blockFactory);
+        CsvFormatReader perRead = nodeReader.withBlockFactory(other);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame(
+            "withBlockFactory must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perRead.sharedCsvMapper()
+        );
+
+        CsvFormatReader perFile = nodeReader.withReadConfig("0123456789abcdef0123456789abcdef");
+        assertNotSame(nodeReader, perFile);
+        assertSame(
+            "withReadConfig must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perFile.sharedCsvMapper()
+        );
     }
 
     public void testReadWithBatching() throws IOException {
@@ -8899,7 +8925,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertEquals(List.of(1L, 2L), ids);
         assertEquals("only the row stream is opened", 1, object.opened);
-        assertEquals(0, object.aborted);
+        assertEquals("row stream is closed once after a full read", 1, object.aborted);
     }
 
     /**
@@ -8969,7 +8995,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertEquals(2, rows);
         assertEquals("only the row stream is opened", 1, object.opened);
-        assertEquals(0, object.aborted);
+        assertEquals("row stream is closed once after a full read", 1, object.aborted);
     }
 
     /**
@@ -9034,18 +9060,34 @@ public class CsvFormatReaderTests extends ESTestCase {
         @Override
         public InputStream newStream() {
             opened++;
-            return new ByteArrayInputStream(bytes);
+            return new FilterInputStream(new ByteArrayInputStream(bytes)) {
+                private boolean closed;
+
+                @Override
+                public void close() throws IOException {
+                    if (closed == false) {
+                        closed = true;
+                        aborted++;
+                    }
+                    super.close();
+                }
+            };
         }
 
         @Override
         public InputStream newStream(long position, long length) {
-            return new ByteArrayInputStream(bytes, (int) position, (int) length);
-        }
+            return new FilterInputStream(new ByteArrayInputStream(bytes, (int) position, (int) length)) {
+                private boolean closed;
 
-        @Override
-        public void abortStream(InputStream stream) throws IOException {
-            aborted++;
-            stream.close();
+                @Override
+                public void close() throws IOException {
+                    if (closed == false) {
+                        closed = true;
+                        aborted++;
+                    }
+                    super.close();
+                }
+            };
         }
 
         @Override
@@ -9233,6 +9275,31 @@ public class CsvFormatReaderTests extends ESTestCase {
                 () -> readRowCount(reader, createStorageObject(RAGGED_MV_CSV), idTagsScore(), List.of("id", "tags"))
             );
             assertThat("directBlock=" + directBlock, e.getMessage(), containsString("the header has [3]"));
+            drainWarnings();
+        }
+    }
+
+    /**
+     * The width exit builds its excerpt through rowExcerptIfRead(), which returns null outside fail_fast, and
+     * ErrorExcerpts.summarize renders null as "null". The sibling above asserts only the width text, so it would
+     * pass on a message that had lost the record; this pins the record itself on the one mode that prints it.
+     */
+    public void testDeclaredBindingRowWidthFailFastQuotesTheRecord() throws Exception {
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10,SURPLUS\n";
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast");
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            Exception e = expectThrows(
+                Exception.class,
+                () -> readRowCount(reader, createStorageObject(csv), idTagsScore(), List.of("id", "tags"))
+            );
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("[4] columns, the header has [3]"));
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("row: "));
+            assertThat(
+                "directBlock=" + directBlock + " must quote the record: " + e.getMessage(),
+                e.getMessage(),
+                containsString(directBlock ? "1,alpha,10,SURPLUS" : "col0=[1]")
+            );
             drainWarnings();
         }
     }

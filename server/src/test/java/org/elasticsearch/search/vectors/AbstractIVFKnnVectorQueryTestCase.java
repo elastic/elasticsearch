@@ -76,7 +76,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.Before;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +95,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /** Test cases for {@link AbstractIVFKnnVectorQuery} objects. */
+@RunWith(ESRandomizedRunner.class)
 public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
     // handle quantization noise
     static final float EPSILON = 0.001f;
@@ -927,6 +930,30 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         }
     }
 
+    /**
+     * Every leaf of a query must share a single {@link QueryTransformCache}, so that a query transformation one segment
+     * computes can be reused by the others. The named slices a sliced query searches within a leaf go through the leaf's
+     * collector manager, so share it too.
+     */
+    public void testQueryTransformsSharedAcrossLeaves() throws IOException {
+        try (Directory dir = buildMultiSegmentIndex(); IndexReader reader = DirectoryReader.open(dir)) {
+            AccumulatorCapturingQuery query = new AccumulatorCapturingQuery(
+                "field",
+                3,
+                testResolver(),
+                Collections.synchronizedList(new ArrayList<>())
+            );
+            query.rewrite(newSearcher(reader));
+
+            List<QueryTransformCache> captured = query.capturedTransforms;
+            assertEquals("one collector manager per leaf", reader.leaves().size(), captured.size());
+            assertNotNull(captured.get(0));
+            for (QueryTransformCache transforms : captured) {
+                assertSame("all leaves must share a single instance", captured.get(0), transforms);
+            }
+        }
+    }
+
     /** With a single leaf there is nothing to share, so the accumulator is left null (no atomic churn). */
     public void testAccumulatorNullForSingleLeaf() throws IOException {
         int dim = randomIntBetween(4, 64);
@@ -982,6 +1009,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
      */
     private static class AccumulatorCapturingQuery extends AbstractIVFKnnVectorQuery {
         private final List<SharedMinCompetitiveScore> captured;
+        private final List<QueryTransformCache> capturedTransforms = Collections.synchronizedList(new ArrayList<>());
 
         AccumulatorCapturingQuery(String field, int k, TestIvfQueryConfigResolver resolver, List<SharedMinCompetitiveScore> captured) {
             super(field, 0f, k, k, null, resolver, false);
@@ -999,9 +1027,17 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         }
 
         @Override
-        protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
+        protected IVFCollectorManager getKnnCollectorManager(
+            int k,
+            SharedMinCompetitiveScore sharedScore,
+            QueryTransformCache queryTransformCache
+        ) {
             captured.add(sharedScore);
-            return super.getKnnCollectorManager(k, sharedScore);
+            IVFCollectorManager manager = super.getKnnCollectorManager(k, sharedScore, queryTransformCache);
+            assertSame(queryTransformCache, manager.newSearchStrategy(1f, k, k, true).getQueryTransformCache());
+            assertSame(QueryTransformCache.NONE, manager.newSearchStrategy(1f, k, k, false).getQueryTransformCache());
+            capturedTransforms.add(queryTransformCache);
+            return manager;
         }
 
         @Override

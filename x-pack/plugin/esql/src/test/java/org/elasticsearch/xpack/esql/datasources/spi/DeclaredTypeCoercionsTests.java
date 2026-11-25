@@ -1268,6 +1268,23 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    public void testIsPlainNumberText() {
+        for (String plain : List.of("1", "-1", "+1.5", ".5", "5.", "1e5", "-4.5E-2", "NaN", "Infinity", "-Infinity", " 7 ")) {
+            assertTrue(plain, DeclaredTypeCoercions.isPlainNumberText(plain));
+        }
+        for (String other : List.of("", " ", "10D", "10d", "1.5f", "3F ", "0x1p3", "0X1P3", "0x10", "١٢٣", "１２３", "1٢")) {
+            assertFalse(other, DeclaredTypeCoercions.isPlainNumberText(other));
+        }
+    }
+
+    public void testParseDoubleTextRefusesJavaOnlySpellings() {
+        assertEquals(10.5, DeclaredTypeCoercions.parseDoubleText("10.5"), 0.0);
+        assertTrue(Double.isNaN(DeclaredTypeCoercions.parseDoubleText("NaN")));
+        for (String text : List.of("10D", "14f", "0x1p3", "١٢٣")) {
+            expectThrows(NumberFormatException.class, () -> DeclaredTypeCoercions.parseDoubleText(text));
+        }
+    }
+
     /**
      * The reported incident: a column of empty strings declared {@code double} failed with a bare
      * {@code NumberFormatException: empty String} naming neither the column nor the type. The retained
@@ -1639,6 +1656,55 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             "a non-temporal declared type never carries a format",
             DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.LONG)
         );
+    }
+
+    /**
+     * The refactor that gave the decode-vs-cast decision a name rests on this equivalence: every reader used to
+     * spell the four terms out, and {@code needsBlockCast} has to answer identically for every pair, with and
+     * without a declared format. If it ever diverges, the readers it replaced disagree again.
+     */
+    public void testNeedsBlockCastMatchesTheConditionTheReadersUsedToSpellOut() {
+        Set<DataType> types = Set.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DATE_NANOS,
+            DataType.IP,
+            DataType.UNSIGNED_LONG
+        );
+        for (DataType fileType : types) {
+            for (DataType declared : types) {
+                for (boolean hasDeclaredFormat : new boolean[] { false, true }) {
+                    boolean spelledOut = declared != fileType
+                        && DeclaredTypeCoercions.fusedInDecode(fileType, declared, hasDeclaredFormat) == false
+                        && DeclaredTypeCoercions.supports(fileType, declared);
+                    assertEquals(
+                        fileType.typeName() + "->" + declared.typeName() + " with format=" + hasDeclaredFormat,
+                        spelledOut,
+                        DeclaredTypeCoercions.needsBlockCast(fileType, declared, hasDeclaredFormat)
+                    );
+                }
+            }
+        }
+        // Not a vacuous suite: at least one pair each side of the predicate, so a constant implementation fails.
+        assertTrue(DeclaredTypeCoercions.needsBlockCast(DataType.DOUBLE, DataType.LONG, false));
+        assertFalse(DeclaredTypeCoercions.needsBlockCast(DataType.INTEGER, DataType.LONG, false));
+    }
+
+    /**
+     * A null file type means the caller has no stored type to coerce from, so there is nothing to do. ORC
+     * reaches this arm directly, passing {@code null} when it cannot resolve a leaf type; the Parquet readers
+     * never do, since an unretyped {@code ColumnInfo} carries its own type in both slots and is declined by
+     * the {@code declared != fileType} term instead.
+     */
+    public void testNeedsBlockCastDeclinesWhenTheFileTypeIsAbsent() {
+        assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.DATETIME, false));
+        assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.DATETIME, true));
+        assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.KEYWORD, false));
     }
 
     /**

@@ -28,10 +28,15 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.impl.OrcTail;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -130,6 +135,54 @@ public class OrcFormatReaderTests extends ESTestCase {
     public void testDoesNotSupportWholeFileCompression() {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
+    }
+
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * decode onto a per-read factory and keeps the footer caches. The node breaker is one byte, so
+     * any page that still hit it would trip; success plus live usage on the per-read breaker is the
+     * proof. Cache identity is pinned in {@link OrcFormatReaderStateLifecycleTests}.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheFooterCache() throws Exception {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        OrcFormatReader nodeReader = new OrcFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        OrcFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame("footer byte cache stays the node instance", nodeReader.footerBytesForTests(), perRead.footerBytesForTests());
+
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            idCol.vector[0] = 1;
+            nameCol.setVal(0, "Alice".getBytes(StandardCharsets.UTF_8));
+            idCol.vector[1] = 2;
+            nameCol.setVal(1, "Bob".getBytes(StandardCharsets.UTF_8));
+        });
+        FormatReadContext context = FormatReadContext.builder().projectedColumns(List.of("id", "name")).batchSize(8).build();
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(orcData), context)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker[] outBreaker) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        outBreaker[0] = breaker;
+        return BlockFactory.builder(bigArrays).breaker(breaker).build();
     }
 
     /**

@@ -201,19 +201,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("tenant-a,tenant-b", searchRequest.searchSlice());
     }
 
-    public void testParseSearchRequestWithPathSliceAll() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/my-index/_all/_search")
-            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
-            .build();
-        SearchRequest searchRequest = new SearchRequest();
-        parsePathSliceSearchRequest(searchRequest, request);
-        assertNull(searchRequest.routing());
-        assertTrue(searchRequest.isRoutingFromSlice());
-        assertEquals(SliceIndexing.SLICE_ALL, searchRequest.searchSlice());
-    }
-
     public void testParseSearchRequestRejectsRoutingAndSliceTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)

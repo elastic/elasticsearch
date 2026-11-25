@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -527,6 +528,52 @@ public class ExchangeServiceTests extends ESTestCase {
         assertTrue(sink.isFinished());
     }
 
+    /**
+     * The sink handler reports each page it drops instead of sending it: the pages it still buffers when its source finishes
+     * early or it fails, and the pages its sinks add after that. It doesn't report the pages it sends.
+     */
+    public void testOnPageDiscardedSeesEveryDroppedPage() {
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(100, threadPool.relativeTimeInMillisSupplier());
+        List<Integer> discarded = Collections.synchronizedList(new ArrayList<>());
+        sinkHandler.setOnPageDiscarded(page -> discarded.add(page.<IntBlock>getBlock(0).getInt(0)));
+        ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+        BlockFactory blockFactory = blockFactory();
+        int sent = between(0, 5);
+        int buffered = between(1, 5);
+        int late = between(0, 5);
+        for (int n = 0; n < sent + buffered; n++) {
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
+        }
+        for (int n = 0; n < sent; n++) {
+            PlainActionFuture<Page> future = new PlainActionFuture<>();
+            sinkHandler.fetchPageAsync(false, future.map(ExchangeResponse::takePage));
+            Page page = safeGet(future);
+            assertThat(page.<IntBlock>getBlock(0).getInt(0), equalTo(n));
+            page.releaseBlocks();
+        }
+        assertThat(discarded, empty());
+
+        if (randomBoolean()) {
+            // the source has enough pages, like after a stop
+            PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            sinkHandler.fetchPageAsync(true, future.map(response -> {
+                assertNull(response.takePage());
+                return response.finished();
+            }));
+            assertTrue(safeGet(future));
+        } else {
+            // like a cancellation or a failure of the request
+            sinkHandler.onFailure(new IOException("simulated"));
+        }
+        for (int n = sent + buffered; n < sent + buffered + late; n++) {
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
+        }
+
+        assertThat(discarded, equalTo(IntStream.range(sent, sent + buffered + late).boxed().toList()));
+        sink.finish();
+        assertTrue(sinkHandler.isFinished());
+    }
+
     public void testFinishEarly() {
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(20, threadPool.generic());
         Semaphore permits = new Semaphore(between(1, 5));
@@ -573,6 +620,52 @@ public class ExchangeServiceTests extends ESTestCase {
         }
         while ((p = pages.poll()) != null) {
             p.releaseBlocks();
+        }
+        assertTrue(exchangeSource.isFinished());
+        exchangeSource.finish();
+    }
+
+    /**
+     * The page callback of a remote sink sees every page that arrives, before the buffer takes it. That includes the pages
+     * that the buffer discards because the source already finished, which no driver reads.
+     */
+    public void testOnPageFetchedSeesEveryArrivingPage() {
+        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(100, threadPool.generic());
+        ExchangeSource exchangeSource = sourceHandler.createExchangeSource();
+        BlockFactory blockFactory = blockFactory();
+        int pages = between(1, 20);
+        boolean sourceFinishes = randomBoolean();
+        AtomicInteger sent = new AtomicInteger();
+        List<Integer> seen = Collections.synchronizedList(new ArrayList<>());
+        PlainActionFuture<Void> sinkCompleted = new PlainActionFuture<>();
+        sourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
+            if (allSourcesFinished) {
+                // like a real sink, which drops its pages once its source finished
+                listener.onResponse(new ExchangeResponse(null, true));
+                return;
+            }
+            int n = sent.getAndIncrement();
+            if (sourceFinishes && n == 0) {
+                // the source needs no more pages, so the buffer discards the page on its way
+                exchangeSource.finish();
+            }
+            Page page = new Page(blockFactory.newConstantIntBlockWith(n, 1));
+            listener.onResponse(new ExchangeResponse(page, n == pages - 1));
+        }, randomBoolean(), page -> seen.add(page.<IntBlock>getBlock(0).getInt(0)), 1, sinkCompleted);
+        sinkCompleted.actionGet(TimeValue.timeValueSeconds(10));
+
+        assertThat(seen, equalTo(IntStream.range(0, sent.get()).boxed().toList()));
+        List<Integer> read = new ArrayList<>();
+        Page page;
+        while ((page = exchangeSource.pollPage()) != null) {
+            read.add(page.<IntBlock>getBlock(0).getInt(0));
+            page.releaseBlocks();
+        }
+        if (sourceFinishes) {
+            assertThat(read, empty());
+        } else {
+            assertThat(sent.get(), equalTo(pages));
+            assertThat(read, equalTo(seen));
         }
         assertTrue(exchangeSource.isFinished());
         exchangeSource.finish();
@@ -756,19 +849,49 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     /**
-     * The data node charges the page it sends as it serializes it, through the channel, so a page that does not fit is rejected there.
+     * The data node charges the page it sends as it serializes it, through the channel, to the breaker of its blocks, which is the
+     * breaker of its query. A page that does not fit is rejected there.
      */
     public void testDataNodeChargesPageWhileSendingIt() throws Exception {
-        BlockFactory pageFactory = blockFactory();
-        Page page = intPage(pageFactory, 10_000);
-        // Room for less than the serialized page.
-        TrackingCircuitBreaker dataNodeBreaker = new TrackingCircuitBreaker(serializedSize(page) / 2);
+        Page sized = intPage(blockFactory(), 10_000);
+        long blockBytes = sized.ramBytesUsedByBlocks();
+        long serializedBytes = serializedSize(sized);
+        sized.releaseBlocks();
+        // Room for the blocks, but not for the serialized page on top of them.
+        long queryLimit = blockBytes + serializedBytes / 2;
+        TrackingCircuitBreaker queryBreaker = new TrackingCircuitBreaker(queryLimit);
+        Page page = intPage(trackingBlockFactory(queryBreaker), 10_000);
+        TrackingCircuitBreaker dataNodeBreaker = new TrackingCircuitBreaker();
         PlainActionFuture<Page> fetched = fetchFirstPage(blockFactory(), trackingBlockFactory(dataNodeBreaker), page);
         Exception e = expectThrows(Exception.class, fetched::actionGet);
         CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         assertNotNull(e.toString(), trip);
         assertThat(trip.getMessage(), containsString("RecyclerBytesStreamOutput"));
+        assertThat(trip.getByteLimit(), equalTo(queryLimit));
+        assertBusy(() -> assertThat(queryBreaker.getUsed(), equalTo(0L)));
         assertBusy(() -> assertThat(dataNodeBreaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * A remote sink created with the block factory of a query charges the page to it while it arrives and reads it, and nothing to the
+     * factory of the exchange service.
+     */
+    public void testRemoteSinkChargesItsOwnFactory() throws Exception {
+        TrackingCircuitBreaker coordinatorBreaker = new TrackingCircuitBreaker();
+        TrackingCircuitBreaker queryBreaker = new TrackingCircuitBreaker();
+        BlockFactory dataNodeFactory = blockFactory();
+        Page page = intPage(dataNodeFactory, 10_000);
+        long blockBytes = page.ramBytesUsedByBlocks();
+        long serializedBytes = serializedSize(page);
+        BlockFactory coordinatorFactory = trackingBlockFactory(coordinatorBreaker);
+        BlockFactory queryFactory = trackingBlockFactory(queryBreaker);
+        try (Page ignored = fetchPages(coordinatorFactory, queryFactory, dataNodeFactory, false, page).getFirst().actionGet()) {
+            assertThat(queryBreaker.peak(), greaterThanOrEqualTo(blockBytes + serializedBytes));
+            assertThat(queryBreaker.getUsed(), equalTo(blockBytes));
+        }
+        assertThat(queryBreaker.getUsed(), equalTo(0L));
+        assertThat(coordinatorBreaker.peak(), equalTo(0L));
+        assertThat(coordinatorBreaker.getUsed(), equalTo(0L));
     }
 
     /**
@@ -779,12 +902,23 @@ public class ExchangeServiceTests extends ESTestCase {
         return fetchPages(coordinatorFactory, dataNodeFactory, false, page).getFirst();
     }
 
+    private List<PlainActionFuture<Page>> fetchPages(
+        BlockFactory coordinatorFactory,
+        BlockFactory dataNodeFactory,
+        boolean releaseEach,
+        Page... pages
+    ) throws Exception {
+        return fetchPages(coordinatorFactory, coordinatorFactory, dataNodeFactory, releaseEach, pages);
+    }
+
     /**
      * Starts a coordinator and a data node, adds {@code pages} to a sink on the data node and fetches them one after another from the
-     * coordinator. If {@code releaseEach}, each page is released as soon as it arrives.
+     * coordinator through a remote sink that reads them with {@code remoteSinkFactory}. If {@code releaseEach}, each page is released as
+     * soon as it arrives.
      */
     private List<PlainActionFuture<Page>> fetchPages(
         BlockFactory coordinatorFactory,
+        BlockFactory remoteSinkFactory,
         BlockFactory dataNodeFactory,
         boolean releaseEach,
         Page... pages
@@ -805,7 +939,13 @@ public class ExchangeServiceTests extends ESTestCase {
                 sink.addPage(page);
             }
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
-            RemoteSink remoteSink = exchange0.newRemoteSink(task, exchangeId, node0, node0.getConnection(node1.getLocalNode()));
+            RemoteSink remoteSink = exchange0.newRemoteSink(
+                task,
+                exchangeId,
+                node0,
+                node0.getConnection(node1.getLocalNode()),
+                remoteSinkFactory
+            );
             for (Page ignored : pages) {
                 PlainActionFuture<Page> future = new PlainActionFuture<>();
                 fetched.add(future);

@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Raw binary columns are mapped in batch to the same fields as the row path, which reads the bytes from base64 in JSON.
@@ -61,9 +62,9 @@ public class BinaryFieldMapperColumnarBatchTests extends MapperServiceTestCase {
 
     public void testOnlySingleValuedIsSupported() throws IOException {
         MapperService singleValued = mapperService(SourceFieldMapper.Mode.SYNTHETIC, false);
-        assertTrue(fieldMapper(singleValued).supportsColumnarParse(singleValued.getIndexSettings()));
+        assertTrue(fieldMapper(singleValued).supportsColumnarParse(singleValued.getIndexSettings(), Set.of()));
         MapperService multiValued = mapperService(SourceFieldMapper.Mode.SYNTHETIC, true);
-        assertFalse(fieldMapper(multiValued).supportsColumnarParse(multiValued.getIndexSettings()));
+        assertFalse(fieldMapper(multiValued).supportsColumnarParse(multiValued.getIndexSettings(), Set.of()));
     }
 
     /** Values set aside under {@code on_failure: ignore} are written by the row path. */
@@ -72,7 +73,7 @@ public class BinaryFieldMapperColumnarBatchTests extends MapperServiceTestCase {
             columnar(SourceFieldMapper.Mode.SYNTHETIC),
             mapping(b -> b.startObject(FIELD).field("type", "binary").field("multi_value", false).field("on_failure", "ignore").endObject())
         );
-        assertFalse(fieldMapper(mapperService).supportsColumnarParse(mapperService.getIndexSettings()));
+        assertFalse(fieldMapper(mapperService).supportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
     }
 
     public void testRawBinaryMatchesRowPath() throws IOException {
@@ -101,7 +102,7 @@ public class BinaryFieldMapperColumnarBatchTests extends MapperServiceTestCase {
 
     private void assertRawBinaryMatchesRowPath(SourceFieldMapper.Mode sourceMode) throws IOException {
         MapperService mapperService = mapperService(sourceMode, false);
-        assertTrue(fieldMapper(mapperService).supportsColumnarParse(mapperService.getIndexSettings()));
+        assertTrue(fieldMapper(mapperService).supportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
         int docCount = between(1, 20);
         List<BytesRef> values = new ArrayList<>(docCount);
         IndexRequest[] requests = new IndexRequest[docCount];

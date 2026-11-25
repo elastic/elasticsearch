@@ -1086,6 +1086,33 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         assertJsonEquals(Strings.toString(builder), requestJson);
     }
 
+    public void testParseToolChoiceStringNoneWithoutTools_usesModeNone() throws IOException {
+        String requestJson = """
+            {
+                "contents": [
+                    { "role": "user", "parts": [ { "text": "some text" } ] }
+                ],
+                "toolConfig": { "functionCallingConfig": { "mode": "NONE" } }
+            }
+            """;
+
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new ToolChoiceString("none"),
+            null,
+            null
+        );
+
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertJsonEquals(Strings.toString(builder), requestJson);
+    }
+
     public void testParseToolChoiceObjectWithNullFunction_closesToolConfigAndKeepsSystemInstructionAtRoot() throws IOException {
         String requestJson = """
             {

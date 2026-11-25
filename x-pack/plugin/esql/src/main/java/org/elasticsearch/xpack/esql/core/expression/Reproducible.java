@@ -15,7 +15,7 @@ package org.elasticsearch.xpack.esql.core.expression;
  * Functions that use {@link Math} for floating point results, or the JVM's Unicode, locale or time zone data, aren't
  * reproducible.
  * <p>
- * <b>Indices are sorted on marked functions: their results can't change, even to fix a bug, they can't be unmarked, and rules
- * that rewrite them must compute the same values.</b>
+ * <b>Indices are sorted on marked functions: their results can't change, even to fix a bug, and they can't be unmarked.</b>
+ * {@code FieldExpressionValuesTests} pins their values on edge cases, and a newly marked function belongs there too.
  */
 public interface Reproducible {}

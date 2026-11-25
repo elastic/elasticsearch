@@ -70,8 +70,6 @@ public class EncryptionPlugin extends Plugin
     private volatile Settings pekSettings;
 
     private final PasswordPekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
-    private final ProjectEncryptionKeyMetadata.DegradedBlobHolder degradedBlobHolder =
-        new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
 
     public EncryptionPlugin(Settings settings) {
         this.stateless = DiscoveryNode.isStateless(settings);
@@ -122,6 +120,7 @@ public class EncryptionPlugin extends Plugin
             services.projectResolver(),
             pekService,
             pekEncryption,
+            handlerRegistry,
             coordinator::nodesWithoutPassword,
             persistsClusterState
         );
@@ -163,7 +162,13 @@ public class EncryptionPlugin extends Plugin
         Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(source);
         // also before a key exists: the master may install one as soon as this node has reported that it can persist it
         if (persistsClusterState && state != null && fromClusterSecrets == false) {
-            ProjectEncryptionKeyPasswordSettings.validateReload(pekEncryption.canWrapForGateway(), updated);
+            ProjectEncryptionKeyPasswordSettings.validateReload(
+                pekEncryption.canWrapForGateway(),
+                pekSettings,
+                updated,
+                pekEncryption::canReadGatewayKeysWith,
+                pekEncryption.gatewayKeys().passwordId()
+            );
         }
         this.pekSettings = updated;
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
@@ -261,7 +266,7 @@ public class EncryptionPlugin extends Plugin
             new NamedWriteableRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 ProjectEncryptionKeyMetadata.TYPE,
-                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption, degradedBlobHolder)
+                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption)
             ),
             new NamedWriteableRegistry.Entry(NamedDiff.class, ProjectEncryptionKeyMetadata.TYPE, ProjectEncryptionKeyMetadata::readDiffFrom)
         );
@@ -273,7 +278,7 @@ public class EncryptionPlugin extends Plugin
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(ProjectEncryptionKeyMetadata.TYPE),
-                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption, degradedBlobHolder)
+                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption)
             )
         );
     }

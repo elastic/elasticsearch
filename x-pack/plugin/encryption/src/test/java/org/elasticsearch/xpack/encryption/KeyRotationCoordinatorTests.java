@@ -230,6 +230,33 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         setup(state, now, rotationInterval, TimeValue.timeValueMinutes(1));
     }
 
+    /** Serializes {@code metadata} as for this node's disk, which records it as this node's copy of the key. */
+    private static void writeToDisk(ProjectEncryptionKeyMetadata metadata) {
+        metadata.toXContentChunked(new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)));
+    }
+
+    /** A reset removes the key on every node, so this node no longer reports a copy of it on disk. */
+    public void testResetForgetsThisNodesCopyOfTheKey() throws IOException {
+        ProjectEncryptionKeyMetadata.GatewayKeys keys = new ProjectEncryptionKeyMetadata.GatewayKeys();
+        pekEncryption = TestPekEncryption.onNode(NO_OP_ENCRYPTION, keys);
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            pekEncryption
+        );
+        writeToDisk(existing);
+        assertTrue(keys.holdsKeys());
+        setup(clusterStateWith(existing, false), 0L, TimeValue.timeValueDays(30));
+
+        coordinator.onClusterStateChanged(
+            new ClusterChangedEvent("test", clusterStateWith(null, false), clusterStateWith(existing, false))
+        );
+
+        assertFalse(keys.holdsKeys());
+    }
+
     public void testInstallSubmittedWhenMasterWithoutKeyAndFeatureAvailable() {
         FeatureService featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
@@ -316,6 +343,11 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             @Override
             public byte[] unwrap(byte[] wrappedPek, String passwordId) {
                 return NO_OP_ENCRYPTION.unwrap(wrappedPek, passwordId);
+            }
+
+            @Override
+            public ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys() {
+                return NO_OP_ENCRYPTION.gatewayKeys();
             }
 
             @Override
@@ -489,6 +521,64 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         return featureService;
     }
 
+    /** An elected master without the key restores it from its own copy on disk once every node can persist it. */
+    public void testElectedMasterWithoutKeyRestoresItFromItsOwnDisk() {
+        byte[] keyBytes = randomKey();
+        ClusterState state = masterWithoutKeyAndACopyOnDisk(keyBytes);
+
+        waitingForOther(state, "restored").run();
+
+        KeyRotationCoordinator.RestoreKeysTask task = submitted(
+            "restore-project-encryption-keys",
+            KeyRotationCoordinator.RestoreKeysTask.class
+        );
+        assertArrayEquals(keyBytes, task.keys().getKeys().get("k1").bytes());
+        assertEquals(Set.of("local-ephemeral", "other-ephemeral"), task.readyNodeIds());
+    }
+
+    private ClusterState masterWithoutKeyAndACopyOnDisk(byte[] keyBytes) {
+        ProjectEncryptionKeyMetadata.GatewayKeys keys = new ProjectEncryptionKeyMetadata.GatewayKeys();
+        pekEncryption = TestPekEncryption.onNode(NO_OP_ENCRYPTION, keys);
+        writeToDisk(new ProjectEncryptionKeyMetadata(Map.of("k1", new KeyEntry(keyBytes, 1L)), "k1", PASSWORD_ID, Map.of(), pekEncryption));
+        ClusterState state = clusterStateWith(ProjectEncryptionKeyMetadata.degraded("k1", PASSWORD_ID, pekEncryption, "no key"), true);
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
+        return state;
+    }
+
+    public void testElectedMasterWithoutACopyOnDiskWarns() {
+        ClusterState state = clusterStateWith(ProjectEncryptionKeyMetadata.degraded("k1", PASSWORD_ID, NO_OP_ENCRYPTION, "no key"), true);
+        setup(state, 0L, TimeValue.timeValueDays(30));
+
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation(
+                "tells the operator how to recover",
+                KeyRotationCoordinator.class.getName(),
+                Level.WARN,
+                "the elected master holds no project encryption key [k1] and cannot read it from its disk*"
+            )
+        );
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
+    public void testElectedMasterThatCannotPersistTheKeyDoesNotRestoreIt() {
+        ClusterState state = clusterStateWith(ProjectEncryptionKeyMetadata.degraded("k1", PASSWORD_ID, NO_OP_ENCRYPTION, "no key"), true);
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), mock(FeatureService.class), List.of(), Settings.EMPTY);
+
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation(
+                "tells the operator to configure the password",
+                KeyRotationCoordinator.class.getName(),
+                Level.WARN,
+                "the elected master holds no project encryption key [k1] and cannot persist it*"
+            )
+        );
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
     public void testInstallNotSubmittedWhenActivePasswordMissing() {
         FeatureService featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
@@ -550,7 +640,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
         MockSecureSettings secure = new MockSecureSettings();
         secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v2");
-        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
+        // not needed, e.g. cluster secrets may switch to the new password and drop the old one in one step
+        if (randomBoolean()) {
+            secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
+        }
         secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password-fips");
 
         ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(

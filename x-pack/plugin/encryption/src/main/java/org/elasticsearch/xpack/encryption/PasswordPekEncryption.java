@@ -28,11 +28,18 @@ import java.util.function.Supplier;
 final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEncryption {
 
     private final Supplier<Settings> settingsSupplier;
+    private final ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys = new ProjectEncryptionKeyMetadata.GatewayKeys();
+
     private Settings checkedSettings;
     private String wrapFailure;
 
     PasswordPekEncryption(Supplier<Settings> settingsSupplier) {
         this.settingsSupplier = settingsSupplier;
+    }
+
+    @Override
+    public ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys() {
+        return gatewayKeys;
     }
 
     /**
@@ -75,6 +82,22 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
         return wrapFailure;
     }
 
+    /** Returns whether this node can decrypt its {@link ProjectEncryptionKeyMetadata.GatewayKeys}, or {@code null} if it holds none. */
+    @Nullable
+    Boolean canReadGatewayKeys() {
+        return canReadGatewayKeys(settingsSupplier.get());
+    }
+
+    /** Returns whether the passwords in {@code settings} decrypt this node's {@link ProjectEncryptionKeyMetadata.GatewayKeys}. */
+    boolean canReadGatewayKeysWith(Settings settings) {
+        return Boolean.TRUE.equals(canReadGatewayKeys(settings));
+    }
+
+    @Nullable
+    private Boolean canReadGatewayKeys(Settings settings) {
+        return gatewayKeys.canRead(settings, (wrappedPek, passwordId) -> unwrap(settings, wrappedPek, passwordId));
+    }
+
     @Override
     public String activePasswordId() {
         String id = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(settingsSupplier.get());
@@ -110,7 +133,11 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
 
     @Override
     public byte[] unwrap(byte[] wrappedPek, String passwordId) {
-        try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(settingsSupplier.get(), passwordId)) {
+        return unwrap(settingsSupplier.get(), wrappedPek, passwordId);
+    }
+
+    private static byte[] unwrap(Settings settings, byte[] wrappedPek, String passwordId) {
+        try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(settings, passwordId)) {
             if (password == null) {
                 throw new ElasticsearchException(
                     "cannot unwrap PEK from disk: secure setting ["

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -316,4 +318,60 @@ public class KeyRotationExecutorTests extends ESTestCase {
         return new KeyRotationCoordinator.InstallKeyTask(keyId, randomKey(), PASSWORD_ID, 0L, readyNodeIds);
     }
 
+    /** A restore never undoes a reset, replaces usable metadata, or brings back a different active key. */
+    public void testRestoreOnlyReplacesKeylessMetadataForTheSameActiveKey() {
+        ProjectEncryptionKeyMetadata keys = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(1L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        var task = new KeyRotationCoordinator.RestoreKeysTask(keys, Set.of());
+        assertSame(keys, metadataOf(executor.executeTask(task, stateWith(degraded("k1"))).v1()));
+
+        for (ClusterState state : List.of(stateWith(degraded("k2")), stateWith(null), stateWith(keys))) {
+            assertSame(state, executor.executeTask(task, state).v1());
+        }
+    }
+
+    /** As for the install, the restore goes ahead only if every node that persists cluster state reported it can persist the key. */
+    public void testRestoreRequiresEveryNodeThatPersistsClusterStateToBeReady() {
+        ProjectEncryptionKeyMetadata keys = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(1L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        DiscoveryNode ready = DiscoveryNodeUtils.create("ready");
+        DiscoveryNode joined = DiscoveryNodeUtils.create("joined");
+        ClusterState state = ClusterState.builder(stateWith(degraded("k1"))).nodes(DiscoveryNodes.builder().add(ready).add(joined)).build();
+        assertSame(
+            state,
+            executor.executeTask(new KeyRotationCoordinator.RestoreKeysTask(keys, Set.of(ready.getEphemeralId())), state).v1()
+        );
+        ClusterState restored = executor.executeTask(
+            new KeyRotationCoordinator.RestoreKeysTask(keys, Set.of(ready.getEphemeralId(), joined.getEphemeralId())),
+            state
+        ).v1();
+        assertSame(keys, metadataOf(restored));
+    }
+
+    /** Key-less metadata would turn into metadata holding only a new key, losing the keys other nodes still hold. */
+    public void testLifecycleTasksAreDroppedWhileMasterHoldsNoKey() {
+        ClusterState state = stateWith(degraded("k1"));
+        for (KeyRotationCoordinator.KeyRotationTask task : List.of(
+            new KeyRotationCoordinator.BeginRotationTask("k2", randomKey(), 20L, new AtomicBoolean(true)),
+            new KeyRotationCoordinator.UpdatePasswordIdTask("v2", PASSWORD_ID),
+            new KeyRotationCoordinator.RetireKeysTask(100L, "k1"),
+            new KeyRotationCoordinator.ReEncryptApplyTask("handler", null, null, "k1", ActionListener.noop())
+        )) {
+            assertSame(task.description(), state, executor.executeTask(task, state).v1());
+        }
+    }
+
+    private static ProjectEncryptionKeyMetadata degraded(String activeKeyId) {
+        return ProjectEncryptionKeyMetadata.degraded(activeKeyId, PASSWORD_ID, NO_OP_ENCRYPTION, "no key on the elected master");
+    }
 }

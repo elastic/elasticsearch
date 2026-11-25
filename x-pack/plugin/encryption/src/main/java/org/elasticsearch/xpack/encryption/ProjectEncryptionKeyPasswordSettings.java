@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.security.GeneralSecurityException;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Settings governing the project encryption key (PEK) at rest.
@@ -105,10 +106,18 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
-     * Rejects a reload that removes the active password, which this node wraps the key with. It is kept even before the cluster has a
-     * key, since the master installs one once every node has reported that it can persist it. A restart can still remove it.
+     * Rejects a reload that removes a password this node needs: the active one, which it wraps the key with, or the one its on-disk copy
+     * of the key is wrapped with, which it needs to read the key back after a restart. The latter is checked by decrypting the copy,
+     * {@code canReadCopy}, so that a reload can still correct a wrong password. The active one is kept even before the cluster has a key,
+     * since the master installs one once every node has reported that it can persist it. A restart can still remove it.
      */
-    static void validateReload(boolean currentCanWrap, Settings updated) {
+    static void validateReload(
+        boolean currentCanWrap,
+        Settings current,
+        Settings updated,
+        Predicate<Settings> canReadCopy,
+        @Nullable String keyOnDiskPasswordId
+    ) {
         if (currentCanWrap) {
             String failure = wrapForGatewayFailure(updated);
             if (failure != null) {
@@ -120,6 +129,17 @@ final class ProjectEncryptionKeyPasswordSettings {
                         + " cluster has a key, the node cannot rejoin without one"
                 );
             }
+        }
+        if (canReadCopy.test(current) && canReadCopy.test(updated) == false) {
+            String setting = PASSWORD_PREFIX + keyOnDiskPasswordId;
+            throw new IllegalArgumentException(
+                "cannot reload cluster state encryption settings: this node's on-disk copy of the cluster state encryption key is wrapped"
+                    + " with ["
+                    + setting
+                    + "], which the reloaded secure settings remove or change; keeping the previous settings. Keep ["
+                    + setting
+                    + "] unchanged until this node has persisted cluster state with the new password"
+            );
         }
     }
 

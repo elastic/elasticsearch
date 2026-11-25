@@ -75,18 +75,7 @@ public class EncryptionPluginTests extends ESTestCase {
     public void testNodeWithoutPasswordJoinsWhileThereIsNoUsableKey() {
         plugin.getJoinValidator().accept(localNode, stateWith(null));
         plugin.getJoinValidator()
-            .accept(
-                localNode,
-                stateWith(
-                    ProjectEncryptionKeyMetadata.degraded(
-                        "k1",
-                        "v1",
-                        TestPekEncryption.NO_OP,
-                        "no",
-                        new ProjectEncryptionKeyMetadata.DegradedBlobHolder()
-                    )
-                )
-            );
+            .accept(localNode, stateWith(ProjectEncryptionKeyMetadata.degraded("k1", "v1", TestPekEncryption.NO_OP, "no")));
     }
 
     /** The master runs the join validators too, for the joining node, which its own settings say nothing about. */

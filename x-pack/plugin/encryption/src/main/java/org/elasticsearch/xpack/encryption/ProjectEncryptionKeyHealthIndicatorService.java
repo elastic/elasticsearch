@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 
 /**
@@ -39,9 +40,10 @@ import static org.elasticsearch.health.HealthStatus.YELLOW;
  *   <li>YELLOW cannot-persist: a PEK is installed but this node, which persists cluster state, lacks a usable password to wrap it for
  *       disk. The next cluster-state persist on this node will fail, and the node will not survive a restart without the password.</li>
  * </ul>
+ * If the elected master holds no key, encryption is unavailable on every node: RED if encrypted data exists, YELLOW otherwise.
  *
- * <p>On the elected master it also reports, as YELLOW, the nodes that can't persist the key while installing the first key waits for
- * them. Only the elected master knows these nodes.
+ * <p>On the elected master it also reports the nodes that can't persist the key while installing or restoring the key waits for them:
+ * YELLOW while the first key waits, and an extra diagnosis while a restore waits. Only the elected master knows these nodes.
  */
 class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorService {
 
@@ -54,9 +56,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final String GREEN_HEALTHY = "Cluster state encryption is healthy.";
     static final String YELLOW_CANNOT_PERSIST = "Cluster state encryption cannot be persisted to disk on this node.";
     static final String YELLOW_OPT_OUT = "Cluster state encryption is disabled; secrets are stored unencrypted.";
-    static final String YELLOW_DECRYPTION_FAILED =
-        "Cluster state encryption is degraded: the encryption key could not be decrypted on startup.";
-    static final String YELLOW_MISSING_PASSWORD = "Cluster state encryption is degraded: no active password is configured on this node.";
+    static final String MASTER_HAS_NO_KEY = "The elected master holds no cluster state encryption key; encryption is unavailable.";
     static final String YELLOW_WAITING_FOR_NODES =
         "The cluster state encryption key is not created yet: some nodes that persist cluster state can't persist it.";
 
@@ -83,7 +83,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
             NAME,
             "encryption_key_waiting_for_nodes",
             2,
-            "The cluster state encryption key is not created until every node that persists cluster state can persist it."
+            "The cluster state encryption key is not created or restored until every node that persists cluster state can persist it."
                 + " Until then, encrypted secrets can't be stored or read.",
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
@@ -110,23 +110,18 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final Diagnosis.Definition DECRYPTION_FAILED_DEFINITION = new Diagnosis.Definition(
         NAME,
         "decryption_failed",
-        "The cluster state encryption key could not be decrypted on startup, likely due to a wrong or missing password.",
-        "Fix the password configuration and restart the node, or reset encryption via POST /_encryption/_reset?accept_data_loss=true.",
-        HELP_URL
-    );
-    static final Diagnosis.Definition MISSING_PASSWORD_DEFINITION = new Diagnosis.Definition(
-        NAME,
-        "missing_password",
-        "No active password is configured on this node; the cluster state encryption key cannot be decrypted.",
-        "Provision cluster.state.encryption.active_password_id and the matching cluster.state.encryption.password.<id> in the keystore"
-            + " (stateful) or operator file settings (serverless). If the password was added to the keystore call"
-            + " POST /_nodes/reload_secure_settings (stateful).",
+        "The elected master could not decrypt the cluster state encryption key on its disk.",
+        "Configure the password the key on the elected master's disk is wrapped with, as cluster.state.encryption.password.<id> with"
+            + " cluster.state.encryption.active_password_id, and reload secure settings; it then reads the key from its disk. If that"
+            + " password is lost, fail the master over to a master-eligible node that can read its copy (can_read_key_on_disk), for"
+            + " example by excluding the elected master from the voting configuration. Only if no node can, call"
+            + " POST /_encryption/_reset?accept_data_loss=true, which permanently deletes all encrypted data.",
         HELP_URL
     );
     static final Diagnosis.Definition NODES_WITHOUT_PASSWORD_DEFINITION = new Diagnosis.Definition(
         NAME,
         "nodes_without_password",
-        "The elected master waits to create the cluster state encryption key until every node that persists cluster state"
+        "The elected master waits to create or restore the cluster state encryption key until every node that persists cluster state"
             + " can persist it, and the nodes in nodes_without_password can't.",
         "Configure cluster.state.encryption.active_password_id and the matching cluster.state.encryption.password.<id> on the nodes in"
             + " nodes_without_password and reload their secure settings.",
@@ -145,6 +140,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     private final ProjectResolver projectResolver;
     private final ProjectEncryptionKeyService pekService;
     private final PasswordPekEncryption pekEncryption;
+    private final EncryptedDataHandlerRegistry handlerRegistry;
     private final Supplier<Set<String>> nodesWithoutPassword;
     private final boolean persistsClusterState;
 
@@ -153,6 +149,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         ProjectResolver projectResolver,
         ProjectEncryptionKeyService pekService,
         PasswordPekEncryption pekEncryption,
+        EncryptedDataHandlerRegistry handlerRegistry,
         Supplier<Set<String>> nodesWithoutPassword,
         boolean persistsClusterState
     ) {
@@ -160,6 +157,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         this.projectResolver = projectResolver;
         this.pekService = pekService;
         this.pekEncryption = pekEncryption;
+        this.handlerRegistry = handlerRegistry;
         this.nodesWithoutPassword = nodesWithoutPassword;
         this.persistsClusterState = persistsClusterState;
     }
@@ -222,20 +220,19 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
                 yield createIndicator(GREEN, GREEN_NOT_CONFIGURED, details, List.of(), List.of());
             }
             case UNAVAILABLE_DECRYPTION_FAILED -> createIndicator(
-                YELLOW,
-                YELLOW_DECRYPTION_FAILED,
+                hasEncryptedData(project) ? RED : YELLOW,
+                MASTER_HAS_NO_KEY,
                 details,
                 ENCRYPTION_UNAVAILABLE_IMPACTS,
-                List.of(new Diagnosis(DECRYPTION_FAILED_DEFINITION, List.of()))
-            );
-            case UNAVAILABLE_MISSING_PASSWORD -> createIndicator(
-                YELLOW,
-                YELLOW_MISSING_PASSWORD,
-                details,
-                ENCRYPTION_UNAVAILABLE_IMPACTS,
-                List.of(new Diagnosis(MISSING_PASSWORD_DEFINITION, List.of()))
+                waitingFor.isEmpty()
+                    ? List.of(new Diagnosis(DECRYPTION_FAILED_DEFINITION, List.of()))
+                    : List.of(new Diagnosis(NODES_WITHOUT_PASSWORD_DEFINITION, List.of()))
             );
         };
+    }
+
+    private boolean hasEncryptedData(ProjectMetadata project) {
+        return handlerRegistry.handlers().stream().anyMatch(handler -> EncryptedDataHandlerRegistry.hasData(handler, project));
     }
 
     private HealthIndicatorDetails details(
@@ -248,6 +245,11 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         details.put("state", serviceState.displayValue());
         details.put("encryption_required", pekService.isEncryptionRequired());
         details.put("active_password_id", activePasswordId == null ? "(unset)" : activePasswordId);
+        if (persistsClusterState) {
+            details.put("key_on_disk", pekEncryption.gatewayKeys().holdsKeys());
+            putIfNotNull(details, "can_read_key_on_disk", pekEncryption.canReadGatewayKeys());
+            putIfNotNull(details, "key_on_disk_password_id", pekEncryption.gatewayKeys().passwordId());
+        }
         if (waitingFor.isEmpty() == false) {
             details.put("nodes_without_password", waitingFor);
         }
@@ -257,5 +259,11 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
             details.put("key_count", metadata.getKeys().size());
         }
         return new SimpleHealthIndicatorDetails(details);
+    }
+
+    private static void putIfNotNull(Map<String, Object> details, String name, @Nullable Object value) {
+        if (value != null) {
+            details.put(name, value);
+        }
     }
 }

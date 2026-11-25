@@ -87,23 +87,48 @@ public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
     }
 
     public void testValidateReloadRejectsLosingTheActivePassword() {
-        assertRejected(settings(null, "v1"), ACTIVE_ID_KEY);
-        assertRejected(settings("v2", "v1"), PREFIX + "v2");
+        assertRejected(true, settings(null, "v1"), null, ACTIVE_ID_KEY);
+        assertRejected(true, settings("v2", "v1"), null, PREFIX + "v2");
     }
 
-    /** Rotating to a configured password, or a node that could not wrap before. */
-    public void testValidateReloadAllowsChangesThatKeepTheActivePassword() {
-        ProjectEncryptionKeyPasswordSettings.validateReload(true, settings("v2", "v1", "v2"));
-        ProjectEncryptionKeyPasswordSettings.validateReload(false, Settings.EMPTY);
+    public void testValidateReloadRejectsLosingThePasswordTheKeyOnDiskIsWrappedWith() {
+        assertRejected(false, settings("v2", "v2"), "v1", PREFIX + "v1");
+        assertRejected(true, settings("v2", "v2"), "v1", PREFIX + "v1");
     }
 
-    private static void assertRejected(Settings updated, String missingSetting) {
+    /** The on-disk copy is unwrapped with the password's value, so the same id with another value is as good as removing it. */
+    public void testValidateReloadRejectsChangingThePasswordTheKeyOnDiskIsWrappedWith() {
+        assertRejected(true, settings("v2", Map.of("v1", "another-password-for-v1", "v2", "password-for-v2")), "v1", PREFIX + "v1");
+    }
+
+    /**
+     * Rotating while keeping the on-disk copy's password, a node that could not wrap before, nothing on disk to read back, or a
+     * password that could not decrypt the copy anyway, such as a wrong value being corrected.
+     */
+    public void testValidateReloadAllowsChangesThatKeepNeededPasswords() {
+        validateReload(true, settings("v1", "v1"), settings("v2", "v1", "v2"), "v1");
+        validateReload(true, settings("v2", "v1", "v2"), settings("v2", "v2"), "v2");
+        validateReload(false, settings("v1"), Settings.EMPTY, null);
+        validateReload(true, settings("v2", "v2"), settings("v2", "v2"), "v1");
+        validateReload(true, settings("v1", Map.of("v1", "wrong-password-for-v1")), settings("v1", "v1"), "v1");
+    }
+
+    private static void assertRejected(boolean currentCanWrap, Settings updated, String keyOnDiskPasswordId, String missingSetting) {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ProjectEncryptionKeyPasswordSettings.validateReload(true, updated)
+            () -> validateReload(currentCanWrap, settings("v1", "v1"), updated, keyOnDiskPasswordId)
         );
         assertThat(e.getMessage(), containsString("[" + missingSetting + "]"));
         assertThat(e.getMessage(), containsString("keeping the previous settings"));
+    }
+
+    /** Validates with an on-disk copy, if {@code keyOnDiskPasswordId} is set, that only the password {@link #settings} gives it reads. */
+    private static void validateReload(boolean currentCanWrap, Settings current, Settings updated, String keyOnDiskPasswordId) {
+        ProjectEncryptionKeyPasswordSettings.validateReload(currentCanWrap, current, updated, settings -> {
+            try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(settings, keyOnDiskPasswordId)) {
+                return password != null && password.toString().equals("password-for-" + keyOnDiskPasswordId);
+            }
+        }, keyOnDiskPasswordId);
     }
 
     private static Settings settings(String activePasswordId, Map<String, String> passwords) {

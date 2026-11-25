@@ -1040,6 +1040,41 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         assertJsonEquals(jsonString, requestJson);
     }
 
+    public void testParseToolChoiceStringRequired_usesModeAnyWithoutAllowedFunctionNames() throws IOException {
+        assertToolChoiceStringMode("required", "ANY");
+    }
+
+    public void testParseToolChoiceStringNone_usesModeNone() throws IOException {
+        assertToolChoiceStringMode("none", "NONE");
+    }
+
+    private void assertToolChoiceStringMode(String toolChoice, String expectedMode) throws IOException {
+        String requestJson = Strings.format("""
+            {
+                "contents": [
+                    { "role": "user", "parts": [ { "text": "some text" } ] }
+                ],
+                "toolConfig": { "functionCallingConfig": { "mode": "%s" } }
+            }
+            """, expectedMode);
+
+        var request = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),
+            "gemini-2.0",
+            null,
+            null,
+            null,
+            new ToolChoiceString(toolChoice),
+            null,
+            null
+        );
+
+        var entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(new UnifiedChatInput(request, true), emptyThinkingConfig);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertJsonEquals(Strings.toString(builder), requestJson);
+    }
+
     public void testParseToolChoiceInvalid_throwElasticSearchStatusException() throws IOException {
         var request = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentObjects(List.of(new ContentObjectText("some text"))), "user", null, null)),

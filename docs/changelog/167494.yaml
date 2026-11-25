@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 167494
-summary: Support TO_LONG and TO_INTEGER bases on union types
+summary: Keep and validate the other arguments of conversions on union types
 type: bug

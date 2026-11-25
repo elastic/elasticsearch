@@ -85,6 +85,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVe
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerSurrogate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
@@ -3997,6 +4001,57 @@ public class AnalyzerTests extends AnalyzerTestCase {
                         + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
                 )
             );
+    }
+
+    /**
+     * The {@code leading_zeros} option of {@code TO_IP} selects the conversion used for each type of a union-typed field, both when
+     * the field is the input and when it's converted first, as in {@code value::keyword}.
+     */
+    public void testToIpOptionsOnUnionType() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword"))
+            ),
+            List.of()
+        );
+        Map<String, Class<? extends Expression>> conversionByOption = Map.of(
+            "octal",
+            ToIpLeadingZerosOctal.class,
+            "decimal",
+            ToIpLeadingZerosDecimal.class,
+            "reject",
+            ToIpLeadingZerosRejected.class
+        );
+        for (Map.Entry<String, Class<? extends Expression>> entry : conversionByOption.entrySet()) {
+            String options = "{\"leading_zeros\": \"" + entry.getKey() + "\"}";
+
+            LogicalPlan direct = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = TO_IP(value, " + options + ")");
+            List<UnionTypeEsField> unionFields = new ArrayList<>();
+            direct.forEachDown(EsRelation.class, relation -> {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute instanceof FieldAttribute field && field.field() instanceof UnionTypeEsField union) {
+                        unionFields.add(union);
+                    }
+                }
+            });
+            assertThat(unionFields, hasSize(1));
+            assertThat(unionFields.get(0).getConversionExpressions(), not(hasSize(0)));
+            assertThat(unionFields.get(0).getConversionExpressions(), everyItem(instanceOf(entry.getValue())));
+
+            LogicalPlan nested = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = TO_IP(value::keyword, " + options + ")");
+            List<ToIp> conversions = new ArrayList<>();
+            nested.forEachExpressionDown(ToIp.class, conversions::add);
+            assertThat(conversions, hasSize(1));
+            assertThat(conversions.get(0).children(), hasSize(2));
+            assertThat(conversions.get(0).children().get(1), instanceOf(MapExpression.class));
+            assertThat(
+                ToIp.LeadingZeros.from((MapExpression) conversions.get(0).children().get(1)),
+                equalTo(ToIp.LeadingZeros.from(entry.getKey()))
+            );
+        }
     }
 
     /**

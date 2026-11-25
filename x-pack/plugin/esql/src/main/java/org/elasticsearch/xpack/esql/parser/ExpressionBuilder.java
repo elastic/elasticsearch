@@ -963,7 +963,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(valueExpr);
         Expression right = expression(patternCtx);
         // Fast path: single-value string literal known at parse time → validate and build concrete pattern immediately
-        if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && (lit.value() instanceof List<?>) == false) {
+        // The raw value is used on purpose: a list is not a valid pattern even if it has a single value.
+        if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && (lit.rawValue() instanceof List<?>) == false) {
             String patternString = BytesRefs.toString(lit.value());
             Expression regex = DeferredRegexExpression.buildRegexMatch(source, left, variant, patternString);
             return not == null ? regex : new Not(source, regex);
@@ -975,7 +976,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             && constCtx.constant() instanceof EsqlBaseParser.InputParameterContext;
         if (isParam && right instanceof Literal lit && right != MISSING_PARAMETER) {
             String paramText = patternCtx.getText();
-            if (lit.value() instanceof List<?>) {
+            if (lit.rawValue() instanceof List<?>) {
                 throw new ParsingException(
                     source,
                     "Invalid pattern parameter type for {} [{}]: expected string, found list",
@@ -994,7 +995,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
         // Array literals (e.g. ["a*", "b*"]) are not valid scalar patterns; the list form uses parentheses: LIKE ("a*", "b*")
-        if (right instanceof Literal lit && lit.value() instanceof List<?>) {
+        if (right instanceof Literal lit && lit.rawValue() instanceof List<?>) {
             throw new ParsingException(
                 source,
                 "Invalid pattern for {} {}: expected a scalar string, not a list; use {} (\"p1\", \"p2\") for multiple patterns",
@@ -1113,8 +1114,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         boolean isInvalidList() {
-            // A list with one value is the same as that value.
-            if (param != null && param.value() instanceof List<?> list && list.size() != 1) {
+            if (param != null && param.value() instanceof List<?> list) {
                 context.params()
                     .addParsingError(
                         new ParsingException(

@@ -873,12 +873,12 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 List.of(paramAsConstant(null, List.of("a*", "b*"))),
                 "Invalid pattern parameter type for like [?]: expected string, found list"
             );
-            // A list with one value is the same as that value.
-            Filter singleValueList = as(
-                query("row a = \"abc\" | where a like ?", new QueryParams(List.of(paramAsConstant(null, List.of("a*"))))),
-                Filter.class
+            // A list is not a valid pattern even if it has a single value.
+            expectError(
+                "row a = \"abc\" | where a like ?",
+                List.of(paramAsConstant(null, List.of("a*"))),
+                "Invalid pattern parameter type for like [?]: expected string, found list"
             );
-            assertEquals("a*", as(singleValueList.condition(), WildcardLike.class).pattern().pattern());
             expectError(
                 "row a = \"abc\" | where a like ?",
                 List.of(paramAsConstant(null, null)),
@@ -897,14 +897,6 @@ public class ParamsParserTests extends AbstractStatementParserTests {
             WildcardLikeList likelist = as(filter.condition(), WildcardLikeList.class);
             WildcardPatternList patternlist = as(likelist.pattern(), WildcardPatternList.class);
             assertEquals("(\"a*\", \"b*\")", patternlist.pattern());
-
-            // A list with one value is the same as that value.
-            LogicalPlan singleValueList = query(
-                "row a = \"abc\" | where a like ( ?1, ?2 )",
-                new QueryParams(List.of(paramAsConstant(null, List.of("a*")), paramAsConstant(null, "b*")))
-            );
-            WildcardLikeList singleValueLikeList = as(as(singleValueList, Filter.class).condition(), WildcardLikeList.class);
-            assertEquals("(\"a*\", \"b*\")", as(singleValueLikeList.pattern(), WildcardPatternList.class).pattern());
 
             expectError(
                 "row a = \"abc\" | where a like ( ?1, ?2 )",

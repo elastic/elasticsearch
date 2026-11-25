@@ -2100,18 +2100,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from a | where foo rlike [\"geo.*\", \"ab.*\"]",
             "Invalid pattern for RLIKE [\"geo.*\",\"ab.*\"]: expected a scalar string, not a list"
         );
-    }
-
-    /**
-     * A list with one value is the same as that value, also as a pattern. Lists with more values are still rejected.
-     */
-    public void testLikeRLikeOneElementArrayLiteral() {
-        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
-        Filter likeFilter = as(query("from a | where foo like [\"Geo*\"]"), Filter.class);
-        assertEquals("Geo*", as(likeFilter.condition(), WildcardLike.class).pattern().pattern());
-
-        Filter rlikeFilter = as(query("from a | where foo rlike [\"geo.*\"]"), Filter.class);
-        assertEquals("geo.*", as(rlikeFilter.condition(), RLike.class).pattern().pattern());
+        // A list is not a valid pattern even if it has a single value.
+        expectError("from a | where foo like [\"Geo*\"]", "Invalid pattern for LIKE [\"Geo*\"]: expected a scalar string, not a list");
+        expectError("from a | where foo rlike [\"geo.*\"]", "Invalid pattern for RLIKE [\"geo.*\"]: expected a scalar string, not a list");
     }
 
     public void testIdentifierPatternTooComplex() {

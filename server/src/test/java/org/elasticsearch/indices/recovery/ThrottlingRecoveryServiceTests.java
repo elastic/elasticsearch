@@ -84,6 +84,7 @@ import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSetti
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT_AND_BLOCK;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -173,7 +174,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
             }
         };
@@ -1307,7 +1308,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             listener1,
             mockIndexShard(recoveryState, UUIDs.randomBase64UUID(), stats),
             newIndexMetadata(),
-            l -> l.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, null), ABORT)
+            l -> l.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, null), ABORT)
         );
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
         service.enqueue(
@@ -1417,6 +1418,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         ensureListenersWereNotified(listener);
+        assertThat(listener.failureStrategy(), equalTo(FAIL_SEND));
     }
 
     /// A recorded cancellation must persist across multiple [ThrottlingRecoveryService#enqueue] attempts for the same
@@ -1481,7 +1483,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 // simulates cancellation of started recovery
                 taskQueue.scheduleAt(
                     taskQueue.getCurrentTimeMillis() + 100,
-                    () -> listener.onRecoveryFailure(recoveryState1, new RecoveryCancelledException(shardId1, null, null), FAIL_SEND)
+                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), FAIL_SEND)
                 );
             }
         );
@@ -1499,6 +1501,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         ensureListenersWereNotified(listener1, listener2);
+        assertThat(listener2.failureStrategy(), equalTo(FAIL_SILENT_AND_BLOCK));
     }
 
     public void testStaleRecordedEntryRemovedOnClusterStateChangeWithShardRelocated() {
@@ -1575,11 +1578,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 // occupies the sole concurrency slot
                 taskQueue.scheduleAt(
                     taskQueue.getCurrentTimeMillis() + 100,
-                    () -> listener.onRecoveryFailure(
-                        blockerRecoveryState,
-                        new RecoveryCancelledException(blockerShardId, null, null),
-                        FAIL_SEND
-                    )
+                    () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), FAIL_SEND)
                 );
             }
         );
@@ -1683,7 +1682,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 completed.incrementAndGet();
             }
         };
@@ -1737,7 +1736,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                     schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                                 } else {
                                     schedulingListener.onRecoveryFailure(
-                                        recoveryState,
                                         new RecoveryFailedException(
                                             recoveryState,
                                             null,
@@ -1807,7 +1805,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 runningOrPending.decrementAndGet();
                 tasksCompleted.incrementAndGet();
                 refCounted.decRef();
@@ -1884,7 +1882,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             } else {
                 schedulingListener.onRecoveryFailure(
-                    recoveryState,
                     new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
                     randomFrom(FailureStrategy.values())
                 );
@@ -1907,6 +1904,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     private static class TestCaptureResultListener extends SubscribableListener<Void> implements RecoveryListener {
         private final ExpectedRecoveryOutcome expectedOutcome;
         private volatile boolean notified;
+        private volatile FailureStrategy failureStrategy;
 
         TestCaptureResultListener(ExpectedRecoveryOutcome expectedOutcome) {
             this.expectedOutcome = expectedOutcome;
@@ -1928,8 +1926,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
             assert super.isDone() == false;
+            this.failureStrategy = failureStrategy;
             switch (expectedOutcome) {
                 case FAILED -> {
                     if (failureStrategy != ABORT) {
@@ -1946,7 +1945,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     }
                 }
                 case CANCELLED_IN_QUEUE, CANCELLED_STARTED -> {
-                    assert expectedOutcome == ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE || failureStrategy.notifyMaster()
+                    assert expectedOutcome == ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE || failureStrategy == FAIL_SEND
                         : "should notify the master solely when cancelling started recoveries";
                     if (e instanceof RecoveryCancelledException == false) {
                         throw new AssertionError("unexpected failure type", e);
@@ -1959,6 +1958,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         public boolean wasNotified() {
             return super.isDone();
+        }
+
+        /// The [FailureStrategy] of the failure this listener was notified of, or `null` if it has not been notified of one.
+        public FailureStrategy failureStrategy() {
+            return failureStrategy;
         }
     }
 
@@ -3002,7 +3006,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 fail(e, "unexpected recovery failure");
             }
         };

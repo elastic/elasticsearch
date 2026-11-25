@@ -37,7 +37,7 @@ import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -158,7 +158,10 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
         indexDocs(slotHoldingIndex, randomIntBetween(20, 50));
 
         final var uploadGate = blockPreFlushUpload(sourceNode);
-        final var targetNode = startIndexNode();
+        // The queue this test asserts on is the source's single outgoing slot, so the target must be able to accept both
+        // relocations at once. A randomized incoming limit of one would hold the second one back on the target instead,
+        // where it never reaches the source and so is never counted as queued there.
+        final var targetNode = startIndexNode(unthrottledIncomingRecoveryNodeSettings());
         ensureStableCluster(2);
 
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(slotHoldingIndex, 0, sourceNode, targetNode));
@@ -439,7 +442,7 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
         private final AtomicBoolean blockNextCommitUpload = new AtomicBoolean(true);
 
         void maybeBlock(String blobName) {
-            if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
+            if (BccBlob.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
                 blocked.countDown();
                 safeAwait(proceed, PARKED_OPERATION_TIMEOUT);
             }

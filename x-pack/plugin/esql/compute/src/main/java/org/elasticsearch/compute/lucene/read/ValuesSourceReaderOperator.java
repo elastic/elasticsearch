@@ -239,6 +239,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     /**
      * Builds a {@link LoaderAndConverter} for a given shard.
+     * <p>
+     * One instance is shared by the operators of every driver on the node, and each of them calls it whenever it moves to a
+     * new shard, so it is called concurrently. ES|QL's implementation reads the plan that those drivers share, so it relies on
+     * plan nodes being safe to read from several threads; see the thread safety rules on ES|QL's {@code Node}.
      */
     public interface BuildLoader {
         LoaderAndConverter build(DriverContext driverContext, int shard);

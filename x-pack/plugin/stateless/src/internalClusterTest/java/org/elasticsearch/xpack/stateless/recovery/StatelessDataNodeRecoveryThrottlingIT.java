@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -86,13 +87,15 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     /// The smallest allowed per-heap-GB ratio, which deterministically sets heap-based limit to 1.
     private static final double MIN_PER_HEAP_GB = Double.MIN_NORMAL;
 
-    /// Unthrottle master-side limits.
+    /// Unthrottle master-side allocation and data node limits. Each test customizes its own throttle.
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(
             ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(),
             Integer.MAX_VALUE
         )
+            .put(unthrottledIncomingRecoveryNodeSettings())
+            .put(unthrottledOutgoingRecoveryNodeSettings())
             .put(
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                 Integer.MAX_VALUE
@@ -108,7 +111,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             .put(
                 StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING
                     .getKey(),
-                "0b"
+                ByteSizeValue.ZERO
             )
             .put(
                 StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(),
@@ -793,7 +796,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         // `max(1, round(heapGb * 0))` allows a single concurrent primary relocation whatever the heap.
         settings.put(
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING.getKey(),
-            "0b"
+            ByteSizeValue.ZERO
         ).put(StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(), 0.0);
         updateClusterSettings(settings);
 

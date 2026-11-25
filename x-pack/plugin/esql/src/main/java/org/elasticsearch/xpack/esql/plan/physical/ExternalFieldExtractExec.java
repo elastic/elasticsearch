@@ -40,7 +40,7 @@ public class ExternalFieldExtractExec extends UnaryExec {
     private final List<Attribute> attributesToExtract;
     private final Attribute rowPositionAttribute;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public ExternalFieldExtractExec(
         Source source,

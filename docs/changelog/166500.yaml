@@ -1,0 +1,5 @@
+pr: 166500
+summary: Fix auto_date_histogram failing with minimum_interval year
+area: Aggregations
+type: bug
+issues: []

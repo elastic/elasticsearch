@@ -47,11 +47,13 @@ public abstract class UnaryPlan extends LogicalPlan {
 
     @Override
     public AttributeSet outputSet() {
-        if (lazyOutputSet == null) {
+        AttributeSet outputSet = lazyOutputSet;
+        if (outputSet == null) {
             List<Attribute> output = output();
-            lazyOutputSet = output == child.output() ? child.outputSet() : AttributeSet.of(output);
+            outputSet = output == child.output() ? child.outputSet() : AttributeSet.of(output);
+            lazyOutputSet = outputSet;
         }
-        return lazyOutputSet;
+        return outputSet;
     }
 
     @Override

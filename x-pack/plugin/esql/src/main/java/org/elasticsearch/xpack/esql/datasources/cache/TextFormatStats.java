@@ -48,6 +48,29 @@ public final class TextFormatStats {
             sizeInBytes = lengthDerivedSizeInBytes;
             columns = Map.of();
         }
+        return statistics(rowCount, sizeInBytes, columns);
+    }
+
+    /**
+     * The statistics of one already-filtered harvest, with no schema applied. The filter belongs at the
+     * harvest — {@link StripeStatsHarvester#emit} runs {@link #build} before a piece is handed on — so a
+     * consumer holding a filtered harvest has nothing left to filter and reads its columns from the harvest
+     * itself. Applying the schema a second time there would make the columns a record COUNTS and the columns
+     * it WRITES come from two different places.
+     */
+    static SourceStatistics harvested(long rowCount, Map<String, ExternalStats.ColumnStats> columns) {
+        Map<String, SourceStatistics.ColumnStatistics> cols = new HashMap<>();
+        for (Map.Entry<String, ExternalStats.ColumnStats> entry : columns.entrySet()) {
+            cols.put(entry.getKey(), toSpi(entry.getValue()));
+        }
+        return statistics(OptionalLong.of(rowCount), OptionalLong.empty(), cols);
+    }
+
+    private static SourceStatistics statistics(
+        OptionalLong rowCount,
+        OptionalLong sizeInBytes,
+        Map<String, SourceStatistics.ColumnStatistics> columns
+    ) {
         final OptionalLong rc = rowCount;
         final OptionalLong sb = sizeInBytes;
         final Map<String, SourceStatistics.ColumnStatistics> cols = columns;

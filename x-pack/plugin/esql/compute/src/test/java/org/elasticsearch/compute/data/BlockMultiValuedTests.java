@@ -37,6 +37,7 @@ import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertInsertNulls;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -138,6 +139,16 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     public void testLookupFromSingleManyPages() {
         assertLookup(ByteSizeValue.ofBytes(1), between(1, 32), p -> 1);
+    }
+
+    public void testLookupManyPositionsUnderTargetIsOneBlock() {
+        int positionsToCopy = between(Operator.MIN_TARGET_PAGE_SIZE + 2, 2000);
+        assertThat(assertLookup(ByteSizeValue.ofMb(100), positionsToCopy, p -> between(0, 2)), equalTo(1));
+    }
+
+    public void testLookupManyPositionsOverTargetSplits() {
+        int positionsToCopy = between(2 * (Operator.MIN_TARGET_PAGE_SIZE + 1), 2000);
+        assertThat(assertLookup(ByteSizeValue.ofBytes(1), positionsToCopy, p -> between(1, 2)), greaterThan(1));
     }
 
     public void testToMask() {
@@ -319,7 +330,7 @@ public class BlockMultiValuedTests extends ESTestCase {
         }
     }
 
-    private void assertLookup(ByteSizeValue targetBytes, int positionsToCopy, IntUnaryOperator positionsPerPosition) {
+    private int assertLookup(ByteSizeValue targetBytes, int positionsToCopy, IntUnaryOperator positionsPerPosition) {
         BlockFactory positionsFactory = blockFactory();
         int positionCount = randomIntBetween(100, 16 * 1024);
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 100, 0, 0);
@@ -340,6 +351,7 @@ public class BlockMultiValuedTests extends ESTestCase {
             }
             Block copy = null;
             int positionOffset = 0;
+            int blocks = 0;
             try (
                 IntBlock positions = builder.build();
                 ReleasableIterator<? extends Block> lookup = b.block().lookup(positions, targetBytes);
@@ -352,6 +364,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                         }
                         assertThat(lookup.hasNext(), equalTo(true));
                         copy = lookup.next();
+                        blocks++;
                         if (positions.getPositionCount() - positionOffset < Operator.MIN_TARGET_PAGE_SIZE) {
                             assertThat(copy.getPositionCount(), equalTo(positions.getPositionCount() - positionOffset));
                         } else {
@@ -378,6 +391,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                     }
                 }
                 assertThat(lookup.hasNext(), equalTo(false));
+                return blocks;
             } finally {
                 Releasables.close(copy);
             }

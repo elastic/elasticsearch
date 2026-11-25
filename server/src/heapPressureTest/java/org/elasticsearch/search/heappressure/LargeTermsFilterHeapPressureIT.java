@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;

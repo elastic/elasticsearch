@@ -69,7 +69,9 @@ import static org.hamcrest.Matchers.instanceOf;
  *   <li>{@link #testBaselineReaderSizesByteStorageUpFront()} - the baseline {@code readBytesRefColumn}
  *       path already passes a byte-size hint. </li>
  *   <li>{@link #testOptimizedPlainColumnSizesByteStorageUpFront()} - the optimized {@code PageColumnReader}
- *       plain (non-dictionary) path sizes its byte storage up-front from the materialized values.</li>
+ *       plain (non-dictionary) path: a batch within the plain-array cap is a {@code DirectBytesRefVector} over
+ *       heap arrays and reserves no {@code BigArrays} storage at all; a batch over the cap falls back to a
+ *       {@code BytesRefArray} that is still sized up-front.</li>
  * </ul>
  */
 public class ParquetByteHintTests extends ESTestCase {
@@ -118,13 +120,17 @@ public class ParquetByteHintTests extends ESTestCase {
         List<BytesRef> values = equalLengthValues(ROWS, VALUE_BYTES);
         byte[] data = writeStringColumn(values, /* dictionary */ false);
 
-        int ideal = directHintedReservations(values);
         CountingBreaker breaker = new CountingBreaker();
-        int readerReservations = readerReservations(breaker, new ParquetFormatReader(factory(breaker)), data, values);
+        int flatReservations = readerReservations(breaker, new ParquetFormatReader(factory(breaker)), data, values);
+        assertThat("a batch within the plain-array cap is flat heap storage, not BigArrays", flatReservations, equalTo(0));
 
+        // A cap below the batch's offsets alone forces the BytesRefArray fallback from the first chunk.
+        int ideal = directHintedReservations(values);
+        BlockFactory capped = factory(breaker, Integer.BYTES);
+        int slowReservations = readerReservations(breaker, new ParquetFormatReader(capped), data, values);
         assertThat(
-            "optimized PageColumnReader plain path must size byte storage up-front like a byte-hinted build (no regrow)",
-            readerReservations,
+            "optimized PageColumnReader plain fallback must size byte storage up-front like a byte-hinted build (no regrow)",
+            slowReservations,
             equalTo(ideal)
         );
     }
@@ -220,8 +226,12 @@ public class ParquetByteHintTests extends ESTestCase {
     }
 
     private static BlockFactory factory(CountingBreaker breaker) {
+        return factory(breaker, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes());
+    }
+
+    private static BlockFactory factory(CountingBreaker breaker, long maxPrimitiveArrayBytes) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
-        return BlockFactory.builder(bigArrays).breaker(NoopCircuitBreaker.INSTANCE).build();
+        return BlockFactory.builder(bigArrays).breaker(NoopCircuitBreaker.INSTANCE).maxPrimitiveArraySize(maxPrimitiveArrayBytes).build();
     }
 
     private static StorageObject storageObject(byte[] data) {

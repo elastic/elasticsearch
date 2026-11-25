@@ -465,6 +465,22 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 );
             }
         }
+        if (containerFunctions) {
+            // An or outside the top-level chain reads its left operand twice: as itself and as what its right operand is
+            // matched against. Nested on the left, the copies multiply, so they are capped like the branches of a chain.
+            long copies = operandCopies(p, topLevelUnions);
+            if (copies > maxBranches) {
+                failures.add(
+                    fail(
+                        p,
+                        "PromQL set operator [or] reads an operand up to [{}] times, got [{}], exceeding the limit set by the {}",
+                        maxBranches,
+                        copies,
+                        limitSource
+                    )
+                );
+            }
+        }
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
@@ -626,7 +642,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                     if (binaryOperator instanceof VectorBinarySet setOp) {
-                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
+                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp), containerFunctions);
                     }
                     if ((binaryOperator.match().filter() == VectorMatch.Filter.ON
                         && binaryOperator.match().filterLabels().contains(LabelMatcher.NAME))
@@ -932,15 +948,20 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      *       implementation limitations, flagged with "at this time".</li>
      * </ul>
      */
-    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion, boolean containerFunctions) {
         if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
             failures.add(fail(setOp, "set operator \"{}\" not allowed in binary scalar expression", setOp.op().keyword()));
             return;
         }
         if (setOp.op() != VectorBinarySet.SetOp.UNION) {
-            // TODO: Support and/unless set operators.
-            // https://github.com/elastic/elasticsearch/issues/158179
-            failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
+            // and/unless match on the operands' label containers.
+            if (containerFunctions == false) {
+                failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
+            }
+            return;
+        }
+        if (containerFunctions) {
+            // or keeps the right series no left one matches: a union of the left operand and the right unless the left.
             return;
         }
         if (setOp.match() != VectorMatch.NONE) {
@@ -967,11 +988,28 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
-        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION && setOp.match() == VectorMatch.NONE) {
             chain.add(setOp);
             collectTopLevelUnionChain(setOp.left(), chain);
             collectTopLevelUnionChain(setOp.right(), chain);
         }
+    }
+
+    /**
+     * The most times the translation reads one operand of {@code plan}: twice the left operand of an {@code or} outside the
+     * flattened top-level chain, once any other.
+     */
+    private static long operandCopies(LogicalPlan plan, Set<VectorBinarySet> flattened) {
+        if (plan instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION && flattened.contains(setOp) == false) {
+            // saturates far below overflow, which a deep enough nesting would otherwise reach
+            long left = Math.min(2 * operandCopies(setOp.left(), flattened), 1L << 32);
+            return Math.max(left, operandCopies(setOp.right(), flattened));
+        }
+        long copies = 1;
+        for (LogicalPlan child : plan.children()) {
+            copies = Math.max(copies, operandCopies(child, flattened));
+        }
+        return copies;
     }
 
     /** A scalar reading no source: a literal, {@code time()}, {@code pi()}, or arithmetic over those. */

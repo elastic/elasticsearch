@@ -3505,3 +3505,42 @@ PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z
 result:double | cluster:keyword
 1.0           | null
 ;
+
+// An or under a binary operator unions its operands inside the operator's operands, which then join.
+or_under_binary_operator
+required_capability: promql_command_v0
+required_capability: promql_set_operator_matching
+required_capability: promql_binary_independent_join
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) / ((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) + (last_over_time(network.eth0.rx[5m]) or last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| EVAL result = ROUND(result, 6), _timeseries = _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+0.481743      | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+0.494521      | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+0.652079      | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+0.382175      | "{""cluster"":""qa"",""pod"":""one""}"
+0.485909      | "{""cluster"":""qa"",""pod"":""three""}"
+0.594241      | "{""cluster"":""qa"",""pod"":""two""}"
+0.487324      | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+0.535885      | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+0.43907       | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;
+
+// or on() adds its right operand only at steps where the left one has no series; as a divisor it joins on the step.
+or_on_nothing_under_division
+required_capability: promql_command_v0
+required_capability: promql_set_operator_matching
+required_capability: promql_binary_independent_join
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum(rate(network.total_bytes_in[10m])) / (sum(rate(network.total_bytes_in[10m])) or on () vector(1)))
+| KEEP result, step
+| SORT step;
+
+result:double | step:datetime
+1.0           | 2024-05-10T00:10:00.000Z
+1.0           | 2024-05-10T00:20:00.000Z
+;

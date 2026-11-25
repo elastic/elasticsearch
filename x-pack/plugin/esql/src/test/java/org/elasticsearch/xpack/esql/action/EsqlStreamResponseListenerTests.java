@@ -165,6 +165,64 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         return new Drained(Map.of(), rows, footer);
     }
 
+    public void testStoreFailureReplacesTheFooter() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        s.listener().onStoreFailure(new IllegalStateException("store failed"));
+
+        Drained drained = drainStream(s, List.of(buildSimplePage(1, "a")), 100L, List.of());
+
+        assertThat(drained.rows(), equalTo(List.of(List.of(1, "a"))));
+        assertThat(drained.footer().get("complete"), equalTo(false));
+        assertThat(drained.footer(), hasKey("error"));
+    }
+
+    public void testStoreFailureReplacesTheLimitFooter() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT));
+        s.listener().onStoreFailure(new IllegalStateException("store failed"));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(5, 1));
+        assertThat(decodeRows(pagePart).size(), equalTo(3));
+
+        Map<String, Object> footer = decodeLine(nextPart(pagePart, () -> {}));
+
+        assertThat(footer.get("complete"), equalTo(false));
+        assertThat(footer, hasKey("error"));
+        s.response().close();
+    }
+
+    public void testStoreFailureWithMaxRowsZeroStillSendsTheResponse() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 0, StreamOptions.NO_LIMIT));
+
+        s.listener().onStoreFailure(new IllegalStateException("store failed"));
+
+        RestResponse response = s.response();
+        assertNotNull("the response must be sent even though the query was stopped", response);
+        ChunkedRestResponseBodyPart columnsPart = response.chunkedContent();
+        assertThat(decodeLine(columnsPart), hasKey("columns"));
+        ChunkedRestResponseBodyPart footerPart = nextPart(columnsPart, () -> {});
+        assertTrue(footerPart.isLastPart());
+        Map<String, Object> footer = decodeLine(footerPart);
+        assertThat(footer.get("complete"), equalTo(false));
+        assertThat(footer, hasKey("error"));
+        response.close();
+        assertTrue(s.publisher().isClosed());
+    }
+
+    public void testStoreFailureWhenAPageFillsTheLimitExactlyStillSendsTheLastLine() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 2, StreamOptions.NO_LIMIT));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(2, 1));
+        assertThat(decodeRows(pagePart).size(), equalTo(2));
+
+        s.listener().onStoreFailure(new IllegalStateException("store failed"));
+
+        ChunkedRestResponseBodyPart footerPart = nextPart(pagePart, () -> {});
+        assertTrue(footerPart.isLastPart());
+        Map<String, Object> footer = decodeLine(footerPart);
+        assertThat(footer.get("complete"), equalTo(false));
+        assertThat(footer, hasKey("error"));
+        s.response().close();
+        assertTrue(s.publisher().isClosed());
+    }
+
     public void testStoreFailureAfterTheLimitStopsTheQuery() throws IOException {
         Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT));
         decodeRows(sendFirstPage(s, buildLargePage(5, 1)));

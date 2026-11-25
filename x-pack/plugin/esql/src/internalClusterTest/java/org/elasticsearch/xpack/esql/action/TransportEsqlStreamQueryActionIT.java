@@ -8,17 +8,25 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -198,6 +206,51 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
         assertThat("there is nothing to store", getPageDocuments(streamId), empty());
     }
 
+    public void testStoreFailureIsReportedInTheLastLine() throws Exception {
+        int docCount = indexDocs();
+        boolean limited = randomBoolean();
+        int maxRows = limited ? randomIntBetween(10, docCount - 1) : docCount;
+        StreamOptions options = new StreamOptions(
+            randomFrom(StreamOptions.Store.OVERFLOW, StreamOptions.Store.ALL),
+            limited ? maxRows : StreamOptions.NO_LIMIT,
+            StreamOptions.NO_LIMIT
+        );
+
+        List<String> lines = executeStream(
+            failingClient(),
+            directExecutorBulks(),
+            "FROM " + SOURCE_INDEX + " | LIMIT " + docCount,
+            options
+        );
+
+        assertThat(lines, hasSize(maxRows + 2));
+        Map<String, Object> last = parseJson(lines.getLast());
+        assertThat(last.get("complete"), equalTo(false));
+        assertThat(last.get("status"), equalTo(500));
+        assertThat(last, hasKey("error"));
+    }
+
+    private Client failingClient() {
+        return new FilterClient(client()) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                listener.onFailure(new IllegalStateException("bulk failed"));
+            }
+        };
+    }
+
+    private EscfBulkService directExecutorBulks() {
+        return new EscfBulkService(
+            internalCluster().getInstance(IndexingPressure.class),
+            Runnable::run,
+            BigArrays.NON_RECYCLING_INSTANCE.bytesRefRecycler()
+        );
+    }
+
     private static Map<String, Object> parseJson(String header) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, header, false);
     }
@@ -218,6 +271,14 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
     }
 
     private List<String> executeStream(String query, StreamOptions options) throws IOException {
+        return executeStream(client(), query, options);
+    }
+
+    private List<String> executeStream(Client storeClient, String query, StreamOptions options) throws IOException {
+        return executeStream(storeClient, internalCluster().getInstance(EscfBulkService.class), query, options);
+    }
+
+    private List<String> executeStream(Client storeClient, EscfBulkService bulks, String query, StreamOptions options) throws IOException {
         PlainActionFuture<RestResponse> responseFuture = new PlainActionFuture<>();
         var channel = new AbstractRestChannel(new FakeRestRequest(), true) {
             @Override
@@ -228,9 +289,9 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
         var listener = new EsqlStreamResponseListener(
             channel,
             client().threadPool().getThreadContext(),
-            client(),
+            storeClient,
             ProjectId.DEFAULT,
-            internalCluster().getInstance(EscfBulkService.class),
+            bulks,
             internalCluster().getInstance(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST),
             options
         );

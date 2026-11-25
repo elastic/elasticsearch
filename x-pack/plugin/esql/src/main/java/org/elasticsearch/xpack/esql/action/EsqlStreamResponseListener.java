@@ -139,7 +139,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private final AtomicLong rowsWritten = new AtomicLong();
     private final AtomicLong bytesWritten = new AtomicLong();
     private volatile SystemIndexStreamWriter writer;
-    private volatile boolean storeFailed;
+    private volatile Exception storeFailure;
     private volatile String streamId;
     private final AtomicLong pagesSeen = new AtomicLong();
     private final AtomicLong rowsSeen = new AtomicLong();
@@ -179,6 +179,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
      * captured context, so the line is the same whichever thread ends the response.
      */
     private ChunkedRestResponseBodyPart limitFooterPart() {
+        Exception failure = storeFailure;
+        if (failure != null) {
+            return new NdjsonFooterBodyPart(fallbackFailureFooter(failure), false);
+        }
         long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000L;
         PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
             RestStatus.OK.getStatus(),
@@ -316,16 +320,20 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     void onStoreFailure(Exception e) {
         logger.warn("Failed to store stream data", e);
-        storeFailed = true;
-        Flow.Subscription subscription = subscriber.subscription;
-        if (subscription != null && limitReached()) {
-            subscription.cancel();
+        storeFailure = e;
+        if (limitReached()) {
+            finishAtLimit();
+            Flow.Subscription subscription = subscriber.subscription;
+            if (subscription != null) {
+                subscription.cancel();
+            }
         }
     }
 
     private void requestNextPage() {
         Flow.Subscription subscription = subscriber.subscription;
-        if (storeFailed && limitReached()) {
+        if (storeFailure != null && limitReached()) {
+            finishAtLimit();
             subscription.cancel();
         } else if (writer == null) {
             subscription.request(1);
@@ -546,7 +554,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             }
             if (terminalEmitted.compareAndSet(false, true)) {
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
-                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer, true);
+                Exception failure = storeFailure;
+                ChunkedRestResponseBodyPart footerPart = failure == null
+                    ? new NdjsonFooterBodyPart(footer, true)
+                    : new NdjsonFooterBodyPart(footerWithError(footer, failure), false);
                 if (responseSent == false) {
                     responseSent = true;
                     synchronized (continuationMonitor) {

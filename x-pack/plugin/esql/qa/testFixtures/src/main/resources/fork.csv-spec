@@ -1549,18 +1549,22 @@ required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: fork_merge_keeps_metadata_score
 
+// tag::forkFollowedByRuntimeMatchAddsScore[]
 FROM books METADATA _score
 | EVAL content = TO_TEXT(CONCAT(title, " ", description))
 | FORK (WHERE year >= 2005 AND MATCH(author, "Tolstoy") | LIMIT 1000) (WHERE year < 2005 AND MATCH(author, "Tolstoy") | LIMIT 1000)
 | WHERE MATCH(content, "Karenina Tolstoy")
 | KEEP book_no, _score, _fork
 | SORT book_no
+// end::forkFollowedByRuntimeMatchAddsScore[]
 ;
 
+// tag::forkFollowedByRuntimeMatchAddsScore-result[]
 book_no:keyword | _score:double | _fork:keyword
 2776            | 3.4850850105285645 | fork2
 6818            | 3.4850850105285645 | fork1
 7400            | 3.9395787715911865 | fork1
+// end::forkFollowedByRuntimeMatchAddsScore-result[]
 ;
 
 // A branch that computed its own _score keeps the merged column out of scoring, so the runtime MATCH adds nothing.
@@ -1570,18 +1574,22 @@ required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: fork_merge_keeps_metadata_score
 
+// tag::forkWithUserDefinedScoreFollowedByRuntimeMatchDoesNotAddScore[]
 FROM books METADATA _score
 | EVAL content = TO_TEXT(CONCAT(title, " ", description))
-| FORK (WHERE year >= 2005 | EVAL _score = 100.0 | LIMIT 1000) (WHERE year < 2005 | LIMIT 1000)
+| FORK (WHERE year >= 2005 AND MATCH(author, "Tolstoy") | EVAL _score = 100.0 | LIMIT 1000) (WHERE year < 2005 AND MATCH(author, "Tolstoy") | LIMIT 1000)
 | WHERE MATCH(content, "Karenina Tolstoy")
 | KEEP book_no, _score, _fork
 | SORT book_no
+// end::forkWithUserDefinedScoreFollowedByRuntimeMatchDoesNotAddScore[]
 ;
 
+// tag::forkWithUserDefinedScoreFollowedByRuntimeMatchDoesNotAddScore-result[]
 book_no:keyword | _score:double | _fork:keyword
-2776            | 0.0           | fork2
+2776            | 2.4850850105285645 | fork2
 6818            | 100.0         | fork1
 7400            | 100.0         | fork1
+// end::forkWithUserDefinedScoreFollowedByRuntimeMatchDoesNotAddScore-result[]
 ;
 
 // One of the FORK branches drops _score column; runtime MATCH should still add its score to the other branch's _score.

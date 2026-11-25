@@ -297,42 +297,19 @@ branch does with `_score` decides that:
   merged column user-defined. The runtime search filters rows but adds no score to any of them, including rows from
   the other branches.
 
-In this example, each branch ends with `LIMIT`, so the `MATCH` runs after the merge. It adds 1.0 for each query term
-that a row matches:
+In this example, each branch scores its rows with a `MATCH` on the indexed `author` field and ends with `LIMIT`, so the
+`MATCH` on `content` runs after the merge. It adds 1.0 for each query term that a row matches to the score each branch
+produced:
 
-```esql
-FROM books METADATA _score
-| EVAL content = TO_TEXT(CONCAT(title, " ", description))
-| FORK (WHERE year >= 2005 | LIMIT 1000) (WHERE year < 2005 | LIMIT 1000)
-| WHERE MATCH(content, "Karenina Tolstoy")
-| KEEP book_no, _score, _fork
-| SORT book_no
-```
-
-| book_no:keyword | _score:double | _fork:keyword |
-| --- | --- | --- |
-| 2776 | 1.0 | fork2 |
-| 6818 | 1.0 | fork1 |
-| 7400 | 2.0 | fork1 |
+:::{include} _snippets/generated/x-pack-esql/commands/examples/fork.csv-spec/forkFollowedByRuntimeMatchAddsScore.md
+:::
 
 If the first branch sets its own `_score` instead, the same `MATCH` returns the same rows but adds no score. The rows
 from the first branch keep the computed value and the rows from the second branch keep their score from before the
 search:
 
-```esql
-FROM books METADATA _score
-| EVAL content = TO_TEXT(CONCAT(title, " ", description))
-| FORK (WHERE year >= 2005 | EVAL _score = 100.0 | LIMIT 1000) (WHERE year < 2005 | LIMIT 1000)
-| WHERE MATCH(content, "Karenina Tolstoy")
-| KEEP book_no, _score, _fork
-| SORT book_no
-```
-
-| book_no:keyword | _score:double | _fork:keyword |
-| --- | --- | --- |
-| 2776 | 0.0 | fork2 |
-| 6818 | 100.0 | fork1 |
-| 7400 | 100.0 | fork1 |
+:::{include} _snippets/generated/x-pack-esql/commands/examples/fork.csv-spec/forkWithUserDefinedScoreFollowedByRuntimeMatchDoesNotAddScore.md
+:::
 
 :::{note}
 A `WHERE MATCH(...)` written after `FORK` can be pushed into the branches, where it can still add to a branch's live

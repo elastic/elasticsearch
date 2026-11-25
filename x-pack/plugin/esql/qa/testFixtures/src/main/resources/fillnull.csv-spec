@@ -582,6 +582,7 @@ emp_no:integer | _index:keyword
 // passes on and `ON *` leaves it alone.
 fillNullAllFieldsLeavesInjectedMetadataColumnAloneAfterUnion
 required_capability: fillnull_all_columns_fills_query_made_metadata_column
+required_capability: subquery_in_from_command
 
 FROM
   (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),

@@ -1671,6 +1671,62 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    private void createOptionalLabelMetricsIndex(String index) {
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.mode", "time_series")
+                        .putList("index.routing_path", "cluster", "host")
+                        .put("index.time_series.start_time", "2024-05-10T00:00:00Z")
+                        .put("index.time_series.end_time", "2024-05-10T01:00:00Z")
+                )
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "cluster",
+                    "type=keyword,time_series_dimension=true",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "optional",
+                    "type=keyword,time_series_dimension=true",
+                    "region",
+                    "type=keyword,time_series_dimension=true",
+                    "__name__",
+                    "type=keyword,time_series_dimension=true",
+                    "le",
+                    "type=keyword,time_series_dimension=true",
+                    "event",
+                    "type=keyword",
+                    "tx",
+                    "type=double,time_series_metric=gauge",
+                    "rx",
+                    "type=double,time_series_metric=gauge"
+                )
+        );
+        ensureGreen(index);
+    }
+
+    private void indexPromqlSample(String index, Object... fields) {
+        Object[] source = new Object[fields.length + 2];
+        source[0] = "@timestamp";
+        source[1] = PROMQL_QUERY_TIME;
+        System.arraycopy(fields, 0, source, 2, fields.length);
+        client().prepareIndex(index).setSource(source).get();
+    }
+
+    private static String promqlQuery(String index, String expression) {
+        return "PROMQL index="
+            + index
+            + " start=\""
+            + PROMQL_QUERY_TIME
+            + "\" end=\""
+            + PROMQL_QUERY_TIME
+            + "\" step=1m result=("
+            + expression
+            + ")";
+    }
+
     private void indexHistogramSample(String index, String name, String le, double tx) {
         client().prepareIndex(index)
             .setSource("@timestamp", PROMQL_QUERY_TIME, "cluster", "prod", "host", "a", "__name__", name, "le", le, "tx", tx)

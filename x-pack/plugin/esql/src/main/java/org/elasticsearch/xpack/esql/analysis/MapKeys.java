@@ -149,8 +149,10 @@ public final class MapKeys {
      *     <li>The child column of that name that the source of the map provides, where there is one: {@code FROM} resolves the
      *     names the query uses per shard, so the column holds a key of one index beside the mapped or loaded values of another.
      *     It is hidden, see {@link #hideKeys}.</li>
-     *     <li>Otherwise the key in the value of the map, for a map with no index behind it: the output of a view, of a join or an
-     *     enrich, or of an aggregate.</li>
+     *     <li>Otherwise the key in the value of the map. That is the only read there is for a map with no index behind it: the
+     *     output of a view or of an aggregate. A lookup index and an enrich policy do have an index behind them, and should provide
+     *     child columns as {@code FROM} does, so that a join loads the one key and not the whole map. They do not yet: today a key
+     *     of their maps is read from the value.</li>
      * </ul>
      * Either way the map has to be in the output, and no projection may have excluded the name (rule 4).
      */

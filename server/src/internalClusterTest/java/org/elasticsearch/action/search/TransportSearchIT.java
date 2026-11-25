@@ -16,8 +16,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -504,7 +502,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             for (boolean resp : responses.asList()) {
                 assertTrue(resp);
             }
-            assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+            assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
         }
 
         try {
@@ -550,7 +548,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                     ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
                 );
             }
-            assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+            assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
             assertBusy(MockSearchService::assertNoInFlightContext);
         } finally {
             updateClusterSettings(
@@ -604,7 +602,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         for (Exception exc : exceptions.asList()) {
             assertThat(exc.getCause().getMessage(), containsString("boom"));
         }
-        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+        assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
     }
 
     public void testResponseOverNetworkPassesRequestBreaker() throws Exception {
@@ -644,7 +642,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             receiverTransport.clearAllRules();
         }
         assertSame(requestBreaker, responseBreaker.get());
-        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+        assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
     }
 
     private void indexSomeDocs(String indexName, int numberOfShards, int numberOfDocs) {
@@ -655,15 +653,6 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         indicesAdmin().prepareRefresh(indexName).get();
-    }
-
-    private long requestBreakerUsed() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
-        long estimated = 0;
-        for (NodeStats nodeStats : stats.getNodes()) {
-            estimated += nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getEstimated();
-        }
-        return estimated;
     }
 
     /**

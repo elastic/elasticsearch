@@ -47,7 +47,6 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
 
     public void testDescribeAfterIntoIsRejected() {
         analyzer().error("ROW a = 1 | INTO dst | DESCRIBE", containsString("INTO must be the last command of the query"));
-        assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     public void testSyntheticAttributesStrippedFromChildOutput() {

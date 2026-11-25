@@ -143,6 +143,15 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
         return commandName;
     }
 
+    /**
+     * The source command that reads this relation, or {@code null} for a relation that no source command reads, such as the index
+     * of a {@code LOOKUP JOIN}.
+     */
+    @Nullable
+    public SourceCommand sourceCommand() {
+        return SourceCommand.fromName(commandName);
+    }
+
     @Override
     public boolean expressionsResolved() {
         return false;

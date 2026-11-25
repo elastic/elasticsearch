@@ -49,7 +49,7 @@ import java.util.function.Function;
  * {@code _sequence} (long — which match a row belongs to), {@code _sequence_stage} (int — stage index within
  * the match) and {@code join_keys} (keyword — the match's join keys). Columns are emitted in schema order and
  * dispatched by attribute class, not by name; a mapped field literally named {@code _sequence}/{@code join_keys}
- * that would collide with a synthetic is rejected upstream at analysis (see {@code Analyzer.ResolveEqlRelation}).
+ * is shadowed by the synthetic and dropped upstream at analysis (see {@code Analyzer.ResolveEqlRelation}).
  *
  * <p>Field values come from the EQL response's fields API ({@link Event#fetchFields()}); the request asks for
  * every convertible field (see {@link EqlRequests}). A field absent from an event, or an event that the EQL
@@ -147,7 +147,7 @@ public final class EqlPageConverter {
     /**
      * The value for one column of one row: a synthetic derived from the match, a {@code METADATA} provenance value
      * from the event envelope, or a field pulled from the event's fields API. Dispatch is by attribute class, not by
-     * name; a mapped field colliding with a declared metadata column of the same name is rejected upstream at analysis.
+     * name; a mapped field named like a declared metadata column is shadowed by it and dropped upstream at analysis.
      */
     private static Object valueFor(Attribute attr, Row row) {
         if (attr instanceof ReferenceAttribute) {

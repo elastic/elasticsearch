@@ -13,12 +13,24 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FilterCollector;
+import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -34,6 +46,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class SkipperPruningTests extends ESTestCase {
@@ -116,6 +129,78 @@ public class SkipperPruningTests extends ESTestCase {
     public void testMatchTailWithMissingFirstAndNoSkipperOrPoints() throws IOException {
         int numDocs = atLeast(1000);
         assertThat(firstCompetitiveDocOfMatchTail(numDocs, 0, Indexing.NONE), equalTo(NO_COMPETITIVE_ITERATOR));
+    }
+
+    /**
+     * The queue is full after the first segment, whose timestamps are the smallest. The second segment then has no competitive
+     * document, so only the tail can set the bottom again. The collector must still read only the tail of that segment.
+     */
+    public void testMatchTailOnSegmentAfterQueueIsFull() throws IOException {
+        int numHits = between(1, 10);
+        int numDocsPerSegment = atLeast(1000);
+        try (Directory dir = newDirectory()) {
+            SortField timestampSort = new SortField("@timestamp", SortField.Type.LONG, true);
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random())).setIndexSort(new Sort(timestampSort))
+                .setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter indexWriter = new IndexWriter(dir, iwc)) {
+                for (int segment = 0; segment < 2; segment++) {
+                    for (int i = 0; i < numDocsPerSegment; i++) {
+                        Document doc = new Document();
+                        doc.add(NumericDocValuesField.indexedField("@timestamp", 1_000_000L * (segment + 1) + i));
+                        indexWriter.addDocument(doc);
+                    }
+                    indexWriter.commit();
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves().size(), equalTo(2));
+                SortedNumericIndexFieldData fd = new SortedNumericIndexFieldData(
+                    "@timestamp",
+                    IndexNumericFieldData.NumericType.LONG,
+                    CoreValuesSourceType.NUMERIC,
+                    null,
+                    IndexType.skippers()
+                );
+                LongValuesComparatorSource source = new LongValuesComparatorSource(
+                    fd,
+                    null,
+                    MultiValueMode.MIN,
+                    null,
+                    IndexNumericFieldData.NumericType.LONG
+                );
+                source.setMatchTailQuery();
+                Sort sort = new Sort(new SortField("@timestamp", source, false));
+                TopFieldCollector collector = new TopFieldCollectorManager(sort, numHits, null, 0).newCollector();
+                int[] collectedPerLeaf = new int[2];
+                new IndexSearcher(reader).search(new MatchAllDocsQuery(), countingCollector(collector, collectedPerLeaf));
+                assertThat(collector.topDocs().scoreDocs.length, equalTo(numHits));
+                assertThat(collectedPerLeaf[1], lessThanOrEqualTo(numHits + 1));
+                // The tail is set before any hit, so the first segment also reads only its tail
+                assertThat(collectedPerLeaf[0], lessThanOrEqualTo(numHits + 1));
+            }
+        }
+    }
+
+    /** Counts the documents that each leaf collects, and keeps the competitive iterator of the collector. */
+    private static Collector countingCollector(Collector in, int[] collectedPerLeaf) {
+        return new FilterCollector(in) {
+            @Override
+            public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                LeafCollector leaf = super.getLeafCollector(context);
+                return new FilterLeafCollector(leaf) {
+                    @Override
+                    public void collect(int doc) throws IOException {
+                        collectedPerLeaf[context.ord]++;
+                        super.collect(doc);
+                    }
+
+                    @Override
+                    public DocIdSetIterator competitiveIterator() throws IOException {
+                        return leaf.competitiveIterator();
+                    }
+                };
+            }
+        };
     }
 
     private static final int NO_COMPETITIVE_ITERATOR = -1;

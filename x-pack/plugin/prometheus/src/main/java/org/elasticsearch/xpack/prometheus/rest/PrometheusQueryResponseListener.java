@@ -19,7 +19,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
@@ -46,6 +46,8 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.IntConsumer;
 
 /**
  * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
@@ -53,7 +55,8 @@ import java.util.Map;
  * <p>
  * The body is never built as one in-memory buffer: a contiguous buffer for a large result grows past the 2 GB
  * array limit and kills the node with an {@link OutOfMemoryError}. Each series is serialized in slices of at most
- * {@link #SAMPLES_PER_CHUNK} samples, so a chunk stays small even for a single series with many samples.
+ * {@link #SAMPLES_PER_CHUNK} samples, so a chunk stays small even for a single series with many samples. Each page of
+ * the result is released as soon as it has been serialized, so memory goes down while the body is sent.
  * <p>
  * Supports two query modes:
  * <ul>
@@ -127,23 +130,31 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     @Override
     public void onResponse(EsqlQueryResponse queryResponse) {
         // Do not close queryResponse here - the transport framework's respondAndRelease handles its own decRef.
-        // The body is serialized lazily from the response's pages after this callback returns, so take an extra
-        // reference and release it once the chunked body has been fully written (or the channel is closed).
+        // The body is serialized lazily from the response's pages after this callback returns, so keep a reference
+        // to the blocks of each page and release it once that page has been serialized (or the channel is closed).
+        OwnedPages pages = OwnedPages.copyOf(queryResponse.pages());
         ChunkedToXContent body;
         try {
-            body = toChunkedXContent(queryResponse.pages(), queryResponse.columns(), queryResponse.zoneId(), resultType, mode, limit);
+            body = toChunkedXContent(
+                pages.pages(),
+                queryResponse.columns(),
+                queryResponse.zoneId(),
+                resultType,
+                mode,
+                limit,
+                pages::release
+            );
         } catch (Exception e) {
+            pages.close();
             sendErrorResponse(e);
             return;
         }
-        queryResponse.mustIncRef();
-        var release = Releasables.assertOnce(queryResponse::decRef);
         try {
             channel.sendResponse(
-                RestResponse.chunked(RestStatus.OK, ChunkedRestResponseBodyPart.fromXContent(body, channel.request(), channel), release)
+                RestResponse.chunked(RestStatus.OK, ChunkedRestResponseBodyPart.fromXContent(body, channel.request(), channel), pages)
             );
         } catch (Exception e) {
-            release.close();
+            pages.close();
             sendErrorResponse(e);
         }
     }
@@ -188,9 +199,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         int limit
     ) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        Iterator<? extends ToXContent> chunks = toChunkedXContent(pages, columns, zoneId, resultType, mode, limit).toXContentChunked(
-            ToXContent.EMPTY_PARAMS
-        );
+        Iterator<? extends ToXContent> chunks = toChunkedXContent(pages, columns, zoneId, resultType, mode, limit, page -> {})
+            .toXContentChunked(ToXContent.EMPTY_PARAMS);
         while (chunks.hasNext()) {
             chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
@@ -200,7 +210,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     /**
      * Same as {@link #convertToPrometheusJson} but as a {@link ChunkedToXContent}, so the body can be streamed to the client
      * instead of being built as one contiguous buffer. Everything that can reject the response (missing columns, misaligned
-     * step/value counts) is checked eagerly here, before any byte is sent.
+     * step/value counts) is checked eagerly here, before any byte is sent. {@code onPageWritten} is called with the index of
+     * each page once its last row has been serialized, so the caller can release it.
      */
     static ChunkedToXContent toChunkedXContent(
         List<Page> pages,
@@ -208,7 +219,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         ZoneId zoneId,
         String resultType,
         QueryMode mode,
-        int limit
+        int limit,
+        IntConsumer onPageWritten
     ) {
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
@@ -232,33 +244,39 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
 
         // The first `limit` rows are emitted; empty series count towards the limit.
         int totalRows = 0;
-        for (Page page : pages) {
+        final int[] emittedRows = new int[pages.size()];
+        for (int i = 0; i < pages.size(); i++) {
+            Page page = pages.get(i);
             DoubleBlock valueBlock = (DoubleBlock) page.getBlock(VALUE_COL_IDX);
             LongBlock stepBlock = (LongBlock) page.getBlock(stepColIdx);
             for (int position = 0; position < page.getPositionCount(); position++) {
                 if (totalRows < limit) {
                     sampleCount(valueBlock, stepBlock, position);
+                    emittedRows[i]++;
                 }
                 totalRows++;
             }
         }
         final boolean truncated = totalRows > limit;
-        final int emittedRows = truncated ? limit : totalRows;
 
         return params -> {
             BytesRef scratch = new BytesRef();
             StringBuilder valueBuffer = new StringBuilder(24);
-            Iterator<Row> rows = Iterators.limit(
-                Iterators.flatMap(
-                    pages.iterator(),
-                    page -> Iterators.forRange(0, page.getPositionCount(), position -> new Row(page, position))
-                ),
-                emittedRows
-            );
-            Iterator<ToXContent> series = Iterators.flatMap(
-                Iterators.filter(rows, row -> row.sampleCount(stepColIdx) > 0),
-                row -> seriesChunks(row, mode, columns, zoneId, stepColIdx, useSeriesCol, scratch, valueBuffer)
-            );
+            Iterator<ToXContent> series = Iterators.flatMap(Iterators.forRange(0, pages.size(), index -> index), index -> {
+                Page page = pages.get(index);
+                Iterator<Row> rows = Iterators.forRange(0, emittedRows[index], position -> new Row(page, position));
+                return Iterators.concat(
+                    Iterators.flatMap(
+                        Iterators.filter(rows, row -> row.sampleCount(stepColIdx) > 0),
+                        row -> seriesChunks(row, mode, columns, zoneId, stepColIdx, useSeriesCol, scratch, valueBuffer)
+                    ),
+                    // Every row of the page has been written into the body by now, so its blocks are no longer needed.
+                    Iterators.single((b, p) -> {
+                        onPageWritten.accept(index);
+                        return b;
+                    })
+                );
+            });
             return Iterators.concat(
                 Iterators.single(header),
                 ChunkedToXContentHelper.startArray("result"),
@@ -271,6 +289,43 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 ChunkedToXContentHelper.endObject() // root
             );
         };
+    }
+
+    /**
+     * The pages of a response, each holding its own reference to its blocks, so that each page can be released as soon as
+     * it has been serialized rather than when the whole response is released. Releasing is safe from any thread and more
+     * than once: a page is released either after it is written or, at the latest, when the response is closed.
+     */
+    private static final class OwnedPages implements Releasable {
+        private final List<Page> pages;
+        private final AtomicReferenceArray<Page> unreleased;
+
+        private OwnedPages(List<Page> pages) {
+            this.pages = pages;
+            this.unreleased = new AtomicReferenceArray<>(pages.toArray(Page[]::new));
+        }
+
+        static OwnedPages copyOf(List<Page> pages) {
+            return new OwnedPages(pages.stream().map(Page::shallowCopy).toList());
+        }
+
+        List<Page> pages() {
+            return pages;
+        }
+
+        void release(int index) {
+            Page page = unreleased.getAndSet(index, null);
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+
+        @Override
+        public void close() {
+            for (int i = 0; i < unreleased.length(); i++) {
+                release(i);
+            }
+        }
     }
 
     /** One row (one collapsed series) of the ES|QL response. */

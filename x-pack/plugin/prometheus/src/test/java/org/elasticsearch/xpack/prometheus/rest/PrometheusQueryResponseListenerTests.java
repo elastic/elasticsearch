@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
@@ -730,7 +732,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
     /**
      * A large result must be streamed, not built as one in-memory body: a single contiguous buffer grows past the 2 GB
      * array limit and kills the node (#165324). The body is serialized lazily from the response's pages, so the
-     * listener must keep the {@link EsqlQueryResponse} alive until the REST response is released.
+     * listener must keep their blocks alive after the {@link EsqlQueryResponse} itself is released.
      */
     public void testOnResponseStreamsChunkedBodyAndReleasesResponse() throws IOException {
         List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("job", "keyword"), col("step", "long"));
@@ -740,6 +742,8 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
             rows.add(List.of(List.of((double) i, i + 0.5), "job-" + i, List.of(1735689600000L, 1735689660000L)));
         }
         EsqlQueryResponse queryResponse = queryResponse(columns, rows);
+        // the page itself is released with the response; its blocks are what the listener keeps
+        Block valueBlock = queryResponse.pages().get(0).getBlock(0);
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
         new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(queryResponse);
         // what ActionListener.respondAndRelease does once onResponse returns
@@ -748,7 +752,8 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         RestResponse restResponse = channel.capturedResponse();
         assertThat(restResponse.status(), equalTo(RestStatus.OK));
         assertTrue("expected a chunked response", restResponse.isChunked());
-        assertTrue("the response pages must stay alive while the body is written", queryResponse.hasReferences());
+        assertFalse("the listener holds the blocks, not the response", queryResponse.hasReferences());
+        assertFalse("the blocks must stay alive while the body is written", valueBlock.isReleased());
 
         ObjectPath path = toObjectPath(RestResponseUtils.getBodyContent(restResponse));
         assertSuccessMatrix(path);
@@ -758,7 +763,107 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         assertThat(path.evaluate("data.result." + last + ".values.1"), equalTo(List.of(1735689660.0, Double.toString(last + 0.5))));
 
         restResponse.close();
-        assertFalse("the response must be released with the REST response", queryResponse.hasReferences());
+        assertTrue("the blocks must be released with the REST response", valueBlock.isReleased());
+    }
+
+    /**
+     * Each page is released once it has been serialized, so memory goes down while a large body is sent, rather than
+     * staying at the size of the whole result until the last chunk. Pages are larger than a piece, so chunk boundaries
+     * fall inside them.
+     */
+    public void testPagesAreReleasedAsTheyAreWritten() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("job", "keyword"), col("step", "long"));
+        int pageCount = between(2, 5);
+        int samples = PrometheusQueryResponseListener.SAMPLES_PER_CHUNK * 2;
+        List<Page> pages = new ArrayList<>(pageCount);
+        for (int i = 0; i < pageCount; i++) {
+            pages.add(longSeriesPage("job-" + i, samples, i * 100_000));
+        }
+        List<Block> valueBlocks = pages.stream().<Block>map(page -> page.getBlock(0)).toList();
+        EsqlQueryResponse queryResponse = new EsqlQueryResponse(columns, pages, 0, 0, null, false, false, ZoneOffset.UTC, 0, 0, null);
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(queryResponse);
+        queryResponse.decRef();
+
+        RestResponse restResponse = channel.capturedResponse();
+        ChunkedRestResponseBodyPart body = restResponse.chunkedContent();
+        int released = 0;
+        boolean releasedWhileSending = false;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            while (body.isPartComplete() == false) {
+                try (var chunk = body.encodeChunk(1, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                    chunk.writeTo(out);
+                }
+                int releasedNow = releasedPrefix(valueBlocks);
+                assertThat("pages are released in order", releasedNow, greaterThanOrEqualTo(released));
+                for (int i = releasedNow; i < pageCount; i++) {
+                    assertFalse("page [" + i + "] released out of order", valueBlocks.get(i).isReleased());
+                }
+                String written = out.bytes().utf8ToString();
+                for (int i = 0; i < releasedNow; i++) {
+                    // a page is released only once its series, up to its last sample, is in the body
+                    String lastSample = "\"" + (double) (i * 100_000 + samples - 1) + "\"]]}";
+                    assertThat("page [" + i + "] released before it was written", written, containsString(lastSample));
+                }
+                releasedWhileSending |= releasedNow > 0 && releasedNow < pageCount;
+                released = releasedNow;
+            }
+            assertTrue("pages are released while the body is being sent", releasedWhileSending);
+            assertThat("every page is released once the body is written", released, equalTo(pageCount));
+            ObjectPath path = toObjectPath(out.bytes());
+            assertThat(path.evaluate("data.result"), hasSize(pageCount));
+            assertThat(path.evaluate("data.result." + (pageCount - 1) + ".values"), hasSize(samples));
+        }
+        restResponse.close();
+    }
+
+    /** A client that disconnects before the body is written must not leak the pages that were not written yet. */
+    public void testUnwrittenPagesAreReleasedWhenResponseIsClosed() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("job", "keyword"), col("step", "long"));
+        int samples = PrometheusQueryResponseListener.SAMPLES_PER_CHUNK * 2;
+        List<Page> pages = List.of(longSeriesPage("a", samples, 0), longSeriesPage("b", samples, 0));
+        List<Block> blocks = new ArrayList<>();
+        for (Page page : pages) {
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                blocks.add(page.getBlock(b));
+            }
+        }
+        EsqlQueryResponse queryResponse = new EsqlQueryResponse(columns, pages, 0, 0, null, false, false, ZoneOffset.UTC, 0, 0, null);
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(queryResponse);
+        queryResponse.decRef();
+
+        RestResponse restResponse = channel.capturedResponse();
+        try (var chunk = restResponse.chunkedContent().encodeChunk(1, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            assertThat(chunk.length(), greaterThan(0));
+        }
+        for (Block block : blocks) {
+            assertFalse("no page is fully written after the first chunk", block.isReleased());
+        }
+        restResponse.close();
+        for (Block block : blocks) {
+            assertTrue("closing the response releases the pages that were not written", block.isReleased());
+        }
+    }
+
+    /** A page with one series of {@code samples} samples whose values start at {@code firstValue}. */
+    private static Page longSeriesPage(String job, int samples, long firstValue) {
+        List<Double> values = new ArrayList<>(samples);
+        List<Long> steps = new ArrayList<>(samples);
+        for (int i = 0; i < samples; i++) {
+            values.add((double) (firstValue + i));
+            steps.add(1735689600000L + i * 1000L);
+        }
+        return pageOf(List.of(List.of(values, job, steps)));
+    }
+
+    /** The number of leading blocks that have been released. */
+    private static int releasedPrefix(List<Block> blocks) {
+        int released = 0;
+        while (released < blocks.size() && blocks.get(released).isReleased()) {
+            released++;
+        }
+        return released;
     }
 
     /**
@@ -827,7 +932,11 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         if (rows.isEmpty()) {
             return List.of();
         }
-        return List.of(new Page(BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows)));
+        return List.of(pageOf(rows));
+    }
+
+    private static Page pageOf(List<List<Object>> rows) {
+        return new Page(BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows));
     }
 
     private static void assertSuccessMatrix(ObjectPath path) throws IOException {

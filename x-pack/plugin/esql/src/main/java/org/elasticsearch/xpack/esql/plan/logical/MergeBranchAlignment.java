@@ -110,9 +110,13 @@ public final class MergeBranchAlignment {
      * <p>
      * Preserves {@link Attribute#synthetic()}, so a fill of a synthetic merge column (e.g. a union-type
      * {@code $$field$converted_to$type} cast) stays invisible to the removal of synthetic attributes from the query's output.
+     * <p>
+     * Marked a null fill ({@link Alias#nullFill()}): a branch padded with nulls for a column a sibling has did not make that
+     * column, so {@code FILLNULL ON *} treats it as the metadata a merge passes on and leaves it alone; see
+     * {@link MergePlan#mergesColumnThatTheQueryMade}.
      */
     private static Alias nullFill(Source source, Attribute column) {
-        return new Alias(source, column.name(), new Literal(source, null, nullFillType(column)), null, column.synthetic());
+        return new Alias(source, column.name(), new Literal(source, null, nullFillType(column)), null, column.synthetic(), true);
     }
 
     /**

@@ -554,6 +554,49 @@ emp_no:integer | _index:keyword | gender:keyword
 10001          | employees      | M
 ;
 
+// A column the query itself made with a metadata name is an ordinary column, so `ON *` fills it, even when a FORK turns it into a
+// merge column whose rows are all null. Only the metadata a merge passes on is left alone.
+fillNullAllFieldsFillsQueryMadeMetadataColumnThroughFork
+required_capability: fillnull_all_columns_fills_query_made_metadata_column
+required_capability: fork_v9
+
+FROM employees
+| WHERE emp_no <= 10002
+| KEEP emp_no
+| EVAL _index = NULL::keyword
+| FORK (WHERE true) (WHERE true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| FILLNULL "missing" ON *
+| KEEP emp_no, _index
+| SORT emp_no
+;
+warning:Line 8:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+
+emp_no:integer | _index:keyword
+10001          | missing
+10002          | missing
+;
+
+// The counterpart: the outer METADATA _index of a union is injected as nulls into the branches, so it is the metadata a merge
+// passes on and `ON *` leaves it alone.
+fillNullAllFieldsLeavesInjectedMetadataColumnAloneAfterUnion
+required_capability: fillnull_all_columns_fills_query_made_metadata_column
+
+FROM
+  (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),
+  (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, last_name) METADATA _index
+| FILLNULL "unknown" ON *
+| KEEP emp_no, _index
+| SORT emp_no
+;
+warning:Line 4:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+
+emp_no:integer | _index:keyword
+10001          | null
+10002          | null
+;
+
 fillNullOnMVField
 required_capability: fillnull
 

@@ -59,8 +59,20 @@ public class FillNullTests extends ESTestCase {
         return new UnionAll(Source.EMPTY, List.of(branches), output);
     }
 
-    /** A branch with a column that holds nothing but nulls, as the alignment of a union makes it, or as {@code EVAL x = null} does. */
+    /**
+     * A branch with a planner null fill ({@link Alias#nullFill()}) of the given column: the null the analyzer injects for an outer
+     * {@code METADATA} field, or that branch alignment pads a missing column with. Left alone by a {@code *}.
+     */
     private static Eval withNullColumn(LogicalPlan branch, String name) {
+        return new Eval(
+            Source.EMPTY,
+            branch,
+            List.of(new Alias(Source.EMPTY, name, new Literal(Source.EMPTY, null, DataType.KEYWORD), null, false, true))
+        );
+    }
+
+    /** A branch with a column the query wrote as a static null, as {@code EVAL x = null} does: not a planner null fill. */
+    private static Eval withUserNullColumn(LogicalPlan branch, String name) {
         return new Eval(Source.EMPTY, branch, List.of(new Alias(Source.EMPTY, name, new Literal(Source.EMPTY, null, DataType.KEYWORD))));
     }
 
@@ -188,6 +200,32 @@ public class FillNullTests extends ESTestCase {
             )) {
                 FillNull fill = allFields(output).replaceChild(union).withConfiguration(TEST_CFG);
                 assertEquals(name + " made by the query is filled", Set.of(name, "k"), filledNames(fill));
+            }
+        }
+    }
+
+    /**
+     * A column the query wrote as a static null, as in {@code EVAL _index = null | FORK ...}, is the query's own column, so a
+     * {@code *} fills it. It is told from the outer metadata a merge passes on - which reaches the branches as nulls too - by its
+     * provenance, not its value. See <a href="https://github.com/elastic/elasticsearch/issues/167195">#167195</a>.
+     */
+    public void testAllColumnsFillAMetadataNameTheQueryWroteAsNull() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+            Attribute merged = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            List<Attribute> output = List.of(merged, k);
+            LogicalPlan userNull = withUserNullColumn(childWith(List.of(k)), name);
+
+            // The query's own null next to a sibling that holds it as metadata or as the metadata a merge passes on is still filled.
+            Attribute metadata = new MetadataAttribute(Source.EMPTY, name, DataType.KEYWORD, false);
+            for (UnionAll union : List.of(
+                unionOf(output, userNull),
+                unionOf(output, userNull, userNull),
+                unionOf(output, userNull, withNullColumn(childWith(List.of(k)), name)),
+                unionOf(output, userNull, childWith(List.of(metadata, k)))
+            )) {
+                FillNull fill = allFields(output).replaceChild(union).withConfiguration(TEST_CFG);
+                assertEquals(name + " the query wrote as null is filled", Set.of(name, "k"), filledNames(fill));
             }
         }
     }

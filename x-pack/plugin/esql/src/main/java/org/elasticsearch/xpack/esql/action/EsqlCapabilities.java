@@ -4553,6 +4553,13 @@ public class EsqlCapabilities {
         FILLNULL_ALL_COLUMNS_SKIPS_METADATA_AFTER_UNION(FILLNULL.isEnabled()),
 
         /**
+         * {@code FILLNULL ... ON *} fills a column the query itself made with a metadata name, such as {@code EVAL _index = null},
+         * through a {@code FORK} or a union, where it used to leave such a column alone because its static nulls were taken for the
+         * metadata a merge passes on. See <a href="https://github.com/elastic/elasticsearch/issues/167195">#167195</a>.
+         */
+        FILLNULL_ALL_COLUMNS_FILLS_QUERY_MADE_METADATA_COLUMN(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of

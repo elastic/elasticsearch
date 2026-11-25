@@ -24,7 +24,8 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         // TODO better randomChild
         Expression child = randomReferenceAttribute(false);
         boolean synthetic = randomBoolean();
-        return new Alias(source, name, child, new NameId(), synthetic);
+        boolean nullFill = randomBoolean();
+        return new Alias(source, name, child, new NameId(), synthetic, nullFill);
     }
 
     @Override
@@ -38,12 +39,15 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         String name = instance.name();
         Expression child = instance.child();
         boolean synthetic = instance.synthetic();
+        // nullFill is deliberately not part of NamedExpression equality (it is a provenance hint, see Alias#nullFill), so it is
+        // carried over rather than mutated here. randomAlias still randomizes it, which exercises its serialization round trip.
+        boolean nullFill = instance.nullFill();
         switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> child = randomValueOtherThan(child, () -> randomReferenceAttribute(false));
             case 2 -> synthetic = false == synthetic;
         }
-        return new Alias(source, name, child, instance.id(), synthetic);
+        return new Alias(source, name, child, instance.id(), synthetic, nullFill);
     }
 
     @Override

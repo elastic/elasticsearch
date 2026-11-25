@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 167195
+pr: 167363
+summary: "`FILLNULL ON *` fills a query-made metadata-named null through a merge (snapshot builds only, as FILLNULL is not released yet)"
+type: bug

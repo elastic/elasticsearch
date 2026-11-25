@@ -1798,7 +1798,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     continue;
                 }
                 if (present.contains(field.name()) == false) {
-                    nullFills.add(new Alias(src, field.name(), new Literal(src, null, field.dataType())));
+                    // Mark it a null fill: this is the outer metadata the merge passes on, not a column the query made, so
+                    // FILLNULL ON * leaves it alone. See MergePlan#mergesColumnThatTheQueryMade and Alias#nullFill.
+                    nullFills.add(new Alias(src, field.name(), new Literal(src, null, field.dataType()), null, false, true));
                 }
             }
             return nullFills.isEmpty() ? plan : new Eval(src, plan, nullFills);

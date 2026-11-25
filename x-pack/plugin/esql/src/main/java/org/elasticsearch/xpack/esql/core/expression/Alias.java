@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +34,18 @@ import static java.util.Collections.singletonList;
 public final class Alias extends NamedExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(NamedExpression.class, "Alias", Alias::new);
 
+    public static final TransportVersion ESQL_ALIAS_NULL_FILL = TransportVersion.fromName("esql_alias_null_fill");
+
     private final Expression child;
+
+    /**
+     * Whether this alias is a null fill the planner inserted to carry a column through a merge that the query did not write: an
+     * outer {@code METADATA} column the analyzer injects into a union's branches, or a column a sibling branch has that branch
+     * alignment pads with nulls. Such a column is the metadata a merge passes on, not a value the query made, so {@code FILLNULL ON *}
+     * leaves it alone; see {@link org.elasticsearch.xpack.esql.plan.logical.MergePlan#mergesColumnThatTheQueryMade}. A plain
+     * {@code EVAL _index = null} the user wrote is not a null fill and is filled like any other column.
+     */
+    private final boolean nullFill;
 
     /**
      * Postpone attribute creation until it is actually created.
@@ -50,16 +62,29 @@ public final class Alias extends NamedExpression {
     }
 
     public Alias(Source source, String name, Expression child, @Nullable NameId id, boolean synthetic) {
+        this(source, name, child, id, synthetic, false);
+    }
+
+    public Alias(Source source, String name, Expression child, @Nullable NameId id, boolean synthetic, boolean nullFill) {
         super(source, name, singletonList(child), id, synthetic);
         this.child = child;
+        this.nullFill = nullFill;
     }
 
     @Deprecated
     /**
      * Old constructor from when this had a qualifier string. Still needed to not break serialization.
      */
-    private Alias(Source source, String name, String qualifier, Expression child, @Nullable NameId id, boolean synthetic) {
-        this(source, name, child, id, synthetic);
+    private Alias(
+        Source source,
+        String name,
+        String qualifier,
+        Expression child,
+        @Nullable NameId id,
+        boolean synthetic,
+        boolean nullFill
+    ) {
+        this(source, name, child, id, synthetic, nullFill);
     }
 
     public Alias(StreamInput in) throws IOException {
@@ -69,12 +94,18 @@ public final class Alias extends NamedExpression {
             in.readOptionalString(),
             in.readNamedWriteable(Expression.class),
             NameId.readFrom((PlanStreamInput) in),
-            in.readBoolean()
+            in.readBoolean(),
+            in.getTransportVersion().supports(ESQL_ALIAS_NULL_FILL) && in.readBoolean()
         );
     }
 
     public Alias withId(NameId id) {
-        return new Alias(source(), name(), child(), id, synthetic());
+        return new Alias(source(), name(), child(), id, synthetic(), nullFill);
+    }
+
+    /** See {@link #nullFill}. */
+    public boolean nullFill() {
+        return nullFill;
     }
 
     @Override
@@ -86,6 +117,9 @@ public final class Alias extends NamedExpression {
         out.writeNamedWriteable(child());
         id().writeTo(out);
         out.writeBoolean(synthetic());
+        if (out.getTransportVersion().supports(ESQL_ALIAS_NULL_FILL)) {
+            out.writeBoolean(nullFill);
+        }
     }
 
     @Override
@@ -95,17 +129,17 @@ public final class Alias extends NamedExpression {
 
     @Override
     protected NodeInfo<Alias> info() {
-        return NodeInfo.create(this, Alias::new, name(), child, id(), synthetic());
+        return NodeInfo.create(this, Alias::new, name(), child, id(), synthetic(), nullFill);
     }
 
     public Alias replaceChild(Expression child) {
         // these "nop" replacements can occur on attribute map resolutions having the default return same as the lookup key
-        return child == this.child ? this : new Alias(source(), name(), child, id(), synthetic());
+        return child == this.child ? this : new Alias(source(), name(), child, id(), synthetic(), nullFill);
     }
 
     @Override
     public Alias replaceChildren(List<Expression> newChildren) {
-        return new Alias(source(), name(), newChildren.get(0), id(), synthetic());
+        return new Alias(source(), name(), newChildren.get(0), id(), synthetic(), nullFill);
     }
 
     public Expression child() {

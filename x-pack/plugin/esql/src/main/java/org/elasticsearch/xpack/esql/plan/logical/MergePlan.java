@@ -336,21 +336,24 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * Whether a column of this merge that has the name of a metadata field, such as {@code _index}, is one that the query made, as
      * in {@code EVAL _index = x | FORK ...}, and not the metadata that the merge passes on. A merge outputs the column as a
      * reference attribute, which does not say which of the two it is, so it is decided from what each branch puts in it: the
-     * query made it when at least one branch has a column of that name that is not known to be null. A branch whose column is
-     * known to hold nothing but nulls has no say, because alignment fills in a column that a sibling has and the analyzer injects
-     * the outer {@code METADATA _index} as nulls into the branches of a union, and neither can be told from {@code EVAL _index = null}.
-     * That is a static property of the plan, not of the data: {@code EVAL _score = gender} is the query's own column even if every
-     * {@code gender} is null. A branch that outputs the column through a merge of its own is what that merge says.
+     * query made it when at least one branch has a column of that name that the query wrote, including one the query wrote as a
+     * static null, as in {@code EVAL _index = null}. A branch whose column is a planner null fill ({@link Alias#nullFill}) has no
+     * say: branch alignment pads a column that a sibling has, and the analyzer injects the outer {@code METADATA _index} as nulls
+     * into the branches of a union, and neither is a column the query wrote. The query's own static null is told from those by its
+     * provenance, not its value: {@code EVAL _score = gender} is the query's own column even if every {@code gender} is null. A
+     * branch that outputs the column through a merge of its own is what that merge says.
      */
     public boolean mergesColumnThatTheQueryMade(Attribute merged) {
         String name = merged.name();
-        // One walk for the columns that are known to be null, and one bottom-up pass over the merges, so that the work does not grow
-        // with the depth of the nesting: a merge reads what the merges below it decided for their columns from their ids.
+        // One walk each for the columns that are known to be null and the ones a planner null fill produced (see Alias#nullFill),
+        // and one bottom-up pass over the merges, so that the work does not grow with the depth of the nesting: a merge reads what
+        // the merges below it decided for their columns from their ids.
         Predicate<Attribute> nullOnly = producesOnlyNull(this);
+        Predicate<Attribute> nullFill = producesNullFill(this);
         Map<NameId, ColumnOrigin> originOfMergedColumn = new HashMap<>();
         forEachUp(plan -> {
             if (plan instanceof MergePlan merge) {
-                ColumnOrigin origin = merge.originFromBranches(name, nullOnly, originOfMergedColumn);
+                ColumnOrigin origin = merge.originFromBranches(name, nullOnly, nullFill, originOfMergedColumn);
                 for (Attribute out : merge.output()) {
                     if (out.name().equals(name)) {
                         originOfMergedColumn.put(out.id(), origin);
@@ -371,7 +374,12 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     /**
      * @param below what the merges below this one decided for their column of this name, by the id of that column in their output
      */
-    private ColumnOrigin originFromBranches(String name, Predicate<Attribute> nullOnly, Map<NameId, ColumnOrigin> below) {
+    private ColumnOrigin originFromBranches(
+        String name,
+        Predicate<Attribute> nullOnly,
+        Predicate<Attribute> nullFill,
+        Map<NameId, ColumnOrigin> below
+    ) {
         boolean metadata = false;
         for (LogicalPlan branch : children()) {
             // a branch that does not have the column contributes nulls to it
@@ -379,7 +387,10 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
             for (Attribute attr : branch.output()) {
                 if (attr.name().equals(name)) {
                     origin = attr instanceof MetadataAttribute ? ColumnOrigin.METADATA
-                        : nullOnly.test(attr) ? ColumnOrigin.NULLS
+                        // a planner null fill (injected outer metadata or branch alignment) is the metadata a merge passes on
+                        : nullFill.test(attr) ? ColumnOrigin.NULLS
+                        // a static null the query wrote, such as EVAL _index = null, is the query's own column
+                        : nullOnly.test(attr) ? ColumnOrigin.QUERY
                         : below.getOrDefault(attr.id(), ColumnOrigin.QUERY);
                     break;
                 }
@@ -461,6 +472,68 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     private static void markIfOnlyNull(Alias alias, Set<NameId> onlyNull) {
         if (isGuaranteedNull(alias.child(), onlyNull)) {
             onlyNull.add(alias.id());
+        }
+    }
+
+    /**
+     * Whether a column of {@code branch}'s output is a planner null fill ({@link Alias#nullFill}): a null the analyzer injected for
+     * an outer {@code METADATA} field, or that branch alignment padded a missing column with, as opposed to a static null the query
+     * wrote. {@link #mergesColumnThatTheQueryMade} uses this to tell the metadata a merge passes on from {@code EVAL _index = null}.
+     * <p>
+     * Follows the fill through aliases bottom-up, so a {@code RENAME} or {@code EVAL x = y} of a null fill is one too, and a nested
+     * {@link MergePlan}'s column is a null fill when every branch that outputs it does so as a null fill. A {@link FillNull} clears
+     * the mark from a column it fills, which carries a value from there on. Matched on the attribute's id, like
+     * {@link #producesOnlyNull}; walks {@code branch} once, so build one predicate per branch.
+     */
+    public static Predicate<Attribute> producesNullFill(LogicalPlan branch) {
+        Set<NameId> nullFill = new HashSet<>();
+        branch.forEachUp(plan -> {
+            switch (plan) {
+                case Eval eval -> eval.fields().forEach(alias -> markIfNullFill(alias, nullFill));
+                case Project project -> project.projections().forEach(ne -> {
+                    if (ne instanceof Alias alias) {
+                        markIfNullFill(alias, nullFill);
+                    }
+                });
+                case MergePlan merge -> {
+                    if (merge.children().isEmpty() == false) {
+                        // A merge column is a null fill only if every branch that outputs it does so as a null fill.
+                        Set<String> fillFromMerge = new HashSet<>();
+                        Set<String> notFill = new HashSet<>();
+                        for (LogicalPlan child : merge.children()) {
+                            for (Attribute childAttr : child.output()) {
+                                if (nullFill.contains(childAttr.id())) {
+                                    fillFromMerge.add(childAttr.name());
+                                } else {
+                                    notFill.add(childAttr.name());
+                                }
+                            }
+                        }
+                        fillFromMerge.removeAll(notFill);
+                        for (Attribute out : merge.output()) {
+                            if (fillFromMerge.contains(out.name())) {
+                                nullFill.add(out.id());
+                            }
+                        }
+                    }
+                }
+                case FillNull fillNull -> fillNull.child().output().forEach(attr -> {
+                    // FILLNULL gives the column a non-null value, so it is no longer the metadata a merge passed on. The command
+                    // keeps the column's id until the optimizer expands it, so the id marked below is the one to clear.
+                    if (fillNull.fills(attr)) {
+                        nullFill.remove(attr.id());
+                    }
+                });
+                default -> {
+                }
+            }
+        });
+        return attr -> nullFill.contains(attr.id());
+    }
+
+    private static void markIfNullFill(Alias alias, Set<NameId> nullFill) {
+        if (alias.nullFill() || (alias.child() instanceof Attribute attr && nullFill.contains(attr.id()))) {
+            nullFill.add(alias.id());
         }
     }
 

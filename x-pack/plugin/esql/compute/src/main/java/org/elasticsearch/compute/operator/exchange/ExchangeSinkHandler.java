@@ -41,6 +41,8 @@ public final class ExchangeSinkHandler {
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
     private volatile Consumer<Page> onPageDiscarded = page -> {};
+    /** Set once something on this node, such as a compute or a batch exchange, took the sink to write into. */
+    private volatile boolean owned;
 
     public ExchangeSinkHandler(int maxBufferSize, LongSupplier nowInMillis) {
         this.buffer = new ExchangeBuffer(maxBufferSize, page -> onPageDiscarded.accept(page));
@@ -127,6 +129,19 @@ public final class ExchangeSinkHandler {
      */
     public boolean isFinished() {
         return completionFuture.isDone();
+    }
+
+    /**
+     * Marks that something on this node took the sink to write into, and unregisters it itself when it is done.
+     * {@link ExchangeService} only unregisters a sink nobody owns when a fetch on it is cancelled: the owner may still
+     * write pages afterwards, and only its own unregistering discards them.
+     */
+    void markOwned() {
+        owned = true;
+    }
+
+    boolean isOwned() {
+        return owned;
     }
 
     /**

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.EsqlRefCountingListener;
+import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -1211,6 +1212,71 @@ public class ExchangeServiceTests extends ESTestCase {
                 cancelled.actionGet(10, TimeUnit.SECONDS);
                 assertTrue("the cancelled fetch is answered as finished", fetchedFinished.actionGet(10, TimeUnit.SECONDS));
                 assertThat(lookupFromListener.actionGet(10, TimeUnit.SECONDS), instanceOf(TaskCancelledException.class));
+            } finally {
+                node0.getTaskManager().unregister(queryTask);
+            }
+        }
+    }
+
+    /**
+     * A cancelled fetch must leave a sink that something on the node owns to its owner. A batch exchange keeps pages that carry
+     * batch metadata after its sink is finished, and only its own {@link ExchangeService#finishSinkHandler}, on the failed
+     * completion, discards them. A compute that took the sink the coordinator opened owns it the same way.
+     */
+    public void testCancelledFetchLeavesOwnedSinkToItsOwner() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        exchange1.registerTransportHandler(node1);
+        try (exchange0; exchange1; node0; node1) {
+            AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            final ExchangeSinkHandler sinkHandler;
+            if (randomBoolean()) {
+                // As BidirectionalBatchExchangeServer#initialize does.
+                sinkHandler = exchange1.getOrCreateSinkHandler(exchangeId, randomExchangeBuffer());
+            } else {
+                // As a compute request does with the sink the coordinator opened.
+                PlainActionFuture<Void> opened = new PlainActionFuture<>();
+                ExchangeService.openExchange(
+                    node0,
+                    connection,
+                    exchangeId,
+                    randomExchangeBuffer(),
+                    threadPool.executor(ESQL_TEST_EXECUTOR),
+                    opened
+                );
+                opened.actionGet(10, TimeUnit.SECONDS);
+                sinkHandler = exchange1.getSinkHandlerIfOpen(exchangeId);
+            }
+            ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+            CancellableTask queryTask = registerQueryTask(node0);
+            try {
+                PlainActionFuture<Boolean> fetchedFinished = new PlainActionFuture<>();
+                exchange0.newRemoteSink(queryTask, exchangeId, node0, connection)
+                    .fetchPageAsync(false, fetchedFinished.map(ExchangeResponse::finished));
+                assertBusy(() -> assertTrue(sinkHandler.hasListeners()));
+                PlainActionFuture<Void> cancelled = new PlainActionFuture<>();
+                node0.getTaskManager().cancelTaskAndDescendants(queryTask, "query failed", false, cancelled);
+                cancelled.actionGet(10, TimeUnit.SECONDS);
+                assertTrue(fetchedFinished.actionGet(10, TimeUnit.SECONDS));
+                assertFalse("the owner unregisters its sink", exchange1.isEmpty());
+
+                // PageToBatchPageOperator#flushBatch writes without checking needsInput; the finished buffer keeps batch pages.
+                IntBlock block = blockFactory.newConstantIntBlockWith(1, 1);
+                sink.addPage(new Page(new BatchMetadata(1, 0, true), block));
+                assertFalse(block.isReleased());
+                // As BidirectionalBatchExchangeServer#close does.
+                sinkHandler.addCompletionListener(
+                    ActionListener.wrap(v -> exchange1.finishSinkHandler(exchangeId, null), e -> exchange1.finishSinkHandler(exchangeId, e))
+                );
+                sink.finish();
+                assertTrue("batch page written after the cancel must be released by the owner's cleanup", block.isReleased());
+                assertTrue(exchange1.isEmpty());
             } finally {
                 node0.getTaskManager().unregister(queryTask);
             }

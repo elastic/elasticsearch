@@ -221,10 +221,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * A sink removed because a fetch on it was cancelled throws {@link TaskCancelledException}, which the caller fails its
      * compute request with. A cancellation cannot replace the query's own error, and an empty result would drop this
      * node's rows when only the fetch, not the query, was cancelled.
+     * <p>
+     * The caller owns the sink it gets and unregisters it when it is done; see {@link ExchangeSinkHandler#markOwned()}.
      */
     @Nullable
     public ExchangeSinkHandler getSinkHandlerIfOpen(String exchangeId) {
-        ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
+        // Claimed under the map's lock for the id, so a cancelled fetch cannot unregister it between the lookup and the claim.
+        ExchangeSinkHandler sinkHandler = sinks.computeIfPresent(exchangeId, (id, handler) -> {
+            handler.markOwned();
+            return handler;
+        });
         if (sinkHandler != null) {
             return sinkHandler;
         }
@@ -241,9 +247,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     /**
      * Gets an existing {@link ExchangeSinkHandler} for the specified exchange id, or creates one if it doesn't exist.
      * This is useful when the sink handler may have been pre-registered (e.g., for test setup coordination).
+     * The caller owns the sink and unregisters it when it is done; see {@link ExchangeSinkHandler#markOwned()}.
      */
     public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
-        return sinks.computeIfAbsent(exchangeId, id -> new ExchangeSinkHandler(maxBufferSize, threadPool.relativeTimeInMillisSupplier()));
+        return sinks.compute(exchangeId, (id, handler) -> {
+            ExchangeSinkHandler owned = handler != null
+                ? handler
+                : new ExchangeSinkHandler(maxBufferSize, threadPool.relativeTimeInMillisSupplier());
+            owned.markOwned();
+            return owned;
+        });
     }
 
     /**
@@ -382,12 +395,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 task.addListener(() -> {
                     // A compute on this node unregisters the sink when it ends, but there may be none: the ban refuses a compute
                     // request that arrives after it, and the request may never have been sent. The coordinator does not close a
-                    // remote sink once a fetch has been answered as finished, so unregister the sink here. Leave the marker
-                    // first: onFailure runs the sink's completion listeners, which can unregister it, and a compute request that
-                    // registered before the ban may look the sink up only now.
+                    // remote sink once a fetch has been answered as finished, so unregister a sink nobody owns here. An owner
+                    // unregisters its own: it may still write pages, such as the batch pages a batch exchange keeps after its
+                    // sink finished, and only its unregistering discards them. Leave the marker first: onFailure runs the sink's
+                    // completion listeners, which can unregister it, and a compute request that registered before the ban may
+                    // look the sink up only now.
                     rememberCancelled(exchangeId, task.getReasonCancelled());
                     sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled()));
-                    sinks.remove(exchangeId, sinkHandler);
+                    sinks.computeIfPresent(
+                        exchangeId,
+                        (id, handler) -> handler == sinkHandler && handler.isOwned() == false ? null : handler
+                    );
                 });
                 // Remember the id before the fetch runs. fetchPageAsync(sourcesFinished) finishes the buffer and can
                 // remove the handler from a completion listener on this thread; a compute request arriving in that
@@ -397,11 +415,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 }
                 sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
                 if (request.sourcesFinished()) {
-                    ExchangeSinkHandler current = sinks.get(exchangeId);
+                    // fetchPageAsync(true) finished the buffer, but a fetch racing on another thread can be the one that
+                    // completes it, and then completes the handler only after this thread has moved on. Unregister the sink
+                    // once the handler completes, not only when it already has.
                     // Null failure: the buffer is already finished, and onFailure would notify listeners again.
-                    if (current != null && current.isFinished()) {
-                        finishSinkHandler(exchangeId, null);
-                    }
+                    sinkHandler.addCompletionListener(ActionListener.running(() -> finishSinkHandler(exchangeId, null)));
                 }
             }
         }

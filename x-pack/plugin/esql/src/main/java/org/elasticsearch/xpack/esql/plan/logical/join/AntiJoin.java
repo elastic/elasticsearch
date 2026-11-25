@@ -20,11 +20,11 @@ import java.util.List;
 /**
  * An anti join used to implement {@code WHERE field NOT IN (subquery)}.
  * <p>
- * The dual of {@link SemiJoin}: it shares the {@link AbstractSubqueryJoin} dedup pipeline and only flips the hooks that distinguish
+ * The dual of {@link SemiJoin}: it shares the {@link AbstractInSubqueryJoin} dedup pipeline and only flips the hooks that distinguish
  * {@code NOT IN} from {@code IN} — it uses {@link JoinTypes#ANTI}, wraps the inline filter in {@code Not}, keeps unmatched rows on the
  * hash-join path ({@code IS NULL} on the sentinel), and short-circuits to {@code Filter(FALSE)} on any NULL right value.
  */
-public class AntiJoin extends AbstractSubqueryJoin {
+public class AntiJoin extends AbstractInSubqueryJoin {
 
     public AntiJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config);

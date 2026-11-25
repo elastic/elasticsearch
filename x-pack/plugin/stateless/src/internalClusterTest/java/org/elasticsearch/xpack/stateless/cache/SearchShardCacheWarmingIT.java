@@ -42,8 +42,10 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Search-only shard recovery with a 4kb shared-cache region so the compound commit spans many regions. Concurrent searches run while
@@ -244,6 +246,15 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
             greaterThan(0L)
         );
 
+        // warmCacheAndTimeIt in SearchShardCacheWarmingITPlugin.DelayWarmCacheUntilShardStartedService waits until it sees
+        // the shard STARTED before warming. Wait for that to happen here so that we don't tear down the shard before it sees
+        // the STARTED shard, which would trigger it to assert.
+        assertBusy(
+            () -> assertThat(
+                telemetryOnB.getDoubleHistogramMeasurement(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARM_DURATION_METRIC),
+                not(empty())
+            )
+        );
     }
 
     /** Master, index node, and two search nodes with shared cache settings. */

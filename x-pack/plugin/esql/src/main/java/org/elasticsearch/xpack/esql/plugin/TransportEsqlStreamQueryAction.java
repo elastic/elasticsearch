@@ -215,7 +215,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
     private void prepareAndExecuteWithLogging(Task task, EsqlStreamQueryRequest request, ActionListener<ActionResponse.Empty> listener) {
         if (request.allowPartialResults() == null) {
-            request.allowPartialResults(defaultAllowPartialResults);
+            request.defaultAllowPartialResults(defaultAllowPartialResults);
         }
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
         PageStreamPublisher publisher = new PageStreamPublisher();
@@ -640,10 +640,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     }
 
     static long tookMillis(EsqlExecutionInfo executionInfo) {
-        if (executionInfo.overallTook() != null) {
-            return executionInfo.overallTook().millis();
-        }
-        return executionInfo.queryProfile().total().timeSinceStarted().millis();
+        return executionInfo.tookOrElapsed().millis();
     }
 
     static PageStreamPublisher.StreamFooter failureFooter(

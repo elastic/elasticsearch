@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -110,7 +111,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 final var failedShard = failedShardFor(pendingAllocationStates, shardRouting.shardId());
                 final boolean isAwaitingRetry = pendingAllocationStates.get(
-                    IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting)
+                    ShardAllocationId.fromRouting(shardRouting)
                 ) instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
 
                 if (state.blocks().disableStatePersistence()) {
@@ -220,7 +221,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
     @Nullable
     private static IndicesClusterStateService.PendingAllocationState.FailureReported failedShardFor(
-        Map<IndicesClusterStateService.ShardAllocationKey, IndicesClusterStateService.PendingAllocationState> pendingAllocationStates,
+        Map<ShardAllocationId, IndicesClusterStateService.PendingAllocationState> pendingAllocationStates,
         ShardId shardId
     ) {
         for (final var entry : pendingAllocationStates.entrySet()) {

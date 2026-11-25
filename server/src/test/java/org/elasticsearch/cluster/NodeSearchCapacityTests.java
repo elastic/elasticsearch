@@ -41,18 +41,9 @@ public class NodeSearchCapacityTests extends AbstractWireSerializingTestCase<Nod
         }
     }
 
-    public void testRejectsZero() {
-        final double valid = randomPositiveDouble();
-        final AssertionError nodeComputeError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(0.0d, valid));
-        assertThat(nodeComputeError.getMessage(), containsString("nodeCompute must be finite and positive"));
-
-        final AssertionError threadBudgetError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(valid, 0.0d));
-        assertThat(threadBudgetError.getMessage(), containsString("threadBudget must be finite and positive"));
-    }
-
     public void testRejectsInvalidValues() {
         final double valid = randomPositiveDouble();
-        for (double rejected : new double[] { Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, randomDoubleBetween(Double.NEGATIVE_INFINITY, 0.0d, true)}) {
+        for (double rejected : new double[] { Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0.0d, randomDoubleBetween(Double.NEGATIVE_INFINITY, 0.0d, true)}) {
             final double invalid = rejected;
             final AssertionError nodeComputeError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(invalid, valid));
             assertThat(nodeComputeError.getMessage(), containsString("nodeCompute must be finite and positive"));

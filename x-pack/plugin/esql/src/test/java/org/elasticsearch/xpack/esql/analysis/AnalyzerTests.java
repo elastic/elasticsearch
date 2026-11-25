@@ -4090,8 +4090,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
             LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
                 .query("FROM foo, bar | EVAL x = " + function + "(value::keyword, 16)");
             List<Expression> conversions = new ArrayList<>();
-            plan.forEachExpression(ToLongSurrogate.class, conversions::add);
-            plan.forEachExpression(ToIntegerSurrogate.class, conversions::add);
+            plan.forEachExpressionDown(ToLongSurrogate.class, conversions::add);
+            plan.forEachExpressionDown(ToIntegerSurrogate.class, conversions::add);
             assertThat(conversions, hasSize(1));
             assertThat(conversions.get(0).children(), hasSize(2));
             assertThat(conversions.get(0).children().get(1).sourceText(), equalTo("16"));
@@ -4129,8 +4129,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         for (String function : List.of("TO_LONG", "TO_INTEGER")) {
             analyzer().addIndex(mergedResolution("foo,bar", caps))
                 .error(
-                    "FROM foo, bar | EVAL x = " + function + "(value, \"16\")",
-                    containsString("second argument of [" + function + "(value, \"16\")] must be [whole number")
+                    "FROM foo, bar | EVAL x = " + function + "(value, 1.5)",
+                    containsString("second argument of [" + function + "(value, 1.5)] must be [integer], found value [1.5] type [double]")
                 );
         }
     }

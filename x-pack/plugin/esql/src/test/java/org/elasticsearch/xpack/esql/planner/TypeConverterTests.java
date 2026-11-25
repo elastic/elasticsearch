@@ -43,16 +43,14 @@ public class TypeConverterTests extends ESTestCase {
             new ToInteger(Source.EMPTY, new Literal(Source.EMPTY, 16, DataType.INTEGER))
         );
         DriverContext driverContext = driverContext();
-        try (
-            BytesRefBlock input = driverContext.blockFactory()
-                .newBytesRefBlockBuilder(3)
-                .appendBytesRef(new BytesRef("ff"))
-                .appendBytesRef(new BytesRef("10"))
-                .appendBytesRef(new BytesRef("7fffffff"))
-                .build();
-            var converter = new TypeConverter(conversion).build(driverContext);
-            LongBlock result = (LongBlock) converter.convert(input)
-        ) {
+        // The converter takes ownership of the loaded block, so it's not closed here.
+        BytesRefBlock input = driverContext.blockFactory()
+            .newBytesRefBlockBuilder(3)
+            .appendBytesRef(new BytesRef("ff"))
+            .appendBytesRef(new BytesRef("10"))
+            .appendBytesRef(new BytesRef("7fffffff"))
+            .build();
+        try (var converter = new TypeConverter(conversion).build(driverContext); LongBlock result = (LongBlock) converter.convert(input)) {
             assertThat(result.getPositionCount(), equalTo(3));
             assertThat(result.getLong(0), equalTo(255L));
             assertThat(result.getLong(1), equalTo(16L));

@@ -457,10 +457,10 @@ load two indices and convert keyword and text with a base:
         body:
           query: 'FROM base_union_* | EVAL i = TO_INTEGER(hex, base + 1)'
   - do:
-      catch: '/second argument of .* must be \[whole number/'
+      catch: '/second argument of .* must be \[integer\]/'
       esql.query:
         body:
-          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, "16")'
+          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, 1.5)'
 
 ---
 load two indices and convert event_duration with a base:

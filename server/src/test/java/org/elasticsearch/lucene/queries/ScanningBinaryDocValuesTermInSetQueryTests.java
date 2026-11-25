@@ -102,6 +102,23 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
         }
     }
 
+    public void testTermsAndValuesWithOffsets() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(singleValueDoc(new BytesRef(new byte[] { 7, 'a', 'b', 7 }, 1, 2)));
+            writer.addDocument(singleValueDoc(new BytesRef("a")));
+            writer.addDocument(singleValueDoc(new BytesRef("abb")));
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                var format = BinaryDocValuesFormat.SEPARATE_COUNT;
+                var terms = List.of(
+                    new BytesRef(new byte[] { 9, 9, 'a', 'b', 9 }, 2, 2),
+                    new BytesRef(new byte[] { 'a', 'b', 'b', 9 }, 0, 3)
+                );
+                assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", terms, format)));
+            }
+        }
+    }
+
     public void testValuesLongerThanEveryTermDoNotMatch() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
             writer.addDocument(singleValueDoc(new BytesRef("ab")));

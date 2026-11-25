@@ -929,9 +929,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertEquals(FFFD, vals[8]);
     }
 
-    public void testTryAcceptPlainUtf8RegionCyrillicPerValue() {
-        // First 64 bytes of a Cyrillic PLAIN region are not ASCII (prefixes sit between 2-byte
-        // chars). Region scan must not run; per-value sanitize must leave well-formed values.
+    public void testTryAcceptPlainUtf8RegionCyrillicStillRegionScans() {
+        // First 64 bytes of a Cyrillic PLAIN region are not ASCII. Whole-run per-value fallback
+        // is not used: mixed/URL pages must still region-scan.
         byte[] cyr = "Привет".getBytes(StandardCharsets.UTF_8);
         byte[][] payloads = new byte[8][];
         Arrays.fill(payloads, cyr);
@@ -941,6 +941,24 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, payloads.length));
         for (int i = 0; i < payloads.length; i++) {
             assertEquals(new BytesRef(cyr), vals[i]);
+        }
+    }
+
+    public void testTryAcceptPlainUtf8RegionMixedUtf8ThenUrl() {
+        byte[] cafe = "café".getBytes(StandardCharsets.UTF_8);
+        byte[] url = "https://example.com/path/to/resource?q=abcdefghijklmnopqrstuvwxyz".getBytes(StandardCharsets.UTF_8);
+        byte[][] payloads = new byte[6][];
+        payloads[0] = cafe;
+        for (int i = 1; i < payloads.length; i++) {
+            payloads[i] = url;
+        }
+        byte[] packed = packPlain(payloads);
+        assertFalse(Utf8Sanitizer.startsWithAsciiBlock(packed, 0, packed.length));
+        BytesRef[] vals = unpackPlain(packed, payloads);
+        assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, payloads.length));
+        assertEquals(new BytesRef(cafe), vals[0]);
+        for (int i = 1; i < payloads.length; i++) {
+            assertEquals(new BytesRef(url), vals[i]);
         }
     }
 

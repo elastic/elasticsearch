@@ -196,6 +196,39 @@ public class PlainValueDecoderTests extends ESTestCase {
         assertEquals(new BytesRef(new byte[] { 'y' }), vals[2]);
     }
 
+    public void testReadBinariesLayoutMatchesFromValuesRandom() {
+        int n = randomIntBetween(1, 32);
+        byte[][] payloads = new byte[n][];
+        for (int i = 0; i < n; i++) {
+            int len = switch (randomIntBetween(0, 4)) {
+                case 0 -> randomIntBetween(0, 127);
+                case 1 -> randomIntBetween(128, 255);
+                case 2 -> randomIntBetween(256, 383);
+                case 3 -> randomIntBetween(384, 512);
+                default -> randomIntBetween(0, 64);
+            };
+            payloads[i] = randomByteArrayOfLength(len);
+        }
+        byte[] packed = packPlain(payloads);
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
+        BytesRef[] vals = new BytesRef[n];
+        decoder.readBinaries(vals, 0, n);
+
+        PlainValueDecoder.HeapBinaryLayout recorded = decoder.binaryLayout();
+        PlainValueDecoder.HeapBinaryLayout fromVals = PlainValueDecoder.HeapBinaryLayout.fromValues(vals, n);
+        assertTrue(recorded.valid);
+        assertTrue(fromVals.valid);
+        assertEquals(n, recorded.valueCount);
+        assertEquals(fromVals.runCount, recorded.runCount);
+        for (int r = 0; r < recorded.runCount; r++) {
+            assertEquals(fromVals.runFrom[r], recorded.runFrom[r]);
+            assertEquals(fromVals.runTo[r], recorded.runTo[r]);
+            assertEquals(fromVals.runOff[r], recorded.runOff[r]);
+            assertEquals(fromVals.runEnd[r], recorded.runEnd[r]);
+        }
+    }
+
     public void testInitResetsLayout() {
         byte[] packed = packPlain(new byte[][] { new byte[] { 'z' } });
         PlainValueDecoder decoder = new PlainValueDecoder();

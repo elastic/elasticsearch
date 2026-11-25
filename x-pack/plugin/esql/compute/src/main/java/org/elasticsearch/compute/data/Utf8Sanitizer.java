@@ -80,11 +80,11 @@ public final class Utf8Sanitizer {
      * 8-byte word loop for the tail. The 64-byte skip is not entered when {@code len < 64}: short
      * per-value checks (dict, ORC, fallback) must not pay block setup they can never fill.
      * Consecutive 2-byte ({@code C2..DF}), unambiguous 3-byte ({@code E1..EC}/{@code EE..EF}) and
-     * unambiguous 4-byte ({@code F1..F3}) sequences are consumed as runs; after a run the scan
-     * tries an 8-byte ASCII word at the current offset and only resumes 64-byte blocks after a
-     * clean word. A one-byte ASCII gap (a space in a Cyrillic phrase) therefore does not pay eight
-     * loads that cannot succeed. {@code E0}/{@code ED}/{@code F0}/{@code F4}, truncation and junk
-     * go through {@link #sequenceLength}.
+     * unambiguous 4-byte ({@code F0} with second byte {@code 90..BF}, plus {@code F1..F3}) sequences
+     * are consumed as runs; after a run the scan tries an 8-byte ASCII word at the current offset
+     * and only resumes 64-byte blocks after a clean word. A one-byte ASCII gap (a space in a
+     * Cyrillic phrase) therefore does not pay eight loads that cannot succeed. {@code E0}/{@code ED}/
+     * {@code F0} overlong / {@code F4}, truncation and junk go through {@link #sequenceLength}.
      * <p>
      * A lookup-table DFA stays out: it was never measured against this 2-byte/3-byte run shape,
      * and {@code sequenceLength} remains the oracle for the remaining leads. Revisit only if the
@@ -149,14 +149,19 @@ public final class Utf8Sanitizer {
                     }
                     continue;
                 }
-                if (b0 >= 0xF1 && b0 <= 0xF3) {
-                    // 4-byte run F1..F3 80..BF ×3 (emoji and similar). F0 overlong / F4 >U+10FFFF
-                    // stay in sequenceLength.
+                if (b0 == 0xF0 || (b0 >= 0xF1 && b0 <= 0xF3)) {
+                    // 4-byte run: F0 90..BF (U+10000..U+3FFFF, emoji / CJK Ext. B) and F1..F3
+                    // 80..BF ×3. F0 80..8F is overlong; F4 >U+10FFFF stays in sequenceLength.
                     do {
-                        if (i + 3 >= end
-                            || isCont(bytes[i + 1]) == false
-                            || isCont(bytes[i + 2]) == false
-                            || isCont(bytes[i + 3]) == false) {
+                        if (i + 3 >= end || isCont(bytes[i + 2]) == false || isCont(bytes[i + 3]) == false) {
+                            return false;
+                        }
+                        int b1 = bytes[i + 1] & 0xFF;
+                        if (b0 == 0xF0) {
+                            if (b1 < 0x90 || b1 > 0xBF) {
+                                return false;
+                            }
+                        } else if (isCont(bytes[i + 1]) == false) {
                             return false;
                         }
                         i += 4;
@@ -164,7 +169,7 @@ public final class Utf8Sanitizer {
                             return true;
                         }
                         b0 = bytes[i] & 0xFF;
-                    } while (b0 >= 0xF1 && b0 <= 0xF3);
+                    } while (b0 == 0xF0 || (b0 >= 0xF1 && b0 <= 0xF3));
                     if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
                         continue outer;
                     }

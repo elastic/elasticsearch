@@ -241,22 +241,22 @@ public class Utf8SanitizerTests extends ESTestCase {
     }
 
     public void testAsciiBlockThenFourByteRunThenAscii() {
-        // F1..F3 run; F0/F4 stay in sequenceLength. Resume ASCII skip after the run.
-        byte[] buf = new byte[64 + 8 + 64];
+        // F0 (emoji U+1F600 = F0 9F 98 80) plus F1..F3. F0 overlong / F4 stay in sequenceLength.
+        byte[] grin = "\uD83D\uDE00".getBytes(StandardCharsets.UTF_8);
+        assertEquals(4, grin.length);
+        assertEquals((byte) 0xF0, grin[0]);
+        byte[] buf = new byte[64 + grin.length + 4 + 64];
         Arrays.fill(buf, (byte) 'a');
-        buf[64] = (byte) 0xF1;
-        buf[65] = (byte) 0x80;
-        buf[66] = (byte) 0x80;
-        buf[67] = (byte) 0x80;
-        buf[68] = (byte) 0xF2;
-        buf[69] = (byte) 0x80;
-        buf[70] = (byte) 0x80;
-        buf[71] = (byte) 0x80;
+        System.arraycopy(grin, 0, buf, 64, grin.length);
+        buf[64 + grin.length] = (byte) 0xF1;
+        buf[64 + grin.length + 1] = (byte) 0x80;
+        buf[64 + grin.length + 2] = (byte) 0x80;
+        buf[64 + grin.length + 3] = (byte) 0x80;
         assertIsWellFormedMatchesOracles(buf, 0, buf.length);
         BytesRef in = new BytesRef(buf);
         assertSame(in, Utf8Sanitizer.sanitize(in));
 
-        buf[72] = (byte) 0xFF;
+        buf[64 + grin.length + 4] = (byte) 0xFF;
         assertIsWellFormedMatchesOracles(buf, 0, buf.length);
         assertFalse(Utf8Sanitizer.isWellFormed(buf, 0, buf.length));
     }

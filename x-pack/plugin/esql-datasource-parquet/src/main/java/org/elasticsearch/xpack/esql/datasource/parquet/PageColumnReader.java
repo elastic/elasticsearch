@@ -1426,11 +1426,11 @@ final class PageColumnReader implements Releasable {
 
     /**
      * PLAIN BINARY pages store {@code [int32 LE length][bytes]…} in one backing array. ASCII
-     * length prefixes can sit inside a single {@link Utf8Sanitizer#isWellFormed} scan when the
-     * first 64 bytes of a run are ASCII (short ASCII pages fill a skip block only with prefixes
-     * included). A prefix with a high bit splits the run at that value. If the first 64-byte
-     * block is not ASCII, the page path sanitizes per value so Cyrillic/CJK prefixes do not
-     * break 2-byte/3-byte runs.
+     * length prefixes can sit inside a single {@link Utf8Sanitizer#isWellFormed} scan. A prefix
+     * with a high bit splits the run at that value. The first-64-ASCII probe only skips
+     * re-scanning an already-proven ASCII prefix of a run; a mixed/Cyrillic first block still
+     * region-scans the whole run (per-value fallback on first-block miss undid mixed/URL wins).
+     * Dest-only validation in a follow-up replaces this path.
      */
     private boolean isPlainLengthPrefixedBinary() {
         return currentEncoding == Encoding.PLAIN
@@ -1472,16 +1472,15 @@ final class PageColumnReader implements Releasable {
         int len = end - off;
         // Short runs keep prefixes in the scan so 4-byte values can fill a 64-byte block.
         // A successful 64-byte ASCII probe already validated [off, off+64); isWellFormed
-        // only the tail. Cyrillic/CJK fail the first-block gate and go per-value.
+        // only the tail. Mixed/Cyrillic first blocks still region-scan the whole run.
         if (len >= 0 && end <= backing.length) {
-            if (len < 64) {
-                if (Utf8Sanitizer.isWellFormed(backing, off, len)) {
+            if (len >= 64 && Utf8Sanitizer.startsWithAsciiBlock(backing, off, len)) {
+                if (len == 64 || Utf8Sanitizer.isWellFormed(backing, off + 64, len - 64)) {
                     return;
                 }
-            } else if (Utf8Sanitizer.startsWithAsciiBlock(backing, off, len)
-                && (len == 64 || Utf8Sanitizer.isWellFormed(backing, off + 64, len - 64))) {
-                    return;
-                }
+            } else if (Utf8Sanitizer.isWellFormed(backing, off, len)) {
+                return;
+            }
         }
         for (int i = from; i < to; i++) {
             vals[i] = Utf8Sanitizer.sanitize(vals[i]);

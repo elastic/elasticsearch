@@ -105,7 +105,6 @@ final class PlainValueDecoder {
             int expectedAbs = 0;
             int runFrom = 0;
             int runOff = 0;
-            // Inline the ASCII-prefix mask: a nested-class static call showed up as 28% self in JFR.
             final int asciiPrefixMask = HeapBinaryLayout.ASCII_LENGTH_PREFIX_MASK;
             int i = 0;
             if (count > 0) {
@@ -114,14 +113,11 @@ final class PlainValueDecoder {
                 int abs = baseOffset + pos;
                 values[offset] = new BytesRef(backing, abs, length);
                 if (recording) {
-                    if (abs < Integer.BYTES) {
-                        recording = false;
-                        binaryLayout.reset();
-                    } else {
-                        runFrom = 0;
-                        runOff = (length & asciiPrefixMask) == 0 ? abs - Integer.BYTES : abs;
-                        expectedAbs = abs + length + Integer.BYTES;
-                    }
+                    // Heap slices one contiguous buffer: prefix always sits at abs-4.
+                    assert abs >= Integer.BYTES;
+                    runFrom = 0;
+                    runOff = (length & asciiPrefixMask) == 0 ? abs - Integer.BYTES : abs;
+                    expectedAbs = abs + length + Integer.BYTES;
                 }
                 buffer.position(pos + length);
                 i = 1;
@@ -132,10 +128,8 @@ final class PlainValueDecoder {
                 int abs = baseOffset + pos;
                 values[offset + i] = new BytesRef(backing, abs, length);
                 if (recording) {
-                    if (abs != expectedAbs) {
-                        recording = false;
-                        binaryLayout.reset();
-                    } else if ((length & asciiPrefixMask) != 0) {
+                    assert abs == expectedAbs;
+                    if ((length & asciiPrefixMask) != 0) {
                         binaryLayout.addRun(runFrom, i, runOff, abs - Integer.BYTES);
                         runFrom = i;
                         runOff = abs;
@@ -147,12 +141,11 @@ final class PlainValueDecoder {
             if (recording) {
                 BytesRef last = values[count - 1];
                 int lastEnd = last.offset + last.length;
-                if (lastEnd >= last.offset && lastEnd <= backing.length) {
-                    binaryLayout.addRun(runFrom, count, runOff, lastEnd);
-                    binaryLayout.backing = backing;
-                    binaryLayout.valueCount = count;
-                    binaryLayout.valid = true;
-                }
+                assert lastEnd >= last.offset && lastEnd <= backing.length;
+                binaryLayout.addRun(runFrom, count, runOff, lastEnd);
+                binaryLayout.backing = backing;
+                binaryLayout.valueCount = count;
+                binaryLayout.valid = true;
             }
         } else {
             for (int i = 0; i < count; i++) {

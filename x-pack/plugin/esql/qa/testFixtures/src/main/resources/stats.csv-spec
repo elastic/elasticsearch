@@ -5052,3 +5052,57 @@ ROW x = [1, 2], y = [1, 2]
 mx:integer | my:integer
 1          | 2
 ;
+
+// A STATS BY key derived with + from a key that is proven single-valued is dropped from the aggregation and recomputed
+// above it. MV_MAX reduces the list of 10078 to one value, so m and s can be computed from m alone. The results must not
+// change.
+derivedGroupingKeyOverSingleValuedKey
+FROM employees
+| WHERE emp_no IN (10037, 10078)
+| EVAL m = MV_MAX(salary_change.int), s = m + 1
+| STATS c = COUNT(*) BY m, s
+| SORT m
+;
+
+c:long | m:integer | s:integer
+1      | -7        | -6
+1      | 12        | 13
+;
+
+// The same shape over a field that can hold a list is not proven single-valued, so the derived key is kept and evaluated
+// on the row. It is null (with the usual multi-value warning) where the input column holds a list. Dropping it from the
+// aggregation would return one number per list element.
+derivedGroupingKeyOverMultivalueField
+FROM employees
+| WHERE emp_no == 10002
+| EVAL s = emp_no + salary_change.int
+| STATS c = COUNT(*) BY emp_no, salary_change.int, s
+| SORT salary_change.int
+;
+warning:Line 3:12: evaluation of [emp_no + salary_change.int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long | emp_no:integer | salary_change.int:integer | s:integer
+1      | 10002          | -7                        | null
+1      | 10002          | 11                        | null
+;
+
+// The derived key also adds groups: 10037 (single salary_change.int -7) and 10078 (list [-7, 9, 12]) share languages 2 and
+// the element -7, yet the row-level s separates them into (-7, -5) and (-7, null). Recomputing s per group would collapse
+// those two rows into one group.
+derivedGroupingKeyOverMultivalueFieldKeepsGroups
+FROM employees
+| WHERE emp_no IN (10037, 10078)
+| EVAL s = languages + salary_change.int
+| STATS c = COUNT(*) BY languages, salary_change.int, s
+| SORT salary_change.int, s
+;
+warning:Line 3:12: evaluation of [languages + salary_change.int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:12: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long | languages:integer | salary_change.int:integer | s:integer
+1      | 2                 | -7                        | -5
+1      | 2                 | -7                        | null
+1      | 2                 | 9                         | null
+1      | 2                 | 12                        | null
+;

@@ -93,13 +93,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      */
     private final Map<String, Long> sourcesFinishedSinks = ConcurrentCollections.newConcurrentMap();
     /**
-     * Exchange ids removed because a fetch on them was cancelled. A compute request that has not yet resolved its sink
-     * fails as cancelled rather than with a missing exchange, which would replace the query's own error. It must not
-     * complete empty: a fetch can be cancelled without its query, and an empty compute would then drop this node's rows
-     * from a result that is not marked partial. Entries expire like {@link #sourcesFinishedSinks}.
+     * Exchange ids with a cancelled fetch, including sinks that stay registered for their owner. Once such a sink is
+     * unregistered, a compute request that has not yet resolved it fails as cancelled rather than with a missing
+     * exchange, which would replace the query's own error. It must not complete empty: a fetch can be cancelled without
+     * its query, and an empty compute would then drop this node's rows from a result that is not marked partial. Entries
+     * expire like {@link #sourcesFinishedSinks}.
      */
     private final Map<String, CancelledSink> cancelledSinks = ConcurrentCollections.newConcurrentMap();
-    private static final long SOURCES_FINISHED_REMEMBER_NANOS = TimeUnit.MINUTES.toNanos(5);
+    private static final long SINK_MARKER_REMEMBER_NANOS = TimeUnit.MINUTES.toNanos(5);
 
     private record CancelledSink(String reason, long expiresAtNanos) {}
 
@@ -220,7 +221,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * <p>
      * A sink removed because a fetch on it was cancelled throws {@link TaskCancelledException}, which the caller fails its
      * compute request with. A cancellation cannot replace the query's own error, and an empty result would drop this
-     * node's rows when only the fetch, not the query, was cancelled.
+     * node's rows when only the fetch, not the query, was cancelled. When the coordinator also finished the exchange, that
+     * wins and this returns {@code null}: the coordinator has stopped reading either way.
      * <p>
      * The caller owns the sink it gets and unregisters it when it is done; see {@link ExchangeSinkHandler#markOwned()}.
      */
@@ -412,26 +414,24 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 // window must still see the marker rather than a sink that was never opened.
                 if (request.sourcesFinished()) {
                     rememberSourcesFinished(request.exchangeId());
-                }
-                sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
-                if (request.sourcesFinished()) {
-                    // fetchPageAsync(true) finished the buffer, but a fetch racing on another thread can be the one that
-                    // completes it, and then completes the handler only after this thread has moved on. Unregister the sink
-                    // once the handler completes, not only when it already has, and only this handler. A handler that fails
-                    // is left to whatever failed it: a cancelled fetch unregisters a sink nobody owns, and an owner
-                    // unregisters its own, which also discards the pages it may still write.
+                    // Unregister the sink once the handler completes, and only this handler. Listen before the fetch: when
+                    // fetchPageAsync(true) completes the handler, the sink is gone before the close is answered, and when a
+                    // fetch racing on another thread completes it instead, the removal runs there. A handler that fails is
+                    // left to whatever failed it: a cancelled fetch unregisters a sink nobody owns, and an owner unregisters
+                    // its own, which also discards the pages it may still write.
                     sinkHandler.addCompletionListener(ActionListener.wrap(ignored -> sinks.remove(exchangeId, sinkHandler), e -> {}));
                 }
+                sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
             }
         }
     }
 
     private void rememberSourcesFinished(String exchangeId) {
-        sourcesFinishedSinks.put(exchangeId, System.nanoTime() + SOURCES_FINISHED_REMEMBER_NANOS);
+        sourcesFinishedSinks.put(exchangeId, System.nanoTime() + SINK_MARKER_REMEMBER_NANOS);
     }
 
     private void rememberCancelled(String exchangeId, String reason) {
-        cancelledSinks.put(exchangeId, new CancelledSink(reason, System.nanoTime() + SOURCES_FINISHED_REMEMBER_NANOS));
+        cancelledSinks.put(exchangeId, new CancelledSink(reason, System.nanoTime() + SINK_MARKER_REMEMBER_NANOS));
     }
 
     private void expireSinkMarkers() {

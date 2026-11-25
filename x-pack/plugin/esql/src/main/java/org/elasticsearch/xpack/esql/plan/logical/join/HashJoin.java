@@ -32,11 +32,20 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  * Coordinator hash join over a local build side (maps to {@code HashJoinExec}).
  * <p>
  * {@link JoinTypes#INNER} drops unmatched probe rows; {@link JoinTypes#LEFT} keeps them (PromQL {@code unless}).
+ * <p>
+ * The build side has each key once unless {@link #repeatedKeys()} is set, in which case a probe row comes out once for each
+ * build row it matches. A null or multivalued key then matches nothing, as in {@code LOOKUP JOIN}. A multivalued build key warns
+ * once, even if no probe key would have matched it (see {@code RowInTableLookupOperator}). Repeated keys can't be combined
+ * with {@link #unique()}.
  */
 public class HashJoin extends Join implements SortPreserving {
 
     private final List<Attribute> addedFields;
     private final boolean unique;
+    /**
+     * Whether the build side may repeat a key. Without it, building the lookup table fails on a repeated key.
+     */
+    private final boolean repeatedKeys;
     private volatile List<Attribute> lazyOutput;
 
     public HashJoin(
@@ -48,7 +57,7 @@ public class HashJoin extends Join implements SortPreserving {
         List<Attribute> addedFields,
         boolean unique
     ) {
-        this(source, left, right, leftFields, rightFields, addedFields, unique, JoinTypes.INNER);
+        this(source, left, right, leftFields, rightFields, addedFields, unique, JoinTypes.INNER, false);
     }
 
     public HashJoin(
@@ -59,7 +68,8 @@ public class HashJoin extends Join implements SortPreserving {
         List<Attribute> rightFields,
         List<Attribute> addedFields,
         boolean unique,
-        JoinType type
+        JoinType type,
+        boolean repeatedKeys
     ) {
         super(source, left, right, type, leftFields, rightFields, null, ExecuteLocation.COORDINATOR);
         if (type != JoinTypes.INNER && type != JoinTypes.LEFT) {
@@ -67,6 +77,7 @@ public class HashJoin extends Join implements SortPreserving {
         }
         this.addedFields = addedFields;
         this.unique = unique;
+        this.repeatedKeys = repeatedKeys;
     }
 
     @Override
@@ -93,6 +104,10 @@ public class HashJoin extends Join implements SortPreserving {
 
     public boolean unique() {
         return unique;
+    }
+
+    public boolean repeatedKeys() {
+        return repeatedKeys;
     }
 
     @Override
@@ -154,12 +169,23 @@ public class HashJoin extends Join implements SortPreserving {
 
     @Override
     public HashJoin replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new HashJoin(source(), left, right, leftFields(), rightFields(), addedFields, unique, config().type());
+        return new HashJoin(source(), left, right, leftFields(), rightFields(), addedFields, unique, config().type(), repeatedKeys);
     }
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, HashJoin::new, left(), right(), leftFields(), rightFields(), addedFields, unique, config().type());
+        return NodeInfo.create(
+            this,
+            HashJoin::new,
+            left(),
+            right(),
+            leftFields(),
+            rightFields(),
+            addedFields,
+            unique,
+            config().type(),
+            repeatedKeys
+        );
     }
 
     @Override
@@ -174,12 +200,12 @@ public class HashJoin extends Join implements SortPreserving {
             return false;
         }
         HashJoin hashJoin = (HashJoin) o;
-        return unique == hashJoin.unique && addedFields.equals(hashJoin.addedFields);
+        return unique == hashJoin.unique && repeatedKeys == hashJoin.repeatedKeys && addedFields.equals(hashJoin.addedFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), addedFields, unique);
+        return Objects.hash(super.hashCode(), addedFields, unique, repeatedKeys);
     }
 
     /**

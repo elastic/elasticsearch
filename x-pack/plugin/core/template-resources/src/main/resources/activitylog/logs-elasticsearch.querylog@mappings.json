@@ -166,6 +166,18 @@
                   "type": "long",
                   "index": false
                 },
+                "search_cpu_nanos": {
+                  "type": "long",
+                  "index": false
+                },
+                "search_load_nanos": {
+                  "type": "long",
+                  "index": false
+                },
+                "search_waiting_nanos": {
+                  "type": "long",
+                  "index": false
+                },
                 "shards": {
                   "properties": {
                     "failed": {

@@ -85,6 +85,15 @@ public class ShardMovementListenerTests extends ESTestCase {
         assertThat(received2.events, contains(event, event));
     }
 
+    public void testCompositeRejectsNullListeners() {
+        final var listeners = new ArrayList<ShardMovementListener>();
+        listeners.add(null);
+        if (randomBoolean()) {
+            listeners.add(new RecordingListener());
+        }
+        expectThrows(NullPointerException.class, () -> ShardMovementListener.composite(listeners));
+    }
+
     public void testCompositeOfNoneIsNoop() {
         assertThat(ShardMovementListener.composite(List.of()), sameInstance(ShardMovementListener.NOOP));
     }

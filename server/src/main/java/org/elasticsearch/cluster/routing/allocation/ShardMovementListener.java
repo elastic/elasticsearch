@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -128,7 +129,8 @@ public interface ShardMovementListener {
         private final AtomicBoolean warned = new AtomicBoolean();
 
         SafeListener(ShardMovementListener delegate) {
-            this.delegate = delegate;
+            // fail at registration: a null here would also break the failure reporting, which names the delegate
+            this.delegate = Objects.requireNonNull(delegate, "shard movement listener must not be null");
         }
 
         @Override

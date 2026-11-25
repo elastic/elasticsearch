@@ -31,6 +31,9 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
+import org.elasticsearch.search.internal.ExecutionCharge;
+import org.elasticsearch.search.internal.LeafExecutionAccountable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -57,7 +60,7 @@ import java.util.Objects;
  * Only non-negative values are supported; the caller must validate this before constructing the
  * query.
  */
-public class BitmapTermsQuery extends Query implements Accountable {
+public class BitmapTermsQuery extends Query implements Accountable, LeafExecutionAccountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BitmapTermsQuery.class);
 
@@ -179,6 +182,25 @@ public class BitmapTermsQuery extends Query implements Accountable {
      */
     private boolean canStream(LeafReader reader, Terms terms) throws IOException {
         return SegmentSort.ascendingBy(reader, field) && singleValued(terms);
+    }
+
+    @Override
+    public ExecutionCharge executionCharge() {
+        return new ExecutionCharge(this::collectedBytesForLeaf, BitmapTermsQueryBuilder.NAME);
+    }
+
+    /**
+     * Only the collecting path allocates, a {@link DocIdSetBuilder} grown by the {@code docFreq} of every matching term. Which terms
+     * match takes the merge scan to tell, so the bound is the postings of every term, which on most segments reserves a full bit set.
+     * It is settled down to the set the scorer keeps once it is built.
+     */
+    private long collectedBytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException {
+        LeafReader reader = ctx.reader();
+        Terms terms = reader.terms(field);
+        if (terms == null || canStream(reader, terms)) {
+            return 0L;
+        }
+        return new DocIdSetBuilderCostEstimator(terms.getSumDocFreq(), reader.maxDoc()).estimate();
     }
 
     /** Every document with this field carries exactly one value, so no document repeats across terms. */

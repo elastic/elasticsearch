@@ -17,10 +17,10 @@ import java.io.IOException;
 /**
  * Sizes the execution memory that one query allocates to score one leaf, such as the doc id set a points query materializes.
  * {@link ExecutionBreakerWeight} calls it just before the scorer is built and charges the result to the request circuit breaker
- * until the leaf is done. It must return an upper bound, since nothing corrects the charge later.
+ * until the leaf is done. It must return an upper bound: the charge is settled down to what the scorer keeps, but never raised.
  */
 @FunctionalInterface
-interface LeafExecutionEstimator {
+public interface LeafExecutionEstimator {
 
     /**
      * @param ctx      the leaf about to be scored

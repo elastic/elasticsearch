@@ -29,8 +29,8 @@ import java.util.Base64;
  * <p>On a field indexed with points, in a segment that is not sorted on it, {@code bitmap_terms} collects the matching documents of a
  * segment into a {@code DocIdSetBuilder}, which is a bit set of {@code maxDoc} bits once a clause matches more than 1/128 of the segment.
  * The scorers of all the clauses of a {@code bool} are created together, so a request holds the bit sets of all of them, about 62kb each
- * for {@link #DOCS} documents and more than the heap for {@link #MANY_CLAUSES} clauses, and the request circuit breaker sees none of it.
- * The case passes if the request either succeeds or is rejected by a circuit breaker and the node survives.
+ * for {@link #DOCS} documents and more than the heap for {@link #MANY_CLAUSES} clauses, which the request circuit breaker must account
+ * for under {@code bitmap_terms}.
  */
 public class BitmapTermsHeapPressureIT extends SearchHeapPressureTestCase {
 
@@ -61,7 +61,7 @@ public class BitmapTermsHeapPressureIT extends SearchHeapPressureTestCase {
 
     /** Each clause matches half the documents. */
     public void testBitmapTermsClauses() throws IOException {
-        assertTripsOnlyWhenLarge(BitmapTermsHeapPressureIT::bitmapTermsSearch, FEW_CLAUSES, MANY_CLAUSES, null);
+        assertTripsOnlyWhenLarge(BitmapTermsHeapPressureIT::bitmapTermsSearch, FEW_CLAUSES, MANY_CLAUSES, "bitmap_terms");
     }
 
     /** A {@code bool} of {@code count} clauses, each with a different bitmap so that they are not merged. */

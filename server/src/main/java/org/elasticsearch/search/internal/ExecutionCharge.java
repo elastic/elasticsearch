@@ -32,7 +32,8 @@ import java.io.IOException;
 
 /**
  * What {@link ExecutionBreakerWeight} charges for one query whose scorer allocates per-leaf execution memory.
- * {@link #forQuery} maps each such query to its charge.
+ * {@link #forQuery} maps each such query to its charge; a query defined outside {@code server} supplies its own through
+ * {@link LeafExecutionAccountable}.
  * <p>
  * {@link ContextIndexSearcher#createWeight} consults {@link #forQuery} only for the queries that reach the searcher: the root, and
  * children whose parent builds their weight through {@code searcher.createWeight} (e.g. {@link BooleanQuery}
@@ -43,7 +44,7 @@ import java.io.IOException;
  * @param estimator sizes the query's execution memory on each leaf
  * @param label     the request circuit breaker label the memory is charged under
  */
-record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
+public record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
     /**
      * Looks through the wrappers that create their child's weight directly: {@link BoostQuery},
      * {@link IndexSortSortedNumericDocValuesRangeQuery} and {@link IndexOrDocValuesQuery}. Their children never reach the searcher
@@ -75,6 +76,9 @@ record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
 
     @Nullable
     private static ExecutionCharge forAllocatingQuery(Query query) {
+        if (query instanceof LeafExecutionAccountable accountable) {
+            return accountable.executionCharge();
+        }
         if (query instanceof PointRangeQuery pointRangeQuery) {
             return new ExecutionCharge(new PointRangeExecutionEstimator(pointRangeQuery), PointRangeExecutionEstimator.BREAKER_LABEL);
         }

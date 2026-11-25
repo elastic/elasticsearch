@@ -101,6 +101,9 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -119,6 +122,7 @@ import org.elasticsearch.xpack.esql.dsltranslate.QueryDslFieldNameExtractor;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
@@ -434,6 +438,11 @@ public class EsqlSession {
     }
 
     private volatile PlanSnapshot planSnapshot = PlanSnapshot.EMPTY;
+    /**
+     * Set when the query only verified without the keys of {@code flattened} fields and runs that way, see
+     * {@link #retryWithoutFlattenedKeys}: the data nodes then must not read keys either.
+     */
+    private volatile boolean flattenedKeysNotRead = false;
 
     public PlanSnapshot planSnapshot() {
         return planSnapshot;
@@ -496,6 +505,60 @@ public class EsqlSession {
         this.clusterUuid = resolveClusterUuid(services.clusterService());
         this.projectMetadata = projectMetadata;
         this.ipLocationService = services.ipLocationService();
+    }
+
+    /**
+     * Whether the view branches have to survive view resolution, so that the keys of a flattened column of a view can be added at its
+     * boundary: a view is a virtual index, and a name that is a key of a flattened column that a view's definition produces can only
+     * be told apart from an unknown column by the view's own branch. Whether they are kept through analysis is decided once the
+     * resolutions are known, see {@link #resolvesAFlattenedField}: where no resolved field is {@code flattened}, there is no key to
+     * expose, and the branches collapse as before.
+     */
+    private boolean flattenedKeysMayNeedViewBranches() {
+        return EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled() && indexResolver.flattenedDataTypeEnabled();
+    }
+
+    /**
+     * Whether any resolved index, lookup index or enrich policy has a {@code flattened} field, or a field that is {@code flattened} in
+     * some index and another type in another.
+     */
+    private static boolean resolvesAFlattenedField(PreAnalysisResult r) {
+        for (IndexResolution resolution : r.indexResolution().values()) {
+            if (resolution.isValid() && hasFlattenedField(resolution.get().mapping())) {
+                return true;
+            }
+        }
+        for (IndexResolution resolution : r.lookupIndices().values()) {
+            if (resolution.isValid() && hasFlattenedField(resolution.get().mapping())) {
+                return true;
+            }
+        }
+        for (IndexResolution resolution : r.linkedResolution().values()) {
+            if (resolution.isValid() && hasFlattenedField(resolution.get().mapping())) {
+                return true;
+            }
+        }
+        for (ResolvedEnrichPolicy policy : r.enrichResolution().resolvedPolicies()) {
+            if (hasFlattenedField(policy.mapping())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether any of {@code fields}, or any field under them, is {@code flattened} in some index. A field that is {@code flattened} in
+     * one index and another type in another is a type conflict, whichever way the conflict is represented, and counts.
+     */
+    static boolean hasFlattenedField(Map<String, EsField> fields) {
+        for (EsField field : fields.values()) {
+            if (field.getDataType() == DataType.FLATTENED
+                || field instanceof TypeConflictedField conflicted && conflicted.types().contains(DataType.FLATTENED)
+                || hasFlattenedField(field.getProperties())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String sessionId() {
@@ -613,6 +676,9 @@ public class EsqlSession {
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved)
         )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
+        }
+        if (boundaryPreservation == ViewBoundaryPreservation.NONE && flattenedKeysMayNeedViewBranches()) {
+            boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
         }
         viewResolver.replaceViews(
             parsedPlan,
@@ -782,7 +848,7 @@ public class EsqlSession {
                     analyzedOutput = analyzedPlan.inner().output();
                     // Data nodes read the keys of flattened fields only if every node does
                     Configuration executionConfiguration = finalConfiguration.withFlattenedKeys(
-                        finalConfiguration.flattenedKeys(minimumVersion)
+                        flattenedKeysNotRead == false && finalConfiguration.flattenedKeys(minimumVersion)
                     );
 
                     if (request.analyzeOnly()) {
@@ -2303,15 +2369,14 @@ public class EsqlSession {
         // view does not count here: the view's own settings nullify its body (ViewQuerySettings#from), and must not
         // change how the caller's query resolves.
         boolean nullify = exemplars || callerScopeHasPromql(parsed);
+        Set<String> namedFields = configuration.flattenedKeys() ? FieldNameUtils.namedFields(parsed) : null;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,
                 configuration,
                 executionInfo,
                 trackedUnmappedFieldIndices,
-                configuration.flattenedKeys()
-                    ? new IndexResolver.NamedFields(FieldNameUtils.namedFields(parsed), result.parentPaths())
-                    : null,
+                namedFields == null ? null : new IndexResolver.NamedFields(namedFields, result.parentPaths()),
                 result,
                 requestFilter,
                 queryTimeFilters,
@@ -2375,6 +2440,7 @@ public class EsqlSession {
                     preAnalysis.lookupIndices().iterator(),
                     parsed,
                     preAnalysis.needsFieldSemantics(),
+                    namedFields,
                     r,
                     executionInfo,
                     l
@@ -2411,6 +2477,9 @@ public class EsqlSession {
                     r.minimumTransportVersion(),
                     planningCpu.meteredCpu(l.delegateFailureAndWrap((ll, enrichResolution) -> {
                         executionInfo.queryProfile().enrichResolutionMarker().stop();
+                        if (namedFields != null) {
+                            enrichResolution.namedFields(namedFields);
+                        }
                         ll.onResponse(r.withEnrichResolution(enrichResolution));
                     }))
                 );
@@ -2453,6 +2522,7 @@ public class EsqlSession {
         Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
         boolean needsFieldSemantics,
+        @Nullable Set<String> namedFields,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2460,7 +2530,7 @@ public class EsqlSession {
         forAll(
             lookupIndices,
             preAnalysisResult,
-            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, r, executionInfo, l),
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, namedFields, r, executionInfo, l),
             listener
         );
     }
@@ -2469,6 +2539,7 @@ public class EsqlSession {
         PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
         boolean needsFieldSemantics,
+        @Nullable Set<String> namedFields,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2529,6 +2600,8 @@ public class EsqlSession {
             qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             needsFieldSemantics,
+            // A lookup index holds keys as a main index does; the analyzer keeps those no other column shadows
+            namedFields,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
@@ -3619,6 +3692,23 @@ public class EsqlSession {
         } catch (VerificationException ve) {
             LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
             if (usedFilter == false) {
+                if (fallsBackToUnreadKeys(configuration, unmappedResolution, result)) {
+                    retryWithoutFlattenedKeys(
+                        ve,
+                        parsed,
+                        unmappedResolution,
+                        viewSettings,
+                        configuration,
+                        executionInfo,
+                        timestampBounds,
+                        listingBounds,
+                        preserveViewBoundaries,
+                        preAnalysis,
+                        result,
+                        listener
+                    );
+                    return;
+                }
                 // if the initial request didn't have a filter, then just pass the exception back to the user
                 listener.onFailure(ve);
             } else {
@@ -3643,6 +3733,67 @@ public class EsqlSession {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Whether a query that fails verification is analyzed once more without the keys of {@code flattened} fields.
+     * <p>
+     * Before keys were read, a name under a flattened field was a {@code null} of the null type wherever {@code unmapped_fields}
+     * answers a name that nothing maps. The null type is accepted by every expression and a key is a {@code keyword}, so a query
+     * like {@code WHERE attrs.foo > 5} verified then and does not with keys. Such a query keeps the meaning it had, see
+     * {@link #retryWithoutFlattenedKeys}. With the default {@code unmapped_fields} the name was an unknown column, so there is
+     * no earlier meaning to keep.
+     */
+    private static boolean fallsBackToUnreadKeys(Configuration configuration, UnmappedResolution unmappedResolution, PreAnalysisResult r) {
+        return configuration.flattenedKeys() && unmappedResolution != UnmappedResolution.DEFAULT && resolvesAFlattenedField(r);
+    }
+
+    /**
+     * Resolves and analyzes the query as it was before the keys of {@code flattened} fields were read. If that verifies, the query
+     * runs with that meaning and a warning; otherwise it fails with {@code withKeys}, the failure of the analysis with keys.
+     * The whole query falls back, not only the names that failed: a name has one meaning in a query.
+     */
+    private void retryWithoutFlattenedKeys(
+        VerificationException withKeys,
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        TimestampBounds timestampBounds,
+        TimestampBounds listingBounds,
+        boolean preserveViewBoundaries,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        ActionListener<Versioned<LogicalPlan>> listener
+    ) {
+        LOGGER.debug("Analyzing the plan again without the keys of flattened fields");
+        executionInfo.clusterInfo.clear();
+        resolveIndicesAndAnalyze(
+            parsed,
+            unmappedResolution,
+            viewSettings,
+            configuration.withFlattenedKeys(false),
+            executionInfo,
+            "attempt without the keys of flattened fields",
+            null,
+            Map.of(),
+            timestampBounds,
+            listingBounds,
+            preserveViewBoundaries,
+            preAnalysis,
+            result,
+            ActionListener.wrap(plan -> {
+                flattenedKeysNotRead = true;
+                HeaderWarning.addWarning(
+                    "The query uses a key of a flattened field in a way that requires a type other than [keyword] ({}). "
+                        + "It was run without reading the keys of flattened fields, so those names are null. "
+                        + "Convert the key explicitly, e.g. with [::long], to read it.",
+                    withKeys.getMessage()
+                );
+                listener.onResponse(plan);
+            }, e -> listener.onFailure(withKeys))
+        );
     }
 
     /**
@@ -3744,7 +3895,9 @@ public class EsqlSession {
             r,
             timestampBounds,
             resolveIpLocations(parsed),
-            preserveViewBoundaries,
+            // With flattened fields in the query's resolutions the view branches stay through analysis, so that the keys of a
+            // flattened column that a view exposes can be added at its boundary; ViewCompaction collapses them afterwards as before
+            preserveViewBoundaries || (configuration.flattenedKeys() && resolvesAFlattenedField(r)),
             viewSettings,
             flags
         );

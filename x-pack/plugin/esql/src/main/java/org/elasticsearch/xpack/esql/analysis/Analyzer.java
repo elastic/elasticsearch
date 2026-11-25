@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FlattenedKeyEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
@@ -150,6 +151,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsigne
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -285,6 +287,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
@@ -1409,6 +1412,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.enrichFields(),
                     policy
                 );
+                if (context.configuration().flattenedKeys(context.minimumVersion())) {
+                    enrichFields = withFlattenedKeys(plan.source(), enrichFields, context.enrichResolution().namedFields());
+                }
                 return new Enrich(
                     plan.source(),
                     plan.child(),
@@ -1455,6 +1461,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return result;
+        }
+
+        /**
+         * {@code enrichFields} and the keys of their {@code flattened} fields that the query names, e.g. {@code attributes.host} for a
+         * {@code flattened} enrich field {@code attributes}. A flattened enrich field brings in its keys as a flattened field of an index
+         * does. A field that {@code WITH} renames brings in none: its keys would need the new name.
+         * <p>
+         * {@link ResolveRefs#resolveEnrich} drops the keys that a column of the input shadows.
+         */
+        static List<NamedExpression> withFlattenedKeys(Source source, List<NamedExpression> enrichFields, Set<String> namedFields) {
+            if (namedFields.isEmpty()) {
+                return enrichFields;
+            }
+            Set<String> flattened = new HashSet<>();
+            Set<String> names = new HashSet<>();
+            for (NamedExpression field : enrichFields) {
+                names.add(field.name());
+                if (field instanceof ReferenceAttribute && field.dataType() == FLATTENED) {
+                    flattened.add(field.name());
+                }
+            }
+            if (flattened.isEmpty()) {
+                return enrichFields;
+            }
+            List<NamedExpression> withKeys = new ArrayList<>(enrichFields);
+            for (String name : namedFields.stream().sorted().toList()) {
+                if (names.contains(name) == false && flattenedParent(name, flattened)) {
+                    withKeys.add(new ReferenceAttribute(source, null, name, KEYWORD, Nullability.TRUE, null, false));
+                }
+            }
+            return withKeys;
+        }
+
+        private static boolean flattenedParent(String name, Set<String> flattened) {
+            for (int dot = name.indexOf('.'); dot > 0; dot = name.indexOf('.', dot + 1)) {
+                if (flattened.contains(name.substring(0, dot))) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static NamedExpression createEnrichFieldExpression(
@@ -1818,29 +1864,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.viewSettings().isEmpty()) {
                 return super.apply(plan, context);
             }
-            return applyInViewScope(plan, context);
+            return applyInViewScope(plan, context, unresolvedNamesOutsideViews(plan));
         }
 
-        private LogicalPlan applyInViewScope(LogicalPlan plan, AnalyzerContext context) {
+        /**
+         * @param scopeNames the names that the scope {@code plan} is in refers to and has not resolved yet: the caller's query outside
+         *                   every view body, or the body of one view outside the views it reads. They are what a view read in that
+         *                   scope is asked for, see {@link #withKeysOfViewColumns}.
+         */
+        private LogicalPlan applyInViewScope(LogicalPlan plan, AnalyzerContext context, Set<String> scopeNames) {
             List<LogicalPlan> children = plan.children();
             List<LogicalPlan> newChildren = new ArrayList<>(children.size());
             boolean changed = false;
             for (int i = 0; i < children.size(); i++) {
                 AnalyzerContext childContext = context;
+                Set<String> childNames = scopeNames;
                 if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
                     childContext = context.withUnmappedResolution(
                         resolutionForView(context, branchPlan.branchIdentity(i).settingsViewName())
                     );
+                    childNames = unresolvedNamesOutsideViews(children.get(i));
                 }
-                LogicalPlan newChild = applyInViewScope(children.get(i), childContext);
+                LogicalPlan newChild = applyInViewScope(children.get(i), childContext, childNames);
                 changed |= newChild != children.get(i);
                 newChildren.add(newChild);
             }
             LogicalPlan current = changed ? plan.replaceChildren(newChildren) : plan;
+            if (current instanceof BranchPlan branchPlan) {
+                current = withKeysOfViewColumns(branchPlan, context, scopeNames);
+            }
             if (current.analyzed() || current.resolved()) {
                 return current;
             }
             return rule(current, context);
+        }
+
+        /** The dotted names that {@code scope} refers to outside view bodies and has not resolved. */
+        private static Set<String> unresolvedNamesOutsideViews(LogicalPlan scope) {
+            Set<String> names = new LinkedHashSet<>();
+            ViewUtils.forEachOutsideViews(scope, node -> node.forEachExpression(UnresolvedAttribute.class, ua -> {
+                if (ua instanceof UnresolvedPattern == false && ua.qualifier() == null && ua.name().indexOf('.') > 0) {
+                    names.add(ua.name());
+                }
+            }));
+            return names;
         }
 
         private static UnmappedResolution resolutionForView(AnalyzerContext context, String viewName) {
@@ -1988,6 +2055,73 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static VerificationException nestedExpandError(Expression expression, String message) {
             return new VerificationException(List.of(Failure.fail(expression, message)));
+        }
+
+        /**
+         * Answers the names a scope refers to at the views it reads. A view is index-like: the query reads it as it would read an
+         * index that stores the view's output. So a name {@code attrs.foo} that the scope refers to is
+         * <ul>
+         *     <li>the view's column of that name, if it has one;</li>
+         *     <li>otherwise the key {@code foo} of the view's {@code flattened} column {@code attrs}, read from that column's value:
+         *     {@code EVAL attrs.foo = FIELD_EXTRACT(attrs, "foo")} atop the view branch, so the key is a column of the view like the
+         *     key of a flattened field is a column of its index;</li>
+         *     <li>the most specific one first when several flattened columns of the view are above the name: for {@code attrs.foo.bar}
+         *     the key {@code bar} of {@code attrs.foo}, then the key {@code foo.bar} of {@code attrs}.</li>
+         * </ul>
+         * This happens when the view branch is resolved and before the commands that read it are, so that those commands see the key
+         * as they see any column of the view. Nothing else in a query carries keys: a renamed or copied flattened column has none, and a
+         * subquery is not a boundary, its sources answer. See {@link FlattenedKeyEsField} for the rules for keys.
+         */
+        private static LogicalPlan withKeysOfViewColumns(BranchPlan branch, AnalyzerContext context, Set<String> scopeNames) {
+            if (scopeNames.isEmpty() || context.configuration().flattenedKeys(context.minimumVersion()) == false) {
+                return branch;
+            }
+            List<LogicalPlan> children = branch.children();
+            List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+            boolean changed = false;
+            for (int i = 0; i < children.size(); i++) {
+                LogicalPlan child = children.get(i);
+                if (branch.isViewBranch(i) && child.resolved()) {
+                    List<Alias> keys = keysOfViewColumns(child, scopeNames);
+                    if (keys.isEmpty() == false) {
+                        child = new Eval(child.source(), child, keys);
+                        changed = true;
+                    }
+                }
+                newChildren.add(child);
+            }
+            return changed ? branch.replaceChildren(newChildren) : branch;
+        }
+
+        private static List<Alias> keysOfViewColumns(LogicalPlan view, Set<String> scopeNames) {
+            List<Attribute> output = view.output();
+            Set<String> columns = new HashSet<>(Expressions.names(output));
+            List<Alias> keys = new ArrayList<>();
+            for (String name : scopeNames) {
+                if (columns.contains(name)) {
+                    continue;
+                }
+                List<Attribute> roots = new ArrayList<>();
+                for (Attribute column : output) {
+                    if (column.dataType() == DataType.FLATTENED && name.startsWith(column.name() + ".")) {
+                        roots.add(column);
+                    }
+                }
+                if (roots.isEmpty()) {
+                    continue;
+                }
+                // most specific first
+                roots.sort(Comparator.comparing((Attribute root) -> root.name().length()).reversed());
+                Source source = view.source();
+                List<Expression> reads = new ArrayList<>(roots.size());
+                for (Attribute root : roots) {
+                    String path = name.substring(root.name().length() + 1);
+                    reads.add(new FieldExtract(source, root, Literal.keyword(source, path), true));
+                }
+                Expression read = reads.size() == 1 ? reads.get(0) : new Coalesce(source, reads.get(0), reads.subList(1, reads.size()));
+                keys.add(new Alias(source, name, read));
+            }
+            return keys;
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -2423,6 +2557,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 )) {
                     return join;
                 }
+                LogicalPlan right = withoutShadowedKeys(join.left(), join.right(), Expressions.names(config.rightFields()));
                 List<Attribute> leftKeys = new ArrayList<>();
                 List<Attribute> rightKeys = new ArrayList<>();
                 Expression joinOnConditions = null;
@@ -2430,7 +2565,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     joinOnConditions = resolveJoinFiltersAndSwapIfNeeded(
                         join.config().joinOnConditions(),
                         join.left().outputSet(),
-                        join.right().outputSet(),
+                        right.outputSet(),
                         leftKeys,
                         rightKeys,
                         context
@@ -2442,18 +2577,68 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.leftFields(), join.left().output(), "left");
                     rightKeys = Resolvables.resolved(config.rightFields())
                         ? config.rightFields()
-                        : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
+                        : resolveUsingColumns(config.rightFields(), right.output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
                 boolean hasRemoteIndices = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
                 var newLookupJoinMode = newLookupJoinMode(join.executesOn(), hasRemoteIndices);
-                return new LookupJoin(join.source(), join.left(), join.right(), config, newLookupJoinMode);
+                return new LookupJoin(join.source(), join.left(), right, config, newLookupJoinMode);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
+        }
+
+        /**
+         * The lookup side of a {@code LOOKUP JOIN} without the keys of {@code flattened} fields that a column of the left side shadows.
+         * See {@link FlattenedKeyEsField} for the rules; the lookup side brings in a key as a new column only if no column of that name
+         * exists on the left yet.
+         * The join keys are kept so that they still resolve on the lookup side; the join drops them from its output anyway.
+         */
+        private static LogicalPlan withoutShadowedKeys(LogicalPlan left, LogicalPlan right, List<String> joinKeyNames) {
+            if (right instanceof EsRelation == false) {
+                return right;
+            }
+            EsRelation lookup = (EsRelation) right;
+            Set<String> existing = existingColumnNames(left, left.output());
+            List<Attribute> kept = new ArrayList<>(lookup.output().size());
+            for (Attribute attr : lookup.output()) {
+                if (isFlattenedKey(attr) == false || existing.contains(attr.name()) == false || joinKeyNames.contains(attr.name())) {
+                    kept.add(attr);
+                }
+            }
+            return kept.size() == lookup.output().size() ? lookup : lookup.withAttributes(kept);
+        }
+
+        /**
+         * The names of the columns of {@code output} that exist before a command brings in new keys: every column but the keys that no
+         * command of {@code plan} has referenced. A key that a command referenced, say in a {@code WHERE} or a {@code KEEP}, is a column
+         * from there on, as a loaded unmapped field is; a key nobody referenced yet is not, so a command that replaces its
+         * {@code flattened} parent replaces it too.
+         */
+        private static Set<String> existingColumnNames(LogicalPlan plan, List<? extends Attribute> output) {
+            Set<String> referenced = new HashSet<>();
+            plan.forEachDown(node -> {
+                for (Attribute reference : node.references()) {
+                    referenced.add(reference.name());
+                }
+            });
+            Set<String> existing = new HashSet<>();
+            for (Attribute attr : output) {
+                if (isFlattenedKey(attr) == false || referenced.contains(attr.name())) {
+                    existing.add(attr.name());
+                }
+            }
+            return existing;
+        }
+
+        /**
+         * Whether {@code attr} reads the key of a {@code flattened} field rather than a mapped field or a computed column.
+         */
+        static boolean isFlattenedKey(Attribute attr) {
+            return attr instanceof FieldAttribute fa && FlattenedKeyEsField.isKey(fa.field());
         }
 
         private static ExecuteLocation newLookupJoinMode(ExecuteLocation mode, boolean hasRemoteIndices) {
@@ -3727,10 +3912,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     resolved,
                     enrich.policy(),
                     enrich.concreteIndices(),
-                    enrich.enrichFields()
+                    withoutShadowedKeys(enrich, childrenOutput)
                 );
             }
             return enrich;
+        }
+
+        /**
+         * The enrich fields of {@code enrich} without the keys of {@code flattened} fields that a column of the input shadows, as
+         * {@link #withoutShadowedKeys(LogicalPlan, LogicalPlan, List)} does for {@code LOOKUP JOIN}. A key is an enrich field that the
+         * policy does not list: {@code WITH} can name only the fields the policy lists.
+         */
+        private static List<NamedExpression> withoutShadowedKeys(Enrich enrich, List<Attribute> childrenOutput) {
+            if (enrich.policy() == null) {
+                return enrich.enrichFields();
+            }
+            Set<String> policyFields = new HashSet<>(enrich.policy().getEnrichFields());
+            Set<String> existing = existingColumnNames(enrich.child(), childrenOutput);
+            List<NamedExpression> kept = new ArrayList<>(enrich.enrichFields().size());
+            for (NamedExpression field : enrich.enrichFields()) {
+                boolean key = field instanceof ReferenceAttribute && policyFields.contains(field.name()) == false;
+                if (key == false || existing.contains(field.name()) == false) {
+                    kept.add(field);
+                }
+            }
+            return kept.size() == enrich.enrichFields().size() ? enrich.enrichFields() : kept;
         }
 
         private LogicalPlan resolveMMR(MMR mmr, List<Attribute> childrenOutput) {

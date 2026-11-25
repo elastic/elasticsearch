@@ -1,0 +1,2 @@
+FROM view_flattened_renamed
+| WHERE attrs.host == "a"

@@ -1,0 +1,2 @@
+FROM (FROM flattened_paths_mapped | RENAME attributes AS attrs | KEEP id, attrs),
+     (FROM flattened_paths_mapped | RENAME meta.labels AS attrs | KEEP id, attrs)

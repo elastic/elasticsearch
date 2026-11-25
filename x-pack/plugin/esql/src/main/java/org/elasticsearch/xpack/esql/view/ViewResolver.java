@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings.WildcardsStop;
 
@@ -878,7 +879,7 @@ public class ViewResolver {
                         // demand nested view identity: when this view's SETs re-enable a boundary-scoped setting for
                         // its body, the nested views inside it are boundaries for that setting, exactly as views are
                         // for the caller's query.
-                        bodySettings.requiresViewIdentity() ? ViewBoundaryPreservation.KEEP_VIEW_IDENTITY : ViewBoundaryPreservation.NONE,
+                        bodySettings.requiresViewIdentity() ? ViewBoundaryPreservation.KEEP_VIEW_IDENTITY : nestedViewPreservation(),
                         planSize,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             PlanJsonLog.debug(PlanJsonLog.Stage.RESOLVED, view.name(), fullyResolved);
@@ -1300,6 +1301,21 @@ public class ViewResolver {
     protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}
 
     record ViewPlan(String name, LogicalPlan plan) {}
+
+    /**
+     * The preservation level for a view nested in the definition of another view, when that definition has no setting of its own that
+     * needs one. The caller's level does not propagate into a body: the request filter applies to the output of the views the query
+     * names, and the rewriter does not descend into a view branch, so it never looks at nested ones.
+     * <p>
+     * With the flattened keys feature on, the branches of nested views are kept anyway: a view's body may name a key of a flattened
+     * column that a nested view exposes, which only that view's own branch can tell from an unknown column. Whether they survive
+     * analysis is decided there, as for the views of the query, so without a flattened field they collapse as before.
+     */
+    private static ViewBoundaryPreservation nestedViewPreservation() {
+        return EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled()
+            ? ViewBoundaryPreservation.KEEP_VIEW_BRANCHES
+            : ViewBoundaryPreservation.NONE;
+    }
 
     /**
      * The preservation level for one resolved relation: the caller's level, raised to

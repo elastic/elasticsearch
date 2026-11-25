@@ -83,8 +83,11 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
 
     public void testSearchLoadMetricsAreTransportVersionGated() throws Exception {
         final var nodeAndShard = new ClusterInfo.NodeAndShard(randomIdentifier(), randomShardId());
-        final var searchCopyDemands = Map.of(nodeAndShard, new SearchCopyDemand(1.5d, 2.5d));
-        final var nodeSearchCapacities = Map.of(randomIdentifier(), new NodeSearchCapacity(4.0d, 8.0d));
+        final var searchCopyDemands = Map.of(nodeAndShard, new SearchCopyDemand(randomDouble(), randomDouble()));
+        final var nodeSearchCapacities = Map.of(
+            randomIdentifier(),
+            new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
+        );
         final var clusterInfo = ClusterInfo.builder()
             .searchCopyDemands(searchCopyDemands)
             .nodeSearchCapacities(nodeSearchCapacities)

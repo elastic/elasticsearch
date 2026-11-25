@@ -130,7 +130,8 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
         final int simulatedHeapGb = random.nextInt(1, 32);
         final long simulatedConcurrentRecoveries = Math.round(1.5 * simulatedHeapGb);
         LOGGER.info(
-            "Simulating production node heap [{}gb] allowing [{}] concurrent primary recoveries",
+            "Simulating production node heap [{}gb] with a heap-based limit of [{}] concurrent primary recoveries, "
+                + "before the node_concurrent_recoveries cap",
             simulatedHeapGb,
             simulatedConcurrentRecoveries
         );
@@ -145,13 +146,15 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
         );
     }
 
-    /// The heap of the test nodes, resolved like the cluster launcher does: `tests.heap.size`, unless an `-Xmx` in
-    /// `tests.jvm.argline` overrides it.
+    /// The heap of the test nodes, resolved like the cluster launcher does: `tests.heap.size`, unless an `-Xmx` or
+    /// `-XX:MaxHeapSize=` in `tests.jvm.argline` overrides it, in which case the last one wins.
     private static long testNodeHeapBytes() {
         long heapBytes = parseJvmMemorySize(System.getProperty("tests.heap.size", "512m"));
         for (String jvmArg : System.getProperty("tests.jvm.argline", "").split("\\s+")) {
             if (jvmArg.startsWith("-Xmx")) {
                 heapBytes = parseJvmMemorySize(jvmArg.substring("-Xmx".length()));
+            } else if (jvmArg.startsWith("-XX:MaxHeapSize=")) {
+                heapBytes = parseJvmMemorySize(jvmArg.substring("-XX:MaxHeapSize=".length()));
             }
         }
         return heapBytes;

@@ -732,21 +732,8 @@ public class GroupingEqualityTests extends ESTestCase {
                 .appendNull()
                 .build()
         ) {
-            // (1, a), (1, a), (1, b), (2, a), ([1, 2], a), ([2, 1], a), ([1, 2], a), ([1, 1], a),
-            // (null, a), (null, a), (null, b), (1, null)
             int[] ids = rowKeyGroups(List.of(ElementType.INT, ElementType.BYTES_REF), numbers, names);
-            assertThat(ids[1], equalTo(ids[0]));
-            assertThat(ids[2], not(equalTo(ids[0])));
-            assertThat(ids[3], not(equalTo(ids[0])));
-            assertThat(ids[2], not(equalTo(ids[3])));
-            assertThat(ids[6], equalTo(ids[4]));
-            assertThat(ids[5], not(equalTo(ids[4])));
-            assertThat(ids[4], not(equalTo(ids[0])));
-            assertThat(ids[7], not(equalTo(ids[0])));
-            assertThat(ids[9], equalTo(ids[8]));
-            assertThat(ids[10], not(equalTo(ids[8])));
-            assertThat(ids[11], not(equalTo(ids[0])));
-            assertThat(ids[11], not(equalTo(ids[8])));
+            assertPartition(ids, 0, 0, 1, 2, 3, 4, 3, 5, 6, 6, 7, 8);
         }
     }
 

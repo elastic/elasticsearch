@@ -37,6 +37,8 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -155,6 +158,60 @@ public class GroupingEqualityTests extends ESTestCase {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * The same bytes in a larger buffer are the same key. A geometry written in the other WKB byte order is a
+     * valid encoding of the same shape, and {@code ==} compares those bytes, so it is a different key.
+     */
+    public void testEquivalentRepresentationsAgreeWithEquals() {
+        for (DataType type : List.of(DataType.KEYWORD, DataType.VERSION, DataType.GEO_POINT, DataType.HISTOGRAM)) {
+            BytesRef value = encoded(type);
+            BytesRef slice = slice(value);
+            assertTrue(type.typeName(), value.bytesEquals(slice));
+            for (BlockHashKind kind : BlockHashKind.values()) {
+                assertAgrees(type, kind, value, slice);
+            }
+        }
+        for (DataType type : List.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE)) {
+            BytesRef little = wkb(type, ByteOrder.LITTLE_ENDIAN);
+            BytesRef big = wkb(type, ByteOrder.BIG_ENDIAN);
+            assertFalse(type.typeName(), little.bytesEquals(big));
+            assertThat(type.typeName(), wkt(big), equalTo(wkt(little)));
+            for (BlockHashKind kind : BlockHashKind.values()) {
+                assertAgrees(type, kind, little, big);
+            }
+        }
+    }
+
+    private static BytesRef encoded(DataType type) {
+        return switch (type) {
+            case KEYWORD -> new BytesRef("keyword");
+            case VERSION -> new Version("1.2.3").toBytesRef();
+            case GEO_POINT -> GEO.asWkb(new Point(1, 2));
+            case HISTOGRAM -> histogram(1.0d);
+            default -> throw new AssertionError(type);
+        };
+    }
+
+    /** The same bytes, starting at a non-zero offset of a larger array. */
+    private static BytesRef slice(BytesRef value) {
+        byte[] padded = new byte[value.length + 4];
+        System.arraycopy(value.bytes, value.offset, padded, 2, value.length);
+        return new BytesRef(padded, 2, value.length);
+    }
+
+    private static BytesRef wkb(DataType type, ByteOrder order) {
+        var geometry = switch (type) {
+            case GEO_POINT, CARTESIAN_POINT -> new Point(1, 2);
+            case GEO_SHAPE, CARTESIAN_SHAPE -> new Rectangle(0, 1, 1, 0);
+            default -> throw new AssertionError(type);
+        };
+        return new BytesRef(WellKnownBinary.toWKB(geometry, order));
+    }
+
+    private static String wkt(BytesRef wkb) {
+        return WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length);
     }
 
     /**

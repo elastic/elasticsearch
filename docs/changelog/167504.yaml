@@ -1,0 +1,5 @@
+area: Analysis
+issues: []
+pr: 167504
+summary: Inherit analysis mode and resources in the condition token filter
+type: bug

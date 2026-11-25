@@ -53,9 +53,13 @@ public class MockTaskManager extends TaskManager {
         super(settings, threadPool, taskHeaders, Tracer.NOOP);
     }
 
+    public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
+        super(settings, threadPool, taskHeaders, tracer, nodeId);
+    }
+
     public static TaskManager create(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
         var taskManager = MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)
-            ? new MockTaskManager(settings, threadPool, taskHeaders)
+            ? new MockTaskManager(settings, threadPool, taskHeaders, tracer, nodeId)
             : new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
         return MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings) ? spy(taskManager) : taskManager;
     }

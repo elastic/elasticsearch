@@ -111,6 +111,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.scheduling.QueryScheduler;
+import org.elasticsearch.tasks.CoordinatingQueryAdmissionPolicy;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -188,6 +189,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final RemoteClusterService remoteClusterService;
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
+    private final CoordinatingQueryAdmissionPolicy admissionPolicy;
     private final ProjectResolver projectResolver;
     private final ResponseCollectorService responseCollectorService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -210,6 +212,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         CircuitBreakerService circuitBreakerService,
         TransportService transportService,
         SearchService searchService,
+        CoordinatingQueryAdmissionPolicy admissionPolicy,
         ResponseCollectorService responseCollectorService,
         SearchTransportService searchTransportService,
         SearchPhaseController searchPhaseController,
@@ -257,6 +260,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;
+        this.admissionPolicy = admissionPolicy;
         this.projectResolver = projectResolver;
         this.responseCollectorService = responseCollectorService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -425,6 +429,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        admissionPolicy.admit(task);
         SearchCaptureContextBuilder searchCaptureContextBuilder = new SearchCaptureContextBuilder(
             task,
             namedWriteableRegistry,

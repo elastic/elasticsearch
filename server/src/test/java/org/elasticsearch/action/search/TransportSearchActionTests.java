@@ -119,6 +119,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.tasks.CoordinatingQueryAdmissionPolicy;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
@@ -2569,6 +2570,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 transportService,
                 searchService,
+                CoordinatingQueryAdmissionPolicy.NOOP,
                 null,
                 new SearchTransportService(transportService, client, null),
                 null,

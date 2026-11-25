@@ -259,6 +259,8 @@ import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.CoordinatingQueryAdmissionPolicy;
+import org.elasticsearch.tasks.CoordinatingQueryAdmissionPolicyProvider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
@@ -1388,6 +1390,10 @@ class NodeConstruction {
             OnlinePrewarmingServiceProvider.class,
             () -> OnlinePrewarmingServiceProvider.DEFAULT
         ).create(clusterService.getSettings(), threadPool, clusterService, telemetryProvider);
+        CoordinatingQueryAdmissionPolicy admissionPolicy = pluginsService.loadSingletonServiceProvider(
+            CoordinatingQueryAdmissionPolicyProvider.class,
+            () -> ignored -> CoordinatingQueryAdmissionPolicy.NOOP
+        ).create(taskManager);
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,
@@ -1532,6 +1538,7 @@ class NodeConstruction {
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
             b.bind(MetadataIndexTemplateService.class).toInstance(metadataIndexTemplateService);
             b.bind(SearchService.class).toInstance(searchService);
+            b.bind(CoordinatingQueryAdmissionPolicy.class).toInstance(admissionPolicy);
             b.bind(SearchTaskWatchdog.class).toInstance(searchTaskWatchdog);
             b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);

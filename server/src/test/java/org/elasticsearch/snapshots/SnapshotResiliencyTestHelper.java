@@ -173,6 +173,7 @@ import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.tasks.CoordinatingQueryAdmissionPolicy;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -1066,6 +1067,7 @@ public class SnapshotResiliencyTestHelper {
                         new NoneCircuitBreakerService(),
                         transportService,
                         searchService,
+                        CoordinatingQueryAdmissionPolicy.NOOP,
                         responseCollectorService,
                         searchTransportService,
                         searchPhaseController,

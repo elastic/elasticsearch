@@ -47,6 +47,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.CoordinatingQueryAdmissionPolicy;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -116,6 +117,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private final ThreadPool threadPool;
     private final PlanExecutor planExecutor;
+    private final CoordinatingQueryAdmissionPolicy admissionPolicy;
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final ClusterService clusterService;
@@ -144,6 +146,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionFilters actionFilters,
         PlanExecutor planExecutor,
         SearchService searchService,
+        CoordinatingQueryAdmissionPolicy admissionPolicy,
         ExchangeService exchangeService,
         ComputeExecutor computeExecutor,
         ClusterService clusterService,
@@ -172,6 +175,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.planExecutor = planExecutor;
+        this.admissionPolicy = admissionPolicy;
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
@@ -356,6 +360,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        admissionPolicy.admit(task);
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
         requestExecutor.execute(
             ActionRunnable.wrap(

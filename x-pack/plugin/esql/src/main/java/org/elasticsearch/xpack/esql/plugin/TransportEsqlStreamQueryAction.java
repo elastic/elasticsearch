@@ -33,6 +33,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.CoordinatingQueryAdmissionPolicy;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -148,6 +149,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     private final Client client;
     private final QueryInterceptor<EsqlCaptureContext> queryInterceptor;
     private final TransportEsqlQueryAction transportEsqlQueryAction;
+    private final CoordinatingQueryAdmissionPolicy admissionPolicy;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -167,7 +169,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         TransportEsqlQueryAction transportEsqlQueryAction,
         ClusterService clusterService,
         ViewResolver viewResolver,
-        Client client
+        Client client,
+        CoordinatingQueryAdmissionPolicy admissionPolicy
     ) {
         super(EsqlStreamQueryAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -178,6 +181,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         this.datasetResolver = transportEsqlQueryAction.datasetResolver();
         this.queryInterceptor = transportEsqlQueryAction.activityInterceptor();
         this.transportEsqlQueryAction = transportEsqlQueryAction;
+        this.admissionPolicy = admissionPolicy;
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
@@ -210,6 +214,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
     @Override
     protected void doExecute(Task task, EsqlStreamQueryRequest request, ActionListener<ActionResponse.Empty> listener) {
+        admissionPolicy.admit(task);
         requestExecutor.execute(ActionRunnable.wrap(listener, l -> prepareAndExecuteWithLogging(task, request, l)));
     }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -217,7 +218,7 @@ public class TaskManager implements ClusterStateApplier {
             final Task task;
             try {
                 task = register(type, action.actionName, request);
-            } catch (TaskCancelledException e) {
+            } catch (TaskCancelledException | EsRejectedExecutionException e) {
                 Releasables.close(unregisterChildNode);
                 throw e;
             }

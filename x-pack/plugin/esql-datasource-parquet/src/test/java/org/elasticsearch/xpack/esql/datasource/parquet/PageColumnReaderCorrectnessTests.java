@@ -1037,6 +1037,37 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     /**
+     * The baseline reader reads an empty unscaled value in a BINARY-backed DECIMAL as 0, as the optimized reader
+     * does, from PLAIN or dictionary pages. Unlike the optimized reader, parquet-java's own PLAIN decoder rejects a
+     * negative length, so only a writer-stored empty value is covered here.
+     */
+    public void testBaselineBinaryDecimalEmptyValueReadsAsZero() throws IOException {
+        byte[][] values = { BigInteger.valueOf(12345).toByteArray(), new byte[0], BigInteger.valueOf(-678).toByteArray() };
+        boolean dictionary = randomBoolean();
+        byte[] data = writeBinaryFile(
+            LogicalTypeAnnotation.decimalType(2, 9),
+            false,
+            dictionary,
+            64 * 1024,
+            row -> values[row],
+            values.length
+        );
+
+        List<Page> pages = readAll(new ParquetFormatReader(blockFactory).withBaselinePath(), data, List.of("s"));
+        try {
+            assertEquals(1, pages.size());
+            DoubleBlock block = pages.getFirst().getBlock(0);
+            assertEquals(3, block.getPositionCount());
+            assertEquals(123.45, block.getDouble(0), 0.0);
+            assertEquals("empty unscaled value, dictionary=" + dictionary, 0.0, block.getDouble(1), 0.0);
+            assertEquals(-6.78, block.getDouble(2), 0.0);
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+        assertOptimizedMatchesBaseline(data, List.of("s"));
+    }
+
+    /**
      * Finds the one PLAIN value {@code before} (length prefix and payload) that is immediately followed by an
      * empty value, and overwrites the empty value's prefix with a random negative length, as a corrupt page
      * would hold. Only an empty value's prefix is rewritten so the rest of the page stays aligned. The written

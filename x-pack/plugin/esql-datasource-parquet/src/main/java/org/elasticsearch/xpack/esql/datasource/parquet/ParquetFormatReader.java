@@ -4815,7 +4815,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     BigInteger unscaled = switch (info.parquetType()) {
                         case INT32 -> BigInteger.valueOf(cr.getInteger());
                         case INT64 -> BigInteger.valueOf(cr.getLong());
-                        case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
+                        case BINARY, FIXED_LEN_BYTE_ARRAY -> ParquetColumnDecoding.unscaledToBigInteger(cr.getBinary().getBytes());
                         default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
                     };
                     values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();

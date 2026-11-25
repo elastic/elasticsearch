@@ -11635,6 +11635,90 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * An empty unscaled value in a BINARY-backed DECIMAL column (which no valid writer emits) is ordered as 0 by
+     * parquet-java when it computes the footer min/max, so such a stat must decode as 0, the value the scan reads
+     * for it. Before the fix the stat failed in {@link BigInteger}. Bounds that bracket every scanned value are
+     * what keep split pruning from dropping matching rows, so this also checks the bounds equal the scan's extremes.
+     * {@code dec_max} holds the empty value as its max (above a negative value), {@code dec_min} as its min (below
+     * a positive value).
+     */
+    public void testBinaryDecimalEmptyStatDecodesAsZero() throws Exception {
+        int scale = 2;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(scale, 9))
+            .named("dec_max")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(scale, 9))
+            .named("dec_min")
+            .named("test_schema");
+        byte[] empty = new byte[0];
+        byte[] negative = BigInteger.valueOf(-678).toByteArray(); // -6.78
+        byte[] positive = BigInteger.valueOf(12345).toByteArray(); // 123.45
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("dec_max", Binary.fromConstantByteArray(negative));
+            g1.add("dec_min", Binary.fromConstantByteArray(empty));
+            Group g2 = factory.newGroup();
+            g2.add("dec_max", Binary.fromConstantByteArray(empty));
+            g2.add("dec_min", Binary.fromConstantByteArray(positive));
+            return List.of(g1, g2);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        // The fixture must really carry empty stats: parquet-java orders the empty value as 0.
+        List<BlockMetaData> rowGroups = footerOf(storageObject).getBlocks();
+        assertEquals(1, rowGroups.size());
+        Statistics<?> maxColStats = rowGroups.getFirst().getColumns().get(0).getStatistics();
+        Statistics<?> minColStats = rowGroups.getFirst().getColumns().get(1).getStatistics();
+        assertEquals(Binary.fromConstantByteArray(negative), maxColStats.genericGetMin());
+        assertEquals(0, ((Binary) maxColStats.genericGetMax()).length());
+        assertEquals(0, ((Binary) minColStats.genericGetMin()).length());
+        assertEquals(Binary.fromConstantByteArray(positive), minColStats.genericGetMax());
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        double[][] expectedBounds = { { -6.78, 0.0 }, { 0.0, 123.45 } };
+        List<String> columns = List.of("dec_max", "dec_min");
+
+        // --- extractStatistics path (metadata) ---
+        var colStats = reader.metadata(storageObject).statistics().get().columnStatistics().get();
+        for (int c = 0; c < columns.size(); c++) {
+            var stats = colStats.get(columns.get(c));
+            assertEquals(columns.get(c) + " min", Optional.of(expectedBounds[c][0]), stats.minValue());
+            assertEquals(columns.get(c) + " max", Optional.of(expectedBounds[c][1]), stats.maxValue());
+        }
+
+        // --- buildRowGroupStats path (discoverSplitRanges), which split pruning reads ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            for (int c = 0; c < columns.size(); c++) {
+                assertEquals(expectedBounds[c][0], range.statistics().get("_stats.columns." + columns.get(c) + ".min"));
+                assertEquals(expectedBounds[c][1], range.statistics().get("_stats.columns." + columns.get(c) + ".max"));
+            }
+        }
+
+        // --- scan-vs-stats parity: the bounds are exactly the scanned extremes ---
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            try {
+                for (int c = 0; c < columns.size(); c++) {
+                    DoubleBlock block = page.getBlock(c);
+                    assertEquals(2, block.getPositionCount());
+                    double scanMin = Math.min(block.getDouble(0), block.getDouble(1));
+                    double scanMax = Math.max(block.getDouble(0), block.getDouble(1));
+                    assertEquals(columns.get(c) + " scan min", expectedBounds[c][0], scanMin, 0.0);
+                    assertEquals(columns.get(c) + " scan max", expectedBounds[c][1], scanMax, 0.0);
+                }
+            } finally {
+                page.releaseBlocks();
+            }
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    /**
      * Verifies that Parquet footer statistics for INT32/INT64-backed DECIMAL columns are scale-decoded
      * to {@code double}, matching the scan-path decode.
      */

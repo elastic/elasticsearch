@@ -681,7 +681,9 @@ final class ParquetColumnDecoding {
      * {@code FIXED_LEN_BYTE_ARRAY(2)}), so its footer stat is a Parquet {@link Binary}. DECIMAL can
      * be backed by INT32, INT64, BINARY, or FIXED_LEN_BYTE_ARRAY — its stat arrives as an
      * {@link Integer}/{@link Long} unscaled value for the former two, and as {@link Binary} bytes
-     * (big-endian two's complement) for the latter two.
+     * (big-endian two's complement) for the latter two. An empty DECIMAL stat decodes as 0, as the scan
+     * reads an empty value (see {@link #unscaledToBigInteger}): parquet-java orders an empty unscaled
+     * value as 0 when it computes the min/max, so the bound agrees with the values the scan returns.
      *
      * <p>Returns {@code null} when the type is not FLOAT16/DECIMAL, or the value's runtime type
      * doesn't match what the physical type implies (caller falls through to other normalization).
@@ -699,7 +701,7 @@ final class ParquetColumnDecoding {
         if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
             BigInteger unscaled;
             if (value instanceof Binary binary) {
-                unscaled = new BigInteger(binary.getBytes());
+                unscaled = unscaledToBigInteger(binary.getBytes());
             } else if (value instanceof Number number) {
                 unscaled = BigInteger.valueOf(number.longValue());
             } else {
@@ -708,6 +710,22 @@ final class ParquetColumnDecoding {
             return new BigDecimal(unscaled, decimal.getScale()).doubleValue();
         }
         return null;
+    }
+
+    /**
+     * Decodes the unscaled value of a BINARY- or FIXED_LEN_BYTE_ARRAY-backed DECIMAL (big-endian two's complement).
+     * An empty value reads as 0 instead of failing, as {@link BigInteger} rejects zero bytes: no valid writer emits
+     * one, but parquet-java orders an empty unscaled value as 0 when it computes DECIMAL statistics, and a corrupt
+     * negative PLAIN length decodes as an empty value (see {@link PlainValueDecoder}). Shared so the baseline and
+     * optimized scans and the footer statistics agree on that value.
+     */
+    static BigInteger unscaledToBigInteger(byte[] bytes, int offset, int length) {
+        return length == 0 ? BigInteger.ZERO : new BigInteger(bytes, offset, length);
+    }
+
+    /** {@link #unscaledToBigInteger(byte[], int, int)} over the whole array. */
+    static BigInteger unscaledToBigInteger(byte[] bytes) {
+        return unscaledToBigInteger(bytes, 0, bytes.length);
     }
 
     // ---- Unsigned long encoding ----

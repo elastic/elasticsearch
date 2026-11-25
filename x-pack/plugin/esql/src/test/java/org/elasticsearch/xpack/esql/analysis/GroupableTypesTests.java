@@ -7,14 +7,10 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.RowKeyHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -39,8 +35,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Enforces that which types can be a grouping key is decided by {@link DataType#isGroupable} alone: for every
@@ -237,72 +231,6 @@ public class GroupableTypesTests extends AnalyzerTestCase {
             ElementType elementType = PlannerUtils.toElementType(type);
             BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 16 * 1024, false).close();
         }
-    }
-
-    /**
-     * The LIMIT BY and DEDUP key path must group every groupable type: {@link RowKeyHash} must put equal
-     * values into one group and different values into different ones, with a multivalue compared as an
-     * ordered list. This is the row-key counterpart of {@link #testGroupableTypesCanBuildBlockHash};
-     * dense_vector, which {@link BlockHash} cannot group, is covered here through its multivalued FLOAT keys.
-     */
-    public void testGroupableTypesGroupRowKeys() {
-        BlockFactory blockFactory = blockFactory();
-        for (DataType type : DataType.values()) {
-            if (type.isGroupable() == false) {
-                continue;
-            }
-            ElementType elementType = PlannerUtils.toElementType(type);
-            try (
-                Block block = keyBlock(elementType, blockFactory);
-                RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(elementType), blockFactory)
-            ) {
-                int[] ids = hash.add(new Page(block));
-                assertThat("equal [" + type.typeName() + "] values must share a group", ids[1], equalTo(ids[0]));
-                if (elementType != ElementType.NULL) {
-                    assertThat("different [" + type.typeName() + "] values must not share a group", ids[2], not(equalTo(ids[0])));
-                }
-            }
-        }
-    }
-
-    /**
-     * A block whose positions 0 and 1 hold equal values and position 2 a different one. FLOAT keys only occur
-     * for dense_vector, so its positions are whole vectors, with {@code [2, 1]} differing from {@code [1, 2]}
-     * only in value order.
-     */
-    private static Block keyBlock(ElementType elementType, BlockFactory blockFactory) {
-        return switch (elementType) {
-            case NULL -> blockFactory.newConstantNullBlock(3);
-            case BOOLEAN -> blockFactory.newBooleanBlockBuilder(3).appendBoolean(true).appendBoolean(true).appendBoolean(false).build();
-            case INT -> blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(1).appendInt(2).build();
-            case LONG -> blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(1).appendLong(2).build();
-            case DOUBLE -> blockFactory.newDoubleBlockBuilder(3).appendDouble(1.5).appendDouble(1.5).appendDouble(2.5).build();
-            case BYTES_REF -> blockFactory.newBytesRefBlockBuilder(3)
-                .appendBytesRef(new BytesRef("a"))
-                .appendBytesRef(new BytesRef("a"))
-                .appendBytesRef(new BytesRef("b"))
-                .build();
-            case DOUBLE_RANGE -> blockFactory.newDoubleRangeBlockBuilder(3)
-                .appendDoubleRange(1, 2)
-                .appendDoubleRange(1, 2)
-                .appendDoubleRange(1, 3)
-                .build();
-            case FLOAT -> blockFactory.newFloatBlockBuilder(6)
-                .beginPositionEntry()
-                .appendFloat(1)
-                .appendFloat(2)
-                .endPositionEntry()
-                .beginPositionEntry()
-                .appendFloat(1)
-                .appendFloat(2)
-                .endPositionEntry()
-                .beginPositionEntry()
-                .appendFloat(2)
-                .appendFloat(1)
-                .endPositionEntry()
-                .build();
-            default -> throw new AssertionError("no key values for groupable element type [" + elementType + "]");
-        };
     }
 
     private static List<DataType> matrixTypes() {

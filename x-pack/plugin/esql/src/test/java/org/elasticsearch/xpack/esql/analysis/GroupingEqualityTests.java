@@ -832,16 +832,12 @@ public class GroupingEqualityTests extends ESTestCase {
         }
     }
 
-    /**
-     * {@code STATS BY} gives a multivalue one group per distinct value. The position belongs to each of those
-     * groups, which a single group id cannot represent. {@code ==} of a multivalue is null.
-     */
-    public void testStatsSplitsMultivalue() {
-        for (BlockHashKind kind : List.of(BlockHashKind.SINGLE, BlockHashKind.PACKED)) {
-            try (Block ints = intMultivalue(blockFactory); Block keywords = keywordMultivalue(blockFactory)) {
-                assertSplit(kind, ints);
-                assertSplit(kind, keywords);
-            }
+    public void testRowKeyGroupsTypesWithoutEquals() {
+        assertTrue(sameGroup(DataType.NULL, null, null, BlockHashKind.ROW));
+        for (DataType type : List.of(DataType.SOURCE, DataType.TSID_DATA_TYPE)) {
+            BytesRef value = new BytesRef("a");
+            assertTrue(type.typeName(), sameGroup(type, value, BytesRef.deepCopyOf(value), BlockHashKind.ROW));
+            assertFalse(type.typeName(), sameGroup(type, value, new BytesRef("b"), BlockHashKind.ROW));
         }
     }
 

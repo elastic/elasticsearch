@@ -4919,7 +4919,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Why the conversion of one type of a union can't be used to load the field, or {@code null} if it can. The conversion is
-         * evaluated by {@code ValuesSourceReaderOperator}, where the only attribute it can read is the field being loaded.
+         * evaluated by {@code ValuesSourceReaderOperator}, where the only attribute it can read is the field being loaded, so its other
+         * arguments have to be constants.
          */
         private static @Nullable String unusableAsFieldConversion(Expression conversion, Expression original) {
             if (conversion.children().size() == 1) {
@@ -4931,11 +4932,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // An argument that is invalid for this type, like a non-numeric base. Surrogates are not substituted in this case.
                 return conversion.typeResolved().message();
             }
-            if (conversion.references().size() != 1) {
-                return "["
-                    + original.sourceText()
-                    + "] can't convert a field with multiple types if its other arguments are not constants, "
-                    + "as the conversion happens when loading the field";
+            for (int i = 1; i < conversion.children().size(); i++) {
+                if (conversion.children().get(i).foldable() == false) {
+                    return "["
+                        + original.sourceText()
+                        + "] can't convert a field with multiple types if its other arguments are not constants, "
+                        + "as the conversion happens when loading the field";
+                }
             }
             return null;
         }
@@ -5076,6 +5079,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression fn = (Expression) convert;
             List<Expression> children = new ArrayList<>(fn.children());
             children.set(0, resolvedAttr);
+
             Expression e = ((Expression) convert).replaceChildren(children);
             if (e.children().size() > 1 && e.typeResolved().unresolved()) {
                 // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when

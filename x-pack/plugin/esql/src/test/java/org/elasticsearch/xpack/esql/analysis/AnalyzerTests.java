@@ -4159,7 +4159,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testConversionWithNonConstantBaseOnUnionFails() {
         FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "text");
         for (String function : List.of("TO_LONG", "TO_INTEGER")) {
-            for (String base : List.of("base", "base + 1")) {
+            for (String base : List.of("base", "base + 1", "COUNT(*)")) {
                 String query = "FROM foo, bar | EVAL x = " + function + "(value, " + base + ")";
                 analyzer().addIndex(mergedResolution("foo,bar", caps))
                     .error(

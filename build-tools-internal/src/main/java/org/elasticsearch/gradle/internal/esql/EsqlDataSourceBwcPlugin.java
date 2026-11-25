@@ -79,6 +79,7 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
     private static void configureTasks(Project project, EsqlDataSourceBwcExtension extension) {
         BuildParameterExtension buildParams = loadBuildParams(project).get();
         BwcVersions bwcVersions = buildParams.getBwcVersions();
+        RestIntegTestsExtension restTests = project.getExtensions().getByType(RestIntegTestsExtension.class);
 
         TaskProvider<Task> all = registerAggregate(project, "esqlDataSourceBwc", "Runs ES|QL data-source BWC coverage.");
 
@@ -89,7 +90,7 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
 
             List<TaskProvider<Test>> tasks = new ArrayList<>();
             for (String coordinator : List.of("current", "old")) {
-                tasks.add(registerTestTask(project, extension, buildParams, bwcVersions, version, coordinator));
+                tasks.add(registerTestTask(project, restTests, extension, buildParams, bwcVersions, version, coordinator));
             }
 
             TaskProvider<Task> versionAggregate = registerAggregate(
@@ -110,6 +111,7 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
 
     private static TaskProvider<Test> registerTestTask(
         Project project,
+        RestIntegTestsExtension restTests,
         EsqlDataSourceBwcExtension extension,
         BuildParameterExtension buildParams,
         BwcVersions bwcVersions,
@@ -118,7 +120,6 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
     ) {
         String coordinatorName = coordinator.substring(0, 1).toUpperCase(Locale.ROOT) + coordinator.substring(1);
         String taskName = "v" + version + "#esqlDataSourceBwc" + coordinatorName + "Coordinator";
-        RestIntegTestsExtension restTests = project.getExtensions().getByType(RestIntegTestsExtension.class);
         return restTests.register(taskName, task -> {
             validate(extension);
             if (version.before(extension.getMinimumVersion().get()) || normalizedCoordinators(extension).contains(coordinator) == false) {

@@ -4307,6 +4307,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectThrows(ParsingException.class, () -> processingCommand("fillnull 0"));
     }
 
+    /**
+     * The other FILLNULL tests use the build's default parser, which has the dev version on in a snapshot build, so they would still
+     * pass if the lexer or parser gated FILLNULL behind the dev version again. This one pins the release behaviour.
+     */
+    public void testFillNullParsedInProductionBuild() {
+        EsqlParser prodParser = new EsqlParser(new EsqlConfig(false, TEST_FUNCTION_REGISTRY));
+
+        FillNull fillNull = as(prodParser.parseQuery("row a = 1 | fillnull 0 ON a"), FillNull.class);
+        assertThat(((Literal) fillNull.fillValue()).value(), equalTo(0));
+        assertThat(fillNull.targetFields(), hasSize(1));
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+
+        assertThat(prodParser.parseQuery("FROM foo* | FORK (WHERE a < 1) (FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
+    }
+
     public void testValidFork() {
         var plan = query("""
             FROM foo*

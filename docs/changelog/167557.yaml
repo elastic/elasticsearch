@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 167557
+summary: Expose Lucene disjunction rewrite in intervals `any_of`
+type: enhancement

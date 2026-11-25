@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +31,8 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -60,9 +63,11 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -346,6 +351,30 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
                 List.of("shardFailed", startedShard, unassignedInfo)
             )
         );
+    }
+
+    public void testDryRunRerouteCommandsDoNotPublishMovements() {
+        final var allocationId = randomUUID();
+        final var indexMetadata = IndexMetadata.builder(randomIdentifier())
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putInSyncAllocationIds(0, Set.of(allocationId))
+            .build();
+        final var shard = shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.STARTED)
+            .withAllocationId(AllocationId.newInitializing(allocationId))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shard)))
+            .build();
+        final var commands = new AllocationCommands(new MoveAllocationCommand(indexMetadata.getIndex().getName(), 0, "node-1", "node-2"));
+        final var allocationService = createAllocationService(Settings.EMPTY, listener);
+
+        allocationService.reroute(clusterState, commands, false, false, true, ActionListener.noop());
+        assertThat(listener.events, empty());
+
+        allocationService.reroute(clusterState, commands, false, false, false, ActionListener.noop());
+        assertThat(listener.events.stream().map(List::getFirst).toList(), hasItem("relocationStarted"));
     }
 
     public void testRelocationMetricReportsComputedReasonWhenReconcilerDisagrees() {

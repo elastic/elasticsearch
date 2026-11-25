@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -490,7 +491,12 @@ public class AllocationService {
         boolean dryRun,
         ActionListener<Void> reroute
     ) {
-        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(
+            clusterState,
+            currentNanoTime(),
+            // a dry run must not publish movements (events or metrics) that never happen
+            dryRun ? RoutingChangesObserver.NOOP : shardChangesObserver
+        );
         var explanations = shardsAllocator.execute(allocation, commands, explain, retryFailed);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
@@ -862,6 +868,14 @@ public class AllocationService {
     }
 
     private RoutingAllocation createMutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
+        return createMutableRoutingAllocation(clusterState, currentNanoTime, shardChangesObserver);
+    }
+
+    private RoutingAllocation createMutableRoutingAllocation(
+        ClusterState clusterState,
+        long currentNanoTime,
+        RoutingChangesObserver observer
+    ) {
         return new MutableRoutingAllocation(
             allocationDeciders,
             clusterState.mutableRoutingNodes(),
@@ -870,7 +884,7 @@ public class AllocationService {
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime,
             false,
-            shardChangesObserver,
+            observer,
             preserveDecisionLabels
         );
     }

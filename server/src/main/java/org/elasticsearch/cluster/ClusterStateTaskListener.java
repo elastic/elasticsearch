@@ -19,7 +19,9 @@ public interface ClusterStateTaskListener {
      * during execution then this method receives the corresponding exception. If the task executes successfully but the resulting cluster
      * state publication fails then this method receives a {@link FailedToCommitClusterStateException}. If publication fails then a new
      * master is elected and the update might or might not take effect, depending on whether or not the newly-elected master accepted the
-     * published state that failed to be committed.
+     * published state that failed to be committed. Nodes may or may not apply a {@link ClusterState} with no master before they start
+     * applying states from the newly-elected master. See {@link ClusterChangedEvent#localNodeIsNewMaster()} for a robust way to detect if
+     * the local node has just won an election.
      * <p>
      * Use {@link MasterService#isPublishFailureException} to detect the "expected" master failure cases if needed.
      * <p>

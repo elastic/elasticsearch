@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvide
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrder;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
+import org.elasticsearch.xpack.stateless.cache.BlobCacheSnapshotService;
 import org.elasticsearch.xpack.stateless.cache.DefaultEvictionPolicyFactory;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.EvictionPolicyFactory;
@@ -744,6 +745,7 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
+        components.add(new BlobCacheSnapshotService(cacheService, indicesService, threadPool));
         var fillCacheMemoryPressure = new FillCacheMemoryPressure(settings, meterRegistry, threadPool);
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,

@@ -13,8 +13,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,10 +28,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RestEsqlStreamQueryActionTests extends ESTestCase {
 
-    private final RestEsqlStreamQueryAction handler = new RestEsqlStreamQueryAction(new EsqlCapabilities.Builder(false).build());
+    private final RestEsqlStreamQueryAction handler = new RestEsqlStreamQueryAction(
+        new EsqlCapabilities.Builder(false).build(),
+        () -> true,
+        null,
+        null,
+        null
+    );
 
     public void testRoute() {
         assertThat(handler.getName(), equalTo("esql_stream_query"));
@@ -45,20 +57,18 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
     public void testColumnarRejected() {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         esqlRequest.columnar(true);
-        expectThrows(
-            IllegalArgumentException.class,
-            containsString("columnar"),
-            () -> RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(Map.of()), null)
-        );
+        expectThrows(IllegalArgumentException.class, containsString("columnar"), () -> {
+            RestRequest request = requestWithParams(Map.of());
+            RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
+        });
     }
 
     public void testFormatMustBeNdjson() {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
-        expectThrows(
-            IllegalArgumentException.class,
-            allOf(containsString("ndjson"), containsString("csv")),
-            () -> RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(Map.of("format", "csv")), null)
-        );
+        expectThrows(IllegalArgumentException.class, allOf(containsString("ndjson"), containsString("csv")), () -> {
+            RestRequest request = requestWithParams(Map.of("format", "csv"));
+            RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
+        });
     }
 
     /**
@@ -82,7 +92,8 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         boolean allowPartial = randomBoolean();
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         Map<String, String> params = Map.of("allow_partial_results", "" + allowPartial);
-        RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(params), null);
+        RestRequest request = requestWithParams(params);
+        RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
         assertThat(esqlRequest.allowPartialResults(), equalTo(allowPartial));
     }
 
@@ -142,6 +153,170 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         for (String accept : new String[] { "application/x-ndjson;q=abc", "application/x-ndjson;q=2" }) {
             expectThrows(IllegalArgumentException.class, () -> RestEsqlStreamQueryAction.validateFormat(null, accept));
         }
+    }
+
+    private static RequestXContent.ParsedStreamRequest parseStream(String json) throws IOException {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            return RequestXContent.parseStream(parser);
+        }
+    }
+
+    public void testNoLimitsByDefault() throws IOException {
+        assertThat(parseStream("{\"query\": \"FROM idx\"}").options(), sameInstance(StreamOptions.NONE));
+        assertThat(parseStream("{\"query\": \"FROM idx\", \"store\": \"none\"}").options(), sameInstance(StreamOptions.NONE));
+    }
+
+    public void testLimitsAreParsed() throws IOException {
+        RequestXContent.ParsedStreamRequest parsed = parseStream(
+            "{\"query\": \"FROM idx\", \"max_rows\": 10, \"max_bytes\": \"1kb\", \"store\": \"none\"}"
+        );
+        assertThat(parsed.request().query(), equalTo("FROM idx"));
+        assertThat(parsed.options(), equalTo(new StreamOptions(StreamOptions.Store.NONE, 10, 1024)));
+    }
+
+    public void testStoreIsKeptInTheOptions() throws IOException {
+        assertThat(
+            parseStream("{\"query\": \"FROM idx\", \"store\": \"none\", \"max_rows\": 10}").options().store(),
+            equalTo(StreamOptions.Store.NONE)
+        );
+        assertThat(parseStream("{\"query\": \"FROM idx\", \"max_rows\": 10}").options().store(), equalTo(StreamOptions.Store.NONE));
+    }
+
+    public void testEachLimitCanBeSetOnItsOwn() throws IOException {
+        assertThat(
+            parseStream("{\"query\": \"FROM idx\", \"max_rows\": 0}").options(),
+            equalTo(new StreamOptions(StreamOptions.Store.NONE, 0, StreamOptions.NO_LIMIT))
+        );
+        assertThat(
+            parseStream("{\"query\": \"FROM idx\", \"max_bytes\": \"1mb\"}").options(),
+            equalTo(new StreamOptions(StreamOptions.Store.NONE, StreamOptions.NO_LIMIT, 1024 * 1024))
+        );
+    }
+
+    public void testMaxBytesAsANumberIsABytesCount() throws IOException {
+        assertThat(
+            parseStream("{\"query\": \"FROM idx\", \"max_bytes\": 2048}").options(),
+            equalTo(new StreamOptions(StreamOptions.Store.NONE, StreamOptions.NO_LIMIT, 2048))
+        );
+    }
+
+    public void testValidStoreValuesAreAccepted() throws IOException {
+        for (StreamOptions.Store store : StreamOptions.Store.values()) {
+            String body = "{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}";
+            if (store == StreamOptions.Store.NONE || EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
+                assertThat(parseStream(body).options().store(), equalTo(store));
+            } else {
+                expectThrows(XContentParseException.class, () -> parseStream(body));
+            }
+        }
+    }
+
+    public void testStoreIsRejectedWhenBatchIndexingIsNotSupported() {
+        assumeTrue("the stored modes need the feature flag", EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled());
+        RestEsqlStreamQueryAction unsupported = new RestEsqlStreamQueryAction(
+            new EsqlCapabilities.Builder(false).build(),
+            () -> false,
+            null,
+            null,
+            null
+        );
+        StreamOptions.Store store = randomFrom(StreamOptions.Store.OVERFLOW, StreamOptions.Store.ALL);
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray("{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}"),
+            XContentType.JSON
+        ).build();
+
+        expectThrows(
+            IllegalArgumentException.class,
+            equalTo("[store] set to [" + store + "] requires batch indexing"),
+            () -> unsupported.handleRequest(request, new FakeRestChannel(request, true), null)
+        );
+    }
+
+    public void testUnknownStoreIsRejected() {
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> parseStream("{\"query\": \"FROM idx\", \"store\": \"bogus\"}")
+        );
+        String accepted = EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled() ? "[none, overflow, all]" : "[none]";
+        assertThat(e.getCause().getMessage(), equalTo("[store] must be one of " + accepted + ", got [bogus]"));
+    }
+
+    public void testInvalidLimitsAreRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseStream("{\"query\": \"FROM idx\", \"max_rows\": -1}")
+        );
+        assertThat(e.getMessage(), equalTo("[max_rows] must be greater than or equal to 0, got [-1]"));
+
+        for (int maxBytes : new int[] { 0, -1 }) {
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> parseStream("{\"query\": \"FROM idx\", \"max_bytes\": " + maxBytes + "}")
+            );
+            assertThat(e.getMessage(), equalTo("[max_bytes] must be greater than 0, got [" + maxBytes + "]"));
+        }
+    }
+
+    public void testFractionalLimitsAreRejected() {
+        for (String field : new String[] { "max_rows", "max_bytes" }) {
+            double fraction = field.equals("max_rows") ? 2.9 : 1.5;
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> parseStream("{\"query\": \"FROM idx\", \"" + field + "\": " + fraction + "}")
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field [" + field + "]"));
+            assertThat(e.getCause().getMessage(), containsString("cannot be converted to Long without data loss"));
+        }
+    }
+
+    public void testWholeNumberWrittenAsDecimalIsAccepted() throws IOException {
+        assertThat(
+            parseStream("{\"query\": \"FROM idx\", \"max_rows\": 2.0}").options(),
+            equalTo(new StreamOptions(StreamOptions.Store.NONE, 2, StreamOptions.NO_LIMIT))
+        );
+    }
+
+    public void testMaxRowsAsAStringIsRejected() {
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> parseStream("{\"query\": \"FROM idx\", \"max_rows\": \"10\"}")
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [max_rows]"));
+        assertThat(e.getCause().getMessage(), containsString("Long value passed as String"));
+    }
+
+    public void testMaxBytesStringWithoutUnitIsRejected() {
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> parseStream("{\"query\": \"FROM idx\", \"max_bytes\": \"1024\"}")
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [max_bytes]"));
+        assertThat(e.getCause().getMessage(), containsString("unit is missing or unrecognized"));
+    }
+
+    public void testRowLimitIsReachedAtTheLimit() {
+        StreamOptions options = new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT);
+        assertFalse(options.reached(2, 1_000_000));
+        assertTrue(options.reached(3, 0));
+        assertTrue(options.reached(4, 0));
+        assertTrue(
+            "max_rows 0 is reached before any row",
+            new StreamOptions(StreamOptions.Store.NONE, 0, StreamOptions.NO_LIMIT).reached(0, 0)
+        );
+    }
+
+    public void testByteLimitIsReachedAtTheLimitButNeverBeforeTheFirstRow() {
+        StreamOptions options = new StreamOptions(StreamOptions.Store.NONE, StreamOptions.NO_LIMIT, 100);
+        assertFalse("the first row is always written, even when the columns line already fills the limit", options.reached(0, 1_000));
+        assertFalse(options.reached(1, 99));
+        assertTrue(options.reached(1, 100));
+        assertTrue(options.reached(5, 101));
+    }
+
+    public void testNoLimitsAreNeverReached() {
+        assertFalse(StreamOptions.NONE.reached(0, 0));
+        assertFalse(StreamOptions.NONE.reached(Long.MAX_VALUE, Long.MAX_VALUE));
     }
 
     private static RestRequest requestWithParams(Map<String, String> params) {

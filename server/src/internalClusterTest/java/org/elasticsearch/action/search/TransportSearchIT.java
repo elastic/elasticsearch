@@ -16,8 +16,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -71,8 +69,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TestTransportChannels;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -505,7 +502,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             for (boolean resp : responses.asList()) {
                 assertTrue(resp);
             }
-            assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+            assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
         }
 
         try {
@@ -551,7 +548,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                     ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
                 );
             }
-            assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+            assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
             assertBusy(MockSearchService::assertNoInFlightContext);
         } finally {
             updateClusterSettings(
@@ -605,7 +602,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         for (Exception exc : exceptions.asList()) {
             assertThat(exc.getCause().getMessage(), containsString("boom"));
         }
-        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+        assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
     }
 
     public void testResponseOverNetworkPassesRequestBreaker() throws Exception {
@@ -619,33 +616,11 @@ public class TransportSearchIT extends ESIntegTestCase {
         MockTransportService receiverTransport = MockTransportService.getInstance(receiver);
         receiverTransport.addRequestHandlingBehavior(
             TransportSearchAction.TYPE.name(),
-            (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
-                @Override
-                public String getProfileName() {
-                    return channel.getProfileName();
-                }
-
-                @Override
-                public void sendResponse(TransportResponse response) {
-                    channel.sendResponse(response);
-                }
-
-                @Override
-                public void sendResponse(TransportResponse response, CircuitBreaker circuitBreaker) {
-                    responseBreaker.set(circuitBreaker);
-                    channel.sendResponse(response, circuitBreaker);
-                }
-
-                @Override
-                public void sendResponse(Exception exception) {
-                    channel.sendResponse(exception);
-                }
-
-                @Override
-                public TransportVersion getVersion() {
-                    return channel.getVersion();
-                }
-            }, task)
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                TestTransportChannels.capturingResponseBreaker(channel, responseBreaker::set),
+                task
+            )
         );
         try {
             TransportService senderTransport = internalCluster().getInstance(TransportService.class, sender);
@@ -667,7 +642,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             receiverTransport.clearAllRules();
         }
         assertSame(requestBreaker, responseBreaker.get());
-        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+        assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(0L)));
     }
 
     private void indexSomeDocs(String indexName, int numberOfShards, int numberOfDocs) {
@@ -678,15 +653,6 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         indicesAdmin().prepareRefresh(indexName).get();
-    }
-
-    private long requestBreakerUsed() {
-        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
-        long estimated = 0;
-        for (NodeStats nodeStats : stats.getNodes()) {
-            estimated += nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getEstimated();
-        }
-        return estimated;
     }
 
     /**

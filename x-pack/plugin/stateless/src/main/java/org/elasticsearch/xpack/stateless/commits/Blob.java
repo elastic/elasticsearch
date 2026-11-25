@@ -43,7 +43,7 @@ public sealed interface Blob extends Writeable permits BccBlob, MergeBlob {
     static <T extends Blob> T readFrom(StreamInput in, Class<T> expectedType) throws IOException {
         final String blobName = in.readString();
         final Blob blob;
-        if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
+        if (BccBlob.startsWithBlobPrefix(blobName)) {
             blob = BccBlob.readFrom(blobName, in);
         } else if (MergeBlob.startsWithPrefix(blobName)) {
             blob = MergeBlob.readFrom(blobName, in);
@@ -62,5 +62,17 @@ public sealed interface Blob extends Writeable permits BccBlob, MergeBlob {
             );
         }
         return expectedType.cast(blob);
+    }
+
+    /// Creates a [Blob] from its name and primary term. The implementation type is recognized by the prefix of the blob name.
+    ///
+    /// @throws IllegalArgumentException if the blob name is not recognized
+    static Blob of(String blobName, long primaryTerm) {
+        if (BccBlob.startsWithBlobPrefix(blobName)) {
+            return new BccBlob(blobName, primaryTerm);
+        } else if (MergeBlob.startsWithPrefix(blobName)) {
+            return new MergeBlob(blobName, primaryTerm);
+        }
+        throw new IllegalArgumentException("unrecognized blob name [" + blobName + ']');
     }
 }

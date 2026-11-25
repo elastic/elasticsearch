@@ -29,12 +29,14 @@ import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.sourcebatch.CompactedColumns;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
@@ -320,7 +322,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return true;
     }
 
@@ -443,6 +445,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         @Override
         public Column toLuceneColumn() {
             return this;
+        }
+
+        @Override
+        public Column toLuceneColumn(int[] compactedDocIds) {
+            return CompactedColumns.of(this, compactedDocIds);
         }
 
         @Override

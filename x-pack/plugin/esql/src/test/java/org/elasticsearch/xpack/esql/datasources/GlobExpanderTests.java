@@ -6255,6 +6255,55 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2025")));
     }
 
+    /**
+     * Same discovery-cap fallback through {@link GlobExpander#expand}: concurrency-4 async never enters
+     * the synchronous {@code tryWalk} catch.
+     */
+    public void testBoundedWalkDiscoveryCapFallsBackOnSyncExpand() throws IOException {
+        List<StorageEntry> tree = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2024/b.parquet", 100),
+            entry("s3://bucket/data/year=2024/c.parquet", 100),
+            entry("s3://bucket/data/year=2025/d.parquet", 100)
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            hints,
+            HIVE_ON,
+            2,
+            MAX,
+            MAX,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
+        assertTrue(result.isTruncated());
+        assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2025")));
+    }
+
+    /**
+     * Glob segments that complete on the calling thread must stay in the comma loop. Recursing per
+     * segment overflows the metadata worker on a long list.
+     */
+    public void testCommaSeparatedSyncCompletionsDoNotRecursePerSegment() throws Exception {
+        List<StorageEntry> tree = List.of(entry("s3://bucket/data/f.parquet", 100));
+        int segments = 200;
+        StringBuilder pathList = new StringBuilder();
+        for (int i = 0; i < segments; i++) {
+            if (i > 0) {
+                pathList.append(',');
+            }
+            pathList.append("s3://bucket/data/*.parquet");
+        }
+        FileList result = expandSync(pathList.toString(), new TreeStubProvider(tree), null, HIVE_ON, MAX, MAX, MAX, MAX, 1, () -> false);
+        assertEquals(segments, result.fileCount());
+    }
+
     private static void assertCommaSharesDirectoryCeiling(FileList union, TreeStubProvider shared, int oneCost, int ceiling) {
         assertThat(
             "comma segments must not each get a fresh copy of the ceiling",

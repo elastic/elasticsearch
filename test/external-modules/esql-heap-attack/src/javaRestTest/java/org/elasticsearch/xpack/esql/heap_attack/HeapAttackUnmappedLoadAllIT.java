@@ -311,6 +311,64 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         }, "GroupedLimitOperator");
     }
 
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with 1,000 unmapped leaves, about 12KB of JSON, and a mapped {@code tags} field of 20,000 values or more:
+     *     a few hundred KB of {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL}, {@code MV_EXPAND tags}, {@code DEDUP}, then the last row by {@code tags}</li>
+     * </ul>
+     * Expected: circuit break while the copies of the JSON are held
+     * <p>
+     * {@code MV_EXPAND} repeats the other columns of a row for each value, so one small document becomes as many rows as there are
+     * values, each with its own copy of the 12KB of JSON: 240MB with the first size, far more than the {@code _source} that the read
+     * reserves for. {@code DEDUP} then holds a key for each row, as in {@link #testDedupCircuitBreaksWhileTheJsonOfEveryGroupIsHeld}.
+     * Where it breaks is not the point: the next allocation to cross the limit is the one that fails. The request breaker is lowered,
+     * as there, to stand in for the headroom of a larger heap.
+     * <p>
+     * Without the {@code DEDUP} the query does not break: the JSON is then loaded only for the one row that comes back, so nothing holds
+     * the copies.
+     */
+    public void testMvExpandOfAWideRowCircuitBreaksWhileTheCopiesAreHeld() throws IOException {
+        setRequestBreakerLimit("15%");
+        assertCircuitBreaks(attempt -> {
+            String index = "load_all_mv_expand_" + attempt;
+            CreateIndexResponse response = createIndex(index, Settings.EMPTY, """
+                {
+                  "dynamic": false,
+                  "properties": {
+                    "%s": { "type": "keyword" },
+                    "tags": { "type": "keyword" }
+                  }
+                }""".formatted(MAPPED_FIELD));
+            assertTrue(response.isAcknowledged());
+            int tags = 20_000 * attempt;
+            StringBuilder doc = new StringBuilder();
+            doc.append("{\"create\":{}}\n{\"").append(MAPPED_FIELD).append("\":\"0\",\"tags\":[");
+            for (int t = 0; t < tags; t++) {
+                if (t > 0) {
+                    doc.append(',');
+                }
+                doc.append("\"t").append(t).append('"');
+            }
+            doc.append(']');
+            for (int f = 0; f < 1_000; f++) {
+                doc.append(",\"").append(manyDocsFieldName(f)).append("\":1");
+            }
+            doc.append("}\n");
+            bulk(index, doc.toString());
+            initIndex(index, "");
+
+            StringBuilder query = startQuery();
+            query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+            query.append("FROM ").append(index).append("\n| MV_EXPAND tags\n| DEDUP\n| SORT tags DESC\n| LIMIT 1\"}");
+            return responseAsMap(query(query.toString(), "columns"));
+        });
+    }
+
     /** One document with the array {@code a} of {@code elements} one-character strings, or two arrays that are the field {@code a.b}. */
     private void indexDocumentWithArrays(String index, int elements, boolean spelledInTwoWays) throws IOException {
         createMostlyUnmappedIndex(index);

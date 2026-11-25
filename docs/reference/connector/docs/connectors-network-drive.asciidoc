@@ -358,6 +358,9 @@ user1;S-1;
 user1;S-1;S-11,S-22
 ----
 
+`skip_extension_filter`::
+Toggle labeled *Attempt extraction for all file types*. Disabled by default. When enabled, the connector skips the file extension check, so files with no extension or an unsupported extension are downloaded and extraction is attempted. The maximum file size limit still applies. This can significantly slow down syncs.
+
 [discrete#es-connectors-network-drive-client-docker]
 ===== Deployment using Docker
 

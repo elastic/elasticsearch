@@ -21,6 +21,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -43,6 +45,7 @@ import java.time.Duration;
  * not suitable for production, but adequate for this test.
  */
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@RunWith(ESRandomizedRunner.class)
 public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
 
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();

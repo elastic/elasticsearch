@@ -689,6 +689,17 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testDescribeVerifiesItsInput() {
+        defaultAnalyzer().error(
+            "from test | where 1 | describe",
+            equalTo("1:19: Condition expression needs to be boolean, found [INTEGER]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats c = count(*) by emp_no | where c + 1 | describe | keep name",
+            equalTo("1:50: Condition expression needs to be boolean, found [LONG]")
+        );
+    }
+
     public void testAggWithNonBooleanFilter() {
         for (String filter : List.of("\"true\"", "1", "1 + 0", "concat(\"a\", \"b\")")) {
             String type = (filter.equals("1") || filter.equals("1 + 0")) ? "INTEGER" : "KEYWORD";
@@ -2184,6 +2195,37 @@ public class VerifierTests extends AnalyzerTestCase {
                    (eval t = null | eval t = to_text(concat(title, body), {"analyzer": "english"}))
             | where match(t, "cat")
             """, containsString("conflicting values analyzers in FORK branches"));
+    }
+
+    /**
+     * A FORK branch that fills a null column with {@code FILLNULL} outputs a non-null value, so the column is no longer exempt
+     * from the branch agreement checks: it carries the standard analyzer and must disagree with a sibling's whitespace, in either
+     * branch order. Before #166532 the fill was missed - the column kept the id of the null assignment it came from, which the
+     * null-only walk had marked - so the conflict was reported in one branch order and silently accepted in the other.
+     */
+    public void testToTextAnalyzerThroughForkOutputWithFillNull() throws Exception {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // the filled column holds "CAT" under the standard analyzer, which conflicts with the sibling's whitespace
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null) | fillnull "CAT" on t)
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        // ... and the same the other way round, so the outcome no longer depends on which branch supplied the column first
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(null) | fillnull "CAT" on t)
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        // a FILLNULL that targets a different column leaves t null-only, so the exemption still holds and there is no conflict
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null) | fillnull "CAT" on title)
+            | where match(t, "cat")
+            """);
     }
 
     public void testToTextAnalyzerOptionOnFieldAcrossSubqueries() throws Exception {
@@ -4151,6 +4193,56 @@ public class VerifierTests extends AnalyzerTestCase {
         checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
     }
 
+    /**
+     * A full-text function in the filter of an aggregate function is evaluated by the aggregation, against the Lucene document
+     * of each row. With more aggregate functions that don't share the filter it can't be turned into a {@code WHERE}, so it must
+     * be rejected after the commands that make the aggregation run on rows no longer tied to a document.
+     */
+    public void testFullTextFunctionsInStatsFilterAfterCommands() {
+        checkFullTextFunctionsInStatsFilterAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+        checkFullTextFunctionsInStatsFilterAfterCommands(":", "operator", "title : \"Meditation\"");
+        checkFullTextFunctionsInStatsFilterAfterCommands("QSTR", "function", "qstr(\"title: Meditation\")");
+        checkFullTextFunctionsInStatsFilterAfterCommands("KQL", "function", "kql(\"title: Meditation\")");
+        checkFullTextFunctionsInStatsFilterAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")");
+        checkFullTextFunctionsInStatsFilterAfterCommands("KNN", "function", "knn(vector, [0, 1, 2])");
+
+        // QSTR and KQL have no field to tell that the rows are not read from an index
+        for (String function : List.of("QSTR", "KQL")) {
+            String stats = " | stats c = max(id) where " + function + "(\"title: Meditation\"), d = count(*)";
+            String error = "[" + function + "] function cannot be used after ";
+            fullText().error("row title = \"Meditation\", id = 1" + stats, containsString(error + "ROW"));
+            // a filter shared by all the aggregate functions can be pushed into the branches, the optimized plan tells
+            fullText().query("from test | fork (where id > 0) (where id > 1)" + stats);
+        }
+    }
+
+    private void checkFullTextFunctionsInStatsFilterAfterCommands(String functionName, String functionType, String functionInvocation) {
+        String stats = " | stats c = max(id) where " + functionInvocation + ", d = count(*)";
+        String error = "[" + functionName + "] " + functionType + " cannot be used after ";
+        String fieldName = "KNN".equals(functionName) ? "vector" : "title";
+
+        fullText().error("from test | limit 10" + stats, containsString(error + "LIMIT"));
+        fullText().error("from test | sort id | limit 10" + stats, containsString(error + "LIMIT"));
+        fullText().error("from test | limit 1 by id" + stats, containsString(error + "LIMIT"));
+        fullText().error("from test | stats id = max(id) by " + fieldName + stats, containsString(error + "STATS"));
+        // a command that runs on the coordinator is left to the optimized plan: a filter can be pushed below some of them
+        fullText().query("from test | change_point id on id" + stats);
+        // the filter doesn't have to be the only one
+        fullText().error(
+            "from test | limit 10 | stats c = max(id) where " + functionInvocation + ", d = count(*) where id > 10",
+            containsString(error + "LIMIT")
+        );
+
+        // these commands only stop a WHERE from being pushed to Lucene, the rows are still tied to their documents
+        fullText().query("from test | mv_expand id" + stats);
+        fullText().query("from test | eval x = id + 1" + stats);
+        fullText().query("from test | keep id, title, vector" + stats);
+        fullText().query("from test | where id > 10 | sort id" + stats);
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
+            fullText().query("from test | inline stats m = max(id) by category" + stats);
+        }
+    }
+
     public void testDecayArgs() {
         // First arg cannot be null
         fullText().error(
@@ -5307,6 +5399,18 @@ public class VerifierTests extends AnalyzerTestCase {
                     + values.get(j).v2()
                     + "]";
                 tsdb().error(query, containsString(expected));
+            }
+        }
+    }
+
+    /** METRICS_INFO and TS_INFO return a row per metric or time series: there is no document to run a Lucene query against. */
+    public void testFullTextInStatsFilterAfterMetricsInfo() {
+        for (String command : List.of("METRICS_INFO", "TS_INFO")) {
+            for (String function : List.of("QSTR", "KQL")) {
+                k8s().error(
+                    "TS k8s | " + command + " | STATS c = COUNT(*) WHERE " + function + "(\"metric_name: network\"), d = COUNT(*)",
+                    containsString("[" + function + "] function cannot be used after " + command)
+                );
             }
         }
     }

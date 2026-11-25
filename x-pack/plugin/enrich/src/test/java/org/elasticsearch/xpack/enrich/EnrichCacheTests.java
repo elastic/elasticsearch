@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,12 +25,16 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
@@ -304,6 +309,52 @@ public class EnrichCacheTests extends ESTestCase {
         assertArrayEquals(originalBytes, resultBytes2);
     }
 
+    public void testSharedResponseIsConvertedOnce() {
+        EnrichCache enrichCache = new EnrichCache(10);
+        ProjectId projectId = randomProjectIdOrDefault();
+        List<Map<String, ?>> hits = List.of(Map.of("key1", "value1", "nested", Map.of("key2", "value2")));
+        int numLookups = randomIntBetween(2, 16);
+        // once the first lookup has converted the shared response, change its source: a lookup converting it again would return that
+        List<List<Map<?, ?>>> results = lookupWithSharedResponse(enrichCache, projectId, numLookups, hits, response -> {
+            try {
+                response.getHits().getAt(0).sourceRef(convertMapToJson(Map.of("key1", "converted again")));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        Set<Object> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (List<Map<?, ?>> result : results) {
+            assertThat("every lookup reuses the first conversion", result, equalTo(hits));
+            assertTrue("every lookup receives its own copy", distinct.add(result) && distinct.add(result.get(0)));
+        }
+        EnrichStatsAction.Response.CacheStats stats = enrichCache.getStats("_id");
+        assertThat(stats.count(), equalTo(1L));
+        assertThat(stats.misses(), equalTo((long) numLookups));
+        assertThat("the look into the cache before converting is not counted", stats.hits(), equalTo(0L));
+
+        // mutating one lookup's result affects neither the others nor the cached value
+        putIntoHit(results.get(0).get(0), "key1", "mutated");
+        for (int i = 1; i < numLookups; i++) {
+            assertThat(results.get(i), equalTo(hits));
+        }
+        assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "1", 1)), equalTo(hits));
+    }
+
+    public void testSharedResponseIsConvertedAgainIfNotRetained() {
+        // a value larger than the cache is not retained, so every lookup converts the shared response
+        EnrichCache enrichCache = new EnrichCache(ByteSizeValue.ofBytes(1));
+        ProjectId projectId = randomProjectIdOrDefault();
+        List<Map<String, ?>> hits = List.of(Map.of("key1", "value1"));
+        int numLookups = randomIntBetween(2, 16);
+        List<List<Map<?, ?>>> results = lookupWithSharedResponse(enrichCache, projectId, numLookups, hits, response -> {});
+
+        for (List<Map<?, ?>> result : results) {
+            assertThat(result, equalTo(hits));
+        }
+        assertThat(enrichCache.getStats("_id").count(), equalTo(0L));
+    }
+
     // Expected sizes assume compressed oops and 8-byte alignment (header 12, array header 16, reference 4): map 80 + table + 32 per
     // entry with keys free, list 48 + array, Double/Long 24, Integer/Float/Boolean 16, String 24 + align(16 + 2 * length).
     private static void assumeCompressedOops() {
@@ -417,6 +468,38 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "0", 1)), nullValue());
         assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "1", 1)), notNullValue());
         assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "2", 1)), notNullValue());
+    }
+
+    private List<List<Map<?, ?>>> lookupWithSharedResponse(
+        EnrichCache enrichCache,
+        ProjectId projectId,
+        int numLookups,
+        List<Map<String, ?>> hits,
+        Consumer<SearchResponse> afterFirstResponse
+    ) {
+        List<ActionListener<SearchResponse>> searches = new ArrayList<>();
+        List<List<Map<?, ?>>> results = new ArrayList<>();
+        for (int i = 0; i < numLookups; i++) {
+            enrichCache.computeIfAbsent(projectId, "policy1-1", "1", 1, searches::add, assertNoFailureListener(results::add));
+        }
+        assertThat(searches.size(), equalTo(numLookups));
+        SearchResponse response = convertToSearchResponse(hits);
+        try {
+            searches.getFirst().onResponse(response);
+            afterFirstResponse.accept(response);
+            for (ActionListener<SearchResponse> search : searches.subList(1, searches.size())) {
+                search.onResponse(response);
+            }
+        } finally {
+            response.decRef();
+        }
+        assertThat(results.size(), equalTo(numLookups));
+        return results;
+    }
+
+    @SuppressWarnings("unchecked") // the hits are maps with string keys, read from a JSON source
+    private static void putIntoHit(Map<?, ?> hit, String key, Object value) {
+        ((Map<String, Object>) hit).put(key, value);
     }
 
     private SearchResponse convertToSearchResponseWithSmile(Map<String, Object> sourceMap) {

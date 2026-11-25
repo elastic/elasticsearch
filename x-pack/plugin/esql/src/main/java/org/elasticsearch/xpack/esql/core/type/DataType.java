@@ -1042,35 +1042,45 @@ public enum DataType implements Writeable {
     }
 
     /**
-     * {@code true} if values of this type can be a grouping key: a {@code STATS BY}, {@code INLINE STATS BY}
-     * or {@code LIMIT BY} grouping, or a {@code DEDUP} column.
+     * Whether values of this type can be a grouping key.
      * <p>
-     * A groupable type supports {@code ==}, and for ordinary values grouping agrees with it: two keys land
-     * in the same group exactly when {@code ==} is true. The exceptions below do not. {@code LIMIT BY} and
-     * {@code DEDUP} compare a multivalue value by value, in order. {@code STATS BY} splits a multivalue into
-     * one group per value. Group keys compare encoded values, so every path that produces a value of a
-     * groupable type (block loaders, evaluators, conversions, deserialization) must encode equal values as
-     * identical bits. {@code _source}, {@code _tsid} and spatial shapes compare by their encoded bytes.
+     * <b>Guarantees.</b> For an ordinary scalar, grouping agrees with {@code ==}: two keys land in the same
+     * group exactly when {@code ==} is true. A groupable type supports {@code ==}, apart from the exceptions
+     * below. {@code STATS BY} splits a multivalue into one group per value. {@code LIMIT BY} and {@code DEDUP}
+     * compare a multivalue value by value, in order, so {@code [1, 2]} and {@code [2, 1]} are different keys.
+     * Group keys compare encoded values, so every path that produces a value of a groupable type (block
+     * loaders, evaluators, conversions, deserialization) must encode equal values as identical bits.
+     * {@code _source}, {@code _tsid} and spatial shapes compare by those encoded bytes, not by a logical form
+     * that {@code ==} does not use.
      * <p>
-     * Exceptions, rather than the rule:
+     * <b>Exceptions.</b> Existing behaviour that does not follow that rule:
      * <ul>
-     *     <li>groupable without {@code ==}: {@code null} (by design), {@code _source}, {@code _tsid}, and a
-     *         counter reached indirectly (a renamed field or {@code BY c = <counter>});</li>
-     *     <li>{@code ==} but not groupable: {@code date_range}, {@code exponential_histogram} and {@code tdigest}.
-     *         Their siblings {@code double_range} and {@code histogram} are groupable;</li>
-     *     <li>{@code dense_vector} is groupable, but not in {@code STATS} or {@code INLINE STATS}, because
-     *         {@code BlockHash} cannot group it. {@code LIMIT BY} and {@code DEDUP} encode it row by row
-     *         and accept it;</li>
+     *     <li>{@code null} is groupable and nulls share a group, but {@code null == null} is null, by design.
+     *         {@code _source} and {@code _tsid} are groupable and have no {@code ==} evaluator;</li>
      *     <li>all {@code NaN}s are one group for single-key {@code STATS}, like nulls, even though
-     *         {@code NaN == NaN} is false. Multi-key {@code STATS}, {@code LIMIT BY} and {@code DEDUP}
-     *         still split {@code NaN}s by bit pattern, and {@code 0.0} and {@code -0.0} can land in
-     *         different groups. Both are known exceptions tracked by
+     *         {@code NaN == NaN} is false. Multi-key {@code STATS}, {@code LIMIT BY} and {@code DEDUP} still
+     *         split {@code NaN}s by bit pattern, and {@code 0.0} and {@code -0.0} can land in different groups.
+     *         A {@code double_range} bound is different: {@code ==} uses {@link Double#compare(double, double)},
+     *         so it follows {@link Double#doubleToLongBits(double)} and matches single-key {@code STATS}.
+     *         The raw-bit hashes can still split a bound those two treat as one value, including distinct
+     *         {@code NaN} payloads. Tracked by
      *         <a href="https://github.com/elastic/elasticsearch/issues/167086">#167086</a>.</li>
      * </ul>
      * <p>
-     * New types reject grouping until this is deliberately enabled. Since {@code LIMIT BY} is GA, the set of
-     * groupable types can only grow, and a type that becomes groupable later needs a transport version gate
-     * when its key encoding is new, so a key never reaches a node that cannot encode it.
+     * <b>Limitations.</b> Returning true does not mean every grouping implementation or command accepts the
+     * type. Callers must check command-specific restrictions and transport compatibility themselves:
+     * <ul>
+     *     <li>{@code dense_vector} is groupable, but not in {@code STATS} or {@code INLINE STATS}, because
+     *         {@code BlockHash} cannot group it. {@code LIMIT BY} and {@code DEDUP} encode it row by row;</li>
+     *     <li>{@code ==} does not imply groupable. {@code date_range}, {@code exponential_histogram} and
+     *         {@code tdigest} compare and are not groupable. Their siblings {@code double_range} and
+     *         {@code histogram} are groupable;</li>
+     *     <li>returning false does not reject every counter expression. A counter reached indirectly, a
+     *         renamed field or {@code BY c = <counter>}, is still accepted;</li>
+     *     <li>new types reject grouping until this is deliberately enabled. Since {@code LIMIT BY} is GA, the
+     *         set of groupable types can only grow, and a type that becomes groupable later needs a transport
+     *         version gate when its key encoding is new, so a key never reaches a node that cannot encode it.</li>
+     * </ul>
      */
     public boolean isGroupable() {
         return isGroupable;

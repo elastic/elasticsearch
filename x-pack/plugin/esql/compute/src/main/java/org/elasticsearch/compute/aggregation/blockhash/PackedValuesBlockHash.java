@@ -836,12 +836,15 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
     }
 
     private static int elementSize(ElementType type) {
+        // Exhaustive so a new element type does not compile until this hash decides whether its width is fixed.
+        // Negative means variable width. Only BYTES_REF is actually encoded on that path.
         return switch (type) {
             case NULL -> 0;
             case BOOLEAN -> 1;
             case INT -> Integer.BYTES;
             case LONG, DOUBLE -> Long.BYTES;
-            default -> -1;
+            case BYTES_REF, FLOAT, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE,
+                DOUBLE_RANGE -> -1;
         };
     }
 
@@ -1008,7 +1011,9 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                             keys[i * keyLength + offset] = booleanVector.getBoolean(positionOffset + i) ? (byte) 1 : (byte) 0;
                         }
                     }
-                    default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                    // Exhaustive so a new element type does not compile until this fixed-width path can encode it.
+                    case NULL, FLOAT, BYTES_REF, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST,
+                        LONG_RANGE, DOUBLE_RANGE -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
                 }
             }
         }
@@ -1057,7 +1062,11 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                                     b.appendBoolean(bytes[r].bytes[bytes[r].offset + columnOffset] != 0);
                                 }
                             }
-                            default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                            // Exhaustive so a new element type does not compile until this fixed-width path can encode it.
+                            case NULL, FLOAT, BYTES_REF, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST,
+                                LONG_RANGE, DOUBLE_RANGE -> throw new IllegalStateException(
+                                    "unsupported type: " + specs.get(g).elementType()
+                                );
                         }
                     }
                 }
@@ -1459,7 +1468,9 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                         cursors[i] = c + Integer.BYTES + br.length;
                     }
                 }
-                default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                // Exhaustive so a new element type does not compile until this variable-width path can encode it.
+                case NULL, FLOAT, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE,
+                    DOUBLE_RANGE -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
             }
         }
 
@@ -1527,7 +1538,9 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                             cursors[i] = c + Integer.BYTES + br.length;
                         }
                     }
-                    default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                    // Exhaustive so a new element type does not compile until this variable-width path can encode it.
+                    case NULL, FLOAT, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE,
+                        DOUBLE_RANGE -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
                 }
             }
         }
@@ -1600,7 +1613,9 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                                     k.offset += Integer.BYTES + len;
                                 }
                             }
-                            default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                            // Exhaustive so a new element type does not compile until this variable-width path can encode it.
+                            case NULL, FLOAT, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE,
+                                DOUBLE_RANGE -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
                         }
                     }
                 }

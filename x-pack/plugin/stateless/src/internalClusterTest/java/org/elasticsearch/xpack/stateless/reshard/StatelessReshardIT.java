@@ -4472,7 +4472,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testHandoffIsThrottled() throws Exception {
         startMasterOnlyNode();
-        String indexNode = startIndexNode();
+        String indexNode = startIndexNode(unthrottledIncomingRecoveryNodeSettings());
         ensureStableCluster(2);
 
         final String indexName = randomIndexName();
@@ -4518,6 +4518,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertBusy(() -> assertEquals(1, sourceShards.stream().filter(splitSourceService::isPreparingForHandoff).count()));
 
             // First source shard is in pre-handoff
+            assertBusy(() -> assertEquals(2, arrivals.get()));
             secondPreHandoff.countDown();
             safeSleep(TimeValue.timeValueMillis(200));
             assertEquals(1, sourceShards.stream().filter(splitSourceService::isPreparingForHandoff).count());

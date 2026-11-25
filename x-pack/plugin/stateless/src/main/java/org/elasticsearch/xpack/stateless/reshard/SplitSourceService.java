@@ -131,8 +131,6 @@ public class SplitSourceService {
     // Used to abort merges that complete just before handoff so that we don't block indexing waiting for them to upload
     // Also used to throttle handoffs
     private final ConcurrentHashMap<ShardId, IndexShard> shardsPreparingForHandoff = new ConcurrentHashMap<>();
-    // Used to make checking handoff slot availability and adding to shardsPreparingForHandoff in awaitHandoffSlot atomic
-    private final Object handoffSlotLock = new Object();
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
     @Nullable
     private Runnable preHandoffHook;
@@ -372,13 +370,7 @@ public class SplitSourceService {
                     if (abort != null) {
                         abort.run();
                     }
-                    // We need to synchronize this with awaitHandoffSlot for the task cancellation check, otherwise there could be a race:
-                    // - awaitHandoffSlot sees task isn't cancelled
-                    // - task gets cancelled and this runs, removing nothing from shardsPreparingForHandoff
-                    // - awaitHandoffSlot proceeds and adds the entry
-                    synchronized (handoffSlotLock) {
-                        shardsPreparingForHandoff.remove(sourceShard.shardId(), sourceShard);
-                    }
+                    shardsPreparingForHandoff.remove(sourceShard.shardId(), sourceShard);
                     activeTargetRequests.remove(sourceShard);
                     l.onFailure(e);
                 })
@@ -459,6 +451,7 @@ public class SplitSourceService {
                             // commits spontaneously even though indexing permits are held. These are harmless to copy.
                             logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
                             stopCopyingNewCommits(targetShardId);
+                            shardsPreparingForHandoff.remove(sourceShard.shardId(), sourceShard);
                             activeTargetRequests.remove(sourceShard);
                             afterSecondFlush.onResponse(permits);
                         }, e -> {
@@ -502,10 +495,8 @@ public class SplitSourceService {
             public void onTimeout(TimeValue timeout) {
                 logger.debug("timed out waiting for handoff slot for {}, proceeding anyway", targetShardId);
                 threadPool.generic().execute(() -> {
-                    synchronized (handoffSlotLock) {
-                        if (task.isCancelled() == false) {
-                            shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
-                        }
+                    if (task.isCancelled() == false) {
+                        shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
                     }
                     beginHandoff.onResponse(null);
                 });
@@ -525,23 +516,21 @@ public class SplitSourceService {
                 return true;
             }
             var split = reshardingMetadata.getSplit();
-            synchronized (handoffSlotLock) {
-                if (task.isCancelled()) {
-                    return true;
-                }
-                long totalTargetShards = split.targetStates().count();
-                long preHandoffCount = shardsPreparingForHandoff.keySet()
-                    .stream()
-                    .filter(shardId -> shardId.getIndex().equals(targetShardId.getIndex()))
-                    .count();
-                long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
-                long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
-                if (preHandoffCount + handoffCount < maxConcurrentHandoffs) {
-                    shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
-                    return true;
-                }
-                return false;
+            if (task.isCancelled()) {
+                return true;
             }
+            long totalTargetShards = split.targetStates().count();
+            long preHandoffCount = shardsPreparingForHandoff.keySet()
+                .stream()
+                .filter(shardId -> shardId.getIndex().equals(targetShardId.getIndex()))
+                .count();
+            long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
+            long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
+            if (preHandoffCount + handoffCount < maxConcurrentHandoffs) {
+                shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
+                return true;
+            }
+            return false;
         }, TimeValue.timeValueHours(1), logger);
     }
 
@@ -648,7 +637,6 @@ public class SplitSourceService {
                         assert decision.outcome != null : "Predicate returned true without setting outcome";
 
                         shouldRetry.set(false);
-                        shardsPreparingForHandoff.remove(sourceShardId);
                         permits.close();
 
                         switch (decision.outcome) {
@@ -695,7 +683,6 @@ public class SplitSourceService {
 
                     @Override
                     public void onClusterServiceClose() {
-                        shardsPreparingForHandoff.remove(sourceShardId);
                         // TODO: Should we release permits here ? Does it matter ?
                         permits.close();
                         listener.onFailure(new NodeClosedException(clusterService.localNode()));

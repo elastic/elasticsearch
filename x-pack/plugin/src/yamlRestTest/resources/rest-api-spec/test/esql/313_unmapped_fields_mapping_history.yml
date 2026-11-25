@@ -17,9 +17,11 @@ setup:
   #
   # A copy built by recovery replays the translog with the current mapping, so replaying the first document would try a dynamic
   # mapping update for "extra", which is not allowed during recovery and fails the shard in a retry loop that never converges.
-  # Two guards keep such a copy from being built: the document is flushed before the mapping is tightened, so a copy built later
-  # takes it from the committed segments instead of replaying it, and rebalancing is disabled for the index. The replicas are
-  # left as they are, since Serverless needs a copy to search. A workaround for
+  # Three things keep such a copy from being built: the replica is awaited before the first document, so that it is replicated
+  # live; the document is flushed before the mapping is tightened, so a copy built from scratch later takes it from the committed
+  # segments instead of replaying it; and rebalancing is disabled for the index. The flush does not cover an operations-only
+  # recovery of a copy that missed the document, so it does not replace the other two. The replicas are left as they are,
+  # since Serverless needs a copy to search. A workaround for
   # https://github.com/elastic/elasticsearch/issues/167063, to be removed when that is fixed.
   - do:
       indices.create:
@@ -110,9 +112,10 @@ setup:
   #
   # A copy built by recovery replays the translog with the current mapping, and replaying the first document then hits "note" as
   # an unknown field under dynamic:strict, which fails the shard in a retry loop that never converges. As for unmapped-history,
-  # the document is flushed before "note" is removed, so a copy built later takes it from the committed segments, and
-  # rebalancing is disabled for the index. The replicas are left as they are. A workaround for
-  # https://github.com/elastic/elasticsearch/issues/167063, to be removed when that is fixed.
+  # the replica is awaited before the first document, the document is flushed before "note" is removed, so a copy built from
+  # scratch later takes it from the committed segments, and rebalancing is disabled for the index. The flush does not replace
+  # the other guards: it does not cover an operations-only recovery of a copy that missed the document. The replicas are left
+  # as they are. A workaround for https://github.com/elastic/elasticsearch/issues/167063, to be removed when that is fixed.
   - do:
       indices.create:
         index: unmapped-runtime

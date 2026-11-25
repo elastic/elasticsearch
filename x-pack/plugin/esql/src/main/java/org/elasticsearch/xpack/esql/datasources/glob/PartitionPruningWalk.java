@@ -1168,6 +1168,8 @@ final class PartitionPruningWalk {
         private boolean anyLevelHinted;
         private int walkLevel;
         private List<StoragePath> dirs;
+        /** True after {@code dirs} has been listed; false when {@code dirs} is the next unlisted frontier. */
+        private boolean frontierListed;
         /** Issued {@code listChildren} from the walk AND from retroactive peeks into pruned dirs. */
         private final AtomicInteger listings = new AtomicInteger();
         /**
@@ -1248,6 +1250,7 @@ final class PartitionPruningWalk {
                 }
             }
             this.dirs = List.of(prefix);
+            this.frontierListed = false;
             publish(null);
         }
 
@@ -1264,6 +1267,8 @@ final class PartitionPruningWalk {
                     return afterListingsStop();
                 }
                 StorageChildren[] listed = listChildrenSequential(provider, dirs, listings, cancelled);
+                // listings already includes this batch, even when listChildren returns null.
+                frontierListed = true;
                 if (listed == null) {
                     return withdraw(WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                 }
@@ -1288,7 +1293,11 @@ final class PartitionPruningWalk {
             advanceAsync(concurrency, executor, listener);
         }
 
-        @Nullable
+        private void setDirs(List<StoragePath> next) {
+            this.dirs = next;
+            this.frontierListed = false;
+        }
+
         private WalkResult withdraw(WalkDiagnostics.StopReason reason) {
             publish(reason);
             return null;
@@ -1324,7 +1333,14 @@ final class PartitionPruningWalk {
         }
 
         private WalkDiagnostics snapshot() {
-            boolean atCeiling = listings.get() >= maxDirectoryListings || listings.get() + dirs.size() > maxDirectoryListings;
+            // listings + dirs.size() is the next-batch budget check, valid only while dirs is still
+            // unlisted. After a batch is listed, dirs still names that batch until applyClassified
+            // replaces it, so the same sum would double-count.
+            boolean nextBatchExceeds = listings.get() + dirs.size() > maxDirectoryListings;
+            boolean atCeiling = listings.get() >= maxDirectoryListings
+                || stopReason == WalkDiagnostics.StopReason.CEILING
+                || stopReason == WalkDiagnostics.StopReason.PEEK_BUDGET
+                || (frontierListed == false && nextBatchExceeds);
             return new WalkDiagnostics(
                 stopReason,
                 listings.get(),
@@ -1377,6 +1393,8 @@ final class PartitionPruningWalk {
                 listChildrenParallel(provider, dirs, concurrency, executor, listings, cancelled, new ActionListener<>() {
                     @Override
                     public void onResponse(StorageChildren[] listed) {
+                        // listings already includes this batch, even when listChildren returns null.
+                        frontierListed = true;
                         if (listed == null) {
                             withdrawAsync(listener, WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                             return;
@@ -1582,8 +1600,9 @@ final class PartitionPruningWalk {
                 return result;
             }
             if (prunedColumns.isEmpty()) {
+                boolean nextBatchExceeds = frontierListed == false && listings.get() + dirs.size() > maxDirectoryListings;
                 return withdraw(
-                    listings.get() + dirs.size() > maxDirectoryListings
+                    listings.get() >= maxDirectoryListings || nextBatchExceeds
                         ? WalkDiagnostics.StopReason.CEILING
                         : WalkDiagnostics.StopReason.NOTHING_PRUNED
                 );
@@ -1773,7 +1792,7 @@ final class PartitionPruningWalk {
         @Nullable
         private WalkResult applyClassified(ClassifiedLevel level) throws IOException {
             if (level.withdraw) {
-                dirs = List.of();
+                setDirs(List.of());
                 return withdraw(WalkDiagnostics.StopReason.STRAY);
             }
             List<StoragePath> newPeeks = null;
@@ -1802,7 +1821,7 @@ final class PartitionPruningWalk {
                     collector.add(file);
                 }
                 estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, Math.max(level.next.size(), 1));
-                dirs = level.next;
+                setDirs(level.next);
                 walkLevel++;
                 level.continueWalk = true;
                 return null;
@@ -1814,13 +1833,13 @@ final class PartitionPruningWalk {
                         collector.add(file);
                     }
                     estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, level.shapedDirs.size());
-                    dirs = level.next;
+                    setDirs(level.next);
                     walkLevel++;
                     level.continueWalk = true;
                     return null;
                 }
                 if (anyLevelHinted == false) {
-                    dirs = List.of();
+                    setDirs(List.of());
                     return withdraw(WalkDiagnostics.StopReason.UNHINTED_LEVEL);
                 }
                 return finishSurvivors();
@@ -1830,7 +1849,7 @@ final class PartitionPruningWalk {
             }
             anyLevelHinted = true;
             estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, level.shapedDirs.size());
-            dirs = level.next;
+            setDirs(level.next);
             walkLevel++;
             level.continueWalk = true;
             return null;

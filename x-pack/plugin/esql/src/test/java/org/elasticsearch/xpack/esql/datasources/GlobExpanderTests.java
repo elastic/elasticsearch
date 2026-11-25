@@ -2079,6 +2079,33 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(e.getMessage(), not(containsString("[year] matched every folder")));
     }
 
+    /**
+     * A deferred peek that {@code listChildren} cannot buffer is not a directory-budget miss.
+     * The later object-cap error must say directories could not be listed, not the listing cap.
+     */
+    public void testListedObjectsCapAfterPeekTooWideDoesNotBlameDirectoryBudget() {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(
+                entry("s3://bucket/logs/account=a1/region=keep/year=2024/a.parquet", 100),
+                entry("s3://bucket/logs/account=a1/region=drop/year=2024/b.parquet", 100),
+                entry("s3://bucket/logs/account=a2/region=keep/year=2024/c.parquet", 100)
+            )
+        );
+        provider.setNullListChildrenContaining("region=drop");
+        var hints = List.of(
+            hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "keep"),
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024)
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand("s3://bucket/logs/account=*/region=*/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX, 1)
+        );
+        assertThat(e.getMessage(), containsString("listed too many objects"));
+        assertThat(e.getMessage(), containsString("could not list directories"));
+        assertThat(e.getMessage(), not(containsString("max_directory_listings")));
+    }
+
     private static List<StorageEntry> templateYearCapTree() {
         return List.of(
             entry("s3://bucket/logs/2024/a.parquet", 100),

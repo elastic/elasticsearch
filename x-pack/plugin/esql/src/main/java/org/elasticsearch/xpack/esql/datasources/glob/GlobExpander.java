@@ -2021,6 +2021,7 @@ public final class GlobExpander {
                     prunedColumns
                 );
                 restoredUntrusted = true;
+                walk = walk == null ? null : walk.withoutPrunedClaim();
                 for (StorageEntry excluded : valueExcluded) {
                     fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles, walk);
                 }
@@ -2061,6 +2062,7 @@ public final class GlobExpander {
                         prunedColumns
                     );
                     restoredUntrusted = true;
+                    walk = walk == null ? null : walk.withoutPrunedClaim();
                     for (StorageEntry excluded : valueExcluded) {
                         fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles, walk);
                     }

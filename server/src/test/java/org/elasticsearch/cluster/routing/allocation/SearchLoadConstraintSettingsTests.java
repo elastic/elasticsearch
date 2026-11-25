@@ -22,6 +22,7 @@ public class SearchLoadConstraintSettingsTests extends ESTestCase {
     public void testCpuThresholdKeyAndDefault() {
         assertThat(SEARCH_LOAD_CPU_THRESHOLD_SETTING.getKey(), equalTo("cluster.routing.allocation.search_load.cpu_threshold"));
         assertThat(SEARCH_LOAD_CPU_THRESHOLD_SETTING.get(Settings.EMPTY), equalTo(0.9));
+        assertThat(new SearchLoadConstraintSettings(ClusterSettings.createBuiltInClusterSettings()).getCpuThreshold(), equalTo(0.9));
     }
 
     public void testCpuThresholdAcceptsValuesAboveZeroUpToOne() {

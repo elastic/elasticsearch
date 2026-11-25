@@ -93,6 +93,17 @@ public class GzipPageInflaterTests extends ESTestCase {
         assertFastMatchesInputStreamFailure(gz, data.length, "Corrupt GZIP trailer");
     }
 
+    public void testMultiMemberTruncationFails() throws IOException {
+        byte[] first = randomByteArrayOfLength(between(0, 2048));
+        byte[] second = randomByteArrayOfLength(between(1, 2048));
+        byte[] firstGz = gzip(first);
+        byte[] gz = concat(firstGz, gzip(second));
+        int destLen = first.length + second.length;
+        assertFastMatchesInputStream(gz, destLen);
+        int cut = between(firstGz.length + 1, gz.length - 1);
+        assertFastMatchesInputStreamFailure(Arrays.copyOf(gz, cut), destLen);
+    }
+
     public void testTruncation() throws IOException {
         byte[] data = compressibleBytes(between(64, 4096));
         byte[] gz = gzip(data);
@@ -173,6 +184,11 @@ public class GzipPageInflaterTests extends ESTestCase {
         } finally {
             inflater.end();
         }
+    }
+
+    public void testHeaderOnlyDestLenZeroFails() {
+        byte[] headerOnly = new byte[] { 0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0, 0, (byte) 0xff };
+        assertFastMatchesInputStreamFailure(headerOnly, 0);
     }
 
     public void testEmptyCompressedInputFails() {

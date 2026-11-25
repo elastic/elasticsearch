@@ -100,7 +100,6 @@ final class GzipPageInflater {
         int inPos = off;
         int written = 0;
         boolean firstMember = true;
-        boolean completedMember = false;
         CRC32 crc = new CRC32();
         byte[] probe = null;
         while (true) {
@@ -117,6 +116,7 @@ final class GzipPageInflater {
                 }
                 throw headerEx;
             }
+            boolean destAlreadyFull = firstMember == false && written == destLen;
             firstMember = false;
             inflater.reset();
             crc.reset();
@@ -154,8 +154,8 @@ final class GzipPageInflater {
                 }
                 if (inflater.finished() == false) {
                     if (inflater.needsInput()) {
-                        if (completedMember) {
-                            // dest already filled; truncated next member is EOS.
+                        if (destAlreadyFull) {
+                            // dest already filled before this member; truncated next member is EOS.
                             return;
                         }
                         throw prematureEnd(destLen, written);
@@ -177,7 +177,6 @@ final class GzipPageInflater {
                 throw new ZipException("Corrupt GZIP trailer");
             }
             inPos = trailerPos + TRAILER_BYTES;
-            completedMember = true;
             if (written < destLen) {
                 if (inPos >= end) {
                     throw prematureEnd(destLen, written);

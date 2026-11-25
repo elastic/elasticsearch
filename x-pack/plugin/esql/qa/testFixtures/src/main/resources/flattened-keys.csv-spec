@@ -474,6 +474,7 @@ f1         | L                       | L
 ;
 
 keyOfFlattenedFromRowAndEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -754,6 +755,7 @@ f2         | null
 
 // A key never shadows a mapped field: attributes.host keeps reading the main index, next to the attributes of the enrich index
 mappedKeepsItsNameEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -768,6 +770,7 @@ k                       | k1         | hi         | hi                 | "{""hos
 ;
 
 mappedWinsOverKeyEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -785,6 +788,7 @@ k1         | k                       | "{""host"":""L"",""zone"":""L""}"
 
 // A key never shadows a computed column
 computedWinsOverKeyEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -802,6 +806,7 @@ f2         | e
 ;
 
 copiedKeyWinsOverKeyEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -820,6 +825,7 @@ f2         | c
 
 // Once the mapped field is dropped, the name is the key of the attributes of the enrich index
 keyAfterDroppingMappedEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -836,6 +842,7 @@ k1         | L
 
 // A key of the attributes of the enrich index replaces the key of the attributes it replaces; f2 has no match
 keyReplacesKeyEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -853,6 +860,7 @@ f2         | null
 
 // A key that a command named is a column from there on, so the command that replaces the attributes does not replace it
 keyFilteredBeforeIsPinnedEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -868,6 +876,7 @@ f1         | a
 ;
 
 keyKeptBeforeIsPinnedEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -886,6 +895,7 @@ f2         | c
 
 // Naming one key does not make the other keys of the attributes columns
 keyNamedBeforeDoesNotPinOtherKeysEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -903,6 +913,7 @@ f1         | L
 // The attributes of FROM are flattened, and host is named before the command that replaces them: host is a column that keeps its
 // value, while zone and env were not named, so they are read from the attributes the command brings in. f2 has no match
 keysNamedBeforeAndAfterReplacingTheFlattenedFieldEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -920,6 +931,7 @@ f2         | c                       | null                    | null
 ;
 
 keyOnlyTheNewFieldHoldsEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load
@@ -934,6 +946,7 @@ k1         | L
 ;
 
 keyAlsoTheOldFieldHoldsEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: enrich_load

@@ -394,7 +394,7 @@ load two indices and convert keyword and text with a base:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [fn_to_long_union_types_with_base, fn_to_integer_union_types_with_base]
+          capabilities: [union_types_conversion_with_base]
       reason: "Conversions with a base of keyword and text union types were not supported"
   - do:
       indices.create:
@@ -470,7 +470,7 @@ load two indices and convert event_duration with a base:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [fn_to_long_union_types_with_base, fn_to_integer_union_types_with_base]
+          capabilities: [union_types_conversion_with_base]
       reason: "Conversions with a base of keyword and text union types were not supported"
   # A base only converts strings, so a field that is also a long is ambiguous, like for any conversion that doesn't support a type
   - do:
@@ -492,7 +492,7 @@ load two indices and convert event_duration to a string, then with a base:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [fn_to_long_union_types_with_base, fn_to_integer_union_types_with_base]
+          capabilities: [union_types_conversion_with_base]
       reason: "The base of a conversion of a union type was dropped in older nodes"
   - do:
       allowed_warnings_regex:

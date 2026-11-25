@@ -242,8 +242,7 @@ emp_no:integer | _index:keyword        | gender_text:text
 
 // A base is only for strings, which both legs are, so the union is converted per type keeping the base.
 multiIndexKeywordTextWithBase
-required_capability: fn_to_long_union_types_with_base
-required_capability: fn_to_integer_union_types_with_base
+required_capability: union_types_conversion_with_base
 required_capability: union_types
 required_capability: index_metadata_field
 
@@ -262,8 +261,7 @@ emp_no:integer | _index:keyword        | as_long:long | as_integer:integer
 ;
 
 multiIndexKeywordTextWithBaseStats
-required_capability: fn_to_long_union_types_with_base
-required_capability: fn_to_integer_union_types_with_base
+required_capability: union_types_conversion_with_base
 required_capability: union_types
 
 FROM employees, employees_gender_text

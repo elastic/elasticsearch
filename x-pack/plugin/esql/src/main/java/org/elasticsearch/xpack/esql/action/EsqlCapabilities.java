@@ -5105,6 +5105,13 @@ public class EsqlCapabilities {
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
+        /**
+         * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} on a field mapped as keyword and text across indices (a union
+         * type) keep the base, instead of failing. A base on other union types, or one that isn't a constant, is a verification
+         * error. Older nodes failed with an internal server error, or dropped the base.
+         */
+        UNION_TYPES_CONVERSION_WITH_BASE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

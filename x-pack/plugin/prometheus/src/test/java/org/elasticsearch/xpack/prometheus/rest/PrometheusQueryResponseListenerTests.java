@@ -200,34 +200,6 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         assertMetric(rows, columns, Map.of("__name__", "http_requests_total", "job", "prometheus"));
     }
 
-    /** Dual _timeseries label container blobs must not both become metric labels (fingerprint poison). */
-    public void testConvertSkipsSecondaryTimeseriesRestColumn() throws IOException {
-        List<ColumnInfoImpl> columns = List.of(
-            col("value", "double"),
-            col("_timeseries", "keyword"),
-            col("_timeseries$__name__", "keyword"),
-            col("step", "long")
-        );
-        List<List<Object>> rows = List.of(
-            List.of(
-                List.of(1.0),
-                "{\"labels\":{\"__name__\":\"a\",\"job\":\"api\"}}",
-                "{\"labels\":{\"job\":\"api\"}}",
-                List.of(1735689600000L)
-            )
-        );
-        assertMetric(rows, columns, Map.of("__name__", "a", "job", "api"));
-    }
-
-    /** Sole _timeseries$... column is still the series blob. */
-    public void testConvertUsesNameSuffixedTimeseriesAsSeriesCol() throws IOException {
-        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("_timeseries$__name__", "keyword"), col("step", "long"));
-        List<List<Object>> rows = List.of(
-            List.of(List.of(1.0), "{\"labels\":{\"job\":\"api\",\"instance\":\"i1\"}}", List.of(1735689600000L))
-        );
-        assertMetric(rows, columns, Map.of("job", "api", "instance", "i1"));
-    }
-
     /** Blob may sit after promoted labels; must still be found or series collapse to {}. */
     public void testConvertFindsTimeseriesAfterPromotedLabelColumn() throws IOException {
         List<ColumnInfoImpl> columns = List.of(

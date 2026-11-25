@@ -282,7 +282,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     /** The {@code _timeseries} column, which label columns may precede, or -1 if the labels are columns only. */
     private static int findTimeseriesColumn(List<ColumnInfoImpl> columns, int stepColIdx) {
         for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
-            if (isTimeseriesColumn(columns.get(i).name())) {
+            if (MetadataAttribute.TIMESERIES.equals(columns.get(i).name())) {
                 return i;
             }
         }
@@ -297,7 +297,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         Map<String, Integer> labelColumns = new HashMap<>();
         for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
             String name = columns.get(i).name();
-            if (isTimeseriesColumn(name) == false) {
+            if (MetadataAttribute.TIMESERIES.equals(name) == false) {
                 labelColumns.put(prometheusLabelName(name), i);
             }
         }
@@ -339,7 +339,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
             ColumnInfoImpl column = columns.get(i);
             Block block = page.getBlock(i);
-            if (i == timeseriesColIdx || isTimeseriesColumn(column.name()) || block.isNull(position)) {
+            if (i == timeseriesColIdx || block.isNull(position)) {
                 continue;
             }
             String name = prometheusLabelName(column.name());
@@ -364,11 +364,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     /** Strip labels. prefix used when a BY label collides with the value column name. */
     static String prometheusLabelName(String columnName) {
         return columnName != null && columnName.startsWith("labels.") ? columnName.substring("labels.".length()) : columnName;
-    }
-
-    /** _timeseries or a traced, suffixed label container blob - not a Prometheus label. */
-    static boolean isTimeseriesColumn(String name) {
-        return name != null && (name.equals(MetadataAttribute.TIMESERIES) || name.startsWith(MetadataAttribute.TIMESERIES + "$"));
     }
 
     private static void buildMetricValues(

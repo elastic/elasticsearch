@@ -942,8 +942,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluateBlockWithNulls {TestCase=<integer>, <double>, <double>, <double>, <null>, <double>, <double>, <double>, <double>, <double>, <double>}
   issue: https://github.com/elastic/elasticsearch/issues/167439
-- class: org.elasticsearch.xpack.analytics.mapper.BatchBulkHistogramIT
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
   tasks:
-  - :x-pack:plugin:analytics:internalClusterTest
-  method: testTranslogRecoveryKeepsAcknowledgedDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/167441
+  - :x-pack:plugin:esql:test
+  method: testSerializationOfSimple {TestCase=<double, 17 ints> null in 7}
+  issue: https://github.com/elastic/elasticsearch/issues/167446

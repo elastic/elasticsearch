@@ -1955,6 +1955,12 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
             )
         );
+        if (minimumVersion.supports(ConvertFunction.LENIENT_CAST)) {
+            // A field of an unsupported type is a value that can't be converted: it's null, and the warning names the type.
+            assertTrue(multiFieldVariation().query("from test | eval x = to_string(unsupported) | keep x | limit 1").resolved());
+            assertWarnings("[unsupported] of type [ip_range] cannot be converted to [KEYWORD] and will be null.");
+            return;
+        }
         multiFieldVariation().error(
             "from test | eval to_string(unsupported)",
             containsString("line 1:28: Cannot use field [unsupported] with unsupported type [ip_range]")

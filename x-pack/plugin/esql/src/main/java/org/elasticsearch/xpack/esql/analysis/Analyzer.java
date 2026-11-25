@@ -362,6 +362,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // trustworthy once ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *),
                 // and it must strip the wrapper before the union-type rules below inspect the UnionAll's parent.
                 new InjectOuterMetadataForSubqueries(),
+                // Before the rules that resolve conversions, so a cast of an unsupported field resolves in the same pass.
+                new NullifyUnsupportedFieldsOfConversions(),
                 // Must be after ResolveRefs: derivation reads the resolved child output and the resolved upstream WHERE predicates.
                 new ResolveHighlight(),
                 new ImplicitCasting(),
@@ -1721,6 +1723,65 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             scope.addAll(destinations);
             return scope;
+        }
+    }
+
+    /**
+     * A conversion of a field of a type ES|QL doesn't support is {@code null}, as for any other type the conversion can't convert. An
+     * {@link UnsupportedAttribute} is never resolved, so the conversion couldn't resolve over it: the field the conversion reads is
+     * replaced by a {@link FieldAttribute} that is {@code null}, as {@code unmapped_fields="nullify"} makes them, with the id of the
+     * unsupported one. A new attribute would make the name ambiguous, and the id keeps the reference to the field in the plan, so it
+     * must still appear in the {@code BY} of a {@code STATS}, for example.
+     * <p>
+     * The field is not replaced anywhere else, and it stays unsupported there. A field with a custom message is not unsupported
+     * because of its type, but because of an error that casting doesn't solve, like a type conflict.
+     * </p>
+     * <p>
+     * Idempotent, as the plan can be analyzed again with the attributes that the first time left: it only replaces an unsupported
+     * attribute, and the replacement is not one. The warning is deduplicated with the others of the analysis, and only sent if the
+     * query is valid.
+     * </p>
+     */
+    private static class NullifyUnsupportedFieldsOfConversions extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.minimumVersion().supports(ConvertFunction.LENIENT_CAST) == false) {
+                return plan;
+            }
+            return plan.transformExpressionsUp(Expression.class, e -> nullifyInput(e, context));
+        }
+
+        private static Expression nullifyInput(Expression e, AnalyzerContext context) {
+            if (e instanceof ConvertFunction convert
+                && convert.lenientOnInputType()
+                && convert.field() instanceof UnsupportedAttribute unsupported
+                && unsupported.hasCustomMessage() == false) {
+                context.deferredHeaderWarnings()
+                    .add(
+                        Strings.format(
+                            "[%s] of type [%s] cannot be converted to [%s] and will be null.",
+                            unsupported.sourceText().isEmpty() ? unsupported.name() : unsupported.sourceText(),
+                            String.join(", ", unsupported.originalTypes()),
+                            e.dataType().nameUpper()
+                        )
+                    );
+                List<Expression> children = new ArrayList<>(e.children());
+                children.set(
+                    0,
+                    new FieldAttribute(
+                        unsupported.source(),
+                        null,
+                        unsupported.qualifier(),
+                        unsupported.name(),
+                        new MissingEsField(unsupported.name()),
+                        Nullability.TRUE,
+                        unsupported.id(),
+                        false
+                    )
+                );
+                return e.replaceChildren(children);
+            }
+            return e;
         }
     }
 

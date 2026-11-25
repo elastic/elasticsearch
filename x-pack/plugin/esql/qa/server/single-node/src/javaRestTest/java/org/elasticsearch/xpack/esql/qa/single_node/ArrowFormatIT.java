@@ -386,16 +386,17 @@ public class ArrowFormatIT extends ESRestTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         request = new Request("POST", "/_bulk?index=arrow-exponential-histogram-test&refresh=true");
-        request.setJsonEntity(
-            """
-                {"index": {"_id": "1"}}
-                {"value": 1, "histogram": {"scale": 2, "sum": 18.0, "min": -1.1, "max": 2.0, "zero": {"count": 3, "threshold": 0.5}, "positive": {"indices": [1, 3], "counts": [5, 7]}, "negative": {"indices": [-1], "counts": [2]}}}
-                {"index": {"_id": "2"}}
-                {"value": 2}
-                {"index": {"_id": "3"}}
-                {"value": 3, "histogram": {"scale": 1, "zero": {"threshold": 1.25}}}
-                """
-        );
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "histogram": {"scale": 2, "sum": 18.0, "min": -1.1, "max": 2.0, \
+            "zero": {"count": 3, "threshold": 0.5}, \
+            "positive": {"indices": [1, 3], "counts": [5, 7]}, \
+            "negative": {"indices": [-1], "counts": [2]}}}
+            {"index": {"_id": "2"}}
+            {"value": 2}
+            {"index": {"_id": "3"}}
+            {"value": 3, "histogram": {"scale": 1, "zero": {"threshold": 1.25}}}
+            """);
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         try (VectorSchemaRoot root = esql("""

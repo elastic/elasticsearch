@@ -9,6 +9,13 @@
 
 package org.elasticsearch.index.query.bitmapterms;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.PointsFormat;
+import org.apache.lucene.codecs.PointsReader;
+import org.apache.lucene.codecs.PointsWriter;
+import org.apache.lucene.codecs.lucene90.Lucene90PointsReader;
+import org.apache.lucene.codecs.lucene90.Lucene90PointsWriter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -20,6 +27,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -40,6 +49,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.bkd.BKDConfig;
+import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
@@ -123,26 +133,33 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
     }
 
     /**
-     * A tree of one leaf does not tell how many points a leaf can hold, and the cursor's arrays are sized by that, so they are charged
-     * at the default leaf size. The buffer keeps its initial size, since the few matching documents fit in it.
+     * A leaf smaller than the default leaves the cursor's arrays charged at the default leaf size, which is what the codec sizes them
+     * by. The buffer keeps its initial size, since the few matching documents fit in it.
      */
-    public void testPointsStreamingPathOnASingleLeaf() throws IOException {
+    public void testPointsStreamingPathOnASmallLeaf() throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
-        try (Directory directory = newDirectory()) {
-            IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.getDefaultCodec())
-                .setIndexSort(new Sort(new SortedNumericSortField(POINT_FIELD, SortField.Type.INT)));
-            try (IndexWriter writer = new IndexWriter(directory, config)) {
-                for (int docId = 0; docId < 10; docId++) {
-                    writer.addDocument(doc(docId % 2));
-                }
-                writer.forceMerge(1);
-            }
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                assertThat(count(reader, pointsQuery(), breaker), equalTo(5));
-            }
+        try (
+            Directory directory = newDirectory();
+            DirectoryReader reader = indexSortedOnPoints(directory, 10, TestUtil.getDefaultCodec())
+        ) {
+            assertThat(count(reader, pointsQuery(), breaker), equalTo(5));
         }
         long buffer = RamUsageEstimator.sizeOf(new int[64]);
         assertThat(breaker.peak(), equalTo(cursorScratch(BKDConfig.DEFAULT_MAX_POINTS_IN_LEAF_NODE) + buffer));
+    }
+
+    /**
+     * Leaves larger than the default raise the charge for the cursor's arrays to their size once one is visited, here the leaf of 0s,
+     * and the buffer grows to hold it.
+     */
+    public void testPointsStreamingPathOnLargerLeaves() throws IOException {
+        int leafSize = 4 * BKDConfig.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        try (Directory directory = newDirectory(); DirectoryReader reader = indexSortedOnPoints(directory, 2 * leafSize, codec(leafSize))) {
+            assertThat(count(reader, pointsQuery(), breaker), equalTo(leafSize));
+        }
+        long buffer = RamUsageEstimator.sizeOf(new int[ArrayUtil.oversize(leafSize, Integer.BYTES)]);
+        assertThat(breaker.peak(), equalTo(cursorScratch(leafSize) + buffer));
     }
 
     public void testTermsStreamingPathChargesNothing() throws IOException {
@@ -269,6 +286,41 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
             }
         }
         return DirectoryReader.open(directory);
+    }
+
+    /** One segment of {@code numDocs} documents, sorted on the points field, in which half have the value 0 and half 1. */
+    private DirectoryReader indexSortedOnPoints(Directory directory, int numDocs, Codec codec) throws IOException {
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(codec)
+            .setIndexSort(new Sort(new SortedNumericSortField(POINT_FIELD, SortField.Type.INT)));
+        try (IndexWriter writer = new IndexWriter(directory, config)) {
+            for (int docId = 0; docId < numDocs; docId++) {
+                writer.addDocument(doc(docId % 2));
+            }
+            writer.forceMerge(1);
+        }
+        return DirectoryReader.open(directory);
+    }
+
+    /** The default codec, writing BKD leaves of {@code maxPointsInLeafNode} points. */
+    private static Codec codec(int maxPointsInLeafNode) {
+        Codec codec = TestUtil.getDefaultCodec();
+        // Named after the codec it wraps so that the segment reads back with that one, whose points reader reads any leaf size.
+        return new FilterCodec(codec.getName(), codec) {
+            @Override
+            public PointsFormat pointsFormat() {
+                return new PointsFormat() {
+                    @Override
+                    public PointsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+                        return new Lucene90PointsWriter(state, maxPointsInLeafNode, BKDWriter.DEFAULT_MAX_MB_SORT_IN_HEAP);
+                    }
+
+                    @Override
+                    public PointsReader fieldsReader(SegmentReadState state) throws IOException {
+                        return new Lucene90PointsReader(state);
+                    }
+                };
+            }
+        };
     }
 
     /**

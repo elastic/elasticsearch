@@ -15,6 +15,7 @@ import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
@@ -22,6 +23,7 @@ import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -162,7 +164,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
             .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
             .build();
         APMMeterService meterService = new APMMeterService(settings, meterSupplier, () -> OpenTelemetry.noop().getMeter("noop"));
-        APMTracer tracer = new APMTracer(settings, traceSupplier, 0, false);
+        APMTracer tracer = new APMTracer(new ThreadContext(settings), settings, traceSupplier, 0, false);
         return new APMTelemetryProvider(
             meterService,
             tracer,
@@ -172,7 +174,8 @@ public class APMTelemetryProviderTests extends ESTestCase {
                 List.of(),
                 new TelemetryLogResourceProvider.Default(),
                 MeterProvider::noop
-            )
+            ),
+            HttpServerInstrumentation.NOOP
         );
     }
 }

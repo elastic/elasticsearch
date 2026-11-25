@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -25,13 +31,17 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -48,6 +58,7 @@ import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -117,12 +128,10 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     public void testFieldValueRangeForColumnarVectordbModeWithCFS() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         testFieldValueRange(true, IndexMode.VECTORDB_COLUMNAR);
     }
 
     public void testFieldValueRangeForColumnarVectordbModeWithNoCFS() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         testFieldValueRange(false, IndexMode.VECTORDB_COLUMNAR);
     }
 
@@ -206,7 +215,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                     () -> randomLongBetween(10_000L, 1_000_000L) // make sure timestamp doesn't look like a year (has more than 4 digits)
                 );
                 IndexWriterConfig indexWriterConfig = getIndexWriterConfig(useCFS, false);
-                var indexCommits = fakeNode.generateIndexCommits(numberOfNewCommits, false, false, generation -> {}, (commitId) -> {
+                var indexCommits = fakeNode.generateIndexCommits(numberOfNewCommits, false, null, generation -> {}, (commitId) -> {
                     try {
                         return List.of(
                             mapper.parse(
@@ -362,6 +371,136 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         }
     }
 
+    public void testTimestampFieldValuesOfASingleSegment() throws Exception {
+        IndexMode indexMode = randomFrom(IndexMode.availableModes());
+        DocumentMapper mapper = getDocumentMapper(indexMode);
+        var timestampFieldType = mapper.mappers().getTimestampFieldType();
+        boolean useCFS = randomBoolean();
+        try (Directory directory = newDirectory()) {
+            long minTimestamp = Long.MAX_VALUE;
+            long maxTimestamp = Long.MIN_VALUE;
+            IndexEngine.SegmentTimestampFieldValues values;
+            Set<String> segmentNames;
+            try (IndexWriter indexWriter = new IndexWriter(directory, getIndexWriterConfig(useCFS, false))) {
+                // a segment with the timestamp field
+                final int numDocs = between(1, 10);
+                for (int i = 0; i < numDocs; i++) {
+                    long timestamp = randomLongBetween(10_000L, 1_000_000L);
+                    String docId = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(i) : randomUUID();
+                    indexWriter.addDocument(mapper.parse(source(docId, b -> b.field("@timestamp", timestamp), null)).rootDoc());
+                    minTimestamp = Math.min(minTimestamp, timestamp);
+                    maxTimestamp = Math.max(maxTimestamp, timestamp);
+                }
+                indexWriter.flush();
+                // a segment without it
+                Document withoutTimestamp = new Document();
+                withoutTimestamp.add(new StringField("keepalive", "1", Field.Store.NO));
+                indexWriter.addDocument(withoutTimestamp);
+
+                // the segments are read before any commit references them
+                try (var reader = DirectoryReader.open(indexWriter)) {
+                    assertThat(reader.leaves().size(), equalTo(2));
+                    var withTimestamp = Lucene.segmentReader(reader.leaves().get(0).reader()).getSegmentInfo();
+                    var withoutTimestampSegment = Lucene.segmentReader(reader.leaves().get(1).reader()).getSegmentInfo();
+                    assertThat(withTimestamp.info.getUseCompoundFile(), equalTo(useCFS));
+                    assertThat(withoutTimestampSegment.info.getUseCompoundFile(), equalTo(useCFS));
+
+                    values = IndexEngine.readTimestampFieldValuesOfSegment(directory, withTimestamp, timestampFieldType);
+                    assertNotNull(values);
+                    assertThat(
+                        IndexEngine.toTimestampFieldValueRange(values.minValue(), values.maxValue(), timestampFieldType),
+                        equalTo(new TimestampFieldValueRange(minTimestamp, maxTimestamp))
+                    );
+                    // the segment without the field does not contribute any value
+                    assertNull(IndexEngine.readTimestampFieldValuesOfSegment(directory, withoutTimestampSegment, timestampFieldType));
+                    segmentNames = Set.of(withTimestamp.info.name, withoutTimestampSegment.info.name);
+                }
+                indexWriter.commit();
+            }
+
+            // the per segment values are what the commit based function combines
+            var commit = DirectoryReader.listCommits(directory).getFirst();
+            assertThat(
+                IndexEngine.readTimestampFieldValueRangeAcrossSegments(commit, segmentNames, timestampFieldType),
+                equalTo(IndexEngine.toTimestampFieldValueRange(values.minValue(), values.maxValue(), timestampFieldType))
+            );
+        }
+    }
+
+    public void testTimestampFieldValuesAreConvertedToMillis() {
+        var millis = new DateFieldMapper.DateFieldType("@timestamp", DateFieldMapper.Resolution.MILLISECONDS);
+        assertThat(IndexEngine.toTimestampFieldValueRange(1_234L, 5_678L, millis), equalTo(new TimestampFieldValueRange(1_234L, 5_678L)));
+
+        // the range in milliseconds covers the range in nanoseconds: the minimum is rounded down and the maximum up
+        var nanos = new DateFieldMapper.DateFieldType("@timestamp", DateFieldMapper.Resolution.NANOSECONDS);
+        assertThat(
+            IndexEngine.toTimestampFieldValueRange(1_234_567_890L, 5_678_000_001L, nanos),
+            equalTo(new TimestampFieldValueRange(1_234L, 5_679L))
+        );
+        // dates before the epoch are rounded down too
+        assertThat(IndexEngine.toTimestampFieldValueRange(-1_500_000L, -1L, nanos), equalTo(new TimestampFieldValueRange(-2L, 0L)));
+    }
+
+    public void testTimestampRangeIgnoresSegmentWithGhostTimestampField() throws Exception {
+        IndexMode indexMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
+        Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName());
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // Same time_series setup as getDocumentMapper
+            settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid").put(IndexSettings.SYNTHETIC_ID.getKey(), false);
+        }
+        MapperService mapperService = createMapperService(settings.build(), mapping(b -> {}));
+        DocumentMapper mapper = mapperService.documentMapper();
+        IndexWriterConfig indexWriterConfig = new IndexWriterConfig().setCodec(
+            new PerFieldMapperCodec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                mapperService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
+            )
+        );
+        indexWriterConfig.setUseCompoundFile(false);
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+                Document survivor = new Document();
+                survivor.add(new StringField("keepalive", "1", Field.Store.NO));
+                indexWriter.addDocument(survivor);
+                String docId = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(1) : "d1";
+                ParsedDocument doc = mapper.parse(source(docId, b -> b.field("@timestamp", 12345L), null));
+                indexWriter.addDocument(doc.rootDoc());
+                indexWriter.commit();
+                indexWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())));
+                indexWriter.forceMerge(1);
+                indexWriter.commit();
+            }
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                IndexCommit commit = indexReader.getIndexCommit();
+
+                assertThat(indexReader.leaves().size(), equalTo(1));
+                var leafReader = indexReader.leaves().get(0).reader();
+                FieldInfo timestampFieldInfo = leafReader.getFieldInfos().fieldInfo("@timestamp");
+                assertNotNull("expected a ghost @timestamp field info", timestampFieldInfo);
+                DocValuesSkipper skipper = leafReader.getDocValuesSkipper("@timestamp");
+                assertNotNull(skipper);
+                assertThat("expected an empty skipper (no live @timestamp values)", skipper.docCount(), equalTo(0));
+
+                Set<String> subsetSegmentNames = new HashSet<>();
+                for (var segmentCommitInfo : Lucene.readSegmentInfos(commit)) {
+                    subsetSegmentNames.add(segmentCommitInfo.info.name);
+                }
+
+                assertNull(
+                    IndexEngine.readTimestampFieldValueRangeAcrossSegments(
+                        commit,
+                        subsetSegmentNames,
+                        mapper.mappers().getTimestampFieldType()
+                    )
+                );
+            }
+        }
+    }
+
     private void deleteDoc(String docIdToDelete, IndexWriter indexWriter, IndexMode indexMode, DocumentMapper mapper) throws IOException {
         var providedIdMapper = mapper.mappers().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
         boolean useColumnarId = providedIdMapper != null && providedIdMapper.isColumnarMode();
@@ -480,7 +619,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         }
     }
 
-    private @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRangeAcrossAdditionalSegments(
+    private @Nullable TimestampFieldValueRange readTimestampFieldValueRangeAcrossAdditionalSegments(
         StatelessCommitRef reference,
         MappingLookup mappingLookup
     ) throws IOException {

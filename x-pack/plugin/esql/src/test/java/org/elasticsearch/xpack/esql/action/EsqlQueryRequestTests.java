@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -840,6 +841,30 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(ExemplarsSettings.ENABLED, request.get(QuerySettings.EXEMPLARS));
     }
 
+    public void testSettingsBlockUnmappedFields() throws IOException {
+        for (UnmappedResolution resolution : UnmappedResolution.values()) {
+            EsqlQueryRequest request = parseEsqlQueryRequestSync(Strings.format("""
+                {
+                    "query": "FROM idx",
+                    "settings": {
+                        "unmapped_fields": "%s"
+                    }
+                }""", resolution.settingValue()));
+            assertEquals(resolution, request.get(QuerySettings.UNMAPPED_FIELDS));
+        }
+    }
+
+    public void testSettingsBlockUnmappedFieldsRejectsUnknownValue() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
+            {
+                "query": "FROM idx",
+                "settings": {
+                    "unmapped_fields": "everything"
+                }
+            }"""));
+        assertThat(e.getCause().getMessage(), containsString("Failed to parse value for setting [unmapped_fields]"));
+    }
+
     public void testSettingsBlockExemplarsObject() throws IOException {
         EsqlQueryRequest request = parseEsqlQueryRequestSync("""
             {
@@ -848,7 +873,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     "exemplars": {"limit": 1234}
                 }
             }""");
-        assertEquals(new ExemplarsSettings(true, 1234), request.get(QuerySettings.EXEMPLARS));
+        assertEquals(new ExemplarsSettings(true, 1234, false), request.get(QuerySettings.EXEMPLARS));
     }
 
     public void testSettingsBlockRejectsConflictingValuesAtBothLevels() {
@@ -927,16 +952,19 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testSettingsBlockRejectsSetOnlySetting() {
-        // unmapped_fields is in the registry but opted out of body exposure.
+        // time_series_reduce_per_index is in the registry but opted out of body exposure.
         Exception e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestSync("""
             {
                 "query": "FROM idx",
                 "settings": {
-                    "unmapped_fields": "NULLIFY"
+                    "time_series_reduce_per_index": true
                 }
             }"""));
         assertThat(e.getMessage(), containsString("settings"));
-        assertThat(e.getCause().getMessage(), containsString("Setting [unmapped_fields] is not exposed as a request body parameter"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Setting [time_series_reduce_per_index] is not exposed as a request body parameter")
+        );
     }
 
     public void testRejectUnknownFields() {
@@ -1428,6 +1456,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
         try (XContentParser parser = XContentType.JSON.xContent().createParser(config, json)) {
             return fromXContentFunc.apply(parser);
+        }
+    }
+
+    /** {@code max_rows}, {@code max_bytes} and {@code store} belong to {@code POST /_query/stream} only. */
+    public void testStreamOnlyFieldsAreUnknownOnTheQueryEndpoints() {
+        for (String field : new String[] { "\"max_rows\": 1", "\"max_bytes\": 1", "\"store\": \"none\"" }) {
+            String json = "{\"query\": \"FROM idx\", " + field + "}";
+            expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+            expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestAsync(json));
         }
     }
 

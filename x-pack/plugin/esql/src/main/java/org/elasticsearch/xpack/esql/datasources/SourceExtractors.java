@@ -114,6 +114,17 @@ public final class SourceExtractors implements Releasable {
         return encoded & MAX_LOCAL_POSITION;
     }
 
+    /**
+     * Thrown by {@link #register} when the registry was already closed. A driver that finishes before the
+     * source producer runs out of units closes the registry while the producer may still be opening the next
+     * unit, so the caller can tell this expected shutdown race apart from other {@link IllegalStateException}s.
+     */
+    public static final class ClosedException extends IllegalStateException {
+        ClosedException() {
+            super("SourceExtractors is closed");
+        }
+    }
+
     private final List<ColumnExtractor> extractors = new ArrayList<>();
     /**
      * Resources whose lifecycle must extend beyond the source operator's, because the deferred
@@ -132,14 +143,15 @@ public final class SourceExtractors implements Releasable {
      * pack into the {@code _rowPosition} values they emit for rows coming from this extractor's
      * file.
      *
-     * @throws IllegalStateException if the table is closed or if the id space is exhausted
+     * @throws ClosedException       if the table is closed
+     * @throws IllegalStateException if the id space is exhausted
      */
     public synchronized int register(ColumnExtractor extractor) {
         if (extractor == null) {
             throw new IllegalArgumentException("extractor must not be null");
         }
         if (closed) {
-            throw new IllegalStateException("SourceExtractors is closed");
+            throw new ClosedException();
         }
         int id = extractors.size();
         if (id > MAX_EXTRACTOR_ID) {
@@ -243,7 +255,7 @@ public final class SourceExtractors implements Releasable {
         final List<ColumnExtractor> snapshot;
         synchronized (this) {
             if (closed) {
-                throw new IllegalStateException("SourceExtractors is closed");
+                throw new ClosedException();
             }
             snapshot = new ArrayList<>(extractors);
         }

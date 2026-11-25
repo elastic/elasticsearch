@@ -853,8 +853,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             true,
             IndexMode.STANDARD,
             1,
+            0,
             indexMetadata.getSettingsVersion(),
-            indexMetadata.getMappingVersion()
+            indexMetadata.getMappingVersion(),
+            null
         );
         FieldCapsCache cache = new FieldCapsCache();
         cache.put(
@@ -1134,7 +1136,9 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                         randomFrom(IndexMode.availableModes()),
                         0,
                         0,
-                        0
+                        0,
+                        0,
+                        null
                     )
                 );
             }

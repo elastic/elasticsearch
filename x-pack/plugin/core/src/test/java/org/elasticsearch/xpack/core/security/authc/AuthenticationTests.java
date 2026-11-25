@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,7 +38,9 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,6 +58,8 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -1489,5 +1494,144 @@ public class AuthenticationTests extends ESTestCase {
 
     private boolean realmIsSingleton(RealmRef realmRef) {
         return Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE).contains(realmRef.getType());
+    }
+
+    public void testRamBytesUsedIncludesApiKeyRoleDescriptorBytes() throws IOException {
+        final BytesArray roleDescriptorBytes = new BytesArray(randomAlphaOfLengthBetween(1024, 32 * 1024));
+        final BytesArray limitedByRoleDescriptorBytes = new BytesArray(randomAlphaOfLengthBetween(1024, 32 * 1024));
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(
+                Map.of(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    roleDescriptorBytes,
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    limitedByRoleDescriptorBytes
+                )
+            )
+            .build(false);
+        final long rawRoleDescriptorBytes = roleDescriptorBytes.length() + limitedByRoleDescriptorBytes.length();
+        assertThat(authentication.ramBytesUsed(), greaterThanOrEqualTo(rawRoleDescriptorBytes));
+
+        // dropping the role descriptors from the metadata removes at least their raw size from the estimate
+        final Set<String> fieldsToKeep = authentication.getAuthenticatingSubject()
+            .getMetadata()
+            .keySet()
+            .stream()
+            .filter(
+                key -> key.equals(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY) == false
+                    && key.equals(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY) == false
+            )
+            .collect(Collectors.toSet());
+        final Authentication withoutRoleDescriptors = authentication.copyWithFilteredMetadataFields(fieldsToKeep);
+        assertThat(authentication.ramBytesUsed() - withoutRoleDescriptors.ramBytesUsed(), greaterThanOrEqualTo(rawRoleDescriptorBytes));
+
+        // the estimate holds after a round trip through the transport header, which is how receiving nodes materialize it
+        final Authentication decoded = AuthenticationContextSerializer.decode(authentication.encode());
+        assertThat(decoded.ramBytesUsed(), greaterThanOrEqualTo(rawRoleDescriptorBytes));
+    }
+
+    public void testRamBytesUsedIncludesNestedCrossClusterAccessAuthentication() {
+        final CrossClusterAccessSubjectInfo subjectInfo = randomCrossClusterAccessSubjectInfo();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .crossClusterAccess(randomAlphaOfLength(20), subjectInfo)
+            .build(false);
+        long nestedBytes = subjectInfo.getAuthentication().ramBytesUsed();
+        for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes : subjectInfo.getRoleDescriptorsBytesList()) {
+            nestedBytes += roleDescriptorsBytes.ramBytesUsed();
+        }
+        assertThat(authentication.ramBytesUsed(), greaterThanOrEqualTo(nestedBytes));
+    }
+
+    public void testRamBytesUsedCountsRunAsEffectiveSubject() {
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(randomAlphaOfLength(8)),
+            new RealmRef("realm", "type", "node")
+        );
+        final User runAsUser = new User(randomAlphaOfLength(40));
+        final Authentication runAs = authentication.runAs(runAsUser, new RealmRef("lookup", "lookup-type", "node"));
+        assertThat(runAs.isRunAs(), is(true));
+        assertThat(
+            runAs.ramBytesUsed() - authentication.ramBytesUsed(),
+            greaterThanOrEqualTo(RamUsageEstimator.sizeOf(runAsUser.principal()))
+        );
+    }
+
+    public void testRamBytesUsedCountsEachUserRole() {
+        final String username = randomAlphaOfLength(8);
+        final String[] roles = randomArray(1, 8, String[]::new, () -> randomAlphaOfLengthBetween(5, 64));
+        final RealmRef realmRef = AuthenticationTestHelper.randomRealmRef(false);
+        final long withRoles = Authentication.newRealmAuthentication(new User(username, roles), realmRef).ramBytesUsed();
+        final long withoutRoles = Authentication.newRealmAuthentication(new User(username), realmRef).ramBytesUsed();
+        long roleBytes = 0;
+        for (String role : roles) {
+            roleBytes += RamUsageEstimator.sizeOf(role);
+        }
+        assertThat(withRoles - withoutRoles, greaterThanOrEqualTo(roleBytes));
+    }
+
+    public void testRamBytesUsedCountsRealmDomainAndItsRealms() {
+        final Set<RealmConfig.RealmIdentifier> identifiers = Set.of(
+            new RealmConfig.RealmIdentifier(randomAlphaOfLength(6), randomAlphaOfLength(6)),
+            new RealmConfig.RealmIdentifier(randomAlphaOfLength(7), randomAlphaOfLength(7)),
+            new RealmConfig.RealmIdentifier(randomAlphaOfLength(8), randomAlphaOfLength(8))
+        );
+        final RealmDomain domain = new RealmDomain(randomAlphaOfLength(9), identifiers);
+        final User user = new User(randomAlphaOfLength(8));
+        final long withDomain = Authentication.newRealmAuthentication(user, new RealmRef("realm", "type", "node", domain)).ramBytesUsed();
+        final long withoutDomain = Authentication.newRealmAuthentication(user, new RealmRef("realm", "type", "node")).ramBytesUsed();
+        long domainBytes = RamUsageEstimator.sizeOf(domain.name());
+        for (RealmConfig.RealmIdentifier identifier : identifiers) {
+            domainBytes += RamUsageEstimator.sizeOf(identifier.getType()) + RamUsageEstimator.sizeOf(identifier.getName());
+        }
+        assertThat(withDomain - withoutDomain, greaterThanOrEqualTo(domainBytes));
+    }
+
+    public void testRamBytesUsedSizesEachMetadataValueType() {
+        final String key = randomAlphaOfLengthBetween(5, 20);
+        final long keyBytes = RamUsageEstimator.sizeOf(key);
+
+        final String string = randomAlphaOfLength(200);
+        assertThat(metadataEntryBytes(key, string), greaterThanOrEqualTo(keyBytes + RamUsageEstimator.sizeOf(string)));
+
+        final List<String> collection = List.of(randomAlphaOfLength(50), randomAlphaOfLength(60));
+        long collectionBytes = keyBytes;
+        for (String element : collection) {
+            collectionBytes += RamUsageEstimator.sizeOf(element);
+        }
+        assertThat(metadataEntryBytes(key, collection), greaterThanOrEqualTo(collectionBytes));
+
+        final Map<String, String> map = Map.of(randomAlphaOfLength(30), randomAlphaOfLength(70));
+        long mapBytes = keyBytes;
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            mapBytes += RamUsageEstimator.sizeOf(entry.getKey()) + RamUsageEstimator.sizeOf(entry.getValue());
+        }
+        assertThat(metadataEntryBytes(key, map), greaterThanOrEqualTo(mapBytes));
+
+        // a value of any other type is charged a constant on top of its key, and a null value costs nothing beyond its key
+        assertThat(metadataEntryBytes(key, randomInt()), greaterThan(keyBytes));
+        assertThat(metadataEntryBytes(key, null), greaterThanOrEqualTo(keyBytes));
+    }
+
+    /** The estimate attributable to a single subject metadata entry: the authentication with it, less the same one without it. */
+    private static long metadataEntryBytes(String key, Object value) {
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(Collections.singletonMap(key, value))
+            .build(false);
+        final Set<String> otherFields = new HashSet<>(authentication.getAuthenticatingSubject().getMetadata().keySet());
+        otherFields.remove(key);
+        return authentication.ramBytesUsed() - authentication.copyWithFilteredMetadataFields(otherFields).ramBytesUsed();
+    }
+
+    public void testRamBytesUsedToleratesRunAsWithoutLookupRealm() {
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(randomAlphaOfLength(8)),
+            new RealmRef("realm", "type", "node")
+        );
+        // the lookup realm is null when the impersonated user does not exist
+        final Authentication runAs = authentication.runAs(new User(randomAlphaOfLength(8)), null);
+        assertThat(runAs.getEffectiveSubject().getRealm(), nullValue());
+        assertThat(runAs.ramBytesUsed(), greaterThanOrEqualTo(authentication.ramBytesUsed()));
     }
 }

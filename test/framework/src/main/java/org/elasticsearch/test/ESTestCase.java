@@ -34,6 +34,8 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -53,6 +55,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -148,6 +151,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -180,6 +184,7 @@ import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -210,9 +215,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -225,6 +232,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -248,6 +256,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
+@RunWith(ESRandomizedRunner.class)
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
@@ -803,6 +812,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
+        filtered.add("Running Elasticsearch with Java 21-24 is deprecated.");
         filtered.add(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release. See the breaking changes documentation for the next major version."
@@ -1108,6 +1118,18 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static boolean randomBoolean() {
         return random().nextBoolean();
+    }
+
+    public static Settings.Builder randomBatchIndexing(Settings.Builder settings) {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            int choice = randomIntBetween(0, 2);
+            if (choice == 0) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), true);
+            } else if (choice == 1) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+            }
+        }
+        return settings;
     }
 
     public static Boolean randomOptionalBoolean() {
@@ -1785,6 +1807,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Keeps the current thread running for at least {@code nanos}, so the time charged for it is never zero.
+     */
+    public static void spin(long nanos) {
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
      * Runs the code block for 10 seconds waiting for no assertion to trip. Retries on {@link AssertionError} with
      * exponential backoff, sleeping on the test thread between attempts.
      * <p>
@@ -1845,23 +1877,24 @@ public abstract class ESTestCase extends LuceneTestCase {
     // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
     private static final long AWAIT_BUSY_THRESHOLD = 1000L;
 
-    /**
-     * Periodically execute the supplied function until it returns true, or until the
-     * specified maximum wait time has elapsed. If at all possible, use
-     * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
-     *
-     * @param breakSupplier determines whether to return immediately or continue waiting.
-     * @param maxWaitTime the maximum amount of time to wait
-     * @param unit the unit of tie for <code>maxWaitTime</code>
-     * @return the last value returned by <code>breakSupplier</code>
-     */
+    /// Executes provided supplier until it returns `true` or provided maximum wait time elapses.
+    /// Up to 1 second of sleep is applied between executions of the supplier.
     public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) {
-        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        return waitUntil(() -> Optional.of(breakSupplier.getAsBoolean()).filter(Boolean::booleanValue), new TimeValue(maxWaitTime, unit))
+            .isPresent();
+    }
+
+    /// Executes provided supplier until it returns a non-empty [Optional] or provided maximum wait time elapses.
+    /// Returns an empty optional if timed out.
+    /// Up to 1 second of sleep is applied between executions of the supplier.
+    public static <T> Optional<T> waitUntil(Supplier<Optional<T>> evaluation, TimeValue maxWaitTime) {
+        long maxTimeInMillis = maxWaitTime.millis();
         long timeInMillis = 1;
         long sum = 0;
         while (sum + timeInMillis < maxTimeInMillis) {
-            if (breakSupplier.getAsBoolean()) {
-                return true;
+            Optional<T> iterationResult = evaluation.get();
+            if (iterationResult.isPresent()) {
+                return iterationResult;
             }
             safeSleep(timeInMillis);
             sum += timeInMillis;
@@ -1869,7 +1902,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         timeInMillis = maxTimeInMillis - sum;
         safeSleep(Math.max(timeInMillis, 0));
-        return breakSupplier.getAsBoolean();
+        return evaluation.get();
     }
 
     protected TestThreadPool createThreadPool(ExecutorBuilder<?>... executorBuilders) {
@@ -3125,6 +3158,30 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to {@link #SAFE_AWAIT_TIMEOUT} for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue) {
+        return safePoll(queue, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to the given timeout for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue, TimeValue timeout) {
+        try {
+            final var element = queue.poll(timeout.millis(), TimeUnit.MILLISECONDS);
+            assertNotNull("safePoll: no element available within the timeout", element);
+            return element;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safePoll: interrupted waiting for an element of the queue");
+            return null;
+        }
+    }
+
+    /**
      * Wait for all tasks currently running or enqueued on the given executor to complete.
      */
     public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
@@ -3302,11 +3359,37 @@ public abstract class ESTestCase extends LuceneTestCase {
         runInParallel(tasks.length, i -> tasks[i].run());
     }
 
+    /**
+     * Runs {@code task} to completion on a new thread other than the calling one, which waits for it. Any failure of the task, including
+     * a failed assertion, is rethrown on the calling thread as an {@link AssertionError}.
+     */
+    public static void onOtherThread(CheckedRunnable<Exception> task) {
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final Thread thread = new Thread(() -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        }, "TEST-onOtherThread");
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while waiting for the task on the other thread", e);
+        }
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
+    }
+
     public static void ensureAllContextsReleased(SearchService searchService) {
         try {
             assertBusy(() -> {
                 assertThat(searchService.getActiveContexts(), equalTo(0));
                 assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+                assertThat(searchService.queryScheduler().queries(), equalTo(0));
             });
         } catch (Exception e) {
             throw new AssertionError("Failed to verify search contexts", e);
@@ -3350,6 +3433,48 @@ public abstract class ESTestCase extends LuceneTestCase {
             return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
         }
         return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
+    }
+
+    /**
+     * Wraps {@code collector} as a {@link CollectorManager} that reuses a single instance.
+     * Only safe with a sequential searcher either created without an executor or always searching a single slice.
+     * Note that reduce returns null. Results need to be collected by the provided collector.
+     */
+    public static <C extends Collector> CollectorManager<C, Void> singleThreadedCollectorManager(C collector) {
+        return new CollectorManager<>() {
+            private boolean created;
+
+            @Override
+            public C newCollector() {
+                assert created == false : "singleThreadedCollectorManager does not support concurrent search";
+                created = true;
+                return collector;
+            }
+
+            @Override
+            public Void reduce(Collection<C> collectors) {
+                assert collectors.size() == 1 : "Collectors must have only one collector";
+                return null;
+            }
+        };
+    }
+
+    /**
+     * A {@link CollectorManager} that creates a fresh collector for each slice.
+     * Note that reduce returns null. Results need to be externally gathered during collection.
+     */
+    public static <C extends Collector> CollectorManager<C, Void> collectorManager(CheckedSupplier<C, IOException> factory) {
+        return new CollectorManager<>() {
+            @Override
+            public C newCollector() throws IOException {
+                return factory.get();
+            }
+
+            @Override
+            public Void reduce(Collection<C> collectors) {
+                return null;
+            }
+        };
     }
 
     /**

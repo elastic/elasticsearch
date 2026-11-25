@@ -37,7 +37,7 @@ tasks.named("javaRestTest") {
   systemProperty 'test.azure.container', azureContainer
   systemProperty 'test.azure.key', azureKey
   systemProperty 'test.azure.sas_token', azureSasToken
-  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repositories_metering_tests_" + buildParams.testSeed
+  nonInputProperties.systemProperty 'test.azure.base_path', buildParams.testSeedProvider.map { seed -> azureBasePath + "_repositories_metering_tests_" + seed }
 }
 
 tasks.register("azureThirdPartyTest") {

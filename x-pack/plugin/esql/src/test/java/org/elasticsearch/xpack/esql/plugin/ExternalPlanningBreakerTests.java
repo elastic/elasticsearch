@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -47,7 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -158,14 +159,14 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     /**
-     * Charge for one listing at the default discovered-files cap, on the compacted form planning keeps.
-     * Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes of schema-map
-     * slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
+     * Charge for one listing at the floor of the heap-derived discovered-files default, on the compacted
+     * form planning keeps. Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes
+     * of schema-map slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
      * Together with the compacted listing that stays a few megabytes of slack under a 1 GB request breaker.
+     * Pins the floor rather than {@code Settings.EMPTY} so a fat test JVM does not build a million entries.
      */
-    public void testPlanningChargeAtDefaultDiscoveredFilesCap() {
-        int files = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(Settings.EMPTY);
-        assertEquals(25_000, files);
+    public void testPlanningChargeAtDiscoveredFilesFloor() {
+        int files = 25_000;
         List<StorageEntry> entries = new ArrayList<>(files);
         for (int i = 0; i < files; i++) {
             entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/part-" + i + ".parquet"), 1024L, Instant.EPOCH));
@@ -353,8 +354,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         resolver.planning(reservation);
 
         PlainActionFuture<ExternalSourceResolution> resolved = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), resolved);
-        FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob).fileList();
+        ExternalSourceSpec spec = new ExternalSourceSpec(glob, Map.of("schema_resolution", "union_by_name"));
+        resolver.resolve(List.of(spec), null, null, null, null, null, resolved);
+        FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(spec).fileList();
         long seam1 = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(seam1, greaterThan(0L));
         assertEquals(seam1, reservation.queryHeld());
@@ -653,6 +655,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         TransportActionServices transport = new TransportActionServices(
+            null,
             transportService,
             null,
             exchangeService,
@@ -665,6 +668,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             null,
             null,
             mock(PlannerSettings.Holder.class),
+            null,
             null
         );
         return new ComputeService(
@@ -672,10 +676,15 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             null,
             null,
             threadPool,
+            new ComputeExecutor(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext()),
             BigArrays.NON_RECYCLING_INSTANCE,
             blockFactory,
             operators,
             readers,
+            null,
+            // Holds no node back, so every node of a state is a worker.
+            new ExternalWorkerReadiness(clusterService, null, threadPool, false),
+            null,
             null
         );
     }

@@ -103,7 +103,12 @@ setup:
           - '{ "key": "bar", "val": 20, "@timestamp": "2021-01-01T02:40:00Z" }'
 ---
 "test resets do not lead to negative rate":
+  - requires:
+      test_runner_features: [allowed_warnings]
+      reason: "time_series aggregation deprecation warning"
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb-*
         body:

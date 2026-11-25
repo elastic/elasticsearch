@@ -18,7 +18,6 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -47,14 +46,14 @@ import java.util.Map;
 public abstract class AbstractShardBatchMapperResolveTestCase extends MapperServiceTestCase {
 
     /**
-     * Strict-columnar {@link IndexSettings} with recovery source disabled — the settings
+     * Strict-columnar {@link IndexSettings} — the settings
      * {@link ShardBatchMapper#resolveMappers} is normally called with.
      */
     protected final IndexSettings indexSettings = new IndexSettings(
         new IndexMetadata.Builder("index").settings(
             indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()
         ).build(),
-        Settings.builder().put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build()
+        Settings.EMPTY
     );
 
     /**
@@ -68,7 +67,7 @@ public abstract class AbstractShardBatchMapperResolveTestCase extends MapperServ
                     .put(extra)
                     .build()
             ).build(),
-            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build()
+            Settings.EMPTY
         );
     }
 
@@ -86,17 +85,13 @@ public abstract class AbstractShardBatchMapperResolveTestCase extends MapperServ
      */
     protected final MapperService columnarMapperService(Settings extra, XContentBuilder mapping) throws IOException {
         return createMapperService(
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-                .put(extra)
-                .build(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).put(extra).build(),
             mapping
         );
     }
 
     /**
-     * Creates a {@link MapperService} configured for time-series mode, with recovery source disabled, a single keyword dimension
+     * Creates a {@link MapperService} configured for time-series mode, with a single keyword dimension
      * {@code dim} for the caller's mapping to declare, and {@code extra} settings applied.
      */
     protected final MapperService tsdbMapperService(Settings extra, XContentBuilder mapping) throws IOException {
@@ -107,7 +102,6 @@ public abstract class AbstractShardBatchMapperResolveTestCase extends MapperServ
                 .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
-                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
                 .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
                 .build(),
             mapping

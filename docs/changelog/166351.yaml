@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 166351
+summary: Convert a declared Parquet column once per batch when a read fetches scattered
+  rows
+type: enhancement

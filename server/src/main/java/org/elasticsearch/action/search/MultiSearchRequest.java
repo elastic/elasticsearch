@@ -15,7 +15,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -200,6 +200,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
         readMultiLineFormat(
             xContent,
             parserConfig,
+            UnaryOperator.identity(),
             data,
             consumer,
             indices,
@@ -218,6 +219,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     public static void readMultiLineFormat(
         XContent xContent,
         XContentParserConfiguration parserConfig,
+        UnaryOperator<XContentParser> trackParser,
         BytesReference data,
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         String[] indices,
@@ -270,10 +272,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             // now parse the action
             if (nextMarker - from > 0) {
                 try (
-                    XContentParser parser = XContentHelper.createParserNotCompressed(
-                        parserConfig,
-                        data.slice(from, nextMarker - from),
-                        xContent.type()
+                    XContentParser parser = trackParser.apply(
+                        XContentHelper.createParserNotCompressed(parserConfig, data.slice(from, nextMarker - from), xContent.type())
                     )
                 ) {
                     Map<String, Object> source = parser.map();
@@ -318,7 +318,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                             if (routingProvided || topLevelHasRouting) {
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
-                            applySearchRoutingOrSlice(searchRequest, parseSearchRoutingOrSlice(nodeStringValue(value, null)));
+                            applySearchRoutingOrSlice(searchRequest, SliceIndexing.parsePitSearchSlice(nodeStringValue(value, null)));
                             sliceProvided = true;
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
@@ -370,10 +370,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                 break;
             }
             try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(
-                    parserConfig,
-                    data.slice(from, nextMarker - from),
-                    xContent.type()
+                XContentParser parser = trackParser.apply(
+                    XContentHelper.createParserNotCompressed(parserConfig, data.slice(from, nextMarker - from), xContent.type())
                 )
             ) {
                 consumer.accept(searchRequest, parser);
@@ -390,23 +388,6 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
         if (parsedRouting != null) {
             searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         }
-    }
-
-    private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [_slice]");
-        }
-        if (SliceIndexing.SLICE_ALL.equals(sliceValue)) {
-            return new SliceIndexing.ParsedRouting(null, true);
-        }
-        final String[] slices = Strings.splitStringByCommaToArray(sliceValue);
-        if (slices.length == 0) {
-            throw new IllegalArgumentException("invalid [_slice] value: value must be non-empty");
-        }
-        for (String slice : slices) {
-            SliceIndexing.validateUserSliceValue(slice);
-        }
-        return new SliceIndexing.ParsedRouting(String.join(",", slices), true);
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {

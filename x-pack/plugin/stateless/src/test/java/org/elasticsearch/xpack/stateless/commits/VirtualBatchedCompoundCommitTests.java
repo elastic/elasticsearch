@@ -16,15 +16,18 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -44,6 +48,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
@@ -477,6 +482,110 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
         }
     }
 
+    /**
+     * Once frozen, a VBCC must pin the local Lucene files it is going to upload. The upload completing (which is when the
+     * {@link IndexDirectory} gives up its own reference to the files) must not free them: they have to stay on disk, and be served from
+     * there, until the VBCC is closed.
+     */
+    public void testFrozenVbccPinsLocalFilesUntilClosed() throws Exception {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var commits = fakeNode.generateIndexCommits(randomIntBetween(1, 3));
+            var vbcc = newVbcc(fakeNode, primaryTerm, commits);
+            assertTrue(vbcc.freeze());
+
+            final BytesReference uploadedBytes;
+            try (var output = new BytesStreamOutput(); var uploadStream = vbcc.getFrozenInputStreamForUpload()) {
+                Streams.copy(uploadStream, output, false);
+                uploadedBytes = output.bytes();
+            }
+
+            final Set<String> internalFiles = Set.copyOf(vbcc.getInternalLocations().keySet());
+            assertThat(internalFiles, is(not(empty())));
+            final var indexPath = fakeNode.indexingShardPath.resolveIndex();
+            internalFiles.forEach(
+                file -> assertTrue("file [" + file + "] must exist before upload", Files.exists(indexPath.resolve(file)))
+            );
+
+            markUploaded(fakeNode, vbcc);
+
+            // The upload completed, but the VBCC still pins the files
+            for (String file : internalFiles) {
+                assertTrue("file [" + file + "] must be pinned by the VBCC after upload", Files.exists(indexPath.resolve(file)));
+            }
+            try (var served = new BytesStreamOutput()) {
+                vbcc.getBytesByRange(0, vbcc.getTotalSizeInBytes(), served);
+                assertThat(served.bytes(), equalTo(uploadedBytes));
+            }
+
+            vbcc.close();
+
+            // Releasing the VBCC releases the files
+            for (String file : internalFiles) {
+                assertFalse("file [" + file + "] must be deleted once the VBCC is closed", Files.exists(indexPath.resolve(file)));
+            }
+            assertThat(fakeNode.indexingDirectory.estimateSizeInBytes(), equalTo(0L));
+        }
+    }
+
+    /**
+     * The commit references of a VBCC hold the store open. A shard that closed while the VBCC was waiting for the
+     * search tier leaves them as the last holders, so closing them closes the directory. The pinned local files have to be released before
+     * that, while the directory is still open. The directory goes away with the last commit reference.
+     */
+    public void testPinnedFilesAreReleasedWhileTheCommitReferencesStillKeepTheDirectoryOpen() throws Exception {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var numberOfCommits = randomIntBetween(1, 3);
+            var closedCommits = new AtomicInteger();
+            var commits = fakeNode.generateIndexCommits(numberOfCommits, false, true, generation -> {
+                if (closedCommits.incrementAndGet() == numberOfCommits) {
+                    // the last commit reference to go is the last holder of the store, and so of the directory
+                    IOUtils.closeWhileHandlingException(fakeNode.indexingDirectory);
+                }
+            });
+            var vbcc = newVbcc(fakeNode, primaryTerm, commits);
+            assertTrue(vbcc.freeze());
+            markUploaded(fakeNode, vbcc);
+
+            vbcc.close();
+            assertThat(closedCommits.get(), equalTo(numberOfCommits));
+        }
+    }
+
+    private static VirtualBatchedCompoundCommit newVbcc(FakeStatelessNode fakeNode, long primaryTerm, List<StatelessCommitRef> commits) {
+        var vbcc = new VirtualBatchedCompoundCommit(
+            fakeNode.shardId,
+            "node-id",
+            primaryTerm,
+            commits.getFirst().getGeneration(),
+            (fileName) -> {
+                throw new AssertionError("Unexpected call");
+            },
+            ESTestCase::randomNonNegativeLong,
+            fakeNode.sharedCacheService.getRegionSize(),
+            randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+        );
+        for (StatelessCommitRef commit : commits) {
+            assertTrue(vbcc.appendCommit(commit, randomBoolean(), null));
+        }
+        return vbcc;
+    }
+
+    private static void markUploaded(FakeStatelessNode fakeNode, VirtualBatchedCompoundCommit vbcc) {
+        var bcc = vbcc.getFrozenBatchedCompoundCommit();
+        Map<String, BlobFileRanges> blobFileRanges = bcc.compoundCommits()
+            .stream()
+            .flatMap(cc -> cc.commitFiles().entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (a, b) -> b));
+        fakeNode.indexingDirectory.updateCommit(
+            bcc.lastCompoundCommit().generation(),
+            bcc.lastCompoundCommit().getAllFilesSizeInBytes(),
+            blobFileRanges.keySet(),
+            blobFileRanges
+        );
+    }
+
     public void testReplicatedContent() throws IOException {
         var primaryTerm = 1;
         try (var fakeNode = createFakeNode(primaryTerm)) {
@@ -632,6 +741,93 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 }
             }
             virtualBatchedCompoundCommit.close();
+        }
+    }
+
+    public void testSizeInBytesExcludingCopiedGenerationalFiles() throws IOException {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var noDeletionsCommits = fakeNode.generateIndexCommits(randomIntBetween(2, 5), false, false, generation -> {});
+            var noDeletionsVbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                noDeletionsCommits.getFirst().getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                },
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (StatelessCommitRef statelessCommitRef : noDeletionsCommits) {
+                assertTrue(noDeletionsVbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(noDeletionsVbcc.getTotalSizeInBytes(), noDeletionsVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
+
+            var commitsWithDeletions = fakeNode.generateCommitsWithGenerationalFiles(randomIntBetween(3, 8));
+
+            // We add some commits to a new VBCC so that the first of them clears `isFirstCommit` check
+            // and forces a copy of generational files.
+            // Commits beyond the first one help to validate that we only consider the first commit.
+
+            // We need at least 2 commits to be able to produce generational files.
+            int intoNewVbcc = 2;
+
+            var intermediaryVbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithDeletions.getFirst().getGeneration(),
+                noDeletionsVbcc::getBlobLocation,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (int i = 0; i < intoNewVbcc; i++) {
+                assertTrue(intermediaryVbcc.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
+            }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(intermediaryVbcc.getTotalSizeInBytes(), intermediaryVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
+
+            var vbccWithCopiedGenerationalFiles = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithDeletions.get(intoNewVbcc).getGeneration(),
+                intermediaryVbcc::getBlobLocation,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (int i = intoNewVbcc; i < commitsWithDeletions.size(); i++) {
+                assertTrue(vbccWithCopiedGenerationalFiles.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
+            }
+
+            // We don't always generate deletes so they can be equal.
+            assertTrue(
+                vbccWithCopiedGenerationalFiles.getTotalSizeInBytes() >= vbccWithCopiedGenerationalFiles
+                    .sizeInBytesExcludingCopiedGenerationalFiles()
+            );
+
+            // Only the first commit in the VBCC has copied generational files.
+            StatelessCommitRef firstCommit = commitsWithDeletions.get(intoNewVbcc);
+            StatelessCommitRef previousCommit = commitsWithDeletions.get(intoNewVbcc - 1);
+            long generationalFilesSize = 0;
+            for (String commitFile : firstCommit.getCommitFiles()) {
+                // And we are only interested in _copied_ generational files.
+                if (StatelessCompoundCommit.isGenerationalFile(commitFile) && previousCommit.getCommitFiles().contains(commitFile)) {
+                    generationalFilesSize += firstCommit.getDirectory().fileLength(commitFile);
+                }
+            }
+
+            assertEquals(
+                vbccWithCopiedGenerationalFiles.getTotalSizeInBytes() - generationalFilesSize,
+                vbccWithCopiedGenerationalFiles.sizeInBytesExcludingCopiedGenerationalFiles()
+            );
         }
     }
 

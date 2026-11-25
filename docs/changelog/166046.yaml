@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166046
+summary: Fix views and subqueries dropping the implicit `_timeseries` column, and caller `LOAD_ALL` rejecting commands inside views
+type: bug

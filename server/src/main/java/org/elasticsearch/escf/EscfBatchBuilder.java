@@ -12,7 +12,9 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -20,6 +22,8 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentString;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -120,6 +124,22 @@ public final class EscfBatchBuilder implements Releasable {
         return partition == null ? 0 : partition.docCount;
     }
 
+    /**
+     * The memory of the partitions not built yet, heap and recycled pages. It is never less than what their batches report.
+     */
+    public long ramBytesUsed() {
+        long bytes = 0;
+        for (Partition partition : partitions) {
+            if (partition != null) {
+                bytes += EscfBatch.BASE_RAM_BYTES_USED;
+                for (EscfColumnBuilder builder : partition.builders) {
+                    bytes += builder.ramBytesUsed();
+                }
+            }
+        }
+        return bytes;
+    }
+
     /** Returns {@code true} if at least one row has been committed to {@code partitionKey}. */
     public boolean hasPartition(int partitionKey) {
         return partitionKey < partitions.length && partitions[partitionKey] != null;
@@ -157,11 +177,28 @@ public final class EscfBatchBuilder implements Releasable {
             case SourceValueType.TRUE -> builder.addBoolean(true);
             case SourceValueType.FALSE -> builder.addBoolean(false);
             case SourceValueType.INT, SourceValueType.LONG -> builder.addLong(rowBuffer.scratchNumeric(col));
-            case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(Double.longBitsToDouble(rowBuffer.scratchNumeric(col)));
+            case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(
+                Double.longBitsToDouble(rowBuffer.scratchNumeric(col)),
+                (XContentString.UTF8Bytes) rowBuffer.scratchVar(col) // the stored spelling, or null
+            );
             case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) rowBuffer.scratchVar(col));
+            case SourceValueType.BINARY -> addBinary(builder, rowBuffer.scratchVar(col));
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));
             default -> throw new IllegalStateException("unexpected scratch type [" + SourceValueType.name(type) + "]");
+        }
+    }
+
+    @SuppressWarnings("unchecked") // EscfRowBuffer#binaryField stages either the bytes or their writer
+    private static void addBinary(EscfColumnBuilder builder, Object value) {
+        if (value instanceof BytesRef bytes) {
+            builder.addBinary(bytes);
+            return;
+        }
+        try {
+            builder.addBinary((CheckedConsumer<StreamOutput, IOException>) value);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

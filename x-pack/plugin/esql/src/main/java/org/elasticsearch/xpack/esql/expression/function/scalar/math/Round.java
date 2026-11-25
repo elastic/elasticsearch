@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull, NonFiniteSupport {
+public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull, NonFiniteSupport, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Round", Round::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Round.class)
         .binary(Round::new)
@@ -264,5 +265,10 @@ public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNu
         }
         var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataType.LONG, toEvaluator.apply(decimals()));
         return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
+    }
+
+    @Override
+    public Expression unitSource() {
+        return field();
     }
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.BeforeClass;
@@ -58,6 +59,11 @@ public class GpuFormatNameCompatibilityTests extends ESTestCase {
         assertEquals(ES814HnswScalarQuantizedVectorsFormat.NAME, ES92GpuHnswSQVectorsFormat.NAME);
     }
 
+    public void testGpuBBQFormatNameMatchesCpuBBQ() {
+        assertEquals("ES93HnswBinaryQuantizedVectorsFormat", ES97GpuHnswBBQVectorsFormat.NAME);
+        assertEquals(ES93HnswBinaryQuantizedVectorsFormat.NAME, ES97GpuHnswBBQVectorsFormat.NAME);
+    }
+
     // -- the remainder of the tests require a GPU to be present
 
     public void testGpuFloatFormatNameFromFormat() {
@@ -68,6 +74,18 @@ public class GpuFormatNameCompatibilityTests extends ESTestCase {
     public void testGpuSQFormatNameMatchesCpuSQFromFormat() {
         assumeTrue("cuvs not supported", gpuSupported);
         assertEquals("ES814HnswScalarQuantizedVectorsFormat", (new ES92GpuHnswSQVectorsFormat()).getName());
+    }
+
+    public void testGpuBBQFormatNameMatchesCpuBBQFromFormat() {
+        assumeTrue("cuvs not supported", gpuSupported);
+        assertEquals("ES93HnswBinaryQuantizedVectorsFormat", (new ES97GpuHnswBBQVectorsFormat()).getName());
+    }
+
+    public void testForNameResolvesCpuBBQFormat() {
+        assumeTrue("cuvs not supported", gpuSupported);
+        var resolved = KnnVectorsFormat.forName(ES97GpuHnswBBQVectorsFormat.NAME);
+        assertNotNull(resolved);
+        assertEquals("ES93HnswBinaryQuantizedVectorsFormat", resolved.getName());
     }
 
     public void testForNameResolvesCpuSQFormat() {
@@ -85,6 +103,11 @@ public class GpuFormatNameCompatibilityTests extends ESTestCase {
     public void testSQFieldInfoFormatNameAfterIndexing() throws IOException {
         assumeTrue("cuvs not supported", gpuSupported);
         doTestFieldInfoFormatName(new ES92GpuHnswSQVectorsFormat(), "ES814HnswScalarQuantizedVectorsFormat");
+    }
+
+    public void testBBQFieldInfoFormatNameAfterIndexing() throws IOException {
+        assumeTrue("cuvs not supported", gpuSupported);
+        doTestFieldInfoFormatName(new ES97GpuHnswBBQVectorsFormat(), "ES93HnswBinaryQuantizedVectorsFormat");
     }
 
     private void doTestFieldInfoFormatName(KnnVectorsFormat gpuFormat, String expectedFormatName) throws IOException {

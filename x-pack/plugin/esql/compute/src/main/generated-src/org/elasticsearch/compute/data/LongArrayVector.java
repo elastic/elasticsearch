@@ -36,6 +36,8 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
 
     private final long[] values;
 
+    private boolean pooled;
+
     LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -184,4 +186,18 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
+    @Override
+    public void enablePooling() {
+        pooled = true;
+    }
+
+    @Override
+    protected void closeInternal() {
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesForLongs(values.length)));
+            blockFactory().recycleLongs(values);
+        } else {
+            super.closeInternal();
+        }
+    }
 }

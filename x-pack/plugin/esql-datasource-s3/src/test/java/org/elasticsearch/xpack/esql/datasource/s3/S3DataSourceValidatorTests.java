@@ -1330,20 +1330,13 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
      */
     private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER_WITH_VALIDATOR =
         FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", CSV_CONFIG_KEYS), Map.of(".csv", "csv"), Map.of("csv", config -> {
-            // Mirror parseChar: reject multi-char values not in the four known escapes.
+            // Mirror parseChar: reject multi-char values not in the two known escapes.
             Object delimiter = config.get("delimiter");
             if (delimiter != null) {
                 String s = delimiter.toString();
-                if (s.isEmpty() == false
-                    && s.length() > 1
-                    && "\\t".equals(s) == false
-                    && "\\n".equals(s) == false
-                    && "\\r".equals(s) == false
-                    && "\\\\".equals(s) == false) {
+                if (s.isEmpty() == false && s.length() > 1 && "\\t".equals(s) == false && "\\\\".equals(s) == false) {
                     throw new IllegalArgumentException(
-                        "Invalid character value for [delimiter] ["
-                            + delimiter
-                            + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+                        "Invalid character value for [delimiter] [" + delimiter + "]: expected a single character or one of \\t, \\\\"
                     );
                 }
             }

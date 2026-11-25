@@ -143,7 +143,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
             in.readOptionalString();
         }
-        Nullability nullability = in.readEnum(Nullability.class);
+        Nullability nullability = Nullability.readFrom(in);
         NameId nameId = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
 
@@ -195,7 +195,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
                 // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
             }
-            out.writeEnum(nullable());
+            nullable().writeTo(out);
             id().writeTo(out);
             out.writeBoolean(synthetic());
             // Keep writing `_timeseries` as `FieldAttribute` and append the extra metadata only
@@ -234,19 +234,21 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
      * The full name of the field in the index, including all parent fields. E.g. {@code parent.subfield.this_field}.
      */
     public FieldName fieldName() {
-        if (lazyFieldName == null) {
+        FieldName fieldName = lazyFieldName;
+        if (fieldName == null) {
             // Before 8.15, the field name was the same as the attribute's name.
             // On later versions, the attribute can be renamed when creating synthetic attributes.
             // Because until 8.15, we couldn't set `synthetic` to true due to a bug, in that version such FieldAttributes are marked by
             // their
             // name starting with `$$`.
             if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
-                lazyFieldName = new FieldName(name());
+                fieldName = new FieldName(name());
             } else {
-                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
+                fieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
             }
+            lazyFieldName = fieldName;
         }
-        return lazyFieldName;
+        return fieldName;
     }
 
     public boolean hasTypeConflicts() {

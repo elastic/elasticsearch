@@ -25,4 +25,9 @@ public class SmartChineseNoOpTokenFilterFactory extends AbstractTokenFilterFacto
     public TokenStream create(TokenStream tokenStream) {
         return tokenStream;
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

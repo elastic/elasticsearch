@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],true,false]
+\_SubqueryJoin[LEFT,[language_code{r}#0, language_name{r}#1],[language_code{f}#2, language_name{f}#3],null]
+  |_Eval[[languages{f}#4 AS language_code#0, first_name{f}#5 AS language_name#1]]
+  | \_Limit[1000[INTEGER],false,false]
+  |   \_EsRelation[employees][avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#8, first_name{f}#5, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#4, languages.byte{f}#17, languages.long{f}#18, languages.short{f}#19, last_name{f}#20, salary{f}#21, salary_change{f}#22, salary_change.int{f}#23, salary_change.keyword{f}#24, salary_change.long{f}#25, still_hired{f}#26]
+  \_Project[[language_code{f}#2, language_name{f}#3]]
+    \_EsRelation[languages][language_code{f}#2, language_name{f}#3]

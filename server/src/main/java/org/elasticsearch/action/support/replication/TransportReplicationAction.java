@@ -62,6 +62,8 @@ import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -473,7 +475,6 @@ public abstract class TransportReplicationAction<
     }
 
     class AsyncPrimaryAction extends ActionRunnable<Response> {
-        private final ActionListener<Response> onCompletionListener;
         private final ReplicationTask replicationTask;
         private final ConcreteShardRequest<Request> primaryRequest;
 
@@ -484,7 +485,6 @@ public abstract class TransportReplicationAction<
         ) {
             super(onCompletionListener);
             this.primaryRequest = primaryRequest;
-            this.onCompletionListener = onCompletionListener;
             this.replicationTask = replicationTask;
         }
 
@@ -495,7 +495,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         protected void doRun() throws Exception {
-            if (replicationTask != null && replicationTask.notifyIfCancelled(onCompletionListener)) {
+            if (replicationTask != null && replicationTask.notifyIfCancelled(listener)) {
                 logger.debug(
                     () -> format(
                         "Transport replication action request [%s] for Index shard [%s] is cancelled post-submission.",
@@ -548,10 +548,7 @@ public abstract class TransportReplicationAction<
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
-            ActionListener<Response> setFinishedListener = ActionListener.runBefore(
-                onCompletionListener,
-                () -> setPhase(replicationTask, "finished")
-            );
+            ActionListener<Response> setFinishedListener = ActionListener.runBefore(listener, () -> setPhase(replicationTask, "finished"));
             try {
                 final ClusterState clusterState = clusterService.state();
                 final Index index = primaryShardReference.routingEntry().index();
@@ -659,7 +656,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void onFailure(Exception e) {
             setPhase(replicationTask, "finished");
-            onCompletionListener.onFailure(e);
+            listener.onFailure(e);
         }
 
     }
@@ -996,8 +993,12 @@ public abstract class TransportReplicationAction<
                 assert request.waitForActiveShards() != ActiveShardCount.DEFAULT
                     : "request waitForActiveShards must be set in resolveRequest";
 
-                final ShardRouting primary = state.routingTable(project.get().id()).shardRoutingTable(request.shardId()).primaryShard();
+                final ProjectId projectId = project.get().id();
+                final ShardRouting primary = state.routingTable(projectId).shardRoutingTable(request.shardId()).primaryShard();
                 if (primary.active() == false) {
+                    if (failIfPrimaryBeingRestored(projectId, state)) {
+                        return;
+                    }
                     logger.trace(
                         "primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], "
                             + "cluster state version [{}]",
@@ -1029,6 +1030,25 @@ public abstract class TransportReplicationAction<
                     performRemoteAction(state, primary, node);
                 }
             }
+        }
+
+        /**
+         * Fails the request straight away if the primary is being restored by a restore whose caller asked for the exception to be
+         * reported.
+         *
+         * @return {@code true} if the request was failed, {@code false} if the caller should wait for the primary as usual
+         */
+        private boolean failIfPrimaryBeingRestored(ProjectId projectId, ClusterState state) {
+            final ShardRestoringException restoringException = RestoreService.reportableRestoreException(
+                projectId,
+                request.shardId(),
+                state
+            );
+            if (restoringException == null) {
+                return false;
+            }
+            finishAsFailed(restoringException);
+            return true;
         }
 
         private void performLocalAction(ClusterState state, ShardRouting primary, DiscoveryNode node, IndexMetadata indexMetadata) {
@@ -1574,8 +1594,8 @@ public abstract class TransportReplicationAction<
 
         @Override
         public boolean isRawIndexingData() {
-            if (request instanceof RawIndexingDataTransportRequest) {
-                return ((RawIndexingDataTransportRequest) request).isRawIndexingData();
+            if (request instanceof RawIndexingDataTransportRequest rawIndexingDataTransportRequest) {
+                return rawIndexingDataTransportRequest.isRawIndexingData();
             }
             return false;
         }

@@ -51,7 +51,7 @@ static inline int32_t doti4_inner(const int8_t* query, const int8_t* doc, int32_
     return total;
 }
 
-EXPORT int32_t vec_doti4(const int8_t* query, const int8_t* doc, int32_t packed_len) {
+EXPORT int32_t vec_doti4(const int8_t* doc, const int8_t* query, int32_t packed_len) {
     return doti4_inner(query, doc, packed_len);
 }
 
@@ -140,8 +140,9 @@ EXPORT void vec_doti4_bulk_masked(
     int32_t count,
     f32_t* results
 ) {
+    const int32_t block_mask = clamp_mask(mask, count);
     doti4_bulk_impl<int8_t, masked_mapper, 4, masked_output>(
-        docs, query, packed_len, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        docs, query, packed_len, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_doti4_bulk_sparse(

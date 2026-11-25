@@ -127,7 +127,7 @@ public class PayloadColumnMergeTests extends ESTestCase {
         byte[] other;
         do {
             other = randomByteArrayOfLength(between(1, 64));
-        } while (Arrays.equals(other, a));
+        } while (other.length == a.length);
         final byte[] b = other;
         // Two segments; neither is in order, and the first value of the second repeats the last of the first.
         final byte[][] first = { b, a, a, a };
@@ -310,7 +310,8 @@ public class PayloadColumnMergeTests extends ESTestCase {
             randomFrom(ChunkCodec.values()),
             options.sizes(),
             options.singleValued(),
-            options.enableSkipIndex()
+            options.enableSkipIndex(),
+            options.enablePlainSkipIndex()
         );
     }
 
@@ -340,7 +341,8 @@ public class PayloadColumnMergeTests extends ESTestCase {
                 (fieldName, type) -> NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                StringColumnOptionsSelector.always(options)
+                StringColumnOptionsSelector.always(options),
+                FormatVersion.CURRENT
             )
         );
     }
@@ -351,7 +353,8 @@ public class PayloadColumnMergeTests extends ESTestCase {
             (fieldName, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            StringColumnOptionsSelector.always(options)
+            StringColumnOptionsSelector.always(options),
+            FormatVersion.CURRENT
         );
         final org.apache.lucene.codecs.DocValuesFormat fallback = new Lucene90DocValuesFormat();
         final org.apache.lucene.codecs.Codec base = TestUtil.getDefaultCodec();

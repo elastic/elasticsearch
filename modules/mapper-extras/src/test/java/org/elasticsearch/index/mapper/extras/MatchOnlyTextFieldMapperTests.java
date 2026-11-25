@@ -220,6 +220,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         b.field("type", "match_only_text");
     }
 
+    public void testExplicitDocValuesFalseMatchesDefault() throws IOException {
+        assertExplicitDocValuesFalseMatchesDisabledDefault();
+    }
+
     @Override
     protected void minimalStoreMapping(XContentBuilder b) throws IOException {
         // 'store' is always true
@@ -943,6 +947,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertKeepsOwnDocValues(b -> b.field("null_value", "NULL"));
         assertKeepsOwnDocValues(b -> b.field("ignore_above", 10));
         assertKeepsOwnDocValues(b -> b.field("doc_values", false));
+        assertWarnings(
+            "The [doc_values] parameter of field [keyword] is ignored in columnar index modes, because doc values are always enabled. "
+                + "Remove the parameter."
+        );
     }
 
     private void assertKeepsOwnDocValues(CheckedConsumer<XContentBuilder, IOException> keywordConfig) throws IOException {

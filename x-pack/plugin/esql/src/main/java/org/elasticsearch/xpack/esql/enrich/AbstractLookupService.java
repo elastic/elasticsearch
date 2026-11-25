@@ -75,6 +75,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -587,7 +588,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
+                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(
+                        List.of(driver),
+                        0L,
+                        new QueryLoad(),
+                        false
+                    );
                     List<Page> out = collectedPages;
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
@@ -982,6 +988,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Releasable release
     ) {
         public static LookupShardContext fromSearchContext(SearchContext searchContext) {
+            // A lookup index is a single index that unmapped_fields never reads unmapped fields from, so it resolves only the fields
+            // it maps
             EsqlSearchExecutionContext esqlCtx = new EsqlSearchExecutionContext(
                 searchContext.getSearchExecutionContext(),
                 QueryWarnings.NOOP

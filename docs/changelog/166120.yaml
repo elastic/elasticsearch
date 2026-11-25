@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 165440
+pr: 166120
+summary: Retry PIT shard search on missing context
+type: bug

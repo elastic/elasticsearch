@@ -32,8 +32,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final LegacyQuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
     final int vectorDataBytes;
     final int vectorTotalBytes;
-    final FixedSizeSegmentScratch firstScratch;
-    final FixedSizeSegmentScratch secondScratch;
+    final FixedSizeSegmentScratch queryScratch;
+    final FixedSizeSegmentScratch documentScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
     final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
@@ -46,8 +46,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         this.scoreCorrectionConstant = scoreCorrectionConstant;
         this.vectorDataBytes = dims;
         this.vectorTotalBytes = vectorDataBytes + Float.BYTES;
-        this.firstScratch = new FixedSizeSegmentScratch(vectorTotalBytes);
-        this.secondScratch = new FixedSizeSegmentScratch(vectorTotalBytes);
+        this.queryScratch = new FixedSizeSegmentScratch(vectorTotalBytes);
+        this.documentScratch = new FixedSizeSegmentScratch(vectorTotalBytes);
     }
 
     protected final void checkOrdinal(int ord) {
@@ -56,14 +56,14 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         }
     }
 
-    final float bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
+    final float bulkScoreFromOrds(int queryOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
         if (numNodes == 0) {
             return Float.NEGATIVE_INFINITY;
         }
 
-        long queryByteOffset = (long) firstOrd * vectorTotalBytes;
+        long queryByteOffset = (long) queryOrd * vectorTotalBytes;
         input.seek(queryByteOffset);
-        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, firstScratch, query -> {
+        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, queryScratch, query -> {
             float queryOffsetValue = query.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
 
             long[] offsets = offsetsScratch.get(numNodes);
@@ -93,31 +93,31 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         for (int i = 0; i < numNodes; i++) {
             final int idx = i;
             input.seek(offsets[idx]);
-            IndexInputUtils.withVoidSlice(input, vectorTotalBytes, secondScratch, vector -> {
+            IndexInputUtils.withVoidSlice(input, vectorTotalBytes, documentScratch, vector -> {
                 float vectorOffsetValue = vector.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
-                scores[idx] = scoreFromSegments(query, queryOffsetValue, vector, vectorOffsetValue);
+                scores[idx] = scoreFromSegments(vector, vectorOffsetValue, query, queryOffsetValue);
             });
             maxScore = Math.max(maxScore, scores[idx]);
         }
         return maxScore;
     }
 
-    final float scoreFromOrds(int firstOrd, int secondOrd) throws IOException {
-        long firstByteOffset = (long) firstOrd * vectorTotalBytes;
-        long secondByteOffset = (long) secondOrd * vectorTotalBytes;
+    final float scoreFromOrds(int queryOrd, int documentOrd) throws IOException {
+        long queryByteOffset = (long) queryOrd * vectorTotalBytes;
+        long documentByteOffset = (long) documentOrd * vectorTotalBytes;
 
-        input.seek(firstByteOffset);
-        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, firstScratch, firstSeg -> {
-            float firstOffsetValue = firstSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
-            input.seek(secondByteOffset);
-            return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, secondScratch, secondSeg -> {
-                float secondOffsetValue = secondSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
-                return scoreFromSegments(firstSeg, firstOffsetValue, secondSeg, secondOffsetValue);
+        input.seek(queryByteOffset);
+        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, queryScratch, querySeg -> {
+            float queryOffsetValue = querySeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
+            input.seek(documentByteOffset);
+            return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, documentScratch, documentSeg -> {
+                float documentOffsetValue = documentSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
+                return scoreFromSegments(documentSeg, documentOffsetValue, querySeg, queryOffsetValue);
             });
         });
     }
 
-    protected abstract float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset);
+    protected abstract float scoreFromSegments(MemorySegment document, float documentOffset, MemorySegment query, float queryOffset);
 
     protected abstract float bulkScoreFromSegment(
         MemorySegment addresses,
@@ -163,8 +163,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         }
 
         @Override
-        protected float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int squareDistance = DISTANCE_FUNCS.squareDistanceI7u(a, b, dims);
+        protected float scoreFromSegments(MemorySegment document, float documentOffset, MemorySegment query, float queryOffset) {
+            int squareDistance = DISTANCE_FUNCS.squareDistanceI7u(document, query, dims);
             float adjustedDistance = squareDistance * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
         }
@@ -204,10 +204,10 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         }
 
         @Override
-        protected float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int dotProduct = DISTANCE_FUNCS.dotProductI7u(a, b, dims);
+        protected float scoreFromSegments(MemorySegment document, float documentOffset, MemorySegment query, float queryOffset) {
+            int dotProduct = DISTANCE_FUNCS.dotProductI7u(document, query, dims);
             assert dotProduct >= 0;
-            float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
+            float adjustedDistance = dotProduct * scoreCorrectionConstant + queryOffset + documentOffset;
             return Math.max((1 + adjustedDistance) / 2, 0f);
         }
 
@@ -249,10 +249,10 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         }
 
         @Override
-        protected float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int dotProduct = DISTANCE_FUNCS.dotProductI7u(a, b, dims);
+        protected float scoreFromSegments(MemorySegment document, float documentOffset, MemorySegment query, float queryOffset) {
+            int dotProduct = DISTANCE_FUNCS.dotProductI7u(document, query, dims);
             assert dotProduct >= 0;
-            float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
+            float adjustedDistance = dotProduct * scoreCorrectionConstant + queryOffset + documentOffset;
             if (adjustedDistance < 0) {
                 return 1 / (1 + -1 * adjustedDistance);
             }

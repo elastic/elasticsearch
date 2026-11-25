@@ -60,7 +60,7 @@ public final class SearchContextId {
         List<SearchPhaseResult> searchPhaseResults,
         Map<String, AliasFilter> aliasFilter,
         TransportVersion version,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         Map<ShardId, SearchContextIdForNode> shards = searchPhaseResults.stream()
             .collect(
@@ -80,12 +80,12 @@ public final class SearchContextId {
         Map<ShardId, SearchContextIdForNode> shards,
         Map<String, AliasFilter> aliasFilter,
         TransportVersion version,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            int shardSize = shards.size() + shardFailures.length;
+            int shardSize = shards.size() + shardFailures.size();
             out.writeVInt(shardSize);
             for (ShardId shardId : shards.keySet()) {
                 shardId.writeTo(out);
@@ -119,22 +119,28 @@ public final class SearchContextId {
                 throw new IllegalArgumentException("Not all bytes were read");
             }
             return new SearchContextId(shards, aliasFilters);
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("invalid search context id", e);
         }
     }
 
     public static String[] decodeIndices(BytesReference id) {
         try (var in = id.streamInput()) {
             final TransportVersion version = TransportVersion.readVersion(in);
+            if (version.isKnown() == false) {
+                throw new IllegalArgumentException("unknown transport version [" + version + "] reading search context id");
+            }
             in.setTransportVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
                 in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
             );
             return new SearchContextId(shards, Collections.emptyMap()).getActualIndices();
-        } catch (IOException e) {
-            assert false : e;
-            throw new IllegalArgumentException(e);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("invalid search context id", e);
         }
     }
 

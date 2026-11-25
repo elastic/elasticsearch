@@ -26,6 +26,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -61,8 +62,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -302,12 +302,12 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         }
 
         @Override
-        protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+        protected CacheBlobReader getCacheBlobReader(String fileName, BccBlob bccBlob) {
             // Use the direct executor so we can use the thread name in testBackgroundMergeCanRetainDeletedGenerationalFile
             return new MeteringCacheBlobReader(
                 new ObjectStoreCacheBlobReader(
-                    getBlobContainer(blobFile.primaryTerm()),
-                    blobFile.blobName(),
+                    getBlobContainer(bccBlob.primaryTerm()),
+                    bccBlob.blobName(),
                     getCacheService().getRangeSize(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 ) {
@@ -388,14 +388,12 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         private synchronized Map<String, Long> getGenerationalFilesAsMap() {
             return inputs.values()
                 .stream()
-                .collect(
-                    Collectors.toUnmodifiableMap(NameAndLocation::name, e -> e.blobLocation().compoundFileGeneration(), (gen1, gen2) -> {
-                        if (Objects.equals(gen1, gen2) == false) {
-                            throw new AssertionError("Different generation " + gen1 + " vs " + gen2);
-                        }
-                        return gen1;
-                    })
-                );
+                .collect(Collectors.toUnmodifiableMap(NameAndLocation::name, e -> blobGeneration(e.blobLocation()), (gen1, gen2) -> {
+                    if (Objects.equals(gen1, gen2) == false) {
+                        throw new AssertionError("Different generation " + gen1 + " vs " + gen2);
+                    }
+                    return gen1;
+                }));
         }
 
         static GenerationalFilesTracker getDirectoryGenerationalFilesTracker(final Directory directory) {
@@ -569,7 +567,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         // The next BCC (with generation 7) will contain the generational file that will be retained by the background merge,
         // hence we'll inject a custom repository strategy that will block any reads by the Lucene Merge Thread #0 on that blob
         // to wait until the BCC containing that file is deleted wrongly.
-        final var bccContainingFirstGenFile = BatchedCompoundCommit.blobNameFromGeneration(7);
+        final var bccContainingFirstGenFile = BccBlob.blobNameFromGeneration(7);
         var blockBccContainingFirstGenFileReadByFirstMerge = new CountDownLatch(1);
         var bccContainingFirstGenFileReadFirstMergeBlocked = new CountDownLatch(1);
         var blockBccContainingFirstGenFileReadBySecondMerge = new CountDownLatch(1);
@@ -870,7 +868,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testSearchShardGenerationFilesRetention() throws Exception {
-        final var indexingNodeSettings = randomHollowIndexNodeSettings();
+        final var indexingNodeSettings = Settings.builder()
+            .put(randomHollowIndexNodeSettings())
+            // Release commit files right after upload so that directory content assertions don't wait on search notifications
+            .put(StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), TimeValue.ZERO)
+            .build();
         final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(indexingNodeSettings);
         var masterNode = startMasterOnlyNode();
         var indexNode = startIndexNode(indexingNodeSettings);
@@ -981,7 +983,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         );
 
         // batched compound commit for generation 6 exists in the object store (stateless_commit_6)
-        final String bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(6L);
+        final String bccBlobName = BccBlob.blobNameFromGeneration(6L);
         var blobContainer = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
         assertBusy(() -> assertThat(blobContainer.listBlobs(OperationPurpose.INDICES).keySet(), hasItem(bccBlobName)));
 
@@ -1252,7 +1254,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         searchCacheService.forceEvict(fileCacheKey -> bccBlobName.equals(fileCacheKey.fileName()));
 
         // With ES-7496 resolved we can fully read the generational file without triggering a NoSuchFileException
-        try (var searcher = searchShard.acquireSearcher("test")) {
+        try (var searcher = searchShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(9L));
             readGenerationalDocValues(searcher);
         }
@@ -1334,6 +1336,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         );
     }
 
+    private static long blobGeneration(BlobLocation location) {
+        assert location.blob() instanceof BccBlob : "generational files are located in BCC blobs, but found: " + location.blob();
+        return ((BccBlob) location.blob()).generation();
+    }
+
     private static void executeBulk(Consumer<BulkRequestBuilder> consumer) {
         var bulkRequest = client().prepareBulk();
         consumer.accept(bulkRequest);
@@ -1346,7 +1353,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             for (var expected : expectedLocations.entrySet()) {
                 var fileName = expected.getKey();
                 var blobLocation = BlobStoreCacheDirectoryTestUtils.getBlobLocation(blobStoreCacheDirectory, fileName);
-                var actualCompoundCommitGeneration = blobLocation != null ? blobLocation.compoundFileGeneration() : null;
+                var actualCompoundCommitGeneration = blobLocation != null ? blobGeneration(blobLocation) : null;
                 assertThat(
                     "BlobLocation of file ["
                         + fileName
@@ -1374,7 +1381,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             var searchEngineTermAndGen = SearchEngineTestUtils.getCurrentPrimaryTermAndGeneration(searchEngine);
             assertThat(searchEngineTermAndGen.generation(), matcher);
 
-            try (var searcher = searchEngine.acquireSearcher("search_engine_directory_reader_generation")) {
+            try (
+                var searcher = searchEngine.acquireSearcher("search_engine_directory_reader_generation", SplitShardCountSummary.IRRELEVANT)
+            ) {
                 assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), matcher);
             }
         });

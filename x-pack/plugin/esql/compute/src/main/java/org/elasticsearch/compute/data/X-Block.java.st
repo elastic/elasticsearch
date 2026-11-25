@@ -178,6 +178,13 @@ $if(BytesRef)$
      */
     OrdinalBytesRefBlock asOrdinals();
 
+    /**
+     * An estimate of the bytes this block's values spell, as opposed to the memory it holds, taken without
+     * reading the values one by one. Exact unless the values are read through a dictionary, where each one
+     * counts as the dictionary's average term.
+     */
+    long estimateTotalValueBytes();
+
 $elseif(boolean)$
     /**
      * Convert this to a {@link BooleanVector "mask"} that's appropriate for

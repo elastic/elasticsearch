@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
@@ -45,7 +46,6 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.search.BoostProfileEnabled;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -99,8 +99,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.Dynamic,
         Property.NodeScope
     );
-
     private volatile boolean diskThresholdEnabled;
+    private volatile boolean snapshotRestoreAllocationEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
     private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
     private volatile TimeValue updateFrequency;
@@ -119,7 +119,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
     private final SearchLaneRequirementsCollector searchLaneRequirementsCollector;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
-    private final BoostProfileEnabled boostProfileEnabled;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
@@ -158,16 +157,23 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
+        clusterSettings.initializeAndWatchIfRegistered(
+            SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            this::setSnapshotRestoreAllocationEnabled
+        );
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
             this::setWriteLoadDeciderShardLevelWriteLoadType
         );
-        this.boostProfileEnabled = new BoostProfileEnabled(clusterSettings);
     }
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
         this.diskThresholdEnabled = diskThresholdEnabled;
+    }
+
+    private void setSnapshotRestoreAllocationEnabled(boolean snapshotRestoreAllocationEnabled) {
+        this.snapshotRestoreAllocationEnabled = snapshotRestoreAllocationEnabled;
     }
 
     private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
@@ -229,6 +235,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
+        private final boolean collectStoreStats = diskThresholdEnabled || snapshotRestoreAllocationEnabled;
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 
@@ -240,8 +247,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || needIndicesStatsForShardWriteLoads() || boostProfileEnabled.isEnabled());
-                fetchNodeStats(diskThresholdEnabled);
+                maybeFetchIndicesStats(collectStoreStats || needIndicesStatsForShardWriteLoads());
+                fetchNodeStats(collectStoreStats);
                 fetchEstimatedHeapUsage();
                 maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 fetchCacheUsageAndCommitments();
@@ -376,10 +383,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private void fetchIndicesStats() {
-            final boolean collectSearchLoads = boostProfileEnabled.isEnabled();
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
-            if (diskThresholdEnabled) {
+            if (collectStoreStats) {
                 // This returns the shard sizes on disk
                 indicesStatsRequest.store(true);
             }
@@ -387,10 +393,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 // This returns the shard write-loads
                 indicesStatsRequest.indexing(true);
             }
-            if (collectSearchLoads) {
-                // This returns the shard search loads
-                indicesStatsRequest.search(true);
-            }
+            // This returns the shard search loads
+            indicesStatsRequest.search(true);
             indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
             indicesStatsRequest.timeout(fetchTimeout);
             client.admin()
@@ -404,7 +408,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 logger.trace("received indices stats response");
 
-                                if (indicesStatsResponse.getShardFailures().length > 0) {
+                                if (indicesStatsResponse.getShardFailures().isEmpty() == false) {
                                     final Set<String> failedNodeIds = new HashSet<>();
                                     for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
                                         if (shardFailure.getCause() instanceof final FailedNodeException failedNodeException) {
@@ -454,8 +458,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                     shardDataSetSizeBuilder,
                                     dataPath,
                                     reservedSpaceBuilders,
-                                    writeLoadDeciderShardWriteLoadType,
-                                    collectSearchLoads
+                                    writeLoadDeciderShardWriteLoadType
                                 );
 
                                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new HashMap<>();
@@ -721,8 +724,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Map<ShardId, Long> shardDataSetSizeBuilder,
         Map<ClusterInfo.NodeAndShard, String> dataPathByShard,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard,
-        WriteLoadDeciderShardWriteLoadType shardWriteLoadType,
-        boolean collectSearchLoads
+        WriteLoadDeciderShardWriteLoadType shardWriteLoadType
     ) {
         for (ShardStats s : stats) {
             final ShardRouting shardRouting = s.getShardRouting();
@@ -757,13 +759,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     }
                 }
             }
-            if (collectSearchLoads) {
-                final SearchStats searchStats = s.getStats().getSearch();
-                if (searchStats != null) {
-                    final double shardSearchLoad = searchStats.getTotal().getSearchLoadRate();
-                    if (shardSearchLoad > shardSearchLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
-                        shardSearchLoads.put(shardRouting.shardId(), shardSearchLoad);
-                    }
+            final SearchStats searchStats = s.getStats().getSearch();
+            if (searchStats != null) {
+                final double shardSearchLoad = searchStats.getTotal().getSearchLoadRate();
+                if (shardSearchLoad > shardSearchLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
+                    shardSearchLoads.put(shardRouting.shardId(), shardSearchLoad);
                 }
             }
         }

@@ -298,8 +298,8 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
             // returns a weekly builder
             builder = new Rounding.Builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
         } else if (period.getDays() > 1) {
+            // A fixed interval, exactly like the equivalent duration in hours, so it can be prepared with min/max as durations are.
             builder = new Rounding.Builder(new TimeValue(period.getDays(), TimeUnit.DAYS));
-            tryPrepareWithMinMax = false;
         } else if (period.getMonths() == 3) {
             // java.time.Period does not have a QUARTERLY period, so a period of 3 months
             // returns a quarterly builder
@@ -327,8 +327,9 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
         }
 
         if (min != null && max != null && tryPrepareWithMinMax) {
-            // Multiple quantities calendar interval - day/week/month/quarter/year is not supported by PreparedRounding.maybeUseArray,
-            // which is called by prepare(min, max), as it may hit an assert. Call prepare(min, max) only for single calendar interval.
+            // Multiple quantities calendar interval - month/quarter/year is not supported by PreparedRounding.maybeUseArray,
+            // which is called by prepare(min, max), as it may hit an assert. Call prepare(min, max) only for single calendar interval
+            // and for multiple days, which are a fixed interval rather than a calendar one.
             return rounding.prepare(min, max);
         }
         return rounding.prepareForUnknown();

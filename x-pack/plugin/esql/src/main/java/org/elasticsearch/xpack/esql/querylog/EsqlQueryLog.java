@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -53,6 +54,7 @@ public final class EsqlQueryLog {
     public static final String ELASTICSEARCH_QUERYLOG_SEARCH_TYPE = ELASTICSEARCH_QUERYLOG_PREFIX + ".search_type";
     public static final String ELASTICSEARCH_QUERYLOG_QUERY = ELASTICSEARCH_QUERYLOG_PREFIX + ".query";
     public static final String ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX = ELASTICSEARCH_QUERYLOG_PREFIX + ".settings";
+    public static final String ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS = ELASTICSEARCH_QUERYLOG_PREFIX + ".view_settings";
 
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
@@ -80,17 +82,23 @@ public final class EsqlQueryLog {
         this.additionalFields = loggingFieldsProvider.create(logContext);
     }
 
-    public void onQueryPhase(Versioned<Result> esqlResult, String query) {
+    public void onQueryPhase(Versioned<Result> esqlResult, String query, Map<String, ViewQuerySettings> viewSettings) {
         if (esqlResult.inner() == null) {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
         long tookInNanos = esqlResult.inner().executionInfo().overallTook().nanos();
         ResolvedSettings settings = esqlResult.inner().configuration().resolvedSettings();
-        log(() -> Message.of(esqlResult.inner(), query, settings, additionalFields.logFields()), tookInNanos);
+        log(() -> Message.of(esqlResult.inner(), query, settings, viewSettings, additionalFields.logFields()), tookInNanos);
     }
 
-    public void onQueryFailure(String query, ResolvedSettings settings, Exception ex, long tookInNanos) {
-        log(() -> Message.of(query, settings, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
+    public void onQueryFailure(
+        String query,
+        ResolvedSettings settings,
+        Map<String, ViewQuerySettings> viewSettings,
+        Exception ex,
+        long tookInNanos
+    ) {
+        log(() -> Message.of(query, settings, viewSettings, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
     }
 
     private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
@@ -138,11 +146,17 @@ public final class EsqlQueryLog {
             return new String(sourceEscaped, StandardCharsets.UTF_8);
         }
 
-        public static ESLogMessage of(Result esqlResult, String query, ResolvedSettings settings, Map<String, String> additionalFields) {
+        public static ESLogMessage of(
+            Result esqlResult,
+            String query,
+            ResolvedSettings settings,
+            Map<String, ViewQuerySettings> viewSettings,
+            Map<String, String> additionalFields
+        ) {
             Map<String, Object> jsonFields = new HashMap<>();
             jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, true);
-            addSettingsFields(jsonFields, settings);
+            addSettingsFields(jsonFields, settings, viewSettings);
             addResultFields(jsonFields, esqlResult);
             return new ESLogMessage().withFields(jsonFields);
         }
@@ -150,6 +164,7 @@ public final class EsqlQueryLog {
         public static ESLogMessage of(
             String query,
             ResolvedSettings settings,
+            Map<String, ViewQuerySettings> viewSettings,
             long took,
             Exception exception,
             Map<String, String> additionalFields
@@ -157,7 +172,7 @@ public final class EsqlQueryLog {
             Map<String, Object> jsonFields = new HashMap<>();
             jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, false);
-            addSettingsFields(jsonFields, settings);
+            addSettingsFields(jsonFields, settings, viewSettings);
             addErrorFields(jsonFields, took, exception);
             return new ESLogMessage().withFields(jsonFields);
         }
@@ -169,7 +184,11 @@ public final class EsqlQueryLog {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_QUERY, source);
         }
 
-        private static void addSettingsFields(Map<String, Object> fieldMap, ResolvedSettings settings) {
+        private static void addSettingsFields(
+            Map<String, Object> fieldMap,
+            ResolvedSettings settings,
+            Map<String, ViewQuerySettings> viewSettings
+        ) {
             if (settings == null) {
                 return;
             }
@@ -178,6 +197,10 @@ public final class EsqlQueryLog {
                 if (value != null) {
                     fieldMap.put(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + "." + def.name(), value.toString());
                 }
+            }
+            var viewValues = ViewQuerySettings.logValues(viewSettings);
+            if (viewValues.isEmpty() == false) {
+                fieldMap.put(ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS, viewValues);
             }
         }
 

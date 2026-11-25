@@ -103,6 +103,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -1414,7 +1415,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             || engineConfig.getIndexSettings().seqNoIndexOptions().equals(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
 
         final var docs = new ArrayList<DocIdSeqNoAndSource>();
-        try (var searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL)) {
+        try (var searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             final var reader = searcher.getDirectoryReader();
             for (LeafReaderContext leaf : reader.leaves()) {
                 final var leafReader = leaf.reader();
@@ -3359,6 +3360,35 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var circuitBreaker = internalCluster().getInstance(CircuitBreakerService.class, targetNode).getBreaker(breakerName);
         final long totalAllocated = fullyAllocate(circuitBreaker);
         return () -> circuitBreaker.addWithoutBreaking(-totalAllocated);
+    }
+
+    /**
+     * Bytes the request breaker of {@code node} holds.
+     */
+    protected static long getRequestBreakerUsed(String node) {
+        return internalCluster().getInstance(CircuitBreakerService.class, node).getBreaker(CircuitBreaker.REQUEST).getUsed();
+    }
+
+    /**
+     * Bytes the request breakers of all nodes hold.
+     */
+    protected static long getRequestBreakerUsed() {
+        long used = 0;
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            used += service.getBreaker(CircuitBreaker.REQUEST).getUsed();
+        }
+        return used;
+    }
+
+    /**
+     * How many times the request breakers of all nodes have tripped.
+     */
+    protected static long getRequestBreakerTrippedCount() {
+        long tripped = 0;
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            tripped += service.getBreaker(CircuitBreaker.REQUEST).getTrippedCount();
+        }
+        return tripped;
     }
 
     /**

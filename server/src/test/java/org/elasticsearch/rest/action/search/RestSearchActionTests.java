@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.rest.action.search;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,6 +28,7 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +61,30 @@ public final class RestSearchActionTests extends RestActionTestCase {
             .build();
 
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
+    }
+
+    public void testDispatchPathSliceSearch() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SetOnce<SearchRequest> executed = new SetOnce<>();
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
+            executed.set((SearchRequest) request);
+            return mock(SearchResponse.class);
+        });
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/some_index/tenant-a/_search")
+            .build();
+
+        FakeRestChannel channel = new FakeRestChannel(request, true);
+        controller().dispatchRequest(request, channel, verifyingClient.threadPool().getThreadContext());
+
+        assertNotNull(
+            "search request was not executed: "
+                + (channel.capturedResponse() == null ? "no response" : channel.capturedResponse().content().utf8ToString()),
+            executed.get()
+        );
+        assertArrayEquals(new String[] { "some_index" }, executed.get().indices());
+        assertEquals("tenant-a", executed.get().routing());
+        assertTrue(executed.get().isRoutingFromSlice());
     }
 
     public void testValidateSearchRequest() {
@@ -135,6 +161,19 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals(TermSuggestionBuilder.SuggestMode.MISSING, builder.suggestMode());
     }
 
+    public void testParseSuggestParametersWithoutSuggestMode() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
+            Map.of("suggest_field", "field", "suggest_text", "text")
+        ).build();
+        SuggestBuilder suggestBuilder = RestSearchAction.parseSuggestUrlParameters(request);
+        TermSuggestionBuilder builder = (TermSuggestionBuilder) suggestBuilder.getSuggestions().get("field");
+        assertNotNull(builder);
+        assertEquals("text", builder.text());
+        assertEquals("field", builder.field());
+        assertEquals(5, builder.size().intValue());
+        assertEquals(TermSuggestionBuilder.SuggestMode.MISSING, builder.suggestMode());
+    }
+
     public void testParseSuggestParametersError() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
             Map.of("suggest_text", "text", "suggest_size", "3", "suggest_mode", "missing")
@@ -156,23 +195,10 @@ public final class RestSearchActionTests extends RestActionTestCase {
             .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a,tenant-b"))
             .build();
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
+        parsePathSliceSearchRequest(searchRequest, request);
         assertEquals("tenant-a,tenant-b", searchRequest.routing());
         assertTrue(searchRequest.isRoutingFromSlice());
         assertEquals("tenant-a,tenant-b", searchRequest.searchSlice());
-    }
-
-    public void testParseSearchRequestWithPathSliceAll() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/my-index/_all/_search")
-            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
-            .build();
-        SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
-        assertNull(searchRequest.routing());
-        assertTrue(searchRequest.isRoutingFromSlice());
-        assertEquals(SliceIndexing.SLICE_ALL, searchRequest.searchSlice());
     }
 
     public void testParseSearchRequestRejectsRoutingAndSliceTogether() {
@@ -184,7 +210,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
         SearchRequest searchRequest = new SearchRequest();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
+            () -> parsePathSliceSearchRequest(searchRequest, request)
         );
         assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
     }
@@ -198,7 +224,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
         SearchRequest searchRequest = new SearchRequest();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
+            () -> parsePathSliceSearchRequest(searchRequest, request)
         );
         assertEquals("request does not support [_slice]", e.getMessage());
     }
@@ -212,7 +238,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
         SearchRequest searchRequest = new SearchRequest().source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
         );
-        RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
+        parsePathSliceSearchRequest(searchRequest, request);
         assertEquals("s1", searchRequest.routing());
         assertTrue(searchRequest.isRoutingFromSlice());
         assertEquals("s1", searchRequest.searchSlice());
@@ -225,7 +251,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a"))
             .build();
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
+        parsePathSliceSearchRequest(searchRequest, request);
         assertArrayEquals(new String[] { "my-index" }, searchRequest.indices());
         assertEquals("tenant-a", searchRequest.routing());
         assertTrue(searchRequest.isRoutingFromSlice());
@@ -237,6 +263,42 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertTrue(
             "path slice search route must be registered",
             action.routes().stream().anyMatch(route -> route.getPath().equals("/{index}/{_slice}/_search"))
+        );
+    }
+
+    public void testParseSearchRequestOnNamespacedPluginRoute() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_prefix/my-index/_search")
+            .withParams(Map.of("index", "my-index", "routing", "r1"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
+        assertArrayEquals(new String[] { "my-index" }, searchRequest.indices());
+        assertEquals("r1", searchRequest.routing());
+        assertFalse(searchRequest.isRoutingFromSlice());
+    }
+
+    public void testParseSearchRequestOnNamespacedPluginRouteIgnoresSliceParam() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/prefix/my-index/_search")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "my-index"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size));
+        assertNull(searchRequest.routing());
+        assertFalse(searchRequest.isRoutingFromSlice());
+    }
+
+    private static void parsePathSliceSearchRequest(SearchRequest searchRequest, RestRequest request) throws IOException {
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.empty(),
+            true
         );
     }
 

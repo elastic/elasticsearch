@@ -292,6 +292,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public ThreadPool(
+        ThreadContext threadContext,
         final Settings settings,
         MeterRegistry meterRegistry,
         BuiltInExecutorBuilders builtInExecutorBuilders,
@@ -312,7 +313,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         }
         this.builders = Collections.unmodifiableMap(builders);
 
-        threadContext = new ThreadContext(settings);
+        this.threadContext = threadContext;
 
         // Now that all the thread pools have been defined, actually build them.
         final Map<String, ExecutorHolder> executors = new HashMap<>();

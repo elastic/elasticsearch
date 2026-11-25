@@ -31,73 +31,73 @@ class java.time.format.DateTimeFormatter {
   DateTimeFormatter ISO_ZONED_DATE_TIME
   DateTimeFormatter RFC_1123_DATE_TIME
   String format(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
-  void formatTo(TemporalAccessor,Appendable)
+  void formatTo(TemporalAccessor,Appendable) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
   Chronology getChronology()
   DecimalStyle getDecimalStyle()
   Locale getLocale()
   Set getResolverFields()
   ResolverStyle getResolverStyle()
   ZoneId getZone()
-  DateTimeFormatter ofLocalizedDate(FormatStyle)
-  DateTimeFormatter ofLocalizedDateTime(FormatStyle)
-  DateTimeFormatter ofLocalizedDateTime(FormatStyle,FormatStyle)
-  DateTimeFormatter ofLocalizedTime(FormatStyle)
+  DateTimeFormatter ofLocalizedDate(FormatStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localizedFormatterBytes"]
+  DateTimeFormatter ofLocalizedDateTime(FormatStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localizedFormatterBytes"]
+  DateTimeFormatter ofLocalizedDateTime(FormatStyle,FormatStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localizedFormatterBytes"]
+  DateTimeFormatter ofLocalizedTime(FormatStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localizedFormatterBytes"]
   DateTimeFormatter ofPattern(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="ofPatternBytes"]
   DateTimeFormatter ofPattern(String,Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="ofPatternBytes"]
   TemporalAccessor parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterParseBytes"]
   def parse(CharSequence,TemporalQuery) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterParseBytes"]
-  TemporalAccessor parseBest(CharSequence,TemporalQuery[])
+  TemporalAccessor parseBest(CharSequence,TemporalQuery[]) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterParseBytes"]
   TemporalQuery parsedExcessDays()
   TemporalQuery parsedLeapSecond()
-  TemporalAccessor parseUnresolved(CharSequence,ParsePosition)
-  Format toFormat()
-  Format toFormat(TemporalQuery)
-  DateTimeFormatter withChronology(Chronology)
-  DateTimeFormatter withDecimalStyle(DecimalStyle)
-  DateTimeFormatter withLocale(Locale)
-  DateTimeFormatter withResolverFields(Set)
-  DateTimeFormatter withResolverStyle(ResolverStyle)
-  DateTimeFormatter withZone(ZoneId)
+  TemporalAccessor parseUnresolved(CharSequence,ParsePosition) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterParseBytes"]
+  Format toFormat() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="toFormatBytes"]
+  Format toFormat(TemporalQuery) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="toFormatBytes"]
+  DateTimeFormatter withChronology(Chronology) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterCopyBytes"]
+  DateTimeFormatter withDecimalStyle(DecimalStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterCopyBytes"]
+  DateTimeFormatter withLocale(Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterCopyBytes"]
+  DateTimeFormatter withResolverFields(Set) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterCopyBytes"]
+  DateTimeFormatter withResolverStyle(ResolverStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterCopyBytes"]
+  DateTimeFormatter withZone(ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterCopyBytes"]
 }
 
 class java.time.format.DateTimeFormatterBuilder {
-  ()
-  DateTimeFormatterBuilder append(DateTimeFormatter)
-  DateTimeFormatterBuilder appendChronologyId()
-  DateTimeFormatterBuilder appendChronologyText(TextStyle)
-  DateTimeFormatterBuilder appendFraction(TemporalField,int,int,boolean)
-  DateTimeFormatterBuilder appendInstant()
-  DateTimeFormatterBuilder appendInstant(int)
-  DateTimeFormatterBuilder appendLiteral(String)
-  DateTimeFormatterBuilder appendLocalized(FormatStyle,FormatStyle)
-  DateTimeFormatterBuilder appendLocalizedOffset(TextStyle)
-  DateTimeFormatterBuilder appendOffset(String,String)
-  DateTimeFormatterBuilder appendOffsetId()
-  DateTimeFormatterBuilder appendOptional(DateTimeFormatter)
-  DateTimeFormatterBuilder appendPattern(String)
-  DateTimeFormatterBuilder appendText(TemporalField)
-  DateTimeFormatterBuilder appendText(TemporalField,TextStyle)
-  DateTimeFormatterBuilder appendValue(TemporalField)
-  DateTimeFormatterBuilder appendValue(TemporalField,int)
-  DateTimeFormatterBuilder appendValue(TemporalField,int,int,SignStyle)
-  DateTimeFormatterBuilder appendValueReduced(TemporalField,int,int,int)
-  DateTimeFormatterBuilder appendZoneId()
-  DateTimeFormatterBuilder appendZoneOrOffsetId()
-  DateTimeFormatterBuilder appendZoneRegionId()
-  DateTimeFormatterBuilder appendZoneText(TextStyle)
-  DateTimeFormatterBuilder appendZoneText(TextStyle,Set)
-  String getLocalizedDateTimePattern(FormatStyle,FormatStyle,Chronology,Locale)
-  DateTimeFormatterBuilder optionalEnd()
-  DateTimeFormatterBuilder optionalStart()
-  DateTimeFormatterBuilder padNext(int)
-  DateTimeFormatterBuilder padNext(int,char)
-  DateTimeFormatterBuilder parseCaseInsensitive()
-  DateTimeFormatterBuilder parseCaseSensitive()
-  DateTimeFormatterBuilder parseDefaulting(TemporalField,long)
-  DateTimeFormatterBuilder parseLenient()
-  DateTimeFormatterBuilder parseStrict()
-  DateTimeFormatter toFormatter()
-  DateTimeFormatter toFormatter(Locale)
+  () @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatterBuilderBytes"]
+  DateTimeFormatterBuilder append(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendChronologyId() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendChronologyText(TextStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendFraction(TemporalField,int,int,boolean) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendInstant() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendInstant(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendLiteral(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendLocalized(FormatStyle,FormatStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendLocalizedOffset(TextStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendOffset(String,String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendOffsetId() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendOptional(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendPattern(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="patternStepBytes"]
+  DateTimeFormatterBuilder appendText(TemporalField) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendText(TemporalField,TextStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendValue(TemporalField) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendValue(TemporalField,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendValue(TemporalField,int,int,SignStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendValueReduced(TemporalField,int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendZoneId() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendZoneOrOffsetId() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendZoneRegionId() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendZoneText(TextStyle) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder appendZoneText(TextStyle,Set) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  String getLocalizedDateTimePattern(FormatStyle,FormatStyle,Chronology,Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localizedPatternBytes"]
+  DateTimeFormatterBuilder optionalEnd() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder optionalStart() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder padNext(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder padNext(int,char) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder parseCaseInsensitive() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder parseCaseSensitive() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder parseDefaulting(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder parseLenient() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatterBuilder parseStrict() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="builderStepBytes"]
+  DateTimeFormatter toFormatter() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="toFormatterBytes"]
+  DateTimeFormatter toFormatter(Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="toFormatterBytes"]
 }
 
 class java.time.format.DecimalStyle {
@@ -109,10 +109,10 @@ class java.time.format.DecimalStyle {
   char getZeroDigit()
   DecimalStyle of(Locale)
   DecimalStyle ofDefaultLocale()
-  DecimalStyle withDecimalSeparator(char)
-  DecimalStyle withNegativeSign(char)
-  DecimalStyle withPositiveSign(char)
-  DecimalStyle withZeroDigit(char)
+  DecimalStyle withDecimalSeparator(char) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  DecimalStyle withNegativeSign(char) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  DecimalStyle withPositiveSign(char) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  DecimalStyle withZeroDigit(char) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 #### Enums

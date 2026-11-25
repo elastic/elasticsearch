@@ -41,6 +41,7 @@ The settings are grouped by feature or purpose, for example:
 - [License](/reference/elasticsearch/configuration-reference/license-settings.md)
 - [Local gateway](/reference/elasticsearch/configuration-reference/local-gateway.md)
 - [Machine learning](/reference/elasticsearch/configuration-reference/machine-learning-settings.md)
+- [Merge resource limits](/reference/elasticsearch/configuration-reference/merge-settings.md)
 - [Monitoring](/reference/elasticsearch/configuration-reference/monitoring-settings.md)
 - [Networking](/reference/elasticsearch/configuration-reference/networking-settings.md)
 - [Nodes](/reference/elasticsearch/configuration-reference/node-settings.md)

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164364
+summary: "ESQL:DS: Hold a joining node out of the worker pool"
+type: enhancement

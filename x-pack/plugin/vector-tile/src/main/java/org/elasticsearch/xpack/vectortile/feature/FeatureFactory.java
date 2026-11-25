@@ -203,8 +203,12 @@ public class FeatureFactory {
             if (geometry == null) {
                 return null;
             }
-            // simplify it
-            geometry = TopologyPreservingSimplifier.simplify(geometry, pixelPrecision);
+            // simplify it, unless it fits within a pixel: there is nothing to simplify and JTS might recurse
+            // infinitely on such geometries when the squared length of their segments underflows to 0.
+            final Envelope envelope = geometry.getEnvelopeInternal();
+            if (envelope.getWidth() > pixelPrecision || envelope.getHeight() > pixelPrecision) {
+                geometry = TopologyPreservingSimplifier.simplify(geometry, pixelPrecision);
+            }
             // convert coordinates to MVT geometry
             geometry.apply(sequenceFilter);
             return geometry;

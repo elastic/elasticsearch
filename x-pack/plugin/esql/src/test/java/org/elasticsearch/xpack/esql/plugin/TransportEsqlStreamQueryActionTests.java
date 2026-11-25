@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -52,6 +54,8 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class TransportEsqlStreamQueryActionTests extends ESTestCase {
 
@@ -223,6 +227,13 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(fa), AttributeMap.emptyAttributeMap());
         assertEquals(1, names.length);
         assertNull("non-aggregatable field must not be a drop candidate", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesPotentiallyUnmappedIsNotDroppable() {
+        FieldAttribute fa = new FieldAttribute(Source.EMPTY, "unmapped_message", new PotentiallyUnmappedKeywordEsField("unmapped_message"));
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(fa), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertNull("a field loaded from _source is invisible to field_caps and must not be a drop candidate", names[0]);
     }
 
     public void testResolveIndexFieldNamesAggregateMetricDoubleIsNotDroppable() {
@@ -425,6 +436,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -448,6 +460,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -479,6 +492,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -507,8 +521,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             (k, v) -> new EsqlExecutionInfo.Cluster(
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
-                "test",
-                false
+                "test"
             )
         );
         assertTrue("precondition: execution info must have metadata to report", executionInfo.hasMetadataToReport());
@@ -677,6 +690,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             50,
             200,
             300,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -709,6 +723,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -742,6 +757,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -758,5 +774,40 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         );
 
         assertTrue("is_partial must be true when completedWork.partial() is true", footer.isPartial());
+    }
+
+    private static DriverCompletionInfo usageWithBytesRead(long bytesRead) {
+        return new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            bytesRead,
+            0,
+            0,
+            0,
+            0,
+            SearchLoadMetrics.EMPTY,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
+    }
+
+    /**
+     * A query that failed has done what the computes that failed and the sub-plans that completed before them did; if its final
+     * compute completed, its completion info is everything it did, as it includes the intermediate computes.
+     */
+    public void testWorkDoneBeforeFailure() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(0L));
+        executionInfo.addFailedWork(usageWithBytesRead(1));
+        executionInfo.addFailedWork(usageWithBytesRead(10));
+        Result finalResult = new Result(List.of(), List.of(), null, null, usageWithBytesRead(100), executionInfo, null);
+
+        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(11L));
+        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, finalResult).bytesRead(), equalTo(100L));
     }
 }

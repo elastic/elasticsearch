@@ -26,4 +26,9 @@ public class SmartChineseTokenizerTokenizerFactory extends AbstractTokenizerFact
     public Tokenizer create() {
         return new HMMChineseTokenizer();
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

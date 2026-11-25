@@ -75,6 +75,21 @@ public final class ShardRestoringException extends ElasticsearchException {
         return values == null ? null : values.getFirst();
     }
 
+    /**
+     * {@link ElasticsearchException#toString()} reads the index through {@link #getIndex()}, which requires an {@code es.index_uuid}
+     * that this exception deliberately does not carry. Following a similar format to the ElasticsearchException#toString().
+     */
+    @Override
+    public String toString() {
+        var indexNames = getMetadata(INDEX_KEY);
+        var recoveryId = recoveryId();
+        return (indexNames == null || indexNames.isEmpty() ? "" : "[" + indexNames.getFirst() + "] ")
+            + getClass().getName()
+            + ": "
+            + getMessage()
+            + (recoveryId == null ? "" : " [recovery_id=" + recoveryId + "]");
+    }
+
     @Override
     public Throwable fillInStackTrace() {
         return this; // transient condition, not a bug — no stack trace needed

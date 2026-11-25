@@ -357,6 +357,12 @@ class S3BlobStore implements BlobStore {
         }
     }
 
+    /**
+     * Delete the provided collection of blobs.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html">DeleteObjects</a> particularly noting that this
+     * API returns success when deleting blobs that already do not exist.
+     */
     void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
@@ -387,7 +393,10 @@ class S3BlobStore implements BlobStore {
     }
 
     /**
-     * Delete one partition of a batch of blobs
+     * Delete one partition of a batch of blobs.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html">DeleteObjects</a> particularly noting that this
+     * API returns success when deleting blobs that already do not exist.
      *
      * @param purpose The {@link OperationPurpose} of the deletion
      * @param partition The list of blobs to delete

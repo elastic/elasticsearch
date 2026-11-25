@@ -252,7 +252,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     /**
      * Temporary method to build a {@link PackedValuesBlockHash}.
      */
-    public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
+    public static PackedValuesBlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
     }
 

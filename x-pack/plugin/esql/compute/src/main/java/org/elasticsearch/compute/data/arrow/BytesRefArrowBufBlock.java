@@ -232,6 +232,14 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        // Null values take no bytes in the Arrow layout, so the span of the values' offsets is their sum.
+        final int first = getFirstValueIndex(0);
+        final int end = getFirstValueIndex(valueCount);
+        return valueOffsetsBuffer.getInt((long) end * Integer.BYTES) - valueOffsetsBuffer.getInt((long) first * Integer.BYTES);
+    }
+
+    @Override
     public BytesRefVector asVector() {
         if (validityBuffer == null && offsetBuffer == null) {
             return new BytesRefArrowBufVector(valueBuffer, valueOffsetsBuffer, valueCount, blockFactory);

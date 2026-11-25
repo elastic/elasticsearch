@@ -185,6 +185,7 @@ public class RejectionActionIT extends ESIntegTestCase {
         var searchCompleted = new CountDownLatch(1);
         var searchFailure = new AtomicReference<Exception>();
         var remoteQueriesCompleted = new AtomicInteger();
+        var extraRejected = new AtomicInteger();
         var remoteExecutor = internalCluster().getInstance(ThreadPool.class, remote).executor(ThreadPool.Names.SEARCH);
         long rejectedBefore = searchRejections(remote);
         ReductionRejectionPlugin.beforeRemoteQuery = () -> safeAwait(coordinatorMergeStarted);
@@ -197,7 +198,8 @@ public class RejectionActionIT extends ESIntegTestCase {
                         remoteExecutor.execute(() -> {});
                     } catch (RejectedExecutionException ignored) {
                         // It's possible that a background task is added to the queue before these calls can fill it up. This is fine,
-                        // since we only care that the queue is full
+                        // since we only care that the queue is full, but we need to keep track of the extra rejection
+                        extraRejected.incrementAndGet();
                     }
                 }
             }
@@ -246,7 +248,8 @@ public class RejectionActionIT extends ESIntegTestCase {
             });
             safeAwait(remoteResultsReceived);
             assertEquals(numberOfShards, remoteQueriesCompleted.get());
-            assertEquals("only the remote partial reduction should be rejected", rejectedBefore + 1, searchRejections(remote));
+            long expectedRejected = rejectedBefore + extraRejected.get() + 1;
+            assertEquals("only the remote partial reduction should be rejected", expectedRejected, searchRejections(remote));
             releaseCoordinatorMerge.countDown();
             safeAwait(searchCompleted);
             assertNotNull("the remote reduction rejection must fail the search", searchFailure.get());

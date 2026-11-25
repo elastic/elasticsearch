@@ -58,6 +58,7 @@ import java.util.stream.IntStream;
 public class VectorScorerBFloat16BulkOperationBenchmark {
 
     static final ValueLayout.OfShort LAYOUT_LE_BFLOAT16 = ValueLayout.JAVA_SHORT.withOrder(ByteOrder.LITTLE_ENDIAN);
+    static final ValueLayout.OfShort LAYOUT_LE_BFLOAT16_UNALIGNED = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     static {
@@ -105,6 +106,10 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     private MemorySegment addressesSeg;
     private MemorySegment resultsSeg;
     private float[] scores;
+    // Heap dataset, query and scores for the heap-API bulk case, matching the all-heap maxSim call shape.
+    private byte[] heapDataset;
+    private float[] heapQuery;
+    private float[] heapScores;
 
     record VectorData(int numVectorsToScore, short[][] bf16Vectors, float[] f32QueryVector, int[] ordinals, int targetOrd) {
 
@@ -181,6 +186,14 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         addressesSeg = arena.allocate((long) bulkSize * Long.BYTES);
         resultsSeg = arena.allocate((long) bulkSize * Float.BYTES);
         scores = new float[bulkSize];
+
+        heapDataset = new byte[numVectors * dims * BFloat16.BYTES];
+        var heapDatasetSeg = MemorySegment.ofArray(heapDataset);
+        for (int v = 0; v < numVectors; v++) {
+            MemorySegment.copy(vectorData.bf16Vectors[v], 0, heapDatasetSeg, LAYOUT_LE_BFLOAT16_UNALIGNED, (long) v * dims, dims);
+        }
+        heapQuery = vectorData.f32QueryVector;
+        heapScores = new float[numVectorsToScore];
 
     }
 
@@ -281,6 +294,23 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
+    }
+
+    /**
+     * Heap-API BULK: contiguous heap dataset with heap query and scores, all operands on the heap
+     * like the maxSim path. Only the float32-query dot-product kernel has a heap API.
+     */
+    @Benchmark
+    public float[] scoreBulkHeap() {
+        if (queryType != BFloat16QueryType.FLOAT32 || function != VectorSimilarityType.DOT_PRODUCT) {
+            throw new UnsupportedOperationException(queryType + "/" + function);
+        }
+        int bytesPerVector = dims * BFloat16.BYTES;
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int count = Math.min(bulkSize, numVectorsToScore - i);
+            VEC_LIBRARY.dotProductDBF16QF32Bulk(heapDataset, i * bytesPerVector, heapQuery, dims, count, heapScores, i);
+        }
+        return heapScores;
     }
 
     /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */

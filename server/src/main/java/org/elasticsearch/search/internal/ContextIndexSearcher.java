@@ -13,7 +13,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -22,11 +21,9 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -40,7 +37,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.BitsIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -362,9 +358,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
         final QueryCache queryCache = getQueryCache();
         if (scoreMode.needsScores() == false && queryCache != null) {
-            return queryCache.doCache(weight, getQueryCachingPolicy());
+            return queryCache.doCache(chargingCachePopulation(weight), getQueryCachingPolicy());
         }
         return weight;
+    }
+
+    /**
+     * Wraps {@code weight} so that the query cache, when it decides to build an entry for a leaf, reserves the entry's heap on
+     * the request circuit breaker and leaves the leaf uncached if the breaker refuses. See {@link QueryCacheBreakerWeight}.
+     */
+    private Weight chargingCachePopulation(Weight weight) {
+        if (executionAccounting.breaker() == null) {
+            return weight;
+        }
+        executionAccounting.ensureCreated();
+        return new QueryCacheBreakerWeight(this, weight);
     }
 
     /** Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker. */
@@ -372,55 +380,29 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (executionAccounting.breaker() == null) {
             return weight;
         }
-        PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
-        if (pointRangeQuery != null) {
-            executionAccounting.ensureCreated();
-            return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
+        final ExecutionCharge charge = ExecutionCharge.forQuery(query);
+        if (charge == null) {
+            return weight;
         }
-        Query multiTermQuery = multiTermQueryOrNull(unwrapBoost(query));
-        if (multiTermQuery != null) {
-            executionAccounting.ensureCreated();
-            return new MultiTermBreakerWeight(this, weight, multiTermQuery, unwrapBoost(query) instanceof IndexOrDocValuesQuery);
-        }
-        return weight;
+        executionAccounting.ensureCreated();
+        return new ExecutionBreakerWeight(this, weight, charge);
     }
 
-    void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
+    /**
+     * Reserves {@code bytes} of execution memory on the request circuit breaker under {@code label}, attributed to
+     * {@code ctx}'s leaf (or to the {@link LeafExecutionScope} bound to the calling thread, if any). The memory is
+     * released when {@link #searchLeaf} finishes collecting the leaf, when the owning scope is dropped, or at the
+     * latest when this searcher closes. May trip the breaker; in that case nothing is recorded. No-op when no
+     * circuit breaker is configured (see {@link #setCircuitBreaker}), so callers that need accounting without one
+     * must use their own fallback.
+     */
+    public void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
         executionAccounting.charge(ctx, bytes, label);
     }
 
     /** Test-only */
     boolean hasLeafExecutionAccounting() {
         return executionAccounting.hasLeafAccounting();
-    }
-
-    private static PointRangeQuery pointRangeQueryOrNull(Query query) {
-        if (query instanceof PointRangeQuery prq) {
-            return prq;
-        }
-        if (query instanceof IndexOrDocValuesQuery iodvq && iodvq.getIndexQuery() instanceof PointRangeQuery prq) {
-            return prq;
-        }
-        return null;
-    }
-
-    @Nullable
-    private static Query multiTermQueryOrNull(Query query) {
-        if (query instanceof IndexOrDocValuesQuery iodvq) {
-            query = iodvq.getIndexQuery();
-        }
-        return CostlyMultiTermQueries.isCostlyMultiTermQuery(query) ? query : null;
-    }
-
-    /**
-     * Unwraps {@link BoostQuery} only. {@link ConstantScoreQuery#createWeight} recurses through this override, so its child is
-     * already wrapped once; unwrapping it here too would double-charge.
-     */
-    private static Query unwrapBoost(Query query) {
-        while (query instanceof BoostQuery boostQuery) {
-            query = boostQuery.getQuery();
-        }
-        return query;
     }
 
     /**
@@ -504,6 +486,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             sum += lr.reader().maxDoc();
         }
         return sum;
+    }
+
+    /**
+     * Not supported.
+     *
+     * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+     */
+    @Deprecated
+    @Override
+    public final void search(Query query, Collector collector) {
+        throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
     }
 
     @Override

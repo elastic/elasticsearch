@@ -88,7 +88,10 @@ public class WindowGroupingPartialAggregatorFunctionTests extends WindowGrouping
             ),
             mode,
             aggregators,
-            Integer.MAX_VALUE  // TODO window functions don't support chunking https://github.com/elastic/elasticsearch/issues/138705
+            Integer.MAX_VALUE,  // TODO window functions don't support chunking https://github.com/elastic/elasticsearch/issues/138705
+            Integer.MAX_VALUE,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
     }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
-public class Percentile extends NumericAggregate implements SurrogateExpression, NonFiniteSupport {
+public class Percentile extends NumericAggregate implements SurrogateExpression, NonFiniteSupport, UnitAware.PreservesUnit {
     private static final TransportVersion PERCENTILE_COMPRESSION = TransportVersion.fromName("esql_percentile_compression");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -73,7 +74,10 @@ public class Percentile extends NumericAggregate implements SurrogateExpression,
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.")
         .example("quantile(0.9, http_request_duration_seconds)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.QUANTILE_NOTE)
+        .stdDivergence(
+            "A quantile that isn't a number literal, such as `quantile(scalar(a), b)`, isn't supported yet. "
+                + PromqlFunctionDefinition.QUANTILE_NOTE
+        )
         .name("quantile");
 
     private final Expression percentile;

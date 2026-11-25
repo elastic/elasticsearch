@@ -2,12 +2,17 @@
 
 ### `wildcards_match_datasets` [esql-wildcards_match_datasets]
 ```{applies_to}
-serverless: unavailable
-stack: experimental 9.6+
+serverless: preview
+stack: preview 9.6+
 ```
 When enabled, a wildcard in `FROM` also matches registered datasets. Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its exact name. Other abstractions a wildcard matches are unaffected.
 
-The default itself is configurable. If a query does not specify a value, the `esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not configured either, the value is `false`. {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
+{applies_to}`{"serverless": "unavailable"}` The default itself is configurable. If a query does not specify a value, the `esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not configured either, the value is `false`.
 
 **Type**: `boolean`
+
+**Can also be set in**:
+- the request body, as `settings.wildcards_match_datasets` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.wildcards_match_datasets` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
+- a view definition {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 

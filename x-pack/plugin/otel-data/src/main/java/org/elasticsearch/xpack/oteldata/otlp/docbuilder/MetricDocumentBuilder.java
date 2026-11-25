@@ -8,11 +8,10 @@
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ public class MetricDocumentBuilder extends OTelTsdbDocumentBuilder {
     public static final String METRIC_NAMES_HASH_FIELD = "_metric_names_hash";
 
     private final MappingHints defaultMappingHints;
-    private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
+    private final DataPoint.SerializationScratch scratch = new DataPoint.SerializationScratch();
 
     public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         super(byteStringAccessor);
@@ -41,7 +40,7 @@ public class MetricDocumentBuilder extends OTelTsdbDocumentBuilder {
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
         Map<String, Map<String, String>> dynamicTemplateParams,
-        IndexVersion indexVersion
+        TsidLayout tsidLayout
     ) throws IOException {
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
         builder.startObject();
@@ -78,7 +77,7 @@ public class MetricDocumentBuilder extends OTelTsdbDocumentBuilder {
             builder.field("_doc_count", docCount);
         }
         builder.endObject();
-        return dataPointGroup.buildMetricTsid(metricNamesHash, indexVersion);
+        return dataPointGroup.buildMetricTsid(metricNamesHash, tsidLayout);
     }
 
 }

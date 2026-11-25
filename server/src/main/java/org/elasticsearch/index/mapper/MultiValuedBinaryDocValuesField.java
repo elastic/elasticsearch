@@ -9,13 +9,19 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.EmptyTokenStream;
+import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -23,6 +29,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
@@ -630,6 +637,9 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         // Held so record* helpers can update the count on each slot without re-deriving the companion from the document.
         private NumericDocValuesField countField;
 
+        // Reported instead of the doc-values type when every slot is null, or null if the keyed values are not indexed. See fieldType().
+        private IndexableFieldType typeWhenValueless;
+
         public KeyedArrayOrderInlineNull(String name) {
             // Use eagerAllocate=false so the base-class `values` field stays null; slot state is managed here.
             super(name, ValueOrdering.UNSORTED, false);
@@ -651,11 +661,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         /**
          * Records a null slot for {@code fieldName}. {@code keyPlusSep} must be {@code key\0} (key bytes followed by the separator byte).
          * The key is preserved inline so synthetic source can reconstruct which key had a null value.
+         *
+         * @param typeWhenValueless the doc-values type plus the index options of the keyed terms, or {@code null} if they are not indexed.
+         *                          Only consulted if the document ends up holding no value; a later value makes it moot.
          */
-        public static void recordNull(LuceneDocument doc, String fieldName, BytesRef keyPlusSep) {
+        public static void recordNull(
+            LuceneDocument doc,
+            String fieldName,
+            BytesRef keyPlusSep,
+            @Nullable IndexableFieldType typeWhenValueless
+        ) {
             var field = getOrCreate(doc, fieldName);
             field.addSlot(keyPlusSep, true);
             field.countField.setLongValue(field.count());
+            field.typeWhenValueless = typeWhenValueless;
         }
 
         /**
@@ -684,6 +703,27 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         @Override
         public int count() {
             return slotBytesList.size();
+        }
+
+        /**
+         * The doc-values type, or, for a document whose slots are all null under an indexed field, that type plus the index options of the
+         * keyed terms. The keyed terms share this field's name, so a document that indexed no term would otherwise present the field
+         * without them, and Lucene rejects a document whose index options differ from the ones the field already has.
+         */
+        @Override
+        public IndexableFieldType fieldType() {
+            return typeWhenValueless != null && nullMarkers.cardinality() == count() ? typeWhenValueless : super.fieldType();
+        }
+
+        /** Inverted into nothing, so reporting {@link #typeWhenValueless} adds no postings. */
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.TOKEN_STREAM;
+        }
+
+        @Override
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
+            return new EmptyTokenStream();
         }
 
         @Override
@@ -754,6 +794,77 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                 pos += valueLength;
             }
             return pos;
+        }
+
+        /**
+         * Reads the slots of one document in the order they are stored. A slot that runs past the end of the document fails with a
+         * {@link CorruptIndexException} rather than being read from whatever follows it.
+         */
+        public static final class SlotReader {
+            private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+            private final BytesRef value = new BytesRef();
+            private byte[] bytes;
+            private int end;
+            private int remaining;
+            private int slotStart;
+            private int keyStart;
+            private int keyLength;
+            private int valueLength;
+
+            /** Positions before the first of the {@code count} slots of {@code slots}. */
+            public void reset(BytesRef slots, int count) {
+                bytes = slots.bytes;
+                end = slots.offset + slots.length;
+                remaining = count;
+                in.reset(slots.bytes, slots.offset, slots.length);
+            }
+
+            /** Moves to the next slot, and returns whether there is one. */
+            public boolean next() throws IOException {
+                if (remaining == 0) {
+                    return false;
+                }
+                remaining--;
+                slotStart = in.getPosition();
+                int prefix = in.readVInt();
+                keyStart = in.getPosition();
+                keyLength = ESVectorUtil.indexOf(bytes, keyStart, end - keyStart, (byte) 0);
+                valueLength = prefix - 1;
+                if (keyLength == -1 || prefix < 0 || valueLength > end - (keyStart + keyLength + 1)) {
+                    throw new CorruptIndexException("keyed slot runs past the end of the document", "binary doc values");
+                }
+                in.setPosition(slotEnd());
+                return true;
+            }
+
+            /** The key of the current slot. */
+            public String key() {
+                return new String(bytes, keyStart, keyLength, StandardCharsets.UTF_8);
+            }
+
+            /** Whether the current slot holds a null. */
+            public boolean isNull() {
+                return valueLength == -1;
+            }
+
+            /** The value of the current slot, shared with the next calls; only valid if it isn't {@link #isNull() null}. */
+            public BytesRef value() {
+                assert isNull() == false;
+                value.bytes = bytes;
+                value.offset = keyStart + keyLength + 1;
+                value.length = valueLength;
+                return value;
+            }
+
+            /** Where the current slot starts in the bytes of the document, its length prefix included. */
+            public int slotStart() {
+                return slotStart;
+            }
+
+            /** Where the current slot ends in the bytes of the document. */
+            public int slotEnd() {
+                return keyStart + keyLength + 1 + Math.max(valueLength, 0);
+            }
         }
 
         private static int streamSize(int byteCount, int slotCount) {

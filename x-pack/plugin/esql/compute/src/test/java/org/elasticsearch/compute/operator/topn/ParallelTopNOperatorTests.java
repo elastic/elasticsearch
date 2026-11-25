@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -27,6 +28,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ThreadCpuTimer;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.MapMatcher;
@@ -44,6 +46,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
@@ -318,6 +321,31 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
             // The ParallelTopNOperator owns and closes the initial operator.
             promoted.finish();
             drainAndClose(promoted);
+        }
+    }
+
+    /**
+     * Each worker would number the origins of detached {@code _doc} rows in a table of its own, and merging the worker
+     * queues would mix those numbers. So {@code tryPromote} keeps the operator sequential, even above the threshold.
+     */
+    public void testTryPromoteReturnsSelfWithDetachedDocs() {
+        TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
+            100,
+            List.of(ElementType.LONG, ElementType.DOC),
+            List.of(DEFAULT_SORTABLE, DocVectorEncoder.detached()),
+            List.of(new TopNOperator.SortOrder(0, true, false)),
+            100,
+            Long.MAX_VALUE,
+            TopNOperator.InputOrdering.NOT_SORTED,
+            null,
+            new TopNOperator.ParallelWorkerConfig(workerExecutor(), 2, 10, 0)
+        );
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        try (TopNOperator op = factory.get(driverContext)) {
+            Block docs = RandomBlock.randomDetachedDocBlock(blockFactory, 1, 1).block();
+            op.addInput(new Page(blockFactory.newConstantLongBlockWith(42L, 1), docs));
+            assertThat(op.tryPromote(driverContext), sameInstance(op));
         }
     }
 

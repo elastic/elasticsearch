@@ -229,6 +229,8 @@ public final class DataSourceUsageAccumulator {
     // ---- per-component CPU counter (ns, indexed by CPU_* constants) ----
 
     private final LongAdder[] queryCpuNanos = adders(CPU_COMPONENT_COUNT);
+    // ---- the same for the queries that failed or were cancelled, indexed by OUTCOME_* then CPU_*; the success row is not used ----
+    private final LongAdder[][] unsuccessfulQueryCpuNanos = adders2(OUTCOME_COUNT, CPU_COMPONENT_COUNT);
 
     private final LongAdder[][] configChanges = new LongAdder[KIND_COUNT][];
     /** Rejected changes by [kind][reason]. Sums to {@code configChanges[kind][OP_REJECTED]} when every rejection carries a reason. */
@@ -338,10 +340,23 @@ public final class DataSourceUsageAccumulator {
 
     /** Accumulates per-component CPU nanos for one successful external-source query. Clamps negatives to zero. */
     public void recordQueryCpu(long execution, long read, long planning, long splitDiscovery) {
-        queryCpuNanos[CPU_EXECUTION].add(Math.max(0L, execution));
-        queryCpuNanos[CPU_READ].add(Math.max(0L, read));
-        queryCpuNanos[CPU_PLANNING].add(Math.max(0L, planning));
-        queryCpuNanos[CPU_SPLIT_DISCOVERY].add(Math.max(0L, splitDiscovery));
+        recordQueryCpu(OUTCOME_SUCCESS, execution, read, planning, splitDiscovery);
+    }
+
+    /**
+     * Accumulates per-component CPU nanos for one external-source query that ended with the outcome of {@code outcomeIndex}.
+     * Clamps negatives to zero. The CPU of the queries that succeeded is what is billed and has its own counters, the ones read
+     * by {@link #queryCpuNanos(int)}, so that those keep matching the billing signal.
+     *
+     * @param outcomeIndex one of the {@code OUTCOME_*} constants
+     */
+    public void recordQueryCpu(int outcomeIndex, long execution, long read, long planning, long splitDiscovery) {
+        checkOutcomeIndex(outcomeIndex);
+        LongAdder[] cpu = outcomeIndex == OUTCOME_SUCCESS ? queryCpuNanos : unsuccessfulQueryCpuNanos[outcomeIndex];
+        cpu[CPU_EXECUTION].add(Math.max(0L, execution));
+        cpu[CPU_READ].add(Math.max(0L, read));
+        cpu[CPU_PLANNING].add(Math.max(0L, planning));
+        cpu[CPU_SPLIT_DISCOVERY].add(Math.max(0L, splitDiscovery));
     }
 
     public void recordTimeToFirstRow(long millis) {
@@ -532,6 +547,20 @@ public final class DataSourceUsageAccumulator {
     public long queryCpuNanos(int componentIndex) {
         checkCpuComponentIndex(componentIndex);
         return queryCpuNanos[componentIndex].sum();
+    }
+
+    /**
+     * The CPU of the queries that ended with {@code outcomeIndex}, which for {@link #OUTCOME_SUCCESS} is {@link #queryCpuNanos(int)}.
+     *
+     * @param outcomeIndex one of the {@code OUTCOME_*} constants
+     * @param componentIndex one of the {@code CPU_*} constants
+     */
+    public long queryCpuNanos(int outcomeIndex, int componentIndex) {
+        checkOutcomeIndex(outcomeIndex);
+        checkCpuComponentIndex(componentIndex);
+        return outcomeIndex == OUTCOME_SUCCESS
+            ? queryCpuNanos[componentIndex].sum()
+            : unsuccessfulQueryCpuNanos[outcomeIndex][componentIndex].sum();
     }
 
     /** @param kindIndex one of the {@code KIND_*} constants; @param opIndex one of the {@code OP_*} constants */

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 162348
-summary: Rebuild `nullExpressions` in case it is surprisingly null
-type: bug

@@ -1,0 +1,370 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ flattened_keys ]
+      reason: "A name under a flattened field is a field"
+  - do:
+      indices.create:
+        index: flat
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: flattened
+                properties:
+                  code:
+                    type: long
+  - do:
+      indices.create:
+        index: mapped
+        body:
+          mappings:
+            properties:
+              attrs.bar:
+                type: keyword
+  - do:
+      indices.create:
+        index: unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      indices.create:
+        index: typed
+        body:
+          mappings:
+            properties:
+              attrs.n:
+                type: long
+  - do:
+      indices.create:
+        index: kw
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "flat", "_id": "f1" } }
+          - { "attrs": { "bar": "a", "n": "1", "code": 7, "host": { "name": "h" } } }
+          - { "index": { "_index": "flat", "_id": "f2" } }
+          - { "attrs": { "n": "10", "code": 20 } }
+          - { "index": { "_index": "mapped", "_id": "m1" } }
+          - { "attrs": { "bar": "c" } }
+          - { "index": { "_index": "unmapped", "_id": "u1" } }
+          - { "attrs": { "bar": "e", "n": "x" } }
+          - { "index": { "_index": "typed", "_id": "t1" } }
+          - { "attrs": { "n": 4 } }
+          - { "index": { "_index": "kw", "_id": "k1" } }
+          - { "attrs": "k" }
+
+---
+"a key is a keyword column":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat METADATA _id | KEEP _id, attrs.bar, attrs.host, attrs.host.name | SORT _id | LIMIT 10'
+  - match: { columns.1: { name: attrs.bar, type: keyword } }
+  - match: { columns.2: { name: attrs.host, type: keyword } }
+  - match: { columns.3: { name: attrs.host.name, type: keyword } }
+  - match: { values: [ [ "f1", "a", null, "h" ], [ "f2", null, null, null ] ] }
+
+---
+"a mapped subfield keeps its type beside the keys":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat METADATA _id | KEEP _id, attrs.code, attrs.bar | SORT _id | LIMIT 10'
+  - match: { columns.1: { name: attrs.code, type: long } }
+  - match: { columns.2: { name: attrs.bar, type: keyword } }
+  - match: { values: [ [ "f1", 7, "a" ], [ "f2", 20, null ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat METADATA _id | WHERE attrs.code > 10 | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | STATS s = SUM(attrs.code) | LIMIT 10'
+  - match: { values: [ [ 27 ] ] }
+
+---
+"a key fills the column of a mapped field":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | KEEP _id, attrs.bar | SORT _id | LIMIT 10'
+  - match: { columns.1: { name: attrs.bar, type: keyword } }
+  - match: { values: [ [ "f1", "a" ], [ "f2", null ], [ "m1", "c" ] ] }
+
+---
+"a key is read as the mapped type":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, typed METADATA _id | KEEP _id, attrs.n | SORT _id | LIMIT 10'
+  - match: { columns.1: { name: attrs.n, type: long } }
+  - match: { values: [ [ "f1", 1 ], [ "f2", 10 ], [ "t1", 4 ] ] }
+
+---
+"a key is read as the type a cast settles":
+  - do:
+      indices.create:
+        index: kw_n
+        body:
+          mappings:
+            properties:
+              attrs.n:
+                type: keyword
+  - do:
+      index:
+        index: kw_n
+        id: k2
+        refresh: true
+        body: { "attrs": { "n": "7" } }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, typed, kw_n METADATA _id | EVAL n = attrs.n::long | KEEP _id, n | SORT _id | LIMIT 10'
+  - match: { columns.1: { name: n, type: long } }
+  - match: { values: [ [ "f1", 1 ], [ "f2", 10 ], [ "k2", 7 ], [ "t1", 4 ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, typed, kw_n METADATA _id | EVAL n = attrs.n::keyword | KEEP _id, n | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1", "1" ], [ "f2", "10" ], [ "k2", "7" ], [ "t1", "4" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, typed, kw_n METADATA _id | EVAL n = attrs.n::long | KEEP _id, n | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1", 1 ], [ "f2", 10 ], [ "k2", 7 ], [ "t1", 4 ] ] }
+
+---
+"a key is read through the options of the cast":
+  - do:
+      indices.create:
+        index: ip_flat
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: flattened
+  - do:
+      indices.create:
+        index: ip_ip
+        body:
+          mappings:
+            properties:
+              attrs.ip:
+                type: ip
+  - do:
+      indices.create:
+        index: ip_kw
+        body:
+          mappings:
+            properties:
+              attrs.ip:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ip_flat", "_id": "f" } }
+          - { "attrs": { "ip": "010.000.000.001" } }
+          - { "index": { "_index": "ip_ip", "_id": "i" } }
+          - { "attrs": { "ip": "10.0.0.2" } }
+          - { "index": { "_index": "ip_kw", "_id": "k" } }
+          - { "attrs": { "ip": "010.000.000.003" } }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ip_* METADATA _id | EVAL ip = TO_IP(attrs.ip, {"leading_zeros": "decimal"}) | KEEP _id, ip | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f", "10.0.0.1" ], [ "i", "10.0.0.2" ], [ "k", "10.0.0.3" ] ] }
+
+---
+"a key is a keyword beside a keyword root":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, kw METADATA _id | KEEP _id, attrs.n | SORT _id | LIMIT 10'
+  - match: { columns.1: { name: attrs.n, type: keyword } }
+  - match: { values: [ [ "f1", "1" ], [ "f2", "10" ], [ "k1", null ] ] }
+
+---
+"filters on a key":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar == "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar != "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar NOT LIKE "a*" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar IS NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar IS NOT NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1" ], [ "m1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar IN ("a", "x") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar >= "b" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar LIKE "a*" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar RLIKE "[ac]" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1" ], [ "m1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE STARTS_WITH(attrs.bar, "a") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1" ] ] }
+
+---
+"filters on a key in a segment that holds no value for it":
+  - do:
+      indices.create:
+        index: segments
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              attrs:
+                type: flattened
+  - do:
+      index:
+        index: segments
+        id: s1
+        refresh: true
+        body: { "attrs": { "bar": "a" } }
+  - do:
+      index:
+        index: segments
+        id: s2
+        refresh: true
+        body: { "attrs": { "n": "10" } }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM segments METADATA _id | WHERE attrs.bar != "b" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM segments METADATA _id | WHERE attrs.bar NOT LIKE "b*" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "s1" ] ] }
+
+---
+"filters on a key read as the mapped type":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, typed METADATA _id | WHERE attrs.n > 2 | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f2" ], [ "t1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, typed METADATA _id | SORT attrs.n | KEEP _id | LIMIT 10'
+  - match: { values: [ [ "f1" ], [ "t1" ], [ "f2" ] ] }
+
+---
+"stats on a key":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped | STATS c = COUNT(attrs.bar), v = MV_SORT(VALUES(attrs.bar)) | LIMIT 10'
+  - match: { values: [ [ 2, [ "a", "c" ] ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | STATS c = COUNT(*) BY attrs.n | SORT attrs.n | LIMIT 10'
+  - match: { values: [ [ 1, "1" ], [ 1, "10" ] ] }
+
+---
+"a key with unmapped_fields set to load":
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, unmapped METADATA _id | KEEP _id, attrs.bar | SORT _id | LIMIT 10'
+  - match: { columns.1: { name: attrs.bar, type: keyword } }
+  - match: { values: [ [ "f1", "a" ], [ "f2", null ], [ "u1", "e" ] ] }
+  - do:
+      warnings_regex:
+        - ".*evaluation of \\[FROM flat, typed, unmapped METADATA _id\\] failed, treating result as null.*"
+        - ".*Cannot parse number \\[x\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, typed, unmapped METADATA _id | KEEP _id, attrs.n | SORT _id | LIMIT 10'
+  - match: { columns.1: { name: attrs.n, type: long } }
+  - match: { values: [ [ "f1", 1 ], [ "f2", 10 ], [ "t1", 4 ], [ "u1", null ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM flat, typed, unmapped METADATA _id | EVAL s = attrs.n::keyword | KEEP _id, s | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1", "1" ], [ "f2", "10" ], [ "t1", "4" ], [ "u1", "x" ] ] }
+
+---
+"filters on a key of a flattened field that is not indexed":
+  - do:
+      indices.create:
+        index: not_indexed
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: flattened
+                index: false
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "not_indexed", "_id": "n1" } }
+          - { "attrs": { "bar": "a" } }
+          - { "index": { "_index": "not_indexed", "_id": "n2" } }
+          - { "attrs": { "bar": "b" } }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM not_indexed METADATA _id | WHERE attrs.bar > "a" | KEEP _id | LIMIT 10'
+  - match: { values: [ [ "n2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM not_indexed METADATA _id | WHERE attrs.bar == "a" | KEEP _id | LIMIT 10'
+  - match: { values: [ [ "n1" ] ] }

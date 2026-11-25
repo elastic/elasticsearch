@@ -249,19 +249,11 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
                         searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "foo", 0, 0, 1000, SEPARATE_COUNT, null))
                     );
 
-                    // Case-insensitive via RegExp.ASCII_CASE_INSENSITIVE matchFlag: matches "foo" and "FOO" (none here, so still 1)
+                    // Case-insensitive via RegExp.CASE_INSENSITIVE matchFlag: matches "foo" and "FOO" (none here, so still 1)
                     assertEquals(
                         1,
                         searcher.count(
-                            new ScanningBinaryDocValuesRegexpQuery(
-                                fieldName,
-                                "foo",
-                                0,
-                                RegExp.ASCII_CASE_INSENSITIVE,
-                                1000,
-                                SEPARATE_COUNT,
-                                null
-                            )
+                            new ScanningBinaryDocValuesRegexpQuery(fieldName, "foo", 0, RegExp.CASE_INSENSITIVE, 1000, SEPARATE_COUNT, null)
                         )
                     );
 
@@ -273,7 +265,7 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
                                 fieldName,
                                 "hello",
                                 0,
-                                RegExp.ASCII_CASE_INSENSITIVE,
+                                RegExp.CASE_INSENSITIVE,
                                 1000,
                                 SEPARATE_COUNT,
                                 null
@@ -289,7 +281,7 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
                                 fieldName,
                                 "world",
                                 0,
-                                RegExp.ASCII_CASE_INSENSITIVE,
+                                RegExp.CASE_INSENSITIVE,
                                 1000,
                                 SEPARATE_COUNT,
                                 null
@@ -388,11 +380,12 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
         assertFalse(calledForRejectedField[0]);
     }
 
-    public void testCircuitBreakerTripsForHugeRepetitionBeforeBuild() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+    /** A repetition within the work limit whose predicted peak exceeds the breaker trips it before the build starts. */
+    public void testCircuitBreakerTripsForLargeRepetitionBeforeBuild() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
         expectThrows(
             CircuitBreakingException.class,
-            () -> new ScanningBinaryDocValuesRegexpQuery("field", "a{100000000}", RegExp.ALL, 0, 1000, SEPARATE_COUNT, breaker)
+            () -> new ScanningBinaryDocValuesRegexpQuery("field", "a{300000}", RegExp.ALL, 0, 1000, SEPARATE_COUNT, breaker)
         );
         assertEquals("no memory should remain reserved after the breaker trips", 0, breaker.getUsed());
     }

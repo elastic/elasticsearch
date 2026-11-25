@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 165029
+summary: Keep keyed index options for null-only flattened
+type: bug

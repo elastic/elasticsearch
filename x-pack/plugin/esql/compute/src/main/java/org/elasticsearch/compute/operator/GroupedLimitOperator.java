@@ -11,16 +11,13 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
-import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
+import org.elasticsearch.compute.aggregation.blockhash.RowKeyHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -36,6 +33,7 @@ import java.util.Objects;
  * An operator that limits the number of rows emitted per group.
  * For {@code LIMIT N BY x}, this accepts up to N rows for each distinct value of x.
  * Group keys use list semantics for multivalues: {@code [1,2]} and {@code [2,1]} are different groups.
+ * The keys are hashed by a {@link RowKeyHash}.
  */
 public class GroupedLimitOperator implements Operator, Accountable {
     public static final class Factory implements Operator.OperatorFactory {
@@ -51,14 +49,7 @@ public class GroupedLimitOperator implements Operator, Accountable {
 
         @Override
         public GroupedLimitOperator get(DriverContext driverContext) {
-            BlockFactory blockFactory = driverContext.blockFactory();
-            PagedBytesBuilder row = new PagedBytesBuilder(
-                blockFactory.bigArrays().recycler(),
-                blockFactory.breaker(),
-                "group-key-encoder",
-                64
-            );
-            return new GroupedLimitOperator(limitPerGroup, new GroupKeyEncoder(groupChannels, elementTypes, row), blockFactory);
+            return new GroupedLimitOperator(limitPerGroup, groupChannels, elementTypes, driverContext.blockFactory());
         }
 
         @Override
@@ -70,22 +61,14 @@ public class GroupedLimitOperator implements Operator, Accountable {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(GroupedLimitOperator.class);
 
     private final int limitPerGroup;
-    private final GroupKeyEncoder keyEncoder;
+    private final int[] groupChannels;
+    private final RowKeyHash keys;
+    private final BigArrays bigArrays;
     /**
-     * BlockHash unrolls multivalues (i.e. for each unique element of a multivalue [1,2,2,1] it would create
-     * a new key).
-     *
-     * <p>In contrast, in this operator we consider every multivalue as a key. Two multivalues are equal if they hold
-     * the same values in the exact same order. That's why we need to use:
-     * <ul>
-     *   <li>a ref hash table. Every time we add a new key it gives a monotonically increasing integer that we will
-     *       use to index in the counts array, {@code Ordinal(key)}</li>
-     *   <li>a counts array to keep track of the number of times we have seen each {@code Ordinal(key)}</li>
-     * </ul>
+     * The number of rows kept for each group. Only the first {@link #countedGroups} entries are set.
      */
-    private BytesRefHashTable seenKeys;
-    private BigArrays bigArrays;
     private IntArray counts;
+    private long countedGroups;
 
     private int pagesProcessed;
     private long rowsReceived;
@@ -94,18 +77,21 @@ public class GroupedLimitOperator implements Operator, Accountable {
     private Page lastOutput;
     private boolean finished;
 
-    public GroupedLimitOperator(int limitPerGroup, GroupKeyEncoder keyEncoder, BlockFactory blockFactory) {
+    /**
+     * @param elementTypes the element type of every channel of the input, indexed by channel
+     */
+    public GroupedLimitOperator(int limitPerGroup, int[] groupChannels, List<ElementType> elementTypes, BlockFactory blockFactory) {
+        this.limitPerGroup = limitPerGroup;
+        this.groupChannels = groupChannels;
+        this.bigArrays = blockFactory.bigArrays();
+        this.keys = new RowKeyHash(groupChannels, elementTypes, blockFactory);
         boolean success = false;
         try {
-            this.limitPerGroup = limitPerGroup;
-            this.keyEncoder = keyEncoder;
-            this.bigArrays = blockFactory.bigArrays();
-            this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
             this.counts = bigArrays.newIntArray(16, false);
             success = true;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(keyEncoder, seenKeys);
+                Releasables.closeExpectNoException(keys);
             }
         }
     }
@@ -127,26 +113,12 @@ public class GroupedLimitOperator implements Operator, Accountable {
                 return;
             }
 
-            int acceptedCount = 0;
+            int[] groupIds = keys.add(page);
             int[] accepted = new int[positionCount];
-
-            for (int pos = 0; pos < positionCount; pos++) {
-                PagedBytesCursor key = keyEncoder.encode(page, pos);
-                long hashOrd = seenKeys.add(key);
-                int count;
-                long ord;
-                if (hashOrd >= 0) {
-                    ord = hashOrd;
-                    counts = bigArrays.grow(counts, ord + 1);
-                    count = 0;
-                    counts.set(ord, 0);
-                } else {
-                    ord = -(hashOrd + 1);
-                    count = counts.get(ord);
-                }
-                if (count < limitPerGroup) {
-                    counts.set(ord, count + 1);
-                    accepted[acceptedCount++] = pos;
+            int acceptedCount = 0;
+            for (int position = 0; position < positionCount; position++) {
+                if (accept(groupIds[position])) {
+                    accepted[acceptedCount++] = position;
                 }
             }
 
@@ -166,6 +138,23 @@ public class GroupedLimitOperator implements Operator, Accountable {
         } finally {
             page.releaseBlocks();
         }
+    }
+
+    /**
+     * Counts a row in its group and returns whether it's one of the first {@link #limitPerGroup} rows of it.
+     */
+    private boolean accept(int groupId) {
+        if (groupId >= countedGroups) {
+            counts = bigArrays.grow(counts, groupId + 1);
+            counts.fill(countedGroups, groupId + 1, 0);
+            countedGroups = groupId + 1;
+        }
+        int count = counts.get(groupId);
+        if (count < limitPerGroup) {
+            counts.set(groupId, count + 1);
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -198,20 +187,18 @@ public class GroupedLimitOperator implements Operator, Accountable {
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
-        size += seenKeys.ramBytesUsed();
         size += counts.ramBytesUsed();
-        size += keyEncoder.ramBytesUsed();
         return size;
     }
 
     @Override
     public Status status() {
-        return new Status(limitPerGroup, (int) seenKeys.size(), pagesProcessed, rowsReceived, rowsEmitted, ramBytesUsed());
+        return new Status(limitPerGroup, keys.numKeys(), pagesProcessed, rowsReceived, rowsEmitted, ramBytesUsed());
     }
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(lastOutput == null ? () -> {} : lastOutput::releaseBlocks, seenKeys, counts, keyEncoder);
+        Releasables.closeExpectNoException(lastOutput == null ? () -> {} : lastOutput::releaseBlocks, keys, counts);
     }
 
     @Override
@@ -219,9 +206,9 @@ public class GroupedLimitOperator implements Operator, Accountable {
         return "GroupedLimitOperator[limitPerGroup = "
             + limitPerGroup
             + ", groupKeys = "
-            + Arrays.toString(keyEncoder.groupChannels())
+            + Arrays.toString(groupChannels)
             + ", groups = "
-            + seenKeys.size()
+            + keys.numKeys()
             + "]";
     }
 
@@ -231,6 +218,18 @@ public class GroupedLimitOperator implements Operator, Accountable {
             "grouped_limit",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("limit_per_group", ProfileSchema.integer())
+            .required("group_count", ProfileSchema.integer())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("ram_bytes_used", ProfileSchema.integer())
+            .required("ram_used", ProfileSchema.string())
+            .build();
 
         private final int limitPerGroup;
         private final int groupCount;
@@ -296,8 +295,7 @@ public class GroupedLimitOperator implements Operator, Accountable {
             return ramBytesUsed;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("limit_per_group", limitPerGroup);
             builder.field("group_count", groupCount);
@@ -307,6 +305,11 @@ public class GroupedLimitOperator implements Operator, Accountable {
             builder.field("ram_bytes_used", ramBytesUsed);
             builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

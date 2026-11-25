@@ -336,7 +336,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (String warning : warnings.apply(lhsTyped, rhsTyped)) {
                 testCase = testCase.withWarning(warning);
             }
-            if (DataType.isRepresentable(expectedType) == false) {
+            if (DataType.isRepresentableInExpression(expectedType) == false) {
                 testCase = testCase.withoutEvaluator();
             }
             return testCase;

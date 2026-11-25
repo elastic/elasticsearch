@@ -13,7 +13,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.$Type$Array;
+import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -49,6 +49,8 @@ public class $Occurrence$$Type$ByTimestampAggregator {
     public static Long$Type$State initSingle(DriverContext driverContext) {
         $if(BytesRef)$
         return new LongBytesRefState(0, new BytesRef(), driverContext.breaker(), describe());
+        $elseif(boolean)$
+        return new LongBooleanState(0, false);
         $else$
         return new Long$Type$State(0, 0);
         $endif$
@@ -128,7 +130,7 @@ public class $Occurrence$$Type$ByTimestampAggregator {
         $if(BytesRef)$
         private ObjectArray<BreakingBytesRefBuilder> values;
         $else$
-        private $Type$Array values;
+        private $Array$ values;
         $endif$
         $if(BytesRef)$
         private final CircuitBreaker breaker;
@@ -148,6 +150,8 @@ public class $Occurrence$$Type$ByTimestampAggregator {
                 this.timestamps = timestamps;
                 $if(BytesRef)$
                 this.values = bigArrays.newObjectArray(1);
+                $elseif(boolean)$
+                this.values = new BitArray(1, bigArrays);
                 $else$
                 this.values = bigArrays.new$Type$Array(1, false);
                 $endif$
@@ -178,15 +182,19 @@ public class $Occurrence$$Type$ByTimestampAggregator {
                 updated = true;
             }
             if (updated) {
-                values = bigArrays.grow(values, groupId + 1);
                 $if(BytesRef)$
+                values = bigArrays.grow(values, groupId + 1);
                 BreakingBytesRefBuilder builder = values.get(groupId);
                 if (builder == null) {
                     builder = new BreakingBytesRefBuilder(breaker, "$Occurrence$", value.length);
                 }
                 builder.copyBytes(value);
                 values.set(groupId, builder);
+                $elseif(boolean)$
+                // BitArray grows on its own when a bit is set, and an unset bit reads as false
+                values.set(groupId, value);
                 $else$
+                values = bigArrays.grow(values, groupId + 1);
                 values.set(groupId, value);
                 $endif$
             }

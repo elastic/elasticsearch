@@ -1831,10 +1831,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNumericEpochFormatCoercionUnderDeferredExtraction() throws Exception {
-        // The deferred-extraction twin of testDeclaredEpochSecondFormatOnParquetLongCoerces: ParquetColumnExtractor
-        // never consults fusedInDecode — it always decodes at the file type and coerces through castBlock with the
-        // column's declared formatter — so the deferred (TopN-materialized) read of an int64 + epoch_second column must
-        // produce the SAME instant as the eager scan. Pins extractor/eager parity for the new numeric-format arm.
+        // The deferred-extraction twin of testDeclaredEpochSecondFormatOnParquetLongCoerces. A declared format
+        // defuses the long -> datetime pair specifically, so this int64 column coerces through castBlock while a
+        // formatted string column stays fused and decodes natively; either way the deferred read must produce the
+        // SAME instant as the eager scan.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetDeferredCoerceFixture(); // physical int64 id = 1,2,3
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -5120,6 +5120,55 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(2));
             assertThat(rows.get(0).get(0), equalTo(100L));          // integer-file value read as long
             assertThat(rows.get(1).get(0), equalTo(5000000000L));   // long-file value that would overflow an int
+        }
+    }
+
+    /**
+     * The sibling of the two-formats case, for the pair the statistics reconcile cannot tell apart by read
+     * configuration alone. Both datasets read the one file as CSV and resolve the same columns, so their
+     * read-config fingerprints are equal and only the reader's own configuration -- the error policy -- differs.
+     * What this pins is that such a pair no longer trips an assertion in {@code mergeWholeFileContributions} and
+     * the query completes; whether the merge refused the pair or merged it is invisible here, because
+     * {@code COUNT(a) == 4} is the scan's own answer and the reconcile only decides what is cached.
+     * On {@code main} the same query never reaches the reconcile, because the data node refuses it first with
+     * {@code external dataset [policy_default] definition changed while the query was planned}.
+     */
+    public void testTwoErrorPoliciesOverOneFileDoNotTripTheReconcile() throws Exception {
+        Path fixture = createTempFile("dataset-two-policies-", ".csv");
+        Files.writeString(fixture, String.join("\n", "a,b", "1,2", "3,4") + "\n");
+        String uri = fixture.toUri().toString();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("policy_default", "local_ds", uri, Map.of("format", "csv"));
+        registerDataset("policy_skip", "local_ds", uri, Map.of("format", "csv", "error_mode", "skip_row"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM policy_default, policy_skip | STATS n = COUNT(a)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(4L))));
+        }
+    }
+
+    /**
+     * One file, two datasets over it, read as CSV and as TSV in one query: each gets the format it was registered with.
+     * <p>
+     * {@code COUNT(a) == 2} is uniquely determined. The TSV read of the same bytes finds no tab, so its only column is
+     * named {@code a,b} and it contributes no {@code a}. Reading both as CSV would give 4 instead.
+     * <p>
+     * With {@code ExternalSourceSpec} equality narrowed to the path this fails on the data node with
+     * {@code external dataset [two_formats_tsv] definition changed while the query was planned}.
+     */
+    public void testOneFileReadAsCsvAndAsTsvKeepsEachFormat() throws Exception {
+        // Neutral extension: the resolver refuses a .csv file claimed as tsv, which is a different check.
+        Path fixture = createTempFile("dataset-two-formats-", ".txt");
+        // Untyped header: a typed one is a single field to the TSV read, rejected as a column name.
+        Files.writeString(fixture, String.join("\n", "a,b", "1,2", "3,4") + "\n");
+        String uri = fixture.toUri().toString();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("two_formats_csv", "local_ds", uri, Map.of("format", "csv"));
+        registerDataset("two_formats_tsv", "local_ds", uri, Map.of("format", "tsv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM two_formats_csv, two_formats_tsv | STATS n = COUNT(a)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2L))));
         }
     }
 

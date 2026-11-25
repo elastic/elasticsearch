@@ -83,6 +83,11 @@ final class ColumnarArrayReader implements ArrayReader {
     }
 
     @Override
+    public int valueLength() {
+        return child.getValueLength(pos);
+    }
+
+    @Override
     public ArrayReader nestedArray() {
         throw new UnsupportedOperationException("ESCF columnar arrays hold only leaf elements");
     }

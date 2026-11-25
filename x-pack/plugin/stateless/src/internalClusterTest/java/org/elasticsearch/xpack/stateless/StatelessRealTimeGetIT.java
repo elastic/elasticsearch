@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetAction;
@@ -31,6 +33,9 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -44,15 +49,21 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapArchive;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -82,6 +93,8 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAcces
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -181,6 +194,76 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(getFromTranslogActionsSent.get(), equalTo(2));
         assertThat(shardRefreshActionsSent.get(), equalTo(1));
         assertThat(getResponse.getSource().get("field"), equalTo("value2"));
+    }
+
+    public void testMGetFailsDocumentWithoutRoomInSearchNodeBreaker() throws Exception {
+        final var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        // the indexing node has room for the large document, but the search node that receives it has not
+        startSearchNode(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "memory")
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2mb")
+                .build()
+        );
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        assertAcked(
+            prepareCreate(indexName).setSettings(indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
+                .setMapping("payload", "type=keyword,index=false,doc_values=false")
+        );
+        ensureGreen(indexName);
+        // A realtime get makes the indexing shard store translog locations, so that the documents indexed next are read from the translog
+        client().prepareIndex(indexName).setId("0").setSource("payload", "first").get();
+        assertTrue(client().prepareGet(indexName, "0").get().isExists());
+        client().prepareIndex(indexName).setId("large").setSource("payload", randomAlphaOfLength(3 * 1024 * 1024)).get();
+        client().prepareIndex(indexName).setId("small").setSource("payload", "small").get();
+
+        // The order of the steps matters. The translog steps need the documents unrefreshed, and the last one sees them only because of
+        // the refresh step.
+
+        // received from the translog of the indexing shard
+        assertLargeFailsAlone(client().prepareMultiGet().addIds(indexName, "large", "small").get());
+
+        // received from the translog after a retry
+        final var shardId = findIndexShard(indexName).shardId();
+        final var failNextAttempt = new AtomicBoolean(true);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportShardMultiGetFomTranslogAction.NAME, (handler, request, channel, task) -> {
+                if (failNextAttempt.compareAndSet(true, false)) {
+                    channel.sendResponse(new ShardNotFoundException(shardId));
+                    // the search shard retries once the cluster state changes
+                    indicesAdmin().preparePutMapping(indexName)
+                        .setSource("retry", "type=keyword")
+                        .execute(assertNoFailureListener(ignored -> {}));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+        assertLargeFailsAlone(client().prepareMultiGet().addIds(indexName, "large", "small").get());
+        assertFalse(failNextAttempt.get());
+
+        // loaded by the search shard after a refresh
+        assertLargeFailsAlone(
+            client().prepareMultiGet().addIds(indexName, "large", "small").setRefresh(true).setRealtime(randomBoolean()).get()
+        );
+
+        // loaded by the search shard without a refresh
+        assertLargeFailsAlone(client().prepareMultiGet().addIds(indexName, "large", "small").setRealtime(false).get());
+
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
+        }
+    }
+
+    private static void assertLargeFailsAlone(MultiGetResponse response) {
+        var failure = response.getResponses()[0].getFailure();
+        assertNotNull("the large document should have failed", failure);
+        assertThat(ExceptionsHelper.status(failure.getFailure()), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(
+            ExceptionsHelper.unwrap(failure.getFailure(), CircuitBreakingException.class).getMessage(),
+            containsString("[" + ChildMemoryCircuitBreaker.CATEGORY_MGET + "[source]]")
+        );
+        assertTrue(response.getResponses()[1].getResponse().isExists());
     }
 
     public void testMGet() {
@@ -400,6 +483,121 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertTrue(isUnsafeForGets(map));
         var getResponse = client().prepareGet(indexName, id).get();
         assertTrue(getResponse.isExists());
+    }
+
+    /**
+     * A real-time get that finds the live version map unsafe forces a refresh, which the index engine turns into a flush, and the
+     * archive only becomes safe again once the search shards acknowledge a commit notification covering its minimum safe generation.
+     * While those acknowledgements are delayed, the flushes are capped at two: the first one commits the unsafe documents and the
+     * second one creates the commit covering the archive's minimum safe generation; every get after that only has to wait for that
+     * generation.
+     */
+    public void testRealTimeGetsFlushAtMostTwiceWhileCommitNotificationsAreDelayed() throws Exception {
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        var indexShard = findIndexShard(indexName);
+        var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        var map = indexEngine.getLiveVersionMap();
+
+        // Documents with auto-generated ids are not tracked in the live version map, which marks it as unsafe.
+        indexDocs(indexName, randomIntBetween(5, 10));
+        assertTrue(isUnsafeForGets(map));
+
+        var releaseNotifications = delayNewCommitNotifications(indexNode);
+
+        final long generationBeforeGets = indexEngine.getCurrentGeneration();
+        final int numberOfGets = randomIntBetween(5, 10);
+        for (int i = 0; i < numberOfGets; i++) {
+            getFromTranslog(indexShard, "missing-" + i);
+        }
+        // The archive cannot become safe without an acknowledgement, but only the first two gets flushed.
+        assertTrue(isUnsafeForGets(map));
+        assertThat(indexEngine.getCurrentGeneration() - generationBeforeGets, equalTo(2L));
+
+        // Once the search shard acknowledges the commits the archive is safe again and gets stop flushing.
+        assertBusy(() -> {
+            releaseNotifications.run();
+            assertFalse(isUnsafeForGets(map));
+        });
+        final long generationAfterAcks = indexEngine.getCurrentGeneration();
+        for (int i = 0; i < numberOfGets; i++) {
+            getFromTranslog(indexShard, "missing-after-acks-" + i);
+        }
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(generationAfterAcks));
+    }
+
+    /**
+     * A single real-time mget resolves each id separately on the indexing shard, so while the live version map is unsafe each miss
+     * used to force its own flush. The flushes are capped at two for the whole batch, and the search shard serves the misses once
+     * it has seen the covering generation.
+     */
+    public void testMultiGetFlushesAtMostTwiceWhileCommitNotificationsAreDelayed() throws Exception {
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        var indexShard = findIndexShard(indexName);
+        var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        var map = indexEngine.getLiveVersionMap();
+
+        // Documents with auto-generated ids are not tracked in the live version map, which marks it as unsafe.
+        indexDocs(indexName, randomIntBetween(5, 10));
+        assertTrue(isUnsafeForGets(map));
+
+        var releaseNotifications = delayNewCommitNotifications(indexNode);
+
+        final long generationBeforeGets = indexEngine.getCurrentGeneration();
+        final int numberOfIds = randomIntBetween(5, 10);
+        var ids = IntStream.range(0, numberOfIds).mapToObj(i -> "missing-" + i).toArray(String[]::new);
+        var mgetFuture = client().prepareMultiGet().addIds(indexName, ids).setRealtime(true).execute();
+        // All the ids are resolved on the indexing shard before the response is sent to the search shard.
+        assertBusy(() -> assertThat(indexEngine.getCurrentGeneration() - generationBeforeGets, equalTo(2L)));
+        assertTrue(isUnsafeForGets(map));
+
+        assertBusy(() -> {
+            releaseNotifications.run();
+            assertFalse(isUnsafeForGets(map));
+        });
+        var mgetResponse = mgetFuture.get(10, TimeUnit.SECONDS);
+        assertThat(mgetResponse.getResponses().length, equalTo(numberOfIds));
+        for (MultiGetItemResponse item : mgetResponse.getResponses()) {
+            assertFalse(item.isFailed());
+            assertFalse(item.getResponse().isExists());
+        }
+        assertThat(indexEngine.getCurrentGeneration() - generationBeforeGets, equalTo(2L));
+    }
+
+    /**
+     * Holds back the new commit notifications sent by the index node, so that the search shards cannot acknowledge any commit, until
+     * the returned runnable is called. The runnable can be called repeatedly and sends everything held back so far.
+     */
+    private Runnable delayNewCommitNotifications(String indexNode) {
+        var delayNotifications = new AtomicBoolean(true);
+        var delayedNotifications = new LinkedBlockingQueue<Runnable>();
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.startsWith(TransportNewCommitNotificationAction.NAME) && delayNotifications.get()) {
+                delayedNotifications.add(() -> {
+                    try {
+                        connection.sendRequest(requestId, action, request, options);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+            } else {
+                connection.sendRequest(requestId, action, request, options);
+            }
+        });
+        return () -> {
+            delayNotifications.set(false);
+            Runnable delayed;
+            while ((delayed = delayedNotifications.poll()) != null) {
+                delayed.run();
+            }
+        };
     }
 
     public void testDataVisibility() throws Exception {
@@ -959,6 +1157,89 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         }
         assertThat(getFromTranslogAttempts.get(), equalTo(1));
         assertThat(shardGetsOnSearchB.get(), equalTo(0));
+    }
+
+    public void testNoConflictsOrLostUpdatesDuringRefreshes() throws Exception {
+        // LiveVersionMap could leave safe access mode between an update's enforceSafeAccess() and its put. This caused a bug where an
+        // update could succeed without putting the version into the version map. The next update then either hit a version conflict,
+        // or, when the stale version was used for both the get for update and the version check, succeeded on top of stale data and
+        // silently dropped the earlier update. Each update adds its own field so that both symptoms are detected.
+        String indexNodeA = startIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                // Set a large max size and amount to control the uploads manually in the test
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1L))
+                .build()
+        );
+        startSearchNode();
+        ensureStableCluster(3);
+
+        String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodeA);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final var indexShard = indexService.getShard(shardId.id());
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        var map = indexEngine.getLiveVersionMap();
+
+        assertFalse(isUnsafeForGets(map));
+
+        String docId = "doc-1";
+        // index 1 doc with doc-id. This should enforce safe access mode
+        client().prepareIndex(indexName).setId(docId).setSource("f_init", 0).get();
+        assertTrue(isSafeAccessRequired(map));
+        assertNotNull(get(map, docId));
+
+        var stopThreads = new AtomicBoolean(false);
+
+        final Thread refreshThread = new Thread(() -> {
+            while (stopThreads.get() == false) {
+                // trigger an internal refresh. We want this to cause safe -> unsafe transition in the middle of indexing
+                indexEngine.refresh("VERSION_CONFLICT_TEST");
+            }
+        }, "RefreshThread");
+        refreshThread.start();
+
+        // 30 is usually enough to hit the bug. But the bug is fixed, so we don't unnecessarily try more.
+        final int updates = 30;
+        final List<Integer> acked = new ArrayList<>();
+        final List<String> failures = new ArrayList<>();
+        try {
+            for (int i = 0; i < updates; ++i) {
+                var response = client().prepareBulk().add(client().prepareUpdate(indexName, docId).setDoc("f" + i, i)).get();
+                if (response.hasFailures()) {
+                    failures.add("update " + i + ": " + response.buildFailureMessage());
+                } else {
+                    acked.add(i);
+                }
+            }
+        } finally {
+            stopThreads.set(true);
+            refreshThread.join();
+        }
+
+        indicesAdmin().prepareFlush(indexName).setForce(true).get();
+        indicesAdmin().prepareRefresh(indexName).get();
+        final List<Integer> lost = new ArrayList<>();
+        assertResponse(client().prepareSearch(indexName), r -> {
+            assertThat(r.getHits().getHits().length, equalTo(1));
+            var source = r.getHits().getHits()[0].getSourceAsMap();
+            // The last acked update must be visible, so missing earlier fields cannot be explained by a stale read.
+            if (acked.isEmpty() == false) {
+                assertTrue("last acked update missing: " + source.keySet(), source.containsKey("f" + acked.get(acked.size() - 1)));
+            }
+            for (int i : acked) {
+                if (source.containsKey("f" + i) == false) {
+                    lost.add(i);
+                }
+            }
+        });
+        assertThat("failures: " + failures + ", lost acked updates: " + lost, failures.size() + lost.size(), equalTo(0));
     }
 
     private LiveVersionMap getLiveVersionMap(String indexNodeName, String indexName, int shardId) {

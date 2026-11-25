@@ -74,11 +74,7 @@ public class DataExtractorUtilsTests extends ESTestCase {
 
     public void testCloudCredentialSearchPhaseAuthorizationFailureShouldClassify() {
         ShardSearchFailure shardFailure = new ShardSearchFailure(new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN));
-        SearchPhaseExecutionException failure = new SearchPhaseExecutionException(
-            "query",
-            "all shards failed",
-            new ShardSearchFailure[] { shardFailure }
-        );
+        SearchPhaseExecutionException failure = new SearchPhaseExecutionException("query", "all shards failed", List.of(shardFailure));
 
         DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
 
@@ -87,11 +83,7 @@ public class DataExtractorUtilsTests extends ESTestCase {
 
     public void testCloudCredentialSearchPhaseNonElasticsearchShardCauseShouldNotRecurseInfinitely() {
         ShardSearchFailure shardFailure = new ShardSearchFailure(new IOException("connection reset"));
-        SearchPhaseExecutionException failure = new SearchPhaseExecutionException(
-            "blah",
-            "all shards failed",
-            new ShardSearchFailure[] { shardFailure }
-        );
+        SearchPhaseExecutionException failure = new SearchPhaseExecutionException("blah", "all shards failed", List.of(shardFailure));
 
         DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
 
@@ -408,7 +400,7 @@ public class DataExtractorUtilsTests extends ESTestCase {
             1,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             clusters
         );
     }

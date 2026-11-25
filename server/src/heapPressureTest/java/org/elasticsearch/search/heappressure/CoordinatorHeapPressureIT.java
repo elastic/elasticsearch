@@ -24,7 +24,7 @@ import java.util.Map;
  * charge it to its own request breaker. Requests go to a small coordinating-only node in front of a data node big enough that no
  * shard-level charge trips first. Each of the {@link #SHARDS} shards fits the coordinator alone, so only their sum trips it.
  */
-public class CoordinatorHeapPressureIT extends SearchHeapPressureTestCase {
+public class CoordinatorHeapPressureIT extends FetchHeapPressureTestCase {
 
     private static final String INDEX = "coordinator";
     private static final int SHARDS = 4;
@@ -52,21 +52,14 @@ public class CoordinatorHeapPressureIT extends SearchHeapPressureTestCase {
 
     /** The fetch results of all shards together do not fit. The request fails as a whole rather than return the hits that did. */
     public void testFetchedHitsTripBreaker() throws IOException {
-        assertTripsOnlyWhenLarge(size -> search(INDEX, Strings.format("""
-            {"size": %d}
-            """, size)), 10, LARGE_DOCS, "fetch[chunk]");
+        assertFetchedHitsTripBreaker(INDEX);
     }
 
     /**
      * About 100 MB of hits fit under the 153 MB limit if they are charged once, not on arrival and again when merged into the response.
      */
     public void testFetchedHitsUnderLimitSucceed() throws IOException {
-        Request search = search(INDEX, """
-            {"size": 400}
-            """);
-        // The test client cannot buffer a response that big.
-        search.addParameter("filter_path", "took,hits.total,error,status");
-        assertSucceeds(search);
+        assertFetchedHitsUnderLimitSucceed(INDEX);
     }
 
     /** Every bucket comes from a different shard, so the reduce keeps all of their hits. */

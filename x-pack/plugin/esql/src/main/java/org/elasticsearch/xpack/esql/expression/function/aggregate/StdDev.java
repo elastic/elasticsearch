@@ -28,13 +28,14 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class StdDev extends NumericAggregate implements NonFiniteSupport {
+public class StdDev extends NumericAggregate implements NonFiniteSupport, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StdDev.class).unary(StdDev::new).name("std_dev");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()

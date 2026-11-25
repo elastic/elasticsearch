@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -23,8 +24,10 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
@@ -51,7 +55,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
@@ -66,7 +71,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -199,10 +206,12 @@ public record TranslationContext(
 
         var source = cmd.source();
         var branchPlans = new ArrayList<LogicalPlan>(intermediateResults.size());
+        var columnNamesByLabel = new HashMap<String, String>();
         for (int i = 0; i < intermediateResults.size(); i++) {
             // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
             var ir = intermediateResults.get(i);
             LogicalPlan branchPlan = emitNullsFilter(source, emitTimeSeriesAlias(ir, new NameId()), ir.valueColumn());
+            branchPlan = alignLabelColumnNames(branchPlan, columnNamesByLabel);
             var branchTagExpression = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
             LogicalPlan tagged = new Eval(source, branchPlan, List.of(branchTagExpression));
             // Each branch executes as an independent sub plan whose result pages cross an exchange, and the
@@ -232,6 +241,39 @@ public record TranslationContext(
     }
 
     /**
+     * {@link UnionAll} aligns columns by name, but one label can travel under two column names: a stored label of a
+     * passthrough mapping as its concrete field ({@code labels.job}) and a derived label under the bare label name
+     * ({@code job}). Renames a branch's label column to the name an earlier branch used for the same label (see
+     * {@link #mapFinite}), recording the names of labels first seen in this branch, so the union lines up and dedups one
+     * column per label. A branch whose column names already agree is returned unchanged.
+     */
+    private LogicalPlan alignLabelColumnNames(LogicalPlan branch, Map<String, String> columnNamesByLabel) {
+        List<Attribute> output = branch.output();
+        Set<String> outputNames = null;
+        List<Alias> renames = new ArrayList<>();
+        for (Attribute attribute : output) {
+            String name = columnNamesByLabel.putIfAbsent(mapFinite(attribute), attribute.name());
+            if (name == null || name.equals(attribute.name())) {
+                continue;
+            }
+            if (outputNames == null) {
+                outputNames = new HashSet<>(Expressions.names(output));
+            }
+            if (outputNames.contains(name) == false) {
+                renames.add(new Alias(attribute.source(), name, attribute));
+            }
+        }
+        if (renames.isEmpty()) {
+            return branch;
+        }
+        var projections = new ArrayList<NamedExpression>(output);
+        for (Alias rename : renames) {
+            projections.set(projections.indexOf(rename.child()), rename.toAttribute());
+        }
+        return new Project(cmd.source(), new Eval(cmd.source(), branch, renames), projections);
+    }
+
+    /**
      * Translates independent query fragment into intermediate result (IR).
      * Think of IR as table
      */
@@ -241,8 +283,10 @@ public record TranslationContext(
         var plan = ir.plan();
         var value = ir.value();
         // A vector match self-filters each operand's own source with that operand's own @timestamp; a combined outer
-        // source-time filter would push one operand's @timestamp across both sources - skip over InnerJoin.
-        Expression timeFilter = plan.anyMatch(p -> p instanceof InnerJoin) ? null : emitBySrcTimeFilter(branch);
+        // source-time filter would push one operand's @timestamp across both sources - skip over HashJoin. An `absent`
+        // anti join reads the source only through its independently translated presence side, which filters itself.
+        boolean selfFiltered = plan.anyMatch(p -> p instanceof HashJoin || p instanceof AntiJoin);
+        Expression timeFilter = selfFiltered ? null : emitBySrcTimeFilter(branch);
         var filter = combineAndNullable(Arrays.asList(ir.pendingFilter(), timeFilter));
         if (filter != null) {
             plan = pushDownSrcTimestampFilter(plan, filter);
@@ -271,7 +315,8 @@ public record TranslationContext(
         // The value column definition: the translateIntermediate's value expression cast to double under the caller's id.
         Alias valueAlias = emitValueDoubleCastExpression(value, valueId);
         plan = new Eval(cmd.source(), plan, List.of(valueAlias));
-        if (ir.kind().constant == false) {
+        // An `absent` anti join already filters its presence side, and its steps side lists only the evaluation steps.
+        if (ir.kind().constant == false && plan.anyMatch(p -> p instanceof AntiJoin) == false) {
             plan = pushDownEvaluationTimestampFilter(plan, branch);
         }
 
@@ -392,7 +437,8 @@ public record TranslationContext(
             aggregates(value, input.step(), outKeys),
             null,
             time,
-            TimeSeriesAggregate.Origin.PROMQL_COMMAND
+            TimeSeriesAggregate.Origin.PROMQL_COMMAND,
+            false
         );
     }
 
@@ -744,8 +790,41 @@ public record TranslationContext(
         return new Case(count.source(), empty, List.of(Literal.NULL, count));
     }
 
-    /** {@link #zeroCountAsNull} for every {@code count_over_time} of a per-series value. */
-    public static Expression emptySampleCountAsNull(Expression value) {
-        return value.transformUp(CountOverTime.class, TranslationContext::zeroCountAsNull);
+    /**
+     * A range function over a series without a sample in the window has no element in Prometheus. A series can still
+     * reach the aggregate without one: its rows carry only other fields, or an operand's matchers reject them inside an
+     * aggregate shared with another operand. There {@code count_over_time} reads 0 and {@code present_over_time} false;
+     * both map to null so the element drops like any other without a value.
+     * <p>
+     * {@code absent_over_time} is the mirror: it has an element only for a series without a sample, so only true stays.
+     * A series the operand never selects reads true too - its matchers reject every row, or only another operand's metric
+     * has values - so true stays only for a series the operand selects.
+     */
+    public static Expression emptyRangeAsNull(Expression function, Expression time) {
+        if (function instanceof CountOverTime) {
+            return zeroCountAsNull(function);
+        }
+        if (function instanceof PresentOverTime present) {
+            return new Case(present.source(), present, List.of(Literal.TRUE, Literal.NULL));
+        }
+        if (function instanceof AbsentOverTime absent) {
+            Expression absentFromSelected = new And(absent.source(), selectedBy(absent, time), absent);
+            return new Case(absent.source(), absentFromSelected, List.of(Literal.TRUE, Literal.NULL));
+        }
+        return function;
+    }
+
+    /**
+     * Whether the operand of {@code absent} reads a row of the series in the window; the operand's matchers apply once its
+     * filter attaches to its time-series functions. A metric selector selects a series only where the metric has a value:
+     * rows are read for every metric the aggregate references
+     * ({@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics}), so a row without a value of
+     * this one can come from another operand's metric. For a metric field {@code absent} therefore never stays true.
+     */
+    private static Expression selectedBy(AbsentOverTime absent, Expression time) {
+        if (absent.field() instanceof Attribute field && field.resolved() && field.isMetric()) {
+            return new Not(absent.source(), absent);
+        }
+        return new PresentOverTime(absent.source(), time, Literal.TRUE, absent.window());
     }
 }

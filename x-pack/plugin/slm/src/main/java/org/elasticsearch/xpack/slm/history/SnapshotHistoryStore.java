@@ -152,7 +152,14 @@ public class SnapshotHistoryStore implements Closeable {
                                     (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2
                                 )
                             );
-                        logger.error("failures: [{}]", failures);
+                        // Per-item failures can be expected (e.g. NodeClosedException during shutdown), so use the same level
+                        // selection as request-level failures rather than always logging at ERROR
+                        final Exception firstFailureCause = Arrays.stream(response.getItems())
+                            .filter(BulkItemResponse::isFailed)
+                            .map(item -> item.getFailure().getCause())
+                            .findFirst()
+                            .orElseThrow();
+                        logErrorOrWarning(logger, clusterService.state(), () -> format("failures: [%s]", failures), firstFailureCause);
                     }
                     listener.onResponse(response);
                 }

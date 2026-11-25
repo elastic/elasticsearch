@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.Alib
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettingsTests;
-import org.junit.Assume;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -843,12 +842,6 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             null,
             ConfigurationParseContext.REQUEST
         );
-    }
-
-    // TODO: https://github.com/elastic/elasticsearch/issues/146306
-    @Override
-    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_KeepsSimilarity() {
-        Assume.assumeTrue("Skipped due to https://github.com/elastic/elasticsearch/issues/146306", false);
     }
 
     @Override

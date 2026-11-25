@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -16,11 +17,13 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 
 import java.util.Map;
+
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 
 /**
  * Test helper for {@link SharedBlobCacheWarmingService}.
@@ -46,14 +49,21 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
             threadPool,
             telemetryProvider,
             clusterSettings,
-            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, ByteSizeValue.ZERO)
+            new SearchRecoveryTimeoutCalculationService(
+                cacheService,
+                threadPool,
+                clusterSettings,
+                onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
+                ByteSizeValue.ZERO,
+                TelemetryProvider.NOOP
+            )
         ) {
             @Override
             protected void scheduleWarmingTask(AbstractWarmingTask task) {
                 if (task instanceof AbstractWarmer.WarmBlobByteRangeTask warmTask) {
                     warmTasksForBCCs.put(
-                        warmTask.blobFile.blobName(),
-                        new WarmTaskInfo(warmTask.blobFile.blobName(), warmTask.byteRangeToWarm)
+                        warmTask.bccBlob.blobName(),
+                        new WarmTaskInfo(warmTask.bccBlob.blobName(), warmTask.byteRangeToWarm)
                     );
                 }
                 super.scheduleWarmingTask(task);
@@ -71,7 +81,7 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
-        @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+        @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {

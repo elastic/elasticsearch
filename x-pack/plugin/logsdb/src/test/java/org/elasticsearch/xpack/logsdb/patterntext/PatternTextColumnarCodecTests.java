@@ -16,10 +16,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
+import org.elasticsearch.xpack.logsdb.LogsDBLocalStateXPackPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -36,7 +34,7 @@ public class PatternTextColumnarCodecTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MapperExtrasPlugin.class, XPackPlugin.class, LogsDBPlugin.class);
+        return List.of(MapperExtrasPlugin.class, LogsDBLocalStateXPackPlugin.class);
     }
 
     private static Settings columnarSettings(final IndexMode mode) {
@@ -49,7 +47,7 @@ public class PatternTextColumnarCodecTests extends ESSingleNodeTestCase {
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:00Z", "msg", "Error 123 at line 456").get();
 
         final BroadcastResponse refresh = indicesAdmin().prepareRefresh(INDEX).get();
-        assertEquals("mode=" + mode + " " + Arrays.toString(refresh.getShardFailures()), 0, refresh.getFailedShards());
+        assertEquals("mode=" + mode + " " + refresh.getShardFailures(), 0, refresh.getFailedShards());
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("msg", "Error")), 1);
     }
 }

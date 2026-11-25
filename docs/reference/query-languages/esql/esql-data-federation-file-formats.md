@@ -2,8 +2,8 @@
 navigation_title: "File formats"
 description: "Compare the file formats, extensions, compression codecs, and schema sources supported by ES|QL Data Federation datasets."
 applies_to:
-  stack: experimental 9.5+
-  serverless: unavailable
+  stack: preview 9.6+, experimental =9.5
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -12,14 +12,11 @@ products:
 
 {{esql}} Data Federation reads Parquet, newline-delimited JSON (NDJSON), comma-separated values (CSV), and tab-separated values (TSV) files from external storage. Use the file extension, schema source, and compression support in this reference when defining a [dataset](esql-data-federation-datasets.md).
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 The following table compares the supported file formats:
 
 | Format | Recognized extensions | Schema source | Compression |
 |---|---|---|---|
-| Parquet | `.parquet`<br>{applies_to}`stack: experimental 9.6+` `.parq` | File metadata | Internal per column chunk |
+| Parquet | `.parquet`<br>{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` `.parq` | File metadata | Internal per column chunk |
 | NDJSON | `.ndjson`, `.jsonl`, `.json` | Sampled rows | Uncompressed, gzip, or zstd |
 | CSV | `.csv` | Sampled rows | Uncompressed, gzip, or zstd |
 | TSV | `.tsv` | Sampled rows | Uncompressed, gzip, or zstd |

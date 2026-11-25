@@ -18,6 +18,8 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -25,6 +27,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedEsqlGatesTests extends ESTestCase {
+
+    @Before
+    public void assumeEsqlDatafeedsEnabled() {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+    }
 
     public void testValidateDatafeedCreateEsqlDatafeedOnUpgradedClusterShouldSucceed() {
         DatafeedConfig datafeed = esqlDatafeed();

@@ -121,13 +121,14 @@ public class CollapseBinaryDocValuesTests extends ESTestCase {
                 }
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = newSearcher(reader);
+                // Sequential: collapse does not support concurrent search; getTopGroups() is on one collector.
+                IndexSearcher searcher = newSearcher(reader, true, true, false);
                 SinglePassGroupingCollector<?> collector = collapseContext(indexVersion).createTopDocs(
                     new Sort(new SortedNumericSortField(SORT_FIELD, SortField.Type.LONG)),
                     10,
                     null
                 );
-                searcher.search(Queries.ALL_DOCS_INSTANCE, collector);
+                searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collector));
                 return collector.getTopGroups(0);
             }
         }

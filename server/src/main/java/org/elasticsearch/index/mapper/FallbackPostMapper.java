@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -157,6 +158,11 @@ public final class FallbackPostMapper {
             && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.MALFORMED_VALUES_IN_ON_FAILURE_COLUMN);
     }
 
+    /** Whether a value routed to {@link Destination#ON_FAILURE} is written at all: only when the source is reconstructed from the index. */
+    static boolean storesOnFailureValues(MappingLookup mappingLookup) {
+        return mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored();
+    }
+
     /**
      * Maps a {@link Reason} to its {@link Destination}.
      * In strict-columnar index modes created on or after {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN},
@@ -251,7 +257,7 @@ public final class FallbackPostMapper {
             // multi_value violations require columnar mode, which disables canAddIgnoredField(), so
             // pre-capture is never active for the same field simultaneously.
             assert parseCtx == context : "multi_value violation on pre-captured field [" + fieldPath + "]";
-            if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+            if (storesOnFailureValues(context.mappingLookup())) {
                 OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
             }
         }
@@ -271,7 +277,7 @@ public final class FallbackPostMapper {
                 yield true;
             }
             case ON_FAILURE -> {
-                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                if (storesOnFailureValues(context.mappingLookup())) {
                     OnFailureStoredValues.storeEncoded(context, fieldPath, XContentDataHelper.encodeXContentBuilder(builder));
                 }
                 yield true;
@@ -293,8 +299,61 @@ public final class FallbackPostMapper {
                 yield true;
             }
             case ON_FAILURE -> {
-                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                if (storesOnFailureValues(context.mappingLookup())) {
                     OnFailureStoredValues.storeValueForOnFailureIgnore(context, fieldPath, context.parser());
+                }
+                yield true;
+            }
+        };
+    }
+
+    /**
+     * Captures the current parser token as a value that failed to parse with {@code ignore_malformed: true}, like
+     * {@link #capture(DocumentParserContext, String, Reason)} with {@link Reason#MALFORMED}. When the field records array offsets
+     * for the array being parsed (see {@link FieldArrayContext#shouldRecordOffsets}), the malformed value is also recorded with
+     * those offsets, so that it travels along if the array is moved to {@code _ignored_source} because its encoded offsets are
+     * too large to store; see {@link FieldArrayContext#recordIgnored}.
+     *
+     * @param offsetsFieldName the field's offsets field, or {@code null} when the field records no offsets
+     * @param multiValue       the field's {@code multi_value} doc values parameter
+     */
+    public static boolean captureMalformed(
+        DocumentParserContext context,
+        String fieldPath,
+        @Nullable String offsetsFieldName,
+        boolean multiValue
+    ) throws IOException {
+        // The fallback needs _ignored_source, so there is no point in recording the value where that is unavailable.
+        if (context.canAddIgnoredField() == false
+            || FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, multiValue) == false) {
+            return capture(context, fieldPath, Reason.MALFORMED);
+        }
+        // Encode once: for objects and arrays, encoding consumes the parser token.
+        BytesRef encoded = XContentDataHelper.encodeToken(context.parser());
+        context.getOffSetContext().recordIgnored(offsetsFieldName, encoded);
+        return capture(context, fieldPath, Reason.MALFORMED, encoded);
+    }
+
+    /**
+     * Like {@link #capture(DocumentParserContext, String, Reason)} but uses a value that was already encoded with
+     * {@link XContentDataHelper#encodeToken} instead of the current parser token.
+     */
+    private static boolean capture(DocumentParserContext context, String fieldPath, Reason reason, BytesRef encoded) throws IOException {
+        return switch (route(reason, malformedUsesOnFailureColumn(context.indexSettings()))) {
+            case IGNORED_SOURCE -> {
+                if (context.canAddIgnoredField() == false) {
+                    yield false;
+                }
+                context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, encoded));
+                yield true;
+            }
+            case IGNORE_MALFORMED -> {
+                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, encoded);
+                yield true;
+            }
+            case ON_FAILURE -> {
+                if (storesOnFailureValues(context.mappingLookup())) {
+                    OnFailureStoredValues.storeEncoded(context, fieldPath, encoded);
                 }
                 yield true;
             }

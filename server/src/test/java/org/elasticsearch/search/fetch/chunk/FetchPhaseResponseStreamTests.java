@@ -154,6 +154,17 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         }
     }
 
+    public void testIsEmptyUntilAChunkArrives() throws IOException {
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 1, NoopCircuitBreaker.INSTANCE);
+        try {
+            assertTrue(stream.isEmpty());
+            writeChunk(stream, createChunk(0, 1, 0));
+            assertFalse(stream.isEmpty());
+        } finally {
+            stream.decRef();
+        }
+    }
+
     public void testAddHitWithSequence() {
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, NoopCircuitBreaker.INSTANCE);
 

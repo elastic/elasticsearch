@@ -101,6 +101,10 @@ dependencies {
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: xpackModule('wildcard'))
+  testImplementation project(path: xpackModule('esql'))
+  testImplementation project(path: xpackModule('esql-core'))
+  // x-pack-esql lists x-pack-encryption in extendedPlugins; required on the test plugin classpath for ES|QL validator ITs.
+  testImplementation project(':x-pack:plugin:encryption')
   // ml deps
   api project(':libs:grok')
   api project(':modules:lang-mustache')

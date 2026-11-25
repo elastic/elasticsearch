@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -35,6 +36,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestStatelessPlugin;
@@ -44,6 +48,8 @@ import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -580,13 +586,18 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
 
         var searchNode = startSearchNode();
 
-        var waitForChangesOnIndexingSide = new CountDownLatch(1);
+        // The registration request is deferred rather than blocked on a latch: a retry runs from ClusterStateObserver#postAdded on the
+        // cluster applier thread, so blocking here would stall cluster state application on the search node.
+        var waitForChangesOnIndexingSide = new SubscribableListener<Void>();
         var mockTransportServiceSearchNode = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
         mockTransportServiceSearchNode.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
-                safeAwait(waitForChangesOnIndexingSide);
+                waitForChangesOnIndexingSide.addListener(
+                    ActionListener.running(() -> sendDeferredRequest(connection, requestId, action, request, options))
+                );
+            } else {
+                connection.sendRequest(requestId, action, request, options);
             }
-            connection.sendRequest(requestId, action, request, options);
         });
 
         var indexNode2 = startIndexNode();
@@ -615,7 +626,7 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
         assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNode1)));
 
         logger.info("--> resume recovery commit registration");
-        waitForChangesOnIndexingSide.countDown();
+        waitForChangesOnIndexingSide.onResponse(null);
 
         // note that recovery registration should be successfully retried against new indexing node
 
@@ -636,14 +647,19 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
 
         var searchNode = startSearchNode();
 
-        var waitForChangesOnIndexingSide = new CountDownLatch(1);
+        // The registration request is deferred rather than blocked on a latch: a retry runs from ClusterStateObserver#postAdded on the
+        // cluster applier thread, so blocking here would stall cluster state application on the search node.
+        var waitForChangesOnIndexingSide = new SubscribableListener<Void>();
 
         var mockTransportServiceSearchNode = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
         mockTransportServiceSearchNode.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
-                safeAwait(waitForChangesOnIndexingSide);
+                waitForChangesOnIndexingSide.addListener(
+                    ActionListener.running(() -> sendDeferredRequest(connection, requestId, action, request, options))
+                );
+            } else {
+                connection.sendRequest(requestId, action, request, options);
             }
-            connection.sendRequest(requestId, action, request, options);
         });
 
         var mockTransportServiceIndexNode = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNode);
@@ -665,9 +681,23 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
         awaitClusterState(indexNode, state -> state.getRoutingTable().index(indexName) == null);
 
         logger.info("--> resume recovery commit registration");
-        waitForChangesOnIndexingSide.countDown();
+        waitForChangesOnIndexingSide.onResponse(null);
 
         // recovery failed at this point and cluster should not have any indices/shards
         ensureGreen();
+    }
+
+    private static void sendDeferredRequest(
+        Transport.Connection connection,
+        long requestId,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions options
+    ) {
+        try {
+            connection.sendRequest(requestId, action, request, options);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

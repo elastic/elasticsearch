@@ -43,14 +43,11 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
             Map.of(nodeAShard, "node-a", nodeBShard, "node-b")
         );
 
-        final var result = NodeHeapUsageCalculator.calculateForRoutingNodes(
-            clusterState,
-            nonShardHeapUsage,
-            new ShardHeapUsageEstimates(
-                Map.of(nodeAShard, new ShardAndIndexHeapUsage(10L, 100L, 5L), nodeBShard, new ShardAndIndexHeapUsage(20L, 200L, 17L)),
-                ShardAndIndexHeapUsage.ZERO
-            )
+        final var shardEstimates = new ShardHeapUsageEstimates(
+            Map.of(nodeAShard, new ShardAndIndexHeapUsage(10L, 100L, 5L), nodeBShard, new ShardAndIndexHeapUsage(20L, 200L, 17L)),
+            ShardAndIndexHeapUsage.ZERO
         );
+        final var result = NodeHeapUsageCalculator.calculateForRoutingNodes(clusterState, nonShardHeapUsage, shardEstimates);
 
         // Each ShardAndIndexHeapUsage is (shard heap, index heap, postings). The postings are already included in the shard heap.
         // Node A is (10, 100, 5): 10 bytes of shard heap, of which 5 are postings, plus 100 bytes of index heap.
@@ -68,6 +65,10 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         assertThat(result.maxPostingsHeapUsage(), equalTo(17L));
         assertThat(result.nodeHeapEstimates().get("node-a"), equalTo(new NodeHeapEstimates(1_122L, 110L, nonShardHeapUsage)));
         assertThat(result.nodeHeapEstimates().get("node-b"), equalTo(new NodeHeapEstimates(1_220L, 220L, nonShardHeapUsage)));
+        assertThat(
+            NodeHeapUsageCalculator.calculateForRoutingNodes(clusterState.getRoutingNodes(), nonShardHeapUsage, shardEstimates),
+            equalTo(result)
+        );
     }
 
     public void testIndexHeapIsCountedOncePerNode() {

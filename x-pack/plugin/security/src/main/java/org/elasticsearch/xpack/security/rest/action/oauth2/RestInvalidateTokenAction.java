@@ -79,6 +79,12 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler imp
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final InvalidateTokenRequest invalidateTokenRequest = PARSER.parse(parser, null);

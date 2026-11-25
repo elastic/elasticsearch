@@ -461,6 +461,11 @@ load two indices and convert keyword and text with a base:
       esql.query:
         body:
           query: 'FROM base_union_* | EVAL l = TO_LONG(hex, 1.5)'
+  - do:
+      catch: '/Unknown column \[typo\]/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, typo)'
 
 ---
 load two indices and convert keyword and text with a base, with unmapped fields:

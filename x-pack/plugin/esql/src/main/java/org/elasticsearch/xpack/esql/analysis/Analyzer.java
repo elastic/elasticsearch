@@ -4813,6 +4813,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // post-analysis verifier rejects it on a single-typed field.
                     return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
                 }
+                if (convertExpression.childrenResolved() == false) {
+                    // An argument that doesn't resolve, like an unknown column in the base of TO_LONG, is reported by itself, instead of
+                    // by the conversion of the field.
+                    return convertExpression;
+                }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions
                 Map<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();

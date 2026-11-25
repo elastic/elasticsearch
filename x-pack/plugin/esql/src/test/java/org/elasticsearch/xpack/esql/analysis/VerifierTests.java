@@ -213,6 +213,21 @@ public class VerifierTests extends AnalyzerTestCase {
         analyzer.query("from test* | eval x = to_ip(ip_or_keyword::keyword, {\"leading_zeros\": \"octal\"})");
     }
 
+    /**
+     * An argument of a conversion of a union type that doesn't resolve, like an unknown column as the base, is reported as such,
+     * instead of a generic error on the field.
+     */
+    public void testUnionTypeConversionWithUnknownColumnInOtherArguments() {
+        EsField keywordOrText = new InvalidMappedField("hex", Map.of("keyword", Set.of("test1"), "text", Set.of("test2")));
+        TestAnalyzer analyzer = analyzer().addIndex(
+            "test*",
+            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("hex", keywordOrText)))
+        ).stripErrorPrefix(true);
+
+        analyzer.error("from test* | eval x = to_long(hex, typo)", containsString("Unknown column [typo]"));
+        analyzer.error("from test* | eval x = to_integer(hex, typo)", containsString("Unknown column [typo]"));
+    }
+
     public void testUnsupportedAndMultiTypedFields() {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";

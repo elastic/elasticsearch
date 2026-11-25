@@ -126,7 +126,7 @@ public class EsqlSortFieldTests extends ESTestCase {
     public void testRejectsUnsupportedKeys() {
         assertRejected("NOW()", "uses [NOW()], which isn't guaranteed to compute the same values on every node and version");
         assertRejected(
-            "GREATEST(@timestamp, NOW())",
+            "COALESCE(@timestamp, NOW())",
             "uses [NOW()], which isn't guaranteed to compute the same values on every node and version"
         );
         assertRejected("MAX(rank)", "uses [MAX(rank)], which can't be computed for each document");

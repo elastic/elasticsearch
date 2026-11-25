@@ -68,17 +68,16 @@ public class IndexSortComputedKeyTypesIT extends AbstractEsqlIntegTestCase {
         "d * 1.5",
         "f + hf",
         "sf * 100",
-        "FLOOR(d)",
         "DATE_TRUNC(1 day, dt)",
         "DATE_TRUNC(1 hour, dn)",
         "NOT bool",
-        "LENGTH(kw)",
+        "kw > \"m\"",
         "COALESCE(i, s)",
         "CASE(bool, l, -l)",
         "MV_MAX(l)",
         "ip > \"10.0.128.0\"",
         "v > \"10.100.1000\"",
-        "MV_COUNT(ul)"
+        "MV_MAX(ul) > MV_MIN(ul)"
     );
 
     @Override

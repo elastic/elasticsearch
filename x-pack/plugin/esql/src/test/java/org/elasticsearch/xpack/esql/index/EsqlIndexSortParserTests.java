@@ -106,13 +106,13 @@ public class EsqlIndexSortParserTests extends ESTestCase {
 
     public void testComputedKeys() {
         List<SortEntry> entries = PARSER.parse(
-            "DATE_TRUNC(1 hour, @timestamp) DESC NULLS LAST, host.name, GREATEST(a, \"x,) DESC\", `b)`) == \"c\", count + 1"
+            "DATE_TRUNC(1 hour, @timestamp) DESC NULLS LAST, host.name, COALESCE(a, \"x,) DESC\", `b)`) == \"c\", count + 1"
         );
         assertComputedKey(entries.get(0), "DATE_TRUNC(1 hour, @timestamp)", SortOrder.DESC, "_last", Set.of("@timestamp"));
         assertField(entries.get(1), "host.name", SortOrder.ASC, MultiValueMode.MIN, "_last");
-        assertComputedKey(entries.get(2), "GREATEST(a, \"x,) DESC\", `b)`) == \"c\"", SortOrder.ASC, "_last", Set.of("a", "b)"));
+        assertComputedKey(entries.get(2), "COALESCE(a, \"x,) DESC\", `b)`) == \"c\"", SortOrder.ASC, "_last", Set.of("a", "b)"));
         assertComputedKey(entries.get(3), "count + 1", SortOrder.ASC, "_last", Set.of("count"));
-        for (String key : List.of("-a", "NOT flag", "MV_MAX(a) + 1", "MV_MAX(a, b)", "MV_COUNT(a)")) {
+        for (String key : List.of("-a", "NOT flag", "MV_MAX(a) + 1", "MV_MAX(a, b)", "a IS NULL")) {
             assertThat(key, PARSER.parse(key).getFirst().computedKey(), equalTo(key));
         }
         // ES|QL reads a field in parentheses as the field
@@ -133,7 +133,7 @@ public class EsqlIndexSortParserTests extends ESTestCase {
         assertParseFails("field1, field1 DESC", "setting [index.sort] contains sort key [field1] more than once");
         assertParseFails("MV_MAX(a), mv_max(a) DESC", "setting [index.sort] contains sort key [mv_max(a)] more than once");
         assertParseFails("F(a), F(a) DESC", "uses unknown function [F]");
-        assertParseFails("ABS(a), ABS(a) DESC", "setting [index.sort] contains sort key [ABS(a)] more than once");
+        assertParseFails("-a, -a DESC", "setting [index.sort] contains sort key [-a] more than once");
     }
 
     public void testComputedKeysAreChecked() {
@@ -142,7 +142,7 @@ public class EsqlIndexSortParserTests extends ESTestCase {
             "index sort key [NOW()] uses [NOW()], which isn't guaranteed to compute the same values on every node and version"
         );
         assertParseFails(
-            "GREATEST(@timestamp, NOW())",
+            "COALESCE(@timestamp, NOW())",
             "uses [NOW()], which isn't guaranteed to compute the same values on every node and version"
         );
         // A difference in nanoseconds can overflow
@@ -155,9 +155,12 @@ public class EsqlIndexSortParserTests extends ESTestCase {
         assertParseFails("TO_DATE_NANOS(host.name)", "uses [TO_DATE_NANOS(host.name)], which isn't guaranteed");
         assertParseFails("TO_LONG(host.name)", "uses [TO_LONG(host.name)], which isn't guaranteed");
         assertParseFails("SIN(ratio)", "uses [SIN(ratio)], which isn't guaranteed to compute the same values on every node and version");
-        assertParseFails("LENGTH(TO_LOWER(host.name))", "uses [TO_LOWER(host.name)], which isn't guaranteed");
+        assertParseFails("TO_LOWER(host.name) == \"a\"", "uses [TO_LOWER(host.name)], which isn't guaranteed");
+        // Functions outside the short list of reproducible ones
+        assertParseFails("ABS(a)", "uses [ABS(a)], which isn't guaranteed");
+        assertParseFails("LENGTH(host.name)", "uses [LENGTH(host.name)], which isn't guaranteed");
         // CONCAT fails past a size limit, which would fail the flush
-        assertParseFails("LENGTH(CONCAT(host.name, host.name))", "uses [CONCAT(host.name, host.name)], which isn't guaranteed");
+        assertParseFails("CONCAT(host.name, host.name) == \"a\"", "uses [CONCAT(host.name, host.name)], which isn't guaranteed");
         assertParseFails("MAX(count)", "uses [MAX(count)], which can't be computed for each document");
         assertParseFails("MATCH(host.name, \"a\")", "which can't be computed for each document");
         assertParseFails("NOPE(count)", "uses unknown function [NOPE]");
@@ -260,19 +263,18 @@ public class EsqlIndexSortParserTests extends ESTestCase {
     }
 
     public void testComputedKeyIsNotTheFieldOfTheSameName() {
-        IndexSortConfig config = IndexSettingsModule.newIndexSettings("test", Settings.builder().put("index.sort", "ABS(count)").build())
+        IndexSortConfig config = IndexSettingsModule.newIndexSettings("test", Settings.builder().put("index.sort", "-count").build())
             .getIndexSortConfig();
-        assertFalse(config.hasSortOnField("ABS(count)"));
-        assertFalse(config.hasPrimarySortOnField("ABS(count)"));
+        assertFalse(config.hasSortOnField("-count"));
+        assertFalse(config.hasPrimarySortOnField("-count"));
         assertFalse(config.hasSortOnField("count"));
     }
 
     public void testKeyTypes() {
         assertThat(type("count * 2"), equalTo(DataType.LONG));
-        assertThat(type("LENGTH(host.name)"), equalTo(DataType.INTEGER));
         assertThat(type("ratio * 2"), equalTo(DataType.DOUBLE));
         assertThat(type("count > 10"), equalTo(DataType.BOOLEAN));
-        assertThat(type("COALESCE(count, count + LENGTH(host.name))"), equalTo(DataType.LONG));
+        assertThat(type("COALESCE(count, count + 1)"), equalTo(DataType.LONG));
     }
 
     public void testRejectsFieldsItCannotRead() {

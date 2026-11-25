@@ -13,7 +13,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -39,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
  *     an integer ala {@link Math#ceil}.
  * </p>
  */
-public class Ceil extends UnaryScalarFunction implements AnyNullIsNull, UnitAware.PreservesUnit, Reproducible {
+public class Ceil extends UnaryScalarFunction implements AnyNullIsNull, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Ceil", Ceil::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Ceil.class).unary(Ceil::new).name("ceil");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()

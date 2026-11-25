@@ -193,7 +193,7 @@ public class IndexSortComputedKeyIT extends AbstractEsqlIntegTestCase {
             "{\"runtime\":{\"ts\":{\"type\":\"date\"}}}",
             "runtime field [ts] shadows an index sort field"
         );
-        assertCreateFails("LENGTH(ts)", "{\"properties\":{\"ts\":{\"type\":\"text\"}}}", "field [ts] of unsupported type [text]");
+        assertCreateFails("ts == \"a\"", "{\"properties\":{\"ts\":{\"type\":\"text\"}}}", "field [ts] of unsupported type [text]");
         assertCreateFails(
             "flat IS NULL",
             "{\"properties\":{\"flat\":{\"type\":\"flattened\"}}}",
@@ -292,7 +292,7 @@ public class IndexSortComputedKeyIT extends AbstractEsqlIntegTestCase {
     public void testMultiValuedBinaryField() {
         assertAcked(
             indicesAdmin().prepareCreate(INDEX)
-                .setSettings(indexSettings(1, 0).put("index.mode", "columnar").put("index.sort", "MV_COUNT(addresses) DESC"))
+                .setSettings(indexSettings(1, 0).put("index.mode", "columnar").put("index.sort", "MV_MAX(addresses) > \"10.0.0.2\" DESC"))
                 .setMapping("addresses", "type=ip", "n", "type=integer")
         );
         int batches = between(2, 4);
@@ -303,7 +303,7 @@ public class IndexSortComputedKeyIT extends AbstractEsqlIntegTestCase {
                 int count = between(1, 5);
                 List<String> addresses = new ArrayList<>();
                 for (int a = 0; a < count; a++) {
-                    addresses.add("10." + b + "." + i % 256 + "." + a);
+                    addresses.add("10.0.0." + a);
                 }
                 bulk.add(prepareIndex(INDEX).setSource("addresses", addresses, "n", count));
             }
@@ -315,7 +315,7 @@ public class IndexSortComputedKeyIT extends AbstractEsqlIntegTestCase {
         assertCountOrder();
     }
 
-    /** Each segment is sorted on the number of values, highest first, as recorded in {@code n}. */
+    /** Each segment is sorted with the documents that have more than three values first, as recorded in {@code n}. */
     private void assertCountOrder() {
         for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             IndexService indexService = indicesService.indexService(resolveIndex(INDEX));
@@ -327,12 +327,12 @@ public class IndexSortComputedKeyIT extends AbstractEsqlIntegTestCase {
                     for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
                         var counts = leaf.reader().getSortedNumericDocValues("n");
                         assertNotNull(counts);
-                        long previous = Long.MAX_VALUE;
+                        boolean previous = true;
                         for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
                             assertTrue(counts.advanceExact(doc));
-                            long count = counts.nextValue();
-                            assertThat("doc " + doc, count, lessThanOrEqualTo(previous));
-                            previous = count;
+                            boolean many = counts.nextValue() > 3;
+                            assertTrue("doc " + doc, many == false || previous);
+                            previous = many;
                         }
                     }
                 } catch (IOException e) {

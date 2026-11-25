@@ -92,7 +92,7 @@ setup:
         index: computed_sort
         body:
           settings:
-            index.sort: "GREATEST(@timestamp, NOW())"
+            index.sort: "COALESCE(@timestamp, NOW())"
           mappings:
             properties:
               "@timestamp":

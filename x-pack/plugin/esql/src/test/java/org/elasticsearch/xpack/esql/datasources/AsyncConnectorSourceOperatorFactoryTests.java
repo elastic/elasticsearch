@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.CheckedSupplier;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -154,6 +155,134 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * A dense first page fills the observed limiter before K progress polls. Cap stays at 1
+     * and parked producers never execute, even though the first unit has not EOFed.
+     */
+    public void testFilteredLimitRampStaysParkedOnDenseFirstPage() throws Exception {
+        int splitCount = 8;
+        int drivers = 4;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseUnits = new CountDownLatch(1);
+        AtomicInteger executeCount = new AtomicInteger();
+        HeldOpenConnector connector = new HeldOpenConnector(executeCount, firstEntered, null, releaseUnits, null, false);
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-dense"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, sliceQueue);
+            Limiter observed = new Limiter(1);
+            factory.setObservedLimiter(observed);
+            factory.setFilteredLimitRampProgressPages(2);
+
+            CountDownLatch done = new CountDownLatch(drivers);
+            List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
+            pollQualifyingPages(operators.get(0), 1);
+            observed.tryAccumulateHits(1);
+            waitForBufferedPage(operators.get(0));
+            pollQualifyingPages(operators.get(0), 1);
+            assertRampStayedAtOne(factory);
+            assertThat(executeCount.get(), equalTo(1));
+            finishHeldOpenOperators(operators, releaseUnits, done);
+            assertThat(executeCount.get(), equalTo(1));
+            assertThat(connector.closeCount.get(), equalTo(1));
+        } finally {
+            releaseUnits.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Deferred counting makes K=1 valid: the first returned page is counted on the next poll,
+     * after LimitOperator has charged remaining. A dense query must keep the cap at 1.
+     */
+    public void testFilteredLimitRampStaysParkedOnDenseFirstPageWithK1() throws Exception {
+        int splitCount = 8;
+        int drivers = 4;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseUnits = new CountDownLatch(1);
+        AtomicInteger executeCount = new AtomicInteger();
+        HeldOpenConnector connector = new HeldOpenConnector(executeCount, firstEntered, null, releaseUnits, null, false);
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-dense-k1"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, sliceQueue);
+            Limiter observed = new Limiter(1);
+            factory.setObservedLimiter(observed);
+            factory.setFilteredLimitRampProgressPages(1);
+
+            CountDownLatch done = new CountDownLatch(drivers);
+            List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
+            pollQualifyingPages(operators.get(0), 1);
+            observed.tryAccumulateHits(1);
+            waitForBufferedPage(operators.get(0));
+            pollQualifyingPages(operators.get(0), 1);
+            assertRampStayedAtOne(factory);
+            assertThat(executeCount.get(), equalTo(1));
+            finishHeldOpenOperators(operators, releaseUnits, done);
+            assertThat(executeCount.get(), equalTo(1));
+            assertThat(connector.closeCount.get(), equalTo(1));
+        } finally {
+            releaseUnits.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * One unsplittable unit that keeps producing pages must grow the cap from driver-polled
+     * progress. After K processed pages with remaining &gt; 0 a parked producer starts.
+     * Counting is deferred one poll, so K processed pages needs K+1 returns.
+     */
+    public void testFilteredLimitRampGrowsOnSparsePageProgress() throws Exception {
+        int splitCount = 8;
+        int drivers = 4;
+        int progressPages = 2;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch laterStarted = new CountDownLatch(1);
+        CountDownLatch releaseUnits = new CountDownLatch(1);
+        CountDownLatch laterProceed = new CountDownLatch(1);
+        AtomicInteger executeCount = new AtomicInteger();
+        HeldOpenConnector connector = new HeldOpenConnector(executeCount, firstEntered, laterStarted, releaseUnits, laterProceed, false);
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-sparse"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, sliceQueue);
+            factory.setObservedLimiter(new Limiter(100));
+            factory.setFilteredLimitRampProgressPages(progressPages);
+
+            CountDownLatch done = new CountDownLatch(drivers);
+            List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
+            assertThat(executeCount.get(), equalTo(1));
+            pollQualifyingPages(operators.get(0), progressPages + 1);
+            assertTrue(laterStarted.await(30, TimeUnit.SECONDS));
+            assertThat(executeCount.get(), equalTo(2));
+            laterProceed.countDown();
+            finishHeldOpenOperators(operators, releaseUnits, done);
+            assertThat(connector.closeCount.get(), equalTo(1));
+        } finally {
+            laterProceed.countDown();
+            releaseUnits.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
      * Two drivers both start (no observed limiter). The first to finish must not close the
      * shared connector while the sibling is still in {@code execute()}.
      */
@@ -195,6 +324,54 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             assertThat(connector.closeCount.get(), equalTo(1));
         } finally {
             proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Page-progress starts the parked sibling while the first unit is still open. Dual-hold
+     * close must keep the connector alive for that sibling's {@code execute()}.
+     */
+    public void testSiblingProducerStartedByProgressDoesNotSeeClosedConnector() throws Exception {
+        int splitCount = 2;
+        int drivers = 2;
+        int progressPages = 2;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch laterStarted = new CountDownLatch(1);
+        CountDownLatch releaseUnits = new CountDownLatch(1);
+        CountDownLatch laterProceed = new CountDownLatch(1);
+        AtomicInteger executeCount = new AtomicInteger();
+        HeldOpenConnector connector = new HeldOpenConnector(executeCount, firstEntered, laterStarted, releaseUnits, laterProceed, false);
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-progress-close"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, sliceQueue);
+            factory.setObservedLimiter(new Limiter(100));
+            factory.setFilteredLimitRampProgressPages(progressPages);
+
+            CountDownLatch done = new CountDownLatch(drivers);
+            List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
+            pollQualifyingPages(operators.get(0), progressPages + 1);
+            assertTrue(laterStarted.await(30, TimeUnit.SECONDS));
+            releaseUnits.countDown();
+            drainRows(operators.get(0));
+            operators.get(0).close();
+            assertThat(connector.closeCount.get(), equalTo(0));
+            laterProceed.countDown();
+            drainRows(operators.get(1));
+            operators.get(1).close();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            assertThat(executeCount.get(), greaterThanOrEqualTo(2));
+            assertThat(connector.closeCount.get(), equalTo(1));
+        } finally {
+            laterProceed.countDown();
+            releaseUnits.countDown();
             pool.shutdownNow();
             assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
         }
@@ -362,6 +539,77 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             if (System.nanoTime() > deadline) {
                 throw new AssertionError("timed out draining connector operator");
             }
+            PlainActionFuture<Void> unblocked = new PlainActionFuture<>();
+            operator.isBlocked().listener().addListener(unblocked);
+            unblocked.actionGet(30, TimeUnit.SECONDS);
+        }
+    }
+
+    private static void finishHeldOpenOperators(List<SourceOperator> operators, CountDownLatch releaseUnits, CountDownLatch done)
+        throws InterruptedException {
+        releaseUnits.countDown();
+        for (SourceOperator operator : operators) {
+            drainRows(operator);
+            operator.close();
+        }
+        assertTrue(done.await(30, TimeUnit.SECONDS));
+    }
+
+    private static List<SourceOperator> startRampOperators(
+        AsyncConnectorSourceOperatorFactory factory,
+        int drivers,
+        CountDownLatch firstEntered,
+        CountDownLatch done
+    ) throws InterruptedException {
+        List<SourceOperator> operators = new ArrayList<>(drivers);
+        DriverContext first = mockDriverContext();
+        doAnswer(inv -> {
+            done.countDown();
+            return null;
+        }).when(first).removeAsyncAction();
+        operators.add(factory.get(first));
+        assertTrue(firstEntered.await(30, TimeUnit.SECONDS));
+        for (int i = 1; i < drivers; i++) {
+            DriverContext ctx = mockDriverContext();
+            doAnswer(inv -> {
+                done.countDown();
+                return null;
+            }).when(ctx).removeAsyncAction();
+            operators.add(factory.get(ctx));
+        }
+        return operators;
+    }
+
+    private static void assertRampStayedAtOne(AsyncConnectorSourceOperatorFactory factory) {
+        assertThat("remaining==0 must not double the cap", factory.filteredLimitRampCap(), equalTo(1));
+        assertThat("remaining==0 must skip every parked producer", factory.filteredLimitParkedCount(), equalTo(0));
+    }
+
+    private void waitForBufferedPage(SourceOperator operator) throws Exception {
+        assertBusy(() -> assertTrue(operator.isBlocked().listener().isDone()));
+    }
+
+    private static void pollQualifyingPages(SourceOperator operator, int pages) {
+        int got = 0;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (got < pages) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                if (page.getPositionCount() > 0) {
+                    got++;
+                }
+                page.releaseBlocks();
+                continue;
+            }
+            if (operator.isFinished()) {
+                throw new AssertionError("finished after " + got + " of " + pages + " connector pages");
+            }
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("timed out polling " + pages + " connector pages, got " + got);
+            }
+            PlainActionFuture<Void> unblocked = new PlainActionFuture<>();
+            operator.isBlocked().listener().addListener(unblocked);
+            unblocked.actionGet(30, TimeUnit.SECONDS);
         }
     }
 
@@ -450,6 +698,100 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
                     }
                     IntBlock block = TEST_BLOCK_FACTORY.newIntBlockBuilder(1).appendInt(1).build();
                     return new Page(block);
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+    }
+
+    private static class HeldOpenConnector implements Connector {
+        private final AtomicInteger executeCount;
+        private final CountDownLatch firstEntered;
+        @Nullable
+        private final CountDownLatch laterStarted;
+        private final CountDownLatch releaseUnits;
+        @Nullable
+        private final CountDownLatch laterProceed;
+        private final boolean holdLaterOpen;
+        private final AtomicInteger closeCount = new AtomicInteger();
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        HeldOpenConnector(
+            AtomicInteger executeCount,
+            CountDownLatch firstEntered,
+            @Nullable CountDownLatch laterStarted,
+            CountDownLatch releaseUnits,
+            @Nullable CountDownLatch laterProceed,
+            boolean holdLaterOpen
+        ) {
+            this.executeCount = executeCount;
+            this.firstEntered = firstEntered;
+            this.laterStarted = laterStarted;
+            this.releaseUnits = releaseUnits;
+            this.laterProceed = laterProceed;
+            this.holdLaterOpen = holdLaterOpen;
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, Split split) {
+            return executeInternal(request);
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+            return executeInternal(request);
+        }
+
+        private ResultCursor executeInternal(QueryRequest request) {
+            if (closed.get()) {
+                throw new IllegalStateException("Connector is closed");
+            }
+            assertEquals(FormatReader.NO_LIMIT, request.rowLimit());
+            int n = executeCount.incrementAndGet();
+            if (n == 1) {
+                firstEntered.countDown();
+                return heldOpenCursor(releaseUnits);
+            }
+            if (laterStarted != null) {
+                laterStarted.countDown();
+            }
+            if (laterProceed != null) {
+                try {
+                    if (laterProceed.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to return later connector cursor");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+            if (closed.get()) {
+                throw new IllegalStateException("Connector is closed");
+            }
+            if (holdLaterOpen) {
+                return heldOpenCursor(releaseUnits);
+            }
+            return LatchedConnector.cursor();
+        }
+
+        @Override
+        public void close() {
+            closed.set(true);
+            closeCount.incrementAndGet();
+        }
+
+        private static ResultCursor heldOpenCursor(CountDownLatch releaseUnits) {
+            return new ResultCursor() {
+                @Override
+                public boolean hasNext() {
+                    return releaseUnits.getCount() > 0;
+                }
+
+                @Override
+                public Page next() {
+                    return new Page(TEST_BLOCK_FACTORY.newIntBlockBuilder(1).appendInt(1).build());
                 }
 
                 @Override

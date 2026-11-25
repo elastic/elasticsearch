@@ -785,6 +785,8 @@ public final class PartitionFilterHintExtractor {
             case WildcardPattern.Shape.Prefix(String literal) -> literal;
             case WildcardPattern.Shape.Suffix ignored -> null;
             case WildcardPattern.Shape.Contains ignored -> null;
+            // Affix (foo*bar / foo*x*bar) is not a listing prefix range.
+            case WildcardPattern.Shape.Affix ignored -> null;
             case WildcardPattern.Shape.General ignored -> null;
         };
     }

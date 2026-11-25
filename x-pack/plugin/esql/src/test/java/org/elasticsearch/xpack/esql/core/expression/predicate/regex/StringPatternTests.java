@@ -158,18 +158,29 @@ public class StringPatternTests extends ESTestCase {
         assertEquals(new WildcardPattern.Shape.Contains("café"), like("*café*").shape());
     }
 
+    public void testShapeAffix() {
+        assertEquals(new WildcardPattern.Shape.Affix("foo", "", "bar"), like("foo*bar").shape());
+        assertEquals(new WildcardPattern.Shape.Affix("foo", "x", ""), like("foo*x*").shape());
+        assertEquals(new WildcardPattern.Shape.Affix("", "x", "bar"), like("*x*bar").shape());
+        assertEquals(new WildcardPattern.Shape.Affix("foo", "x", "bar"), like("foo*x*bar").shape());
+        // Adjacent unescaped stars collapse: foo**bar is prefix*suffix.
+        assertEquals(new WildcardPattern.Shape.Affix("foo", "", "bar"), like("foo**bar").shape());
+        assertEquals(new WildcardPattern.Shape.Prefix("foo"), like("foo**").shape());
+        // Escaped \* is a literal star, not a raw star-group.
+        assertEquals(new WildcardPattern.Shape.Affix("foo", "", "bar*baz"), like("foo*bar\\*baz").shape());
+        assertEquals(new WildcardPattern.Shape.Prefix("foo*"), like("foo\\**").shape());
+        assertEquals(new WildcardPattern.Shape.Contains("foo*bar"), like("*foo\\*bar*").shape());
+    }
+
     public void testShapeGeneral() {
-        // Empty pattern, exact strings, and patterns that don't fit the three simple shapes
+        // Empty pattern, exact strings, and patterns that don't fit Prefix/Suffix/Contains/Affix
         // all fall through to General.
         assertSame(WildcardPattern.Shape.General.INSTANCE, like("").shape());
         assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo").shape());
         assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo\\*").shape());      // escaped-only, exact-match
-        assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo*bar").shape());     // prefix*suffix
         assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo?bar").shape());     // unescaped '?'
-        assertSame(WildcardPattern.Shape.General.INSTANCE, like("*foo*bar*").shape());   // three stars
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("*foo*bar*").shape());   // three star-groups
         assertSame(WildcardPattern.Shape.General.INSTANCE, like("*foo?bar*").shape());   // unescaped '?' in body
-        assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo*bar*").shape());    // two stars not pinned to both ends
-        assertSame(WildcardPattern.Shape.General.INSTANCE, like("*foo*bar").shape());    // two stars not pinned to both ends
         // Note: dangling-backslash patterns ("foo\\", "*foo\\", "\\") are rejected by the
         // WildcardPattern constructor itself (via StringUtils.wildcardToJavaPattern), so they
         // never reach shape(). The dangling-escape branch in shape() exists as a defensive
@@ -204,7 +215,7 @@ public class StringPatternTests extends ESTestCase {
             "a\\?b",                     // escaped '?' in body — unescapes to "a?b"
             "a\\\\b",                    // escaped '\\' in body — unescapes to "a\\b"
             "a?b",                       // unescaped '?' — forces General
-            "a*b",                       // unescaped '*' in middle — forces General
+            "a*b",                       // unescaped '*' in middle — Affix, or General when wrapped with more stars
         };
         boolean[] flags = new boolean[] { false, true };
         for (String body : bodies) {
@@ -221,19 +232,20 @@ public class StringPatternTests extends ESTestCase {
 
     /**
      * Independent reference implementation of {@link WildcardPattern#shape()} used purely
-     * as a cross-check oracle for {@link #testShapeCombinatoric}. Walks the pattern once,
-     * categorizes by unescaped-star count and position. Kept separate from the production
-     * parser so a single bug cannot break both at once.
+     * as a cross-check oracle for {@link #testShapeCombinatoric}. Splits on maximal runs
+     * of unescaped {@code *} (adjacent stars collapse) and classifies by segment count.
+     * Kept separate from the production parser so a single bug cannot break both at once.
      */
     private static WildcardPattern.Shape referenceShape(String pattern) {
         int n = pattern.length();
         if (n == 0) {
             return WildcardPattern.Shape.General.INSTANCE;
         }
-        StringBuilder lit = new StringBuilder();
-        int stars = 0;
-        boolean firstStarAtStart = false;
-        boolean lastStarAtEnd = false;
+        String[] segs = new String[4];
+        int segCount = 0;
+        StringBuilder cur = new StringBuilder();
+        int starChars = 0;
+        boolean inStarRun = false;
         int i = 0;
         while (i < n) {
             char c = pattern.charAt(i);
@@ -241,32 +253,58 @@ public class StringPatternTests extends ESTestCase {
                 if (i + 1 >= n) {
                     return WildcardPattern.Shape.General.INSTANCE;
                 }
-                lit.append(pattern.charAt(i + 1));
+                cur.append(pattern.charAt(i + 1));
+                inStarRun = false;
                 i += 2;
             } else if (c == '?') {
                 return WildcardPattern.Shape.General.INSTANCE;
             } else if (c == '*') {
-                stars++;
-                if (stars == 1) {
-                    firstStarAtStart = (i == 0);
+                starChars++;
+                if (inStarRun == false) {
+                    if (segCount == 4) {
+                        return WildcardPattern.Shape.General.INSTANCE;
+                    }
+                    segs[segCount++] = cur.toString();
+                    cur.setLength(0);
+                    inStarRun = true;
                 }
-                lastStarAtEnd = (i == n - 1);
                 i++;
             } else {
-                lit.append(c);
+                cur.append(c);
+                inStarRun = false;
                 i++;
             }
         }
-        if (stars == 0) {
+        if (segCount == 4) {
             return WildcardPattern.Shape.General.INSTANCE;
         }
-        if (stars == 1) {
-            if (firstStarAtStart) return new WildcardPattern.Shape.Suffix(lit.toString());
-            if (lastStarAtEnd) return new WildcardPattern.Shape.Prefix(lit.toString());
+        segs[segCount++] = cur.toString();
+        int groups = segCount - 1;
+        if (groups == 0) {
             return WildcardPattern.Shape.General.INSTANCE;
         }
-        if (stars == 2 && firstStarAtStart && lastStarAtEnd) {
-            return new WildcardPattern.Shape.Contains(lit.toString());
+        if (groups == 1) {
+            String p = segs[0];
+            String s = segs[1];
+            if (p.isEmpty()) {
+                if (s.isEmpty() && starChars >= 2) {
+                    return new WildcardPattern.Shape.Contains("");
+                }
+                return new WildcardPattern.Shape.Suffix(s);
+            }
+            if (s.isEmpty()) {
+                return new WildcardPattern.Shape.Prefix(p);
+            }
+            return new WildcardPattern.Shape.Affix(p, "", s);
+        }
+        if (groups == 2) {
+            String p = segs[0];
+            String m = segs[1];
+            String s = segs[2];
+            if (p.isEmpty() && s.isEmpty()) {
+                return new WildcardPattern.Shape.Contains(m);
+            }
+            return new WildcardPattern.Shape.Affix(p, m, s);
         }
         return WildcardPattern.Shape.General.INSTANCE;
     }

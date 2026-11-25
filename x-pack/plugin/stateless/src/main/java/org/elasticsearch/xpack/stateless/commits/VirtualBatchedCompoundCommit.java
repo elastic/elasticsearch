@@ -382,7 +382,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
-            var referencedBlobs = referencedFiles.values().stream().map(location -> location.bccBlob().blobName()).distinct().count();
+            var referencedBlobs = referencedFiles.values().stream().map(BlobLocation::blobName).distinct().count();
             logger.debug(
                 """
                     {}{} appending commit ({} bytes). References external {} files in {} other CCs and adds
@@ -597,7 +597,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 })
                 .get();
             final var ccLocation = new BlobLocation(
-                maxBlobLocation.bccBlob(),
+                maxBlobLocation.blob(),
                 maxBlobLocation.offset() + maxBlobLocation.fileLength() - cc.sizeInBytes(),
                 cc.sizeInBytes()
             );

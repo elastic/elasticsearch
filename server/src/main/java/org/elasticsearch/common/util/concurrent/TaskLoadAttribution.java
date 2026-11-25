@@ -55,6 +55,10 @@ public final class TaskLoadAttribution {
     static final class Task {
         /** Whether this thread runs a tracked task. */
         boolean running;
+        /** The task as its pool times it, or {@code null} if it started at {@link #startNanos}. */
+        TimedRunnable timed;
+        /** The time it started, from {@link System#nanoTime()}, if it has no {@link #timed}. */
+        long startNanos;
         Target target;
         /** The time charged with {@link #charge}. */
         long chargedNanos;
@@ -67,8 +71,10 @@ public final class TaskLoadAttribution {
         /** The CPU time of the thread, negative when it is not known. */
         LongSupplier cpuClock = TaskLoadAttribution::threadCpuNanos;
 
-        void reset(boolean running) {
+        void reset(boolean running, TimedRunnable timed, long startNanos) {
             this.running = running;
+            this.timed = timed;
+            this.startNanos = startNanos;
             target = null;
             chargedNanos = 0;
             cpuBeforePartsNanos = 0;
@@ -91,6 +97,14 @@ public final class TaskLoadAttribution {
     }
 
     /**
+     * The target of the task running on this thread, or {@code null} if it has none.
+     */
+    public static Target target() {
+        Task task = task();
+        return task != null && task.running ? task.target : null;
+    }
+
+    /**
      * Starts a part of the task running on this thread that is then charged with {@link #charge}.
      *
      * @return the time, from {@link System#nanoTime()}
@@ -109,15 +123,48 @@ public final class TaskLoadAttribution {
     /**
      * Charges {@code nanos} of the task running on this thread to {@code target}, so its pool charges only the rest of the
      * task to the task's target.
+     *
+     * @return the CPU time charged
      */
-    public static void charge(Target target, long nanos, long finishNanos) {
+    public static long charge(Target target, long nanos, long finishNanos) {
         assert nanos >= 0 : nanos;
         Task task = task();
+        long cpuNanos = task != null && task.running ? cpuOf(task, nanos) : nanos;
         if (task != null && task.running) {
             task.chargedNanos += nanos;
-            target.charge(nanos, cpuOf(task, nanos), finishNanos);
-        } else {
-            target.charge(nanos, nanos, finishNanos);
+        }
+        target.charge(nanos, cpuNanos, finishNanos);
+        return cpuNanos;
+    }
+
+    /**
+     * Charges the task running on this thread up to {@code nowNanos}, if its target is {@code target}. Its pool then charges
+     * only the rest. Call it before reporting what a task was charged, since the pool charges a task when it completes.
+     */
+    public static void chargeSoFar(Target target, long nowNanos) {
+        Task task = task();
+        if (task == null || task.running == false || task.target != target) {
+            return;
+        }
+        chargeSoFar(task, nowNanos, false);
+    }
+
+    /**
+     * Charges the task running on this thread to {@code target} from {@code nowNanos} on, and up to then to the target it had.
+     * Use it when the same task goes on with work for another target.
+     */
+    public static void retarget(Target target, long nowNanos) {
+        Task task = task();
+        if (task == null || task.running == false || task.target == target) {
+            return;
+        }
+        if (task.target != null) {
+            // reads the CPU clock, so that the estimate of a short charge is not taken back from the new target
+            chargeSoFar(task, nowNanos, true);
+        }
+        task.target = target;
+        if (task.cpuReadNanos == UNREAD) {
+            readCpu(task);
         }
     }
 
@@ -191,12 +238,22 @@ public final class TaskLoadAttribution {
     }
 
     /**
-     * Starts tracking a task on this thread, if it is a thread that can track one.
+     * Starts tracking a task on this thread, if it is a thread that can track one, timed by its pool as {@code timed}.
      */
-    static void taskStarted() {
+    static void taskStarted(TimedRunnable timed) {
         Task task = task();
         if (task != null) {
-            task.reset(true);
+            task.reset(true, timed, 0);
+        }
+    }
+
+    /**
+     * Starts tracking a task on this thread that started at {@code startNanos}, from {@link System#nanoTime()}.
+     */
+    static void taskStarted(long startNanos) {
+        Task task = task();
+        if (task != null) {
+            task.reset(true, null, startNanos);
         }
     }
 
@@ -213,7 +270,7 @@ public final class TaskLoadAttribution {
         Target target = task.target;
         long charged = Math.min(task.chargedNanos, nanos);
         long cpuBeforePartsNanos = task.cpuBeforePartsNanos;
-        task.reset(false);
+        task.reset(false, null, 0);
         if (target == null) {
             task.cpuReadNanos = UNREAD;
         } else if (nanos > charged) {
@@ -234,8 +291,36 @@ public final class TaskLoadAttribution {
             task.cpuChargedSinceRead += nanos;
             return nanos;
         }
+        return readCpuOf(task, nanos);
+    }
+
+    /**
+     * The CPU time of the last {@code nanos} of the task, read from the CPU clock.
+     */
+    private static long readCpuOf(Task task, long nanos) {
         long cpuNanos = cpuSinceRead(task);
         return cpuNanos == UNREAD ? nanos : Math.clamp(cpuNanos, 0, nanos);
+    }
+
+    /**
+     * Charges the task up to {@code nowNanos} to its target, reading the CPU clock even for a short charge if {@code readCpu}.
+     */
+    private static void chargeSoFar(Task task, long nowNanos, boolean readCpu) {
+        long startNanos = task.timed == null ? task.startNanos : task.timed.getStartTimeNanos();
+        assert task.timed == null || startNanos != -1 : "the task has not started running yet";
+        long nanos = nowNanos - startNanos - task.chargedNanos;
+        if (nanos <= 0) {
+            if (readCpu && task.cpuReadNanos != UNREAD) {
+                // the CPU time since the last read belongs to the time charged already
+                readCpu(task);
+            }
+            return;
+        }
+        long cpuNanos = readCpu && task.cpuReadNanos != UNREAD ? readCpuOf(task, nanos) : cpuOf(task, nanos);
+        cpuNanos = Math.min(task.cpuBeforePartsNanos + cpuNanos, nanos);
+        task.cpuBeforePartsNanos = 0;
+        task.chargedNanos += nanos;
+        task.target.charge(nanos, cpuNanos, nowNanos);
     }
 
     /**
@@ -266,7 +351,7 @@ public final class TaskLoadAttribution {
         Task task = task();
         if (task != null) {
             task.cpuReadNanos = UNREAD;
-            task.reset(false);
+            task.reset(false, null, 0);
         }
     }
 }

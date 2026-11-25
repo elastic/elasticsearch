@@ -1,0 +1,587 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
+/**
+ * Shared coverage of the null contract of the strict columnar index modes for one field type at a time: a null array element is
+ * dropped after {@code null_value}, a field with no remaining value is absent from {@code exists} and from the reconstructed
+ * {@code _source}, and a single remaining value is reconstructed as a scalar.
+ *
+ * <p>Each helper indexes the same documents through the regular parser or through the batch path, in each strict mode. The batch path
+ * is the one {@code InternalEngine} takes: {@code ShardBatchMapper.resolveMappers}, {@code mapColumnBatch} and
+ * {@code IndexWriter#addBatch}. Any exception from the mappers makes the chunk fall back to the regular parser, as it does in production,
+ * so a scenario states which column shapes it expects to take the batch path today ({@link Scenario#batchedGroups}) and a helper fails
+ * when one of them falls back. A shape that is not listed may take either path, which keeps the tests valid when the batch path learns
+ * to map more shapes.
+ *
+ * <p>Order and multiplicity of the remaining values belong to the array-order tests. The source check compares the distinct values that
+ * remain, and {@link #assertSourceKeepsTheOrderOfTheRemainingValues} only checks that dropping a null does not move or lose the values
+ * that remain, so that each of the two fails for its own reason.
+ */
+public abstract class AbstractColumnarNullContractTestCase extends MapperServiceTestCase {
+
+    protected static final String FIELD = "field";
+    protected static final int SCALARS = 0;
+    protected static final int ARRAYS = 1;
+    protected static final int BARE_NULL = 2;
+    protected static final int NULL_ELEMENTS = 3;
+
+    private static final List<Integer> DOCUMENT_SHAPES = List.of(SCALARS, ARRAYS, BARE_NULL, NULL_ELEMENTS);
+    private static final long TIMESTAMP = 1735689600000L;
+    private static final List<IndexMode> MODES = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
+
+    protected static final Predicate<Configuration> ALL = configuration -> true;
+
+    protected enum Path {
+        REGULAR,
+        BATCH
+    }
+
+    private enum Executed {
+        REGULAR,
+        BATCH
+    }
+
+    private enum Kind {
+        ABSENT,
+        BARE_NULL,
+        SCALAR,
+        ARRAY
+    }
+
+    /**
+     * @param indexed the value of the {@code index} parameter, which is always {@code true} for a type that has no such parameter
+     */
+    protected record Configuration(IndexMode mode, boolean indexed) {}
+
+    protected record TestDocument(Kind kind, List<Object> slots) {
+        String json() throws IOException {
+            final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+            builder.startObject().field("@timestamp", TIMESTAMP);
+            switch (kind) {
+                case ABSENT -> {
+                }
+                case BARE_NULL -> builder.nullField(FIELD);
+                case SCALAR -> builder.field(FIELD, slots.get(0));
+                case ARRAY -> {
+                    builder.startArray(FIELD);
+                    for (final Object slot : slots) {
+                        if (slot == null) {
+                            builder.nullValue();
+                        } else {
+                            builder.value(slot);
+                        }
+                    }
+                    builder.endArray();
+                }
+            }
+            return Strings.toString(builder.endObject());
+        }
+    }
+
+    /**
+     * A field to test.
+     *
+     * @param type          the mapping type
+     * @param parameters    further mapping parameters of the field
+     * @param values        a source of values of the type, in the form the mapper accepts them
+     * @param nullValue     the {@code null_value} of the field, or {@code null} when it has none
+     * @param canonical     the form in which a value is compared, applied to the expected values and to those in the reconstructed source
+     * @param hasIndex      whether the type has an {@code index} parameter, which the tests run both ways
+     * @param batchedGroups the configurations and column shapes that are known to take the batch path today
+     */
+    protected record Scenario(
+        String type,
+        Map<String, Object> parameters,
+        Supplier<Object> values,
+        Object nullValue,
+        Function<Object, String> canonical,
+        boolean hasIndex,
+        BiPredicate<Configuration, Integer> batchedGroups
+    ) {
+        public Scenario withParameters(Map<String, Object> parameters) {
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups);
+        }
+
+        public Scenario withNullValue(Object nullValue) {
+            final Map<String, Object> withNullValue = new HashMap<>(parameters);
+            withNullValue.put("null_value", nullValue);
+            return new Scenario(type, withNullValue, values, nullValue, canonical, hasIndex, batchedGroups);
+        }
+
+        public Scenario withValues(Supplier<Object> values) {
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups);
+        }
+
+        public Scenario withCanonical(Function<Object, String> canonical) {
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups);
+        }
+
+        public Scenario withoutIndex() {
+            return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups);
+        }
+
+        public Scenario batchedGroups(BiPredicate<Configuration, Integer> batchedGroups) {
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups);
+        }
+
+        List<Object> expected(TestDocument document) {
+            if (document.kind() == Kind.BARE_NULL) {
+                return nullValue == null ? List.of() : List.of(nullValue);
+            }
+            final List<Object> expected = new ArrayList<>();
+            for (final Object slot : document.slots()) {
+                if (slot != null) {
+                    expected.add(slot);
+                } else if (nullValue != null) {
+                    expected.add(nullValue);
+                }
+            }
+            return expected;
+        }
+    }
+
+    protected static Scenario scenario(String type, Supplier<Object> values) {
+        return new Scenario(type, Map.of(), values, null, String::valueOf, true, (configuration, group) -> false);
+    }
+
+    protected static TestDocument absent() {
+        return new TestDocument(Kind.ABSENT, List.of());
+    }
+
+    protected static TestDocument bareNull() {
+        return new TestDocument(Kind.BARE_NULL, List.of());
+    }
+
+    protected static TestDocument scalar(Object value) {
+        return new TestDocument(Kind.SCALAR, Collections.singletonList(value));
+    }
+
+    protected static TestDocument array(Object... slots) {
+        return new TestDocument(Kind.ARRAY, Arrays.asList(slots));
+    }
+
+    // NOTE: each group is one column shape. The batch path maps a column of mixed scalars and arrays, or one that holds a null, as a
+    // UNION, which most mappers refuse, so a group that mixes shapes would hide whether the others reach the batch path.
+    private static List<List<TestDocument>> documentGroups(Supplier<Object> values) {
+        final Object repeated = values.get();
+        return List.of(
+            List.of(scalar(values.get()), absent(), scalar(values.get())),
+            List.of(array(values.get()), array(), array(values.get(), values.get()), array(repeated, values.get(), repeated)),
+            List.of(scalar(values.get()), bareNull()),
+            List.of(
+                array((Object) null),
+                array(null, null),
+                array(values.get(), null),
+                array(null, values.get()),
+                array(values.get(), null, values.get()),
+                array(null, values.get(), null, values.get(), null)
+            )
+        );
+    }
+
+    private static List<List<TestDocument>> orderedDocumentGroups(Supplier<Object> values) {
+        final Object first = values.get();
+        final Object second = values.get();
+        final Object third = values.get();
+        return List.of(
+            List.of(
+                array(second, null, first, second),
+                array(null, first, second),
+                array(first, second, null),
+                array(first, null, second, null, third, null, first)
+            )
+        );
+    }
+
+    private static List<Configuration> configurations(Scenario scenario) {
+        final List<Configuration> configurations = new ArrayList<>();
+        for (final IndexMode mode : MODES) {
+            configurations.add(new Configuration(mode, true));
+            if (scenario.hasIndex()) {
+                configurations.add(new Configuration(mode, false));
+            }
+        }
+        return configurations;
+    }
+
+    private MapperService createMapperService(Scenario scenario, Configuration configuration) throws IOException {
+        return createMapperService(
+            IndexVersion.current(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), configuration.mode().getName()).build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject(FIELD).field("type", scenario.type());
+                if (scenario.hasIndex()) {
+                    b.field("index", configuration.indexed());
+                }
+                for (final Map.Entry<String, Object> parameter : scenario.parameters().entrySet()) {
+                    b.field(parameter.getKey(), parameter.getValue());
+                }
+                b.endObject();
+            })
+        );
+    }
+
+    private static IndexWriterConfig indexWriterConfig(MapperService mapperService) {
+        return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setMergePolicy(new LogDocMergePolicy())
+            .setCodec(
+                new PerFieldMapperCodec(
+                    Lucene104Codec.Mode.BEST_SPEED,
+                    ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                    ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                    mapperService,
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    null
+                )
+            );
+    }
+
+    private String fallbackReason;
+
+    private Executed index(
+        MapperService mapperService,
+        IndexWriter indexWriter,
+        List<TestDocument> documents,
+        Path requested,
+        int firstSeqNo
+    ) throws IOException {
+        if (requested == Path.BATCH && indexAsBatch(mapperService, indexWriter, documents, firstSeqNo)) {
+            return Executed.BATCH;
+        }
+        for (int i = 0; i < documents.size(); i++) {
+            final SourceToParse source = new SourceToParse(
+                "d" + (firstSeqNo + i),
+                new BytesArray(documents.get(i).json()),
+                XContentType.JSON
+            );
+            final ParsedDocument parsed = mapperService.documentMapper().parse(source);
+            parsed.updateSeqID(firstSeqNo + i, 1);
+            parsed.version().setLongValue(1);
+            indexWriter.addDocuments(parsed.docs());
+        }
+        return Executed.REGULAR;
+    }
+
+    // NOTE: mirrors ShardBatchMapper#mapColumnBatch. A refused resolution or any exception from a mapper is the production signal to
+    // index the chunk through the regular path instead.
+    private boolean indexAsBatch(MapperService mapperService, IndexWriter indexWriter, List<TestDocument> documents, int firstSeqNo)
+        throws IOException {
+        final int count = documents.size();
+        final BytesReference[] sources = new BytesReference[count];
+        final IndexRequest[] requests = new IndexRequest[count];
+        for (int i = 0; i < count; i++) {
+            sources[i] = new BytesArray(documents.get(i).json().getBytes(StandardCharsets.UTF_8));
+            requests[i] = new IndexRequest("index").id("d" + (firstSeqNo + i)).source(sources[i], XContentType.JSON);
+        }
+        final MappingLookup lookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                lookup,
+                indexSettings,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sources), XContentType.JSON)
+        ) {
+            final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(escfBatch, lookup, indexSettings);
+            if (resolution == null) {
+                fallbackReason = "resolveMappers refused the batch";
+                return false;
+            }
+            final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
+            for (final MetadataFieldMapper metadataMapper : metadataMappers) {
+                metadataMapper.preColumnarParse(context);
+            }
+            try {
+                final FieldMapper[] columnMappers = resolution.columnMappers();
+                for (int c = 0; c < columnMappers.length; c++) {
+                    if (columnMappers[c] != null) {
+                        columnMappers[c].mapColumnBatch(context, escfBatch.column(c));
+                    }
+                }
+                for (final ColumnGroupResolver.ColumnGroupResolution group : resolution.columnGroups()) {
+                    final int[] leafIndexes = group.leafIndexes();
+                    final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
+                    for (int i = 0; i < leafIndexes.length; i++) {
+                        groupColumns[i] = escfBatch.column(leafIndexes[i]);
+                    }
+                    group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
+                }
+            } catch (Exception e) {
+                fallbackReason = e.getMessage();
+                return false;
+            }
+            for (final MetadataFieldMapper metadataMapper : metadataMappers) {
+                metadataMapper.postColumnarParse(context);
+            }
+            final MappedColumns columns = context.columns();
+            columns.fillPrimaryTerm(1L);
+            for (int i = 0; i < count; i++) {
+                columns.setSeqNo(i, firstSeqNo + i);
+                columns.setVersion(i, 1L);
+            }
+            indexWriter.addBatch(columns.toColumnBatch());
+            return true;
+        }
+    }
+
+    private interface IndexedAssertion {
+        void accept(Configuration configuration, MapperService mapperService, IndexWriter indexWriter, List<TestDocument> documents)
+            throws IOException;
+    }
+
+    private void forEachConfiguration(
+        Scenario scenario,
+        Path path,
+        Predicate<Configuration> slice,
+        List<List<TestDocument>> groups,
+        List<Integer> shapes,
+        IndexedAssertion assertion
+    ) throws IOException {
+        final List<TestDocument> documents = groups.stream().flatMap(List::stream).toList();
+        final List<String> failures = new ArrayList<>();
+        final List<Configuration> configurations = configurations(scenario).stream().filter(slice).toList();
+        assertFalse("the slice selects no configuration of " + scenario.type(), configurations.isEmpty());
+        for (final Configuration configuration : configurations) {
+            final MapperService mapperService = createMapperService(scenario, configuration);
+            try (
+                Directory directory = newDirectory();
+                IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig(mapperService))
+            ) {
+                int firstSeqNo = 0;
+                for (int g = 0; g < groups.size(); g++) {
+                    fallbackReason = null;
+                    final Executed executed = index(mapperService, indexWriter, groups.get(g), path, firstSeqNo);
+                    if (path == Path.BATCH && scenario.batchedGroups().test(configuration, shapes.get(g))) {
+                        assertEquals(
+                            scenario.type()
+                                + " "
+                                + configuration
+                                + " column shape "
+                                + shapes.get(g)
+                                + " is expected to take the batch path but fell back: "
+                                + fallbackReason,
+                            Executed.BATCH,
+                            executed
+                        );
+                    }
+                    indexWriter.commit();
+                    firstSeqNo += groups.get(g).size();
+                }
+                try {
+                    assertion.accept(configuration, mapperService, indexWriter, documents);
+                } catch (AssertionError e) {
+                    failures.add(configuration + ": " + e.getMessage());
+                }
+            }
+        }
+        if (failures.isEmpty() == false) {
+            fail(failures.size() + " of " + configurations.size() + " configurations failed:\n" + String.join("\n", failures));
+        }
+    }
+
+    protected final void assertExistsMatchesOnlyDocumentsWithValue(Scenario scenario, Path path) throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(scenario, path, ALL);
+    }
+
+    protected final void assertExistsMatchesOnlyDocumentsWithValue(Scenario scenario, Path path, Predicate<Configuration> slice)
+        throws IOException {
+        forEachConfiguration(
+            scenario,
+            path,
+            slice,
+            documentGroups(scenario.values()),
+            DOCUMENT_SHAPES,
+            (configuration, mapperService, indexWriter, docs) -> {
+                final List<Integer> expected = new ArrayList<>();
+                for (int i = 0; i < docs.size(); i++) {
+                    if (scenario.expected(docs.get(i)).isEmpty() == false) {
+                        expected.add(i);
+                    }
+                }
+                final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
+                for (final boolean merged : new boolean[] { false, true }) {
+                    if (merged) {
+                        indexWriter.forceMerge(1);
+                    }
+                    try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+                        final List<Integer> matched = new ArrayList<>();
+                        for (final ScoreDoc hit : new IndexSearcher(reader).search(exists, docs.size()).scoreDocs) {
+                            matched.add(hit.doc);
+                        }
+                        Collections.sort(matched);
+                        assertEquals(configuration + " merged=" + merged + " documents=" + docs, expected, matched);
+                    }
+                }
+            }
+        );
+    }
+
+    protected final void assertExistsCountAgreesWithHits(Scenario scenario, Path path) throws IOException {
+        assertExistsCountAgreesWithHits(scenario, path, ALL);
+    }
+
+    protected final void assertExistsCountAgreesWithHits(Scenario scenario, Path path, Predicate<Configuration> slice) throws IOException {
+        forEachConfiguration(
+            scenario,
+            path,
+            slice,
+            documentGroups(scenario.values()),
+            DOCUMENT_SHAPES,
+            (configuration, mapperService, indexWriter, docs) -> {
+                final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
+                for (final boolean merged : new boolean[] { false, true }) {
+                    if (merged) {
+                        indexWriter.forceMerge(1);
+                    }
+                    try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+                        final IndexSearcher searcher = new IndexSearcher(reader);
+                        assertEquals(
+                            configuration + " merged=" + merged + " documents=" + docs,
+                            searcher.search(exists, docs.size()).scoreDocs.length,
+                            searcher.count(exists)
+                        );
+                    }
+                }
+            }
+        );
+    }
+
+    protected final void assertSourceDropsNullElements(Scenario scenario, Path path) throws IOException {
+        forEachConfiguration(
+            scenario,
+            path,
+            ALL,
+            documentGroups(scenario.values()),
+            DOCUMENT_SHAPES,
+            (configuration, mapperService, indexWriter, docs) -> {
+                assertSources(scenario, mapperService, indexWriter, docs, false);
+            }
+        );
+    }
+
+    protected final void assertSourceKeepsTheOrderOfTheRemainingValues(Scenario scenario, Path path) throws IOException {
+        forEachConfiguration(
+            scenario,
+            path,
+            ALL,
+            orderedDocumentGroups(scenario.values()),
+            List.of(NULL_ELEMENTS),
+            (configuration, mapperService, indexWriter, docs) -> {
+                assertSources(scenario, mapperService, indexWriter, docs, true);
+            }
+        );
+    }
+
+    private void assertSources(
+        Scenario scenario,
+        MapperService mapperService,
+        IndexWriter indexWriter,
+        List<TestDocument> documents,
+        boolean ordered
+    ) throws IOException {
+        indexWriter.forceMerge(1);
+        try (DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+            final List<String> failures = new ArrayList<>();
+            for (int i = 0; i < documents.size(); i++) {
+                final String source = syntheticSource(mapperService.documentMapper(), reader, i);
+                try {
+                    assertSourceHoldsOnly(scenario, scenario.expected(documents.get(i)), source, ordered);
+                } catch (AssertionError e) {
+                    failures.add("document=" + documents.get(i) + " source=" + source + " " + e.getMessage());
+                }
+            }
+            if (failures.isEmpty() == false) {
+                fail(failures.size() + " of " + documents.size() + " documents failed:\n" + String.join("\n", failures));
+            }
+        }
+    }
+
+    // NOTE: with ordered set, a null the source still holds is left out of the comparison. Whether nulls are dropped is the null
+    // contract and is checked by the unordered comparison, and the two must fail for their own reasons.
+    private static void assertSourceHoldsOnly(Scenario scenario, List<Object> expected, String source, boolean ordered) throws IOException {
+        final Map<String, Object> parsed = XContentHelper.convertToMap(JsonXContent.jsonXContent, source, false);
+        if (expected.isEmpty()) {
+            assertFalse("a field without a value is absent", parsed.containsKey(FIELD));
+            return;
+        }
+        final Object actual = parsed.get(FIELD);
+        final List<?> actualValues = actual instanceof List<?> list ? list : Collections.singletonList(actual);
+        final List<String> actualCanonical = new ArrayList<>();
+        for (final Object value : actualValues) {
+            if (ordered && value == null) {
+                continue;
+            }
+            actualCanonical.add(value == null ? "null" : scenario.canonical().apply(value));
+        }
+        final List<String> expectedCanonical = expected.stream().map(value -> scenario.canonical().apply(value)).toList();
+        if (ordered) {
+            assertEquals(expectedCanonical, actualCanonical);
+            return;
+        }
+        final SortedSet<String> expectedDistinct = new TreeSet<>(expectedCanonical);
+        if (expectedDistinct.size() == 1 && expected.size() == 1) {
+            assertFalse("a single remaining value is a scalar", actual instanceof List);
+        } else if (expectedDistinct.size() > 1) {
+            assertTrue("several remaining values are an array", actual instanceof List);
+        }
+        assertEquals(expectedDistinct, new TreeSet<>(actualCanonical));
+    }
+}

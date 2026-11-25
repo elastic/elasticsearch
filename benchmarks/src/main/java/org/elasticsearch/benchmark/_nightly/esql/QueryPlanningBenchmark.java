@@ -79,10 +79,19 @@ public class QueryPlanningBenchmark {
         BenchmarkLogging.configure();
     }
 
-    /** Fixed width of the index that {@link #manyFields} plans against, which the nightly chart for it has always tracked. */
-    private static final int MANY_FIELDS = 10_000;
+    /**
+     * The fixed 10,000 field index that {@link #manyFields} plans against, which its nightly chart has always tracked. It is a state of
+     * its own so that the FILLNULL benchmarks, which run in the same JVM, do not also build and keep this planner.
+     */
+    @State(Scope.Benchmark)
+    public static class FixedWidth {
+        private Planner planner;
 
-    private Planner manyFieldsPlanner;
+        @Setup
+        public void setup() {
+            planner = new Planner(10_000);
+        }
+    }
 
     /**
      * Holds the width of the index for {@link #manyFieldsFillNull} only, so that the {@link #manyFields} result keeps its single
@@ -188,19 +197,23 @@ public class QueryPlanningBenchmark {
         }
     }
 
-    @Setup
-    public void setup() {
-        manyFieldsPlanner = new Planner(MANY_FIELDS);
-    }
-
     @Benchmark
-    public void manyFields(Blackhole blackhole) {
-        blackhole.consume(manyFieldsPlanner.plan("FROM test | LIMIT 10"));
+    public void manyFields(FixedWidth width, Blackhole blackhole) {
+        blackhole.consume(width.planner.plan("FROM test | LIMIT 10"));
     }
 
     /**
-     * A {@code FILLNULL DEFAULT ON *} added to the {@link #manyFields} query: the delta between the two at 10,000 fields is the
-     * planning cost of mirroring every column in a {@code COALESCE}, which #163220 asks to track at 1k/5k/10k fields.
+     * The {@link #manyFields} query at each swept width: the baseline for {@link #manyFieldsFillNull} at the same width, since the
+     * planning cost without FILLNULL also grows with the mapping.
+     */
+    @Benchmark
+    public void manyFieldsSweepBaseline(FillNullWidth width, Blackhole blackhole) {
+        blackhole.consume(width.planner.plan("FROM test | LIMIT 10"));
+    }
+
+    /**
+     * A {@code FILLNULL DEFAULT ON *} added to the {@link #manyFieldsSweepBaseline} query: the delta between the two at the same width
+     * is the planning cost of mirroring every column in a {@code COALESCE}, which #163220 asks to track at 1k/5k/10k fields.
      */
     @Benchmark
     public void manyFieldsFillNull(FillNullWidth width, Blackhole blackhole) {

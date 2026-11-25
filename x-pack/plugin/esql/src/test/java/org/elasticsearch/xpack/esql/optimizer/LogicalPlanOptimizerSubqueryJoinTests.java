@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.Before;
 
-import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
@@ -63,17 +63,44 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
      * can't push below the join, because the same condition reads a subquery column, is rejected.
      */
     public void testIndexSearchAboveJoinIsRejected() {
-        for (String search : List.of("MATCH(first_name, \"Anna\")", "first_name : \"Anna\"")) {
-            VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
-                | WHERE %s OR language_name IS NOT NULL
-                """.formatted(search)));
+        Map<String, String> searches = Map.of("MATCH(first_name, \"Anna\")", "[MATCH] function", "first_name : \"Anna\"", "[:] operator");
+        for (Map.Entry<String, String> search : searches.entrySet()) {
+            String query = JOIN_LANGUAGES + "| WHERE " + search.getKey() + " OR language_name IS NOT NULL\n";
+            VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(query));
             assertThat(
                 e.getMessage(),
-                containsString(
-                    "cannot be used in a WHERE clause that references both data-side and subquery-side fields after a JOIN on a subquery"
-                )
+                containsString(search.getValue() + " cannot be used after a JOIN on a subquery when it targets an indexed field")
             );
         }
+    }
+
+    /**
+     * A filter can also stay above the join because of a command between them, here {@code INLINE STATS}, although it only reads
+     * the left side's columns.
+     */
+    public void testIndexSearchAboveInlineStatsAfterJoinIsRejected() {
+        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
+            | INLINE STATS c = COUNT(*) BY gender
+            | WHERE MATCH(first_name, "Anna")
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("line 5:9: [MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+        );
+    }
+
+    /**
+     * The aggregation of a {@code STATS} after the join runs on the coordinator, so a search in the filter of an aggregate function
+     * is rejected too.
+     */
+    public void testIndexSearchInAggregateFilterAfterJoinIsRejected() {
+        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
+            | STATS n = COUNT(*), anna = COUNT(*) WHERE MATCH(first_name, "Anna")
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("[MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+        );
     }
 
     /**

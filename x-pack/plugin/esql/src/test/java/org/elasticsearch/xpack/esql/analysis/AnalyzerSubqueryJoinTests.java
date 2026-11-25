@@ -232,6 +232,25 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
     }
 
     /**
+     * The first aggregation of a {@code TS} groups the rows of each time series where they are read, and the join runs on the
+     * coordinator, so the join can't come before it, as for {@code LOOKUP JOIN}.
+     */
+    public void testJoinBeforeTimeSeriesAggregation() {
+        analyzer().addK8s()
+            .error(
+                """
+                    TS k8s
+                    | LEFT OUTER JOIN (ROW cluster = "prod", team = "a") ON cluster
+                    | STATS max(rate(network.total_bytes_in)) BY team
+                    """,
+                allOf(
+                    containsString("line 2:3: JOIN on a subquery [LEFT OUTER JOIN (ROW cluster = \"prod\", team = \"a\") ON cluster]"),
+                    containsString("in the time-series before the first aggregation")
+                )
+            );
+    }
+
+    /**
      * An {@code IN} subquery runs on its own, so a remote index it reads says nothing about the {@code JOIN}.
      */
     public void testRemoteIndexInInSubqueryIsNotTheJoins() {

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -54,23 +55,37 @@ public class SubqueryJoinFullTextIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Without the check, the search was planned after the hash join, which no longer has the documents it reads: the query hung in
-     * tests and failed with a 500 in production.
+     * A search on an index field that stays above the join would run on the coordinator, which has no documents to search, so it is
+     * rejected.
      */
     public void testIndexSearchThatStaysAboveTheJoinIsRejected() {
         for (String search : List.of("match(country, \"United States\")", "country : \"United States\"")) {
-            var e = expectThrows(VerificationException.class, () -> run("""
+            String query = String.format(Locale.ROOT, """
                 FROM data
                 | LEFT OUTER JOIN (FROM lookup) ON key
                 | WHERE %s OR info IS NOT NULL
                 | KEEP key, country, info
                 | SORT key
-                """.formatted(search), TIMEOUT).close());
-            assertThat(
-                e.getMessage(),
-                containsString("cannot be used in a WHERE clause that references both data-side and subquery-side fields")
-            );
+                """, search);
+            var e = expectThrows(VerificationException.class, () -> run(query, TIMEOUT).close());
+            assertThat(e.getMessage(), containsString("cannot be used after a JOIN on a subquery when it targets an indexed field"));
         }
+    }
+
+    /**
+     * The aggregation of a {@code STATS} after the join runs on the coordinator too, so a search in the filter of an aggregate
+     * function is rejected for the same reason.
+     */
+    public void testIndexSearchInAggregateFilterAfterTheJoinIsRejected() {
+        var e = expectThrows(VerificationException.class, () -> run("""
+            FROM data
+            | LEFT OUTER JOIN (FROM lookup) ON key
+            | STATS n = COUNT(*), us = COUNT(*) WHERE MATCH(country, "United States")
+            """, TIMEOUT).close());
+        assertThat(
+            e.getMessage(),
+            containsString("[MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+        );
     }
 
     public void testIndexSearchOnLeftFieldIsPushedBelowTheJoin() {

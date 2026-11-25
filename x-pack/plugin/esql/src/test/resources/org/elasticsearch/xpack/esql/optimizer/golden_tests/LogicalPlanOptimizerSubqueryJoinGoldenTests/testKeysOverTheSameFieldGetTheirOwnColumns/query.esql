@@ -1,0 +1,8 @@
+FROM employees
+| EVAL a = languages, b = languages
+| LEFT OUTER JOIN (
+    FROM languages
+    | EVAL a = TO_LONG(language_code), b = TO_DOUBLE(language_code)
+    | KEEP a, b, language_name
+  ) ON a, b
+| KEEP emp_no, language_name

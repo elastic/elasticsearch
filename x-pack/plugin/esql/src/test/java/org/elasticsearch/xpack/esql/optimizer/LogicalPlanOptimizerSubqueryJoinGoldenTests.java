@@ -279,6 +279,37 @@ public class LogicalPlanOptimizerSubqueryJoinGoldenTests extends GoldenTestCase 
     }
 
     /**
+     * The optimizer replaces the left key with the field it is an alias of, {@code languages}, which is also the name of a subquery
+     * column. The join keeps the subquery's {@code languages}, as for any name but the key's, so the key moves to a column of its own
+     * in the hash join, whose own output would keep the key.
+     */
+    public void testLeftKeyNamedLikeSubqueryColumnGetsItsOwnColumn() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (FROM languages | EVAL languages = language_name) ON language_code
+            | KEEP emp_no, languages
+            """, STAGES);
+    }
+
+    /**
+     * Both keys become the field {@code languages}, cast once to {@code long} and once to {@code double}. Each cast gets a column
+     * named after the key's position.
+     */
+    public void testKeysOverTheSameFieldGetTheirOwnColumns() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = languages, b = languages
+            | LEFT OUTER JOIN (
+                FROM languages
+                | EVAL a = TO_LONG(language_code), b = TO_DOUBLE(language_code)
+                | KEEP a, b, language_name
+              ) ON a, b
+            | KEEP emp_no, language_name
+            """, STAGES);
+    }
+
+    /**
      * The join runs on the coordinator, so its left side only sends the columns that are read after it, and the keys.
      */
     public void testLeftSideSendsOnlyColumnsReadAfterJoin() {
@@ -290,6 +321,18 @@ public class LogicalPlanOptimizerSubqueryJoinGoldenTests extends GoldenTestCase 
      */
     public void testJoinKeepsOneColumnWhenNoneIsRead() {
         runGoldenTest(JOIN_LANGUAGES + "| STATS c = COUNT(*)", STAGES);
+    }
+
+    /**
+     * The same when the left key is cast: the column kept is the key, not the cast that the hash join reads.
+     */
+    public void testJoinKeepsCastKeyWhenNoneIsRead() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (FROM languages | EVAL language_code = TO_LONG(language_code)) ON language_code
+            | STATS c = COUNT(*)
+            """, STAGES);
     }
 
     /**

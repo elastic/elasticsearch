@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
@@ -46,10 +46,10 @@ public final class SubqueryJoinLowering {
      * Replaces every {@link SubqueryJoin} in {@code plan}, which must be optimized and verified. The plan's output doesn't change.
      */
     public static LogicalPlan lower(LogicalPlan plan) {
-        List<Project> lowered = new ArrayList<>();
+        List<Lowered> lowered = new ArrayList<>();
         LogicalPlan result = plan.transformUp(SubqueryJoin.class, join -> {
             Project project = toHashJoin(join);
-            lowered.add(project);
+            lowered.add(new Lowered(project, join.config().leftFields()));
             return project;
         });
         // A join comes after the joins nested in its sides, so walking backwards narrows a join before the ones below it, which
@@ -62,14 +62,30 @@ public final class SubqueryJoinLowering {
     }
 
     /**
-     * Joins the left side with the subquery, keeping the column order of {@code join}. Numeric keys of different types are cast to
-     * the same type on both sides, since the hash table only matches keys stored the same way.
+     * A join that {@link #toHashJoin} put in the plan, and the left keys of the {@link SubqueryJoin} it replaced.
+     */
+    private record Lowered(Project project, List<Attribute> leftKeys) {}
+
+    /**
+     * Joins the left side with the subquery, keeping the output of {@code join}. Numeric keys of different types are cast to the
+     * same type on both sides, since the hash table only matches keys stored the same way.
+     * <p>
+     * The join keeps the left side's key and, for any other name, the subquery's column, as {@code LOOKUP JOIN} does. The hash
+     * join instead keeps its left key over a subquery column of the same name. A left key only has the name of a subquery column
+     * once the optimizer replaces it with the column it is an alias of, and then it moves to a column of its own.
      */
     private static Project toHashJoin(SubqueryJoin join) {
         Source source = join.source();
         List<Attribute> leftFields = join.config().leftFields();
         List<Attribute> rightFields = join.config().rightFields();
-        List<Alias> leftCasts = new ArrayList<>();
+        LogicalPlan subquery = join.right();
+        Set<String> subqueryColumns = new HashSet<>();
+        for (Attribute output : subquery.output()) {
+            if (rightFields.contains(output) == false) {
+                subqueryColumns.add(output.name());
+            }
+        }
+        List<Alias> leftColumns = new ArrayList<>();
         List<Alias> rightCasts = new ArrayList<>();
         List<Attribute> leftKeys = new ArrayList<>(leftFields.size());
         List<Attribute> rightKeys = new ArrayList<>(rightFields.size());
@@ -77,12 +93,11 @@ public final class SubqueryJoinLowering {
             Attribute left = leftFields.get(i);
             Attribute right = rightFields.get(i);
             DataType hashType = hashType(left.dataType(), right.dataType());
-            leftKeys.add(castKey(source, left, hashType, leftCasts));
-            rightKeys.add(castKey(source, right, hashType, rightCasts));
+            leftKeys.add(keyColumn(source, left, i, hashType, subqueryColumns.contains(left.name()), leftColumns));
+            rightKeys.add(keyColumn(source, right, i, hashType, false, rightCasts));
         }
 
-        LogicalPlan left = leftCasts.isEmpty() ? join.left() : new Eval(source, join.left(), leftCasts);
-        LogicalPlan subquery = join.right();
+        LogicalPlan left = leftColumns.isEmpty() ? join.left() : new Eval(source, join.left(), leftColumns);
         if (rightCasts.isEmpty() == false) {
             // Drop the subquery's own keys: the join's output doesn't have them, and they would shadow the left columns of the
             // same name.
@@ -123,9 +138,10 @@ public final class SubqueryJoinLowering {
         if (widenedLeft == widenedRight) {
             return null;
         }
+        // Two different types out of integer, long and double have long or double as their common type.
         DataType common = commonType(widenedLeft, widenedRight);
         return switch (common) {
-            case INTEGER, LONG, DOUBLE -> common;
+            case LONG, DOUBLE -> common;
             case null, default -> throw new IllegalStateException(
                 "JOIN subquery keys of types [" + left + "] and [" + right + "] have no common type to hash"
             );
@@ -133,31 +149,46 @@ public final class SubqueryJoinLowering {
     }
 
     /**
-     * Returns {@code key}, or an attribute holding it cast to {@code hashType}, whose definition is added to {@code casts}.
+     * Returns {@code key}, or a column of its own holding it, cast to {@code hashType} if its values aren't stored as that type,
+     * whose definition is added to {@code columns}. The column's name includes the key's {@code position}, so two keys over the
+     * same field don't get the same name.
      */
-    private static Attribute castKey(Source source, Attribute key, DataType hashType, List<Alias> casts) {
-        if (hashType == null || key.dataType().widenSmallNumeric() == hashType) {
+    private static Attribute keyColumn(
+        Source source,
+        Attribute key,
+        int position,
+        DataType hashType,
+        boolean ownColumn,
+        List<Alias> columns
+    ) {
+        boolean cast = hashType != null && key.dataType().widenSmallNumeric() != hashType;
+        if (cast == false && ownColumn == false) {
             return key;
         }
-        Expression cast = switch (hashType) {
-            case INTEGER -> new ToInteger(source, key);
+        Expression value = cast ? castKey(source, key, hashType) : key;
+        String name = Attribute.rawTemporaryName(key.name(), "join_key", Integer.toString(position));
+        Alias alias = new Alias(source, name, value, null, true);
+        columns.add(alias);
+        return alias.toAttribute();
+    }
+
+    private static Expression castKey(Source source, Attribute key, DataType hashType) {
+        return switch (hashType) {
             case LONG -> new ToLong(source, key);
             case DOUBLE -> new ToDouble(source, key);
             default -> throw new IllegalStateException("can't cast JOIN subquery key [" + key.name() + "] to [" + hashType + "]");
         };
-        Alias alias = new Alias(source, Attribute.rawTemporaryName(key.name(), "join_key"), cast, null, true);
-        casts.add(alias);
-        return alias.toAttribute();
     }
 
     /**
-     * Narrows {@code project}, a join that {@link #toHashJoin} put in {@code plan}, to the columns the rest of the plan reads, and the
-     * left side of its hash join to those columns and the keys. The join is replaced after the optimizer pruned the plan, so nothing
-     * else narrows it. Its left side runs on the data nodes and the join on the coordinator, and the physical planner sends the
-     * coordinator every column that a plan there reads, which for the join's projection and the hash join's own output is every
-     * left column.
+     * Narrows the {@code Project} of {@code lowered}, a join that {@link #toHashJoin} put in {@code plan}, to the columns the rest of
+     * the plan reads, and the left side of its hash join to those columns and the keys. The join is replaced after the optimizer pruned
+     * the plan, so nothing else narrows it. Its left side runs on the data nodes and the join on the coordinator, and the physical
+     * planner sends the coordinator every column that a plan there reads, which for the join's projection and the hash join's own
+     * output is every left column.
      */
-    private static LogicalPlan pruneUnusedColumns(LogicalPlan plan, Project project) {
+    private static LogicalPlan pruneUnusedColumns(LogicalPlan plan, Lowered lowered) {
+        Project project = lowered.project();
         Set<LogicalPlan> joinNodes = Collections.newSetFromMap(new IdentityHashMap<>());
         project.forEachDown(joinNodes::add);
         AttributeSet.Builder used = plan.outputSet().asBuilder();
@@ -182,10 +213,11 @@ public final class SubqueryJoinLowering {
         }
         HashJoin hashJoin = (HashJoin) project.child();
         if (kept.isEmpty()) {
-            // A page of no columns can't count its rows. Keep one column, a key if it is in the output, since the join reads it anyway.
+            // A page of no columns can't count its rows. Keep one column, a left key if it is in the output, since the join reads
+            // it anyway.
             NamedExpression column = project.projections().getFirst();
             for (NamedExpression projection : project.projections()) {
-                if (hashJoin.leftFields().contains(projection.toAttribute())) {
+                if (lowered.leftKeys().contains(projection.toAttribute())) {
                     column = projection;
                     break;
                 }

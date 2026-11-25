@@ -142,7 +142,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                         throws IOException {
                         if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
                         // check that last document has a value to confirm that all documents have a value
-                            || lastDocumentHasValue(context.reader(), fieldname) == false) {
+                            || lastDocumentHasValue(context.reader(), fieldname) == false
+                        // the segment order uses one value of a multi-valued document, the sort can use another
+                            || isSingleValued(context) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
@@ -259,6 +261,10 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     private static boolean lastDocumentHasValue(LeafReader reader, String field) throws IOException {
         return DocValues.getSortedNumeric(reader, field).advanceExact(reader.maxDoc() - 1);
+    }
+
+    private boolean isSingleValued(LeafReaderContext context) {
+        return loadDocValues(context).isSingleton();
     }
 
     private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {

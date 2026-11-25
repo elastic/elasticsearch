@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -25,8 +26,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
-import org.elasticsearch.xpack.eql.EqlClientException;
-import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.PlanSize;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -74,7 +75,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -609,7 +609,47 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 destination
             );
         }
-        return input -> new Into(source, input, destination);
+        IntoOptions options = intoOptions(source, visitCommandNamedParameters(ctx.commandNamedParameters()));
+        return input -> new Into(source, input, destination, options);
+    }
+
+    /** Option names are case-insensitive, so they are lowercased before lookup. */
+    private static IntoOptions intoOptions(Source source, @Nullable MapExpression optionsExpression) {
+        if (optionsExpression == null) {
+            return IntoOptions.DEFAULT;
+        }
+        Map<String, Expression> optionExpressionsByName = new LinkedHashMap<>();
+        // The entries, not the folded map: it keeps only the last value of a name, which would hide an invalid one before it
+        for (EntryExpression entry : optionsExpression.entryExpressions()) {
+            if (entry.key() instanceof Literal key) {
+                String name = BytesRefs.toString(key.value()).toLowerCase(Locale.ROOT);
+                if (optionExpressionsByName.put(name, entry.value()) != null) {
+                    throw new ParsingException(entry.value().source(), "Duplicate option [{}] in INTO", name);
+                }
+            } else {
+                throw new ParsingException(entry.key().source(), "Option names must be literals in INTO");
+            }
+        }
+
+        boolean refresh = IntoOptions.DEFAULT.refresh();
+        Expression refreshExpr = optionExpressionsByName.remove("refresh");
+        if (refreshExpr != null) {
+            if (refreshExpr instanceof Literal lit && lit.value() instanceof Boolean value) {
+                refresh = value;
+            } else {
+                throw new ParsingException(refreshExpr.source(), "Option [refresh] must be a boolean literal");
+            }
+        }
+
+        if (optionExpressionsByName.isEmpty() == false) {
+            throw new ParsingException(
+                source,
+                "Invalid option{} {} in INTO, expected one of [refresh]",
+                optionExpressionsByName.size() > 1 ? "s" : "",
+                optionExpressionsByName.keySet()
+            );
+        }
+        return new IntoOptions(refresh);
     }
 
     @Override
@@ -1231,19 +1271,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // shared field-caps path in ResolveEqlRelation.
         IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         String query = eqlQuery(ctx.stringOrParameter());
-        EqlQueryIntrospection.Shape shape;
-        try {
-            shape = EqlQueryIntrospection.inspect(query);
-        } catch (RuntimeException e) {
-            // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
-            String reason = e instanceof EqlClientException ? ": " + e.getMessage() : "";
-            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]{}", query, reason);
-        }
-        EqlRelation.Mode mode = switch (shape.mode()) {
-            case EVENT -> EqlRelation.Mode.EVENT;
-            case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
-            case SAMPLE -> EqlRelation.Mode.SAMPLE;
-        };
+        // No eql/ql types in this class: they would load with it, failing every ES|QL query in a runtime without those plugins.
+        EqlRequests.QueryShape shape = EqlRequests.inspectQuery(source(ctx.stringOrParameter()), query);
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = new LinkedHashMap<>(options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of());
         if (config.containsKey("indices")) {
@@ -1253,7 +1282,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
         // ones the EQL delegate can populate and appends them to the output.
         List<NamedExpression> metadataFields = visitMetadataFields(ctx.metadata());
-        return new UnresolvedEqlRelation(source, indexPattern, query, config, mode, shape.hasExplicitLimit(), metadataFields);
+        return new UnresolvedEqlRelation(source, indexPattern, query, config, shape.mode(), shape.hasExplicitLimit(), metadataFields);
     }
 
     private String eqlQuery(EsqlBaseParser.StringOrParameterContext ctx) {

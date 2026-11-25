@@ -685,21 +685,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testFailedQueryMidScanIsMetered
   issue: https://github.com/elastic/elasticsearch/issues/166565
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testIpTermsClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testLongTermsClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testGeoDistanceClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testGeoShapeOnGeoPointClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testLongRangeFieldClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
 - class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
   method: testSignificantTermsBackgroundFilters
   issue: https://github.com/elastic/elasticsearch/issues/166396
@@ -714,12 +699,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/166396
 - class: org.elasticsearch.index.query.bitmapterms.heappressure.BitmapTermsHeapPressureIT
   method: testBitmapTermsClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
-  method: testIntersectsPolygonClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
-  method: testContainsPointClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   tasks:
@@ -962,3 +941,13 @@ tests:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
   method: test {yaml=multi_cluster/50_esql_datafeeds/Test preview ES|QL datafeed returns the rows of a remote cluster index}
   issue: https://github.com/elastic/elasticsearch/issues/167541
+- class: org.elasticsearch.get.MultiGetCircuitBreakerIT
+  tasks:
+  - :server:internalClusterTest
+  method: testDocumentFromTranslogWithoutRoomInBreakerFailsAlone
+  issue: https://github.com/elastic/elasticsearch/issues/167560
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
+  method: test {yaml=esql/317_unmapped_fields_mapped_later/the same holds with synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/167562

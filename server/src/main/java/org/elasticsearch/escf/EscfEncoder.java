@@ -93,6 +93,14 @@ public final class EscfEncoder implements SourceBatchEncoder {
     private byte[] scratch;
 
     /**
+     * Where the canonical rendering of a floating-point value is written, to compare it with the value's token and
+     * find out whether the token has to be stored as the value's spelling. One buffer serves every value of every
+     * document, since a {@code String} per value was most of what a floating-point value allocated. Like
+     * {@link #scratch}, it is owned by this encoder and so has the one thread of the encoder as its only writer.
+     */
+    private final StringBuilder doubleBuffer = new StringBuilder(SourceBatchEncodeHelper.MAX_DOUBLE_RENDERING_LENGTH);
+
+    /**
      * The full paths of the fields whose array elements are parsed straight to float (see
      * {@link SourceBatchEncodeHelper#packArray(XContentParser, SourceBatchEncodeHelper.ArrayScratch, boolean)}); empty when the
      * caller knows none, in which case paths are not tracked at all.
@@ -242,7 +250,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
         try {
             EscfRowBuffer row = backend.beginRow();
             boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
-            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode, floatElementPaths);
+            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode, floatElementPaths, doubleBuffer);
             docParser.parseDocument(buf, offset, len, handler);
             row.finishRow();
             return true;
@@ -312,6 +320,9 @@ public final class EscfEncoder implements SourceBatchEncoder {
      */
     @Override
     public void close() {
+        // The buffer is sized for the longest rendering of a double, so nothing rendered into it may have grown it.
+        assert doubleBuffer.capacity() == SourceBatchEncodeHelper.MAX_DOUBLE_RENDERING_LENGTH
+            : "the double buffer grew to [" + doubleBuffer.capacity() + "]";
         try {
             if (docParser != null) {
                 docParser.publishFieldNames();
@@ -400,7 +411,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                             double val = parser.doubleValue();
                             float fval = (float) val;
                             byte type = ((double) fval == val) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-                            int colIdx = row.doubleField(fieldName, val, SourceBatchEncodeHelper.lexicalForm(text, val));
+                            int colIdx = row.doubleField(fieldName, val, SourceBatchEncodeHelper.lexicalForm(text, val, doubleBuffer));
                             if (rawTextMode) {
                                 sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
                             } else if (firePathSink) {

@@ -1026,11 +1026,16 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
         private boolean notEveryNodeIsReady(KeyRotationTask task, ClusterState clusterState, @Nullable Set<String> readyNodeIds) {
             if (readyNodeIds == null) {
-                if (PasswordPekEncryption.passwordsFromClusterSecrets(clusterState, stateless)) {
-                    return false;
+                if (PasswordPekEncryption.passwordsFromClusterSecrets(clusterState, stateless) == false) {
+                    logger.debug("dropping [{}]: the passwords no longer come from cluster secrets", task.description());
+                    return true;
                 }
-                logger.debug("dropping [{}]: the passwords no longer come from cluster secrets", task.description());
-                return true;
+                // cluster secrets may have changed since the check, and the master reloads them when it applies the state
+                if (pekEncryption.wrapForGatewayFailure() != null) {
+                    logger.debug("dropping [{}]: the elected master can no longer persist the key", task.description());
+                    return true;
+                }
+                return false;
             }
             if (everyPersistingNodeIsReady(clusterState, readyNodeIds, stateless)) {
                 return false;

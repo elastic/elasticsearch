@@ -305,7 +305,30 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     /** With passwords from cluster secrets the master still checks that it can use its own, such as one too short for FIPS. */
     public void testNoInstallWhenMasterCannotUsePasswordFromClusterSecrets() throws IOException {
         nodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
-        pekEncryption = new ProjectEncryptionKeyMetadata.PekEncryption() {
+        pekEncryption = passwordTooShort();
+        ClusterState state = PasswordPekEncryptionTests.withClusterSecrets(
+            clusterStateWith(null, true),
+            ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
+        );
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
+
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation(
+                "gives the reason",
+                KeyRotationCoordinator.class.getName(),
+                Level.WARN,
+                "project encryption key not installed yet: the elected master cannot persist it (password too short)"
+            )
+        );
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+        assertEquals(Set.of("local"), coordinator.nodesWithoutPassword());
+    }
+
+    /** Encryption whose password can't be used to persist the key, as one too short for FIPS. */
+    private static ProjectEncryptionKeyMetadata.PekEncryption passwordTooShort() {
+        return new ProjectEncryptionKeyMetadata.PekEncryption() {
             @Override
             public String activePasswordId() {
                 return NO_OP_ENCRYPTION.activePasswordId();
@@ -331,24 +354,29 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
                 return "password too short";
             }
         };
+    }
+
+    /**
+     * With passwords from cluster secrets, the master checks its own password before submitting the install, and again when it runs,
+     * since cluster secrets can change in between.
+     */
+    public void testInstallDroppedWhenMasterCanNoLongerUsePasswordFromClusterSecrets() throws IOException {
         ClusterState state = PasswordPekEncryptionTests.withClusterSecrets(
             clusterStateWith(null, true),
             ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
         );
-        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
-
-        MockLog.assertThatLogger(
-            () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),
-            KeyRotationCoordinator.class,
-            new MockLog.SeenEventExpectation(
-                "gives the reason",
-                KeyRotationCoordinator.class.getName(),
-                Level.WARN,
-                "project encryption key not installed yet: the elected master cannot persist it (password too short)"
-            )
+        KeyRotationCoordinator.InstallKeyTask task = new KeyRotationCoordinator.InstallKeyTask(
+            "k1",
+            new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES],
+            PASSWORD_ID,
+            0L,
+            null
         );
-        verify(taskQueue, never()).submitTask(anyString(), any(), any());
-        assertEquals(Set.of("local"), coordinator.nodesWithoutPassword());
+
+        var canUsePassword = new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, NO_OP_ENCRYPTION, true);
+        assertNotSame(state, canUsePassword.executeTask(task, state).v1());
+        var cannotUsePassword = new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, passwordTooShort(), true);
+        assertSame(state, cannotUsePassword.executeTask(task, state).v1());
     }
 
     /** A node that persists cluster state restarting, here with a password, ends the wait for the retry. */

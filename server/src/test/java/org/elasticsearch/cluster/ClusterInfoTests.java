@@ -179,10 +179,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         for (int i = 0; i < numEntries; i++) {
             capacities.put(
                 randomIdentifier(),
-                new NodeSearchCapacity(
-                    randomDoubleBetween(0.1, 64.0, true),
-                    randomDoubleBetween(0.1, 64.0, true)
-                )
+                new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
             );
         }
         return capacities;

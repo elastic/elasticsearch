@@ -4733,7 +4733,7 @@ public final class GlobExpander {
     private static boolean rangeOperator(Operator operator) {
         return switch (operator) {
             case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> true;
-            case EQUALS, NOT_EQUALS, IN, LIKE -> false;
+            case EQUALS, NOT_EQUALS, IN, LIKE, RANGE -> false; // RANGE is exhaustive; it is not a glob rewrite.
         };
     }
 
@@ -4773,7 +4773,9 @@ public final class GlobExpander {
                     upper = hasUpper ? Math.min(upper, inclusive) : inclusive;
                     hasUpper = true;
                 }
-                case EQUALS, NOT_EQUALS, IN, LIKE -> throw new IllegalArgumentException("not a range operator [" + hint.operator() + "]");
+                case EQUALS, NOT_EQUALS, IN, LIKE, RANGE -> throw new IllegalArgumentException(
+                    "not a range operator [" + hint.operator() + "]"
+                );
             }
         }
         if (hasLower == false || hasUpper == false || upper < lower) {

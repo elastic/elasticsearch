@@ -15,10 +15,15 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.BoundRange;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 
 import java.time.Instant;
@@ -696,6 +701,264 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         return PartitionSpec.quantizeRange(new PartitionSpec.InstantRange(folderStart + 1, folderStart + 1), grain).endExclusiveMillis();
     }
 
+    /**
+     * Two disjoint {@code @timestamp} windows keep the four hour folders they overlap, not the gap
+     * and not the 72 hours of a 3-day layout. The extract hull ({@code >=} first start / {@code <=}
+     * last end) covers the gap; {@code folderRangePredicate} must ignore it and match RANGE-only.
+     */
+    public void testOrOfTwoTimestampWindowsKeepsFourHourFolders() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant start2 = Instant.parse("2026-11-19T04:00:00Z");
+        Instant end2 = Instant.parse("2026-11-19T06:00:00Z");
+        PartitionFilterHint range = new PartitionFilterHint(
+            "ts",
+            Operator.RANGE,
+            List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false))
+        );
+        List<PartitionFilterHint> rangeOnly = List.of(range);
+        List<PartitionFilterHint> rangeAndHull = List.of(
+            range,
+            hint("ts", Operator.GREATER_THAN_OR_EQUAL, start1),
+            hint("ts", Operator.LESS_THAN_OR_EQUAL, end2)
+        );
+        var withHull = spec.folderRangePredicate(rangeAndHull);
+        var withoutHull = spec.folderRangePredicate(rangeOnly);
+        assertNotNull(withHull);
+        assertNotNull(withoutHull);
+        assertEquals("coveringRange must not fold disjuncts into the hull", withoutHull.identity(), withHull.identity());
+        List<Map<String, String>> expected = List.of(
+            Map.of("year", "2026", "month", "11", "day", "17", "hour", "22"),
+            Map.of("year", "2026", "month", "11", "day", "17", "hour", "23"),
+            Map.of("year", "2026", "month", "11", "day", "19", "hour", "4"),
+            Map.of("year", "2026", "month", "11", "day", "19", "hour", "5")
+        );
+        List<Map<String, String>> kept = hourFoldersIn(2026, 11, 17, 19, withHull);
+        assertEquals(expected, kept);
+        assertEquals(kept, hourFoldersIn(2026, 11, 17, 19, withoutHull));
+        List<PartitionFilterHint> projected = spec.projectListingHints(rangeAndHull);
+        assertNull("RANGE is not a listing glob operator", rangeHint(projected, "ts"));
+        assertEquals(List.of(2026), inValues(projected, "year"));
+        assertEquals(List.of(11), inValues(projected, "month"));
+        // Grain INs are a superset: hour IN (22,23,4,5) × day IN (17,19) is 8 glob combos.
+        // The folder-range predicate, not the IN, is the keep-set. Do not hull the INs.
+        assertEquals(List.of(17, 19), inValues(projected, "day"));
+        assertEquals(List.of(22, 23, 4, 5), inValues(projected, "hour"));
+    }
+
+    /**
+     * Nov 17 22:00–Nov 18 02:00 OR Dec 3 22:00–Dec 4 02:00: eight hour folders, not the hull (~408 h)
+     * and not the grain-IN cross-product as a keep set. Scan Nov 17–20 and Dec 1–5 so a too-open
+     * predicate cannot pass by matching only the eight positives.
+     */
+    public void testOrOfNovAndDecWindowsKeepsEightHourFolders() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T02:00:00Z");
+        Instant start2 = Instant.parse("2026-12-03T22:00:00Z");
+        Instant end2 = Instant.parse("2026-12-04T02:00:00Z");
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint(
+                "ts",
+                Operator.RANGE,
+                List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false))
+            )
+        );
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        List<Map<String, String>> kept = new ArrayList<>();
+        kept.addAll(hourFoldersIn(2026, 11, 17, 20, predicate));
+        kept.addAll(hourFoldersIn(2026, 12, 1, 5, predicate));
+        assertEquals(
+            List.of(
+                Map.of("year", "2026", "month", "11", "day", "17", "hour", "22"),
+                Map.of("year", "2026", "month", "11", "day", "17", "hour", "23"),
+                Map.of("year", "2026", "month", "11", "day", "18", "hour", "0"),
+                Map.of("year", "2026", "month", "11", "day", "18", "hour", "1"),
+                Map.of("year", "2026", "month", "12", "day", "3", "hour", "22"),
+                Map.of("year", "2026", "month", "12", "day", "3", "hour", "23"),
+                Map.of("year", "2026", "month", "12", "day", "4", "hour", "0"),
+                Map.of("year", "2026", "month", "12", "day", "4", "hour", "1")
+            ),
+            kept
+        );
+        List<PartitionFilterHint> projected = spec.projectListingHints(hints);
+        // Grain INs still LIST the independent cross-product (month × day × hour). Keep-set is
+        // the predicate. A temporal hull of the INs would list the Nov–Dec gap; do not add one.
+        assertEquals(List.of(11, 12), inValues(projected, "month"));
+        assertEquals(List.of(17, 18, 3, 4), inValues(projected, "day"));
+        assertEquals(List.of(22, 23, 0, 1), inValues(projected, "hour"));
+    }
+
+    public void testOrOfTimestampWindowsSameIdentityEitherBranchOrder() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant start2 = Instant.parse("2026-11-19T04:00:00Z");
+        Instant end2 = Instant.parse("2026-11-19T06:00:00Z");
+        var a = spec.folderRangePredicate(
+            List.of(
+                new PartitionFilterHint(
+                    "ts",
+                    Operator.RANGE,
+                    List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false))
+                )
+            )
+        );
+        var b = spec.folderRangePredicate(
+            List.of(
+                new PartitionFilterHint(
+                    "ts",
+                    Operator.RANGE,
+                    List.of(new BoundRange(start2, true, end2, false), new BoundRange(start1, true, end1, false))
+                )
+            )
+        );
+        assertNotNull(a);
+        assertEquals(a.identity(), b.identity());
+    }
+
+    /**
+     * Lag on two live windows keeps the lag margin of each, not the gap between them.
+     */
+    public void testOrOfTimestampWindowsLagKeepsMarginNotGap() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant start2 = Instant.parse("2026-11-19T04:00:00Z");
+        Instant end2 = Instant.parse("2026-11-19T06:00:00Z");
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint(
+                "ts",
+                Operator.RANGE,
+                List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false))
+            )
+        );
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue("lag 15m from 00:00 reaches hour 00 of the 18th", predicate.mayContain(hourBinding(2026, 11, 18, 0)));
+        assertFalse("gap hour is not a lag margin", predicate.mayContain(hourBinding(2026, 11, 18, 3)));
+        assertTrue(predicate.mayContain(hourBinding(2026, 11, 17, 23)));
+        assertTrue(predicate.mayContain(hourBinding(2026, 11, 19, 4)));
+    }
+
+    /**
+     * An inverted {@code BoundRange} is an empty clip. Lag must not put it in the cache key or
+     * turn it into a live window; identity matches the live interval alone.
+     */
+    public void testLagDoesNotWidenAnEmptyDisjunct() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts), lag(ts, 15m)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant invertedLower = Instant.parse("2026-11-19T04:00:00Z");
+        Instant invertedUpper = Instant.parse("2026-11-17T22:00:00Z");
+        var withEmpty = spec.folderRangePredicate(
+            List.of(
+                new PartitionFilterHint(
+                    "ts",
+                    Operator.RANGE,
+                    List.of(new BoundRange(start1, true, end1, false), new BoundRange(invertedLower, true, invertedUpper, false))
+                )
+            )
+        );
+        var liveOnly = spec.folderRangePredicate(
+            List.of(new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(start1, true, end1, false))))
+        );
+        assertNotNull(withEmpty);
+        assertEquals(liveOnly.identity(), withEmpty.identity());
+        assertFalse(withEmpty.mayContain(hourBinding(2026, 11, 19, 4)));
+    }
+
+    /**
+     * One value that is not a {@link BoundRange} discards the whole {@code RANGE} hint. Keeping only
+     * the convertible branch would hide folders the omitted interval still matches.
+     */
+    public void testRangeHintWithANonBoundRangeValueRestrictsNothing() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(start1, true, end1, false), "not-a-range"))
+        );
+        assertNull(spec.folderRangePredicate(hints));
+        assertTrue(spec.overlaps(Map.of("year", 2026, "month", 11, "day", 18, "hour", 3), hints));
+    }
+
+    public void testOrOfTimestampWindowsFromConjunctsMatchesManualRange() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant start2 = Instant.parse("2026-11-19T04:00:00Z");
+        Instant end2 = Instant.parse("2026-11-19T06:00:00Z");
+        Expression filter = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, datetimeField("ts"), datetimeLiteral(start1.toEpochMilli())),
+                new LessThan(SRC, datetimeField("ts"), datetimeLiteral(end1.toEpochMilli()))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, datetimeField("ts"), datetimeLiteral(start2.toEpochMilli())),
+                new LessThan(SRC, datetimeField("ts"), datetimeLiteral(end2.toEpochMilli()))
+            )
+        );
+        List<PartitionFilterHint> extracted = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(),
+            spec.boundColumns(),
+            PartitionFilterHintExtractor.TEMPORAL
+        );
+        var fromExtracted = spec.folderRangePredicate(extracted);
+        var manual = spec.folderRangePredicate(
+            List.of(
+                new PartitionFilterHint(
+                    "ts",
+                    Operator.RANGE,
+                    List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false))
+                )
+            )
+        );
+        assertNotNull(fromExtracted);
+        assertEquals(manual.identity(), fromExtracted.identity());
+        assertEquals(hourFoldersIn(2026, 11, 17, 19, manual), hourFoldersIn(2026, 11, 17, 19, fromExtracted));
+    }
+
+    /** Plain identity remap: the hull listing {@code eu}…{@code us-east-1} is the allowed gap. */
+    public void testIdentityRemapOrOfClosedRangesProjectsHull() {
+        PartitionSpec spec = PartitionSpec.parse("aws-region=region");
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint(
+                "region",
+                Operator.RANGE,
+                List.of(new BoundRange("eu", true, "eu-west-1", true), new BoundRange("us", true, "us-east-1", true))
+            ),
+            hint("region", Operator.GREATER_THAN_OR_EQUAL, "eu"),
+            hint("region", Operator.LESS_THAN_OR_EQUAL, "us-east-1")
+        );
+        List<PartitionFilterHint> projected = spec.projectListingHints(hints);
+        assertNull(rangeHint(projected, "region"));
+        assertNull(rangeHint(projected, "aws-region"));
+        assertEquals("aws-region", projected.get(0).columnName());
+        assertEquals(Operator.GREATER_THAN_OR_EQUAL, projected.get(0).operator());
+        assertEquals(List.of("eu"), projected.get(0).values());
+        assertEquals(Operator.LESS_THAN_OR_EQUAL, projected.get(1).operator());
+        assertEquals(List.of("us-east-1"), projected.get(1).values());
+    }
+
+    public void testWraparoundPlainColumnProjectsNoHull() {
+        PartitionSpec spec = PartitionSpec.EMPTY;
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint(
+                "hour",
+                Operator.RANGE,
+                List.of(new BoundRange(22, true, null, true), new BoundRange(null, true, 1, true))
+            )
+        );
+        assertEquals(List.of(), spec.projectListingHints(hints));
+    }
+
     private static PartitionFilterHint hint(String column, Operator op, Object... values) {
         return new PartitionFilterHint(column, op, List.of(values));
     }
@@ -719,6 +982,41 @@ public class PartitionSpecProjectorTests extends ESTestCase {
             }
         }
         return null;
+    }
+
+    private static PartitionFilterHint rangeHint(List<PartitionFilterHint> hints, String key) {
+        for (PartitionFilterHint hint : hints) {
+            if (key.equals(hint.columnName()) && hint.operator() == Operator.RANGE) {
+                return hint;
+            }
+        }
+        return null;
+    }
+
+    private static List<Map<String, String>> hourFoldersIn(int year, int month, int fromDay, int toDay, FolderRangePredicate predicate) {
+        List<Map<String, String>> kept = new ArrayList<>();
+        for (int day = fromDay; day <= toDay; day++) {
+            for (int hour = 0; hour < 24; hour++) {
+                Map<String, String> folder = hourBinding(year, month, day, hour);
+                if (predicate.mayContain(folder)) {
+                    kept.add(folder);
+                }
+            }
+        }
+        return kept;
+    }
+
+    private static Map<String, String> hourBinding(int year, int month, int day, int hour) {
+        return Map.of(
+            "year",
+            Integer.toString(year),
+            "month",
+            Integer.toString(month),
+            "day",
+            Integer.toString(day),
+            "hour",
+            Integer.toString(hour)
+        );
     }
 
     private static Map<String, Object> hourFolder(int hour) {

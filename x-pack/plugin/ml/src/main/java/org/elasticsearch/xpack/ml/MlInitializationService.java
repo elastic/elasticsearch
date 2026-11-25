@@ -151,6 +151,7 @@ public final class MlInitializationService implements ClusterStateListener {
         }
 
         final boolean prevIsMaster = this.isMaster;
+        // no need for isLocalNodeElectedMaster(): we're only starting/stopping listeners and timers, nothing needs to re-examine state
         if (prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {

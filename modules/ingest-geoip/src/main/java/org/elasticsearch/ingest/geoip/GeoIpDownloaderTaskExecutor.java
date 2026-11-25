@@ -219,9 +219,23 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
         final var projects = event.state().metadata().projects();
 
+<<<<<<< HEAD:modules/ingest-geoip/src/main/java/org/elasticsearch/ingest/geoip/GeoIpDownloaderTaskExecutor.java
         // Runs on all nodes: tracks geoip processor presence per project.
         // Downloader scheduling via requestRunOnDemand only fires on the node hosting the task.
         for (var projectMetadata : projects.values()) {
+=======
+        // On every master election, reconcile each project so an upgraded master can recover the
+        // IpLocationDownloadConsumers custom (introduced in 9.5) even if the previous master (older
+        // version) didn't write it. Idempotent for 9.5 -> 9.5 handovers since both requestDownloads
+        // and cancelDownloadRequest short-circuit when the consumer is already in the desired state.
+        boolean masterChanged = event.localNodeIsNewMaster();
+
+        if (event.metadataChanged() == false && masterChanged == false) {
+            return;
+        }
+
+        for (var projectMetadata : event.state().metadata().projects().values()) {
+>>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747)):modules/ingest-ip-location/src/main/java/org/elasticsearch/ingest/iplocation/IngestIpLocationPlugin.java
             ProjectId projectId = projectMetadata.id();
             atLeastOneGeoIpProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
 

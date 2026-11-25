@@ -102,7 +102,10 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
         ResponseException missing = expectThrows(ResponseException.class, () -> into("into_writer_user", "into-missing"));
         assertThat(missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
-        assertThat(EntityUtils.toString(missing.getResponse().getEntity()), containsString("INTO destination [into-missing] does not exist"));
+        assertThat(
+            EntityUtils.toString(missing.getResponse().getEntity()),
+            containsString("INTO destination [into-missing] does not exist")
+        );
     }
 
     private void createDestinationWithPipeline() throws IOException {

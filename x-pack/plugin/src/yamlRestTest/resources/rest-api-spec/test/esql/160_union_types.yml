@@ -463,6 +463,65 @@ load two indices and convert keyword and text with a base:
           query: 'FROM base_union_* | EVAL l = TO_LONG(hex, 1.5)'
 
 ---
+load two indices and convert keyword and text with a base, with unmapped fields:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_conversion_with_base, optional_fields_v5]
+      reason: "The base is kept when loading the field where it's unmapped"
+  - do:
+      indices.create:
+        index: base_unmapped_keyword
+        body:
+          mappings:
+            properties:
+              hex:
+                type: keyword
+  - do:
+      indices.create:
+        index: base_unmapped_text
+        body:
+          mappings:
+            properties:
+              hex:
+                type: text
+  # hex is in _source but not in the mapping (dynamic:false)
+  - do:
+      indices.create:
+        index: base_unmapped_none
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "base_unmapped_keyword"}}'
+          - '{"hex": "ff"}'
+          - '{"index": {"_index": "base_unmapped_text"}}'
+          - '{"hex": "10"}'
+          - '{"index": {"_index": "base_unmapped_none"}}'
+          - '{"hex": "1f", "other": "x"}'
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM base_unmapped_* METADATA _index | EVAL l = TO_LONG(hex, 16), i = TO_INTEGER(hex, 16) | KEEP _index, l, i | SORT _index'
+  - match: { columns.1.type: "long" }
+  - match: { columns.2.type: "integer" }
+  - length: { values: 3 }
+  - match: { values.0: ["base_unmapped_keyword", 255, 255] }
+  - match: { values.1: ["base_unmapped_none", 31, 31] }
+  - match: { values.2: ["base_unmapped_text", 16, 16] }
+---
 load two indices and convert event_duration with a base:
   - requires:
       test_runner_features: [capabilities]

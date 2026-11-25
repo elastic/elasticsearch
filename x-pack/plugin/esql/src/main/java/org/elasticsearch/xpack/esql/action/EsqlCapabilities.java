@@ -4398,9 +4398,10 @@ public class EsqlCapabilities {
 
         /**
          * PromQL {@code without(...)} over another {@code without(...)}: each level leaves out its own labels from what the level
-         * below kept.
+         * below kept. It takes the label container functions, so it is on only where {@link #PROMQL_TIMESERIES_METADATA_FUNCTIONS}
+         * is.
          */
-        PROMQL_NESTED_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_NESTED_WITHOUT(PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()),
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,

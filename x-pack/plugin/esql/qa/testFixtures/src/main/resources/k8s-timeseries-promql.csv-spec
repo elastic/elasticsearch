@@ -3405,3 +3405,54 @@ result:double | cluster:keyword
 3.0           | qa
 3.0           | staging
 ;
+
+// Over a by() aggregate, a without partitions by the aggregate's labels but the listed ones.
+topk_without_over_by
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, sum by (cluster, pod) (last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, cluster, pod
+| SORT cluster;
+
+result:double | cluster:keyword | pod:keyword
+409.0         | prod            | one
+908.0         | qa              | two
+472.0         | staging         | two
+;
+
+// Over a without aggregate, a without partitions by the labels both leave.
+topk_without_over_without
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, sum without (region) (last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+409.0         | "{""cluster"":""prod"",""pod"":""one""}"
+908.0         | "{""cluster"":""qa"",""pod"":""two""}"
+472.0         | "{""cluster"":""staging"",""pod"":""two""}"
+;
+
+// A without reduction keeps its series, so it is an operand like any instant vector.
+topk_without_as_operand
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, last_over_time(network.eth0.tx[5m])) * 2)
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+818.0         | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+1816.0        | "{""cluster"":""qa"",""pod"":""two""}"
+944.0         | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;

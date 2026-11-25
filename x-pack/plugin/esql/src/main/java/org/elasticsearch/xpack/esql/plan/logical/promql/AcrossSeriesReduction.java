@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Gr
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -132,9 +133,10 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
+        boolean isLimitRatio = definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
         // A without partition is a packing of its own next to the series' one, derived from it after the per-series
-        // aggregate, which takes the label container functions.
-        if (grouping() == WITHOUT && context.containerFunctions() == false) {
+        // aggregate, which takes the label container functions. limit_ratio samples series, not partitions.
+        if (grouping() == WITHOUT && isLimitRatio == false && context.containerFunctions() == false) {
             throw new VerificationException("function [{}] is not yet supported with [{}]", functionName(), WITHOUT.name());
         }
 
@@ -143,7 +145,6 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         // its sampling key is solely the input vector's identity, so outer partitions are neither required
         // from the child nor materialized below.
         List<String> partitions = TranslationContext.mapFinite(groupings());
-        boolean isLimitRatio = definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
         if (grouping() == WITHOUT) {
             partitions = context.withoutLabels(partitions);
         }
@@ -162,13 +163,16 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             return childResult;
         }
 
+        if (grouping() == WITHOUT) {
+            partitioning = withoutPartitioning(childResult.schema(), partitions);
+        }
         var schema = isLimitRatio ? childResult.schema() : union(childResult.schema(), partitioning);
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, childResult.step(), context.configuration());
         IntermediateResult aggregated = childResult.kind().afterInitialAggregation
             ? context.regroup(childResult, schema, false, childResult.value())
             : context.collapse(childResult, schema, childResult.value());
-        LogicalPlan result = isLimitRatio ? emitLimitRatioFilter(aggregated) : emitTopNBy(context, aggregated, partitions, promqlCtx);
+        LogicalPlan result = isLimitRatio ? emitLimitRatioFilter(aggregated) : emitTopNBy(context, aggregated, partitioning, promqlCtx);
         return aggregated.with(result, aggregated.schema(), aggregated.value());
     }
 
@@ -176,10 +180,10 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
     private LogicalPlan emitTopNBy(
         TranslationContext context,
         IntermediateResult table,
-        List<String> partitions,
+        TranslationSchema partitioning,
         PromqlContext promqlContext
     ) {
-        ReductionGrouping grouping = reductionGrouping(context, table, partitions);
+        ReductionGrouping grouping = reductionGrouping(context, table, partitioning);
         var order = (Order) buildEsqlFunction(table.value(), promqlContext);
         // Prometheus converts k with an integer cast: `topk(1.5, v)` keeps one series, and a k below one keeps none.
         Expression k = new ToInteger(source(), new Floor(source(), parameters().getFirst()));
@@ -264,14 +268,14 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      * A partition label absent from every series ranks as one partition, like Prometheus, via a null-carrying
      * {@link Eval} over the collapsed table.
      */
-    private ReductionGrouping reductionGrouping(TranslationContext context, IntermediateResult table, List<String> partitions) {
+    private ReductionGrouping reductionGrouping(TranslationContext context, IntermediateResult table, TranslationSchema partitioning) {
         var groupings = new ArrayList<Expression>();
         groupings.add(table.step());
         LogicalPlan plan = table.plan();
-        if (grouping() == WITHOUT) {
+        if (partitioning.isOpen()) {
             // The packing of every label but the listed ones, plus each label column the packing may not hold: one a
             // relabel derived. A label column the packing holds too adds nothing to the partition.
-            Set<String> skip = Set.copyOf(partitions);
+            Set<String> skip = partitioning.finestSkip();
             Attribute packing = table.packed(skip);
             if (packing == null) {
                 throw new IllegalStateException("packing " + skip + " must be carried by the reduced table");
@@ -283,9 +287,9 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
                     groupings.add(carrier);
                 }
             }
-        } else if (grouping() == AcrossSeriesAggregate.Grouping.BY) {
+        } else {
             var nulls = new ArrayList<Alias>();
-            for (String partition : partitions) {
+            for (String partition : partitioning.labels()) {
                 Attribute carrier = table.label(partition);
                 if (carrier == null) {
                     // a partition label absent from every series ranks as one partition, like Prometheus
@@ -302,4 +306,25 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
     }
 
     private record ReductionGrouping(LogicalPlan plan, List<Expression> groupings) {}
+
+    /**
+     * The partition of a {@code without (partitions)} over a translated child: every label of the child's series but the
+     * listed ones. That is the finest packing of the child already leaving them out (a {@code without} below leaves out
+     * its own labels as well), the child's label columns but the listed ones when it has no packing (a {@code by} below),
+     * and otherwise a packing of its own, derived from the series' one.
+     */
+    private static TranslationSchema withoutPartitioning(TranslationSchema child, List<String> partitions) {
+        Set<String> skip = child.skips()
+            .stream()
+            .filter(s -> s.containsAll(partitions))
+            .min(Comparator.comparingInt(Set::size))
+            .orElse(null);
+        if (skip != null) {
+            return open(skip);
+        }
+        if (child.isOpen() == false) {
+            return finite(child.labels().stream().filter(label -> partitions.contains(label) == false).toList());
+        }
+        return open(partitions);
+    }
 }

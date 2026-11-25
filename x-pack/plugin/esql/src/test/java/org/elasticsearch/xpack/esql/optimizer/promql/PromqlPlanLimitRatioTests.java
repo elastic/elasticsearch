@@ -275,15 +275,9 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
         assertThat(plan.collect(MvExpand.class).isEmpty(), equalTo(false));
     }
 
-    /** A {@code without} partition is a packing derived after the per-series aggregate, which takes the container functions. */
+    /** {@code limit_ratio} samples series, not partitions, so a {@code without} plans at every version. */
     public void testLimitRatioWithoutGrouping() {
-        String query = "PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) without (pod))";
-        if (containerFunctions()) {
-            planPromql(query);
-        } else {
-            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
-            assertThat(e.getMessage(), containsString("limit_ratio"));
-        }
+        planPromql("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) without (pod))");
     }
 
     /**

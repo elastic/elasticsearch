@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -157,6 +159,45 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
             var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
             assertThat(e.getMessage(), containsString("bottomk"));
         }
+    }
+
+    /** Over a {@code by} aggregate a {@code without} partitions by the aggregate's labels but the listed ones. */
+    public void testTopkWithoutOverByPartitionsByTheRemainingLabels() {
+        String query = "PROMQL index=k8s step=1h result=(topk without (pod) (1, sum by (cluster, pod) (network.bytes_in)))";
+        if (containerFunctions() == false) {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("topk"));
+            return;
+        }
+        var topNBy = as(planPromql(query, false).collect(TopNBy.class).getFirst(), TopNBy.class);
+        assertThat(groupingNames(topNBy), equalTo(List.of("step", "cluster")));
+    }
+
+    /** Over a {@code without} aggregate a {@code without} partitions by the aggregate's packing, which leaves out both. */
+    public void testTopkWithoutOverWithoutPartitionsByTheChildPacking() {
+        String query = "PROMQL index=k8s step=1h result=(topk without (pod) (1, sum without (region) (network.bytes_in)))";
+        if (containerFunctions() == false) {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("topk"));
+            return;
+        }
+        var topNBy = as(planPromql(query, false).collect(TopNBy.class).getFirst(), TopNBy.class);
+        assertThat(groupingNames(topNBy), equalTo(List.of("step", TranslationContext.mapOpen(Set.of("pod", "region")))));
+    }
+
+    /** A {@code without} reduction keeps its series, so it is an operand like any instant vector. */
+    public void testTopkWithoutAsOperand() {
+        String query = "PROMQL index=k8s step=1h result=(topk without (pod) (1, network.bytes_in) * 2)";
+        if (containerFunctions() == false) {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("topk"));
+            return;
+        }
+        assertThat(planPromql(query).output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+    }
+
+    private static List<String> groupingNames(TopNBy topNBy) {
+        return topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList();
     }
 
     /**

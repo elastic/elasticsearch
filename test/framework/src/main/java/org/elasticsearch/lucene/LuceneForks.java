@@ -114,25 +114,25 @@ public final class LuceneForks {
         }
     }
 
-    static Fork expiring(String className, String upstreamIssue, int major, int minor, int bugfix, String removalNote) {
+    public static Fork expiring(String className, String upstreamIssue, int major, int minor, int bugfix, String removalNote) {
         return new Fork(Kind.FORK, className, upstreamIssue, Version.fromBits(major, minor, bugfix), removalNote);
     }
 
     /**
      * Registers a workaround for a Lucene bug that lives in {@code className}.
      */
-    static Fork workaround(String className, String upstreamIssue, int major, int minor, int bugfix, String removalNote) {
+    public static Fork workaround(String className, String upstreamIssue, int major, int minor, int bugfix, String removalNote) {
         return new Fork(Kind.WORKAROUND, className, upstreamIssue, Version.fromBits(major, minor, bugfix), removalNote);
     }
 
     /**
      * Registers a class that is needed to maintain backwards compatibility in some way
      */
-    static Fork compatibility(String className, String removalNote) {
+    public static Fork compatibility(String className, String removalNote) {
         return new Fork(Kind.FORK, className, null, null, removalNote);
     }
 
-    static Fork permanent(String className, String reason) {
+    public static Fork permanent(String className, String reason) {
         return new Fork(Kind.FORK, className, reason, null, "This fork is intentional and does not expire.");
     }
 

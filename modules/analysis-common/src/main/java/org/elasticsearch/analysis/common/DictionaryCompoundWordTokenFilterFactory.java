@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.Analysis;
 
 /**
@@ -23,25 +24,20 @@ import org.elasticsearch.index.analysis.Analysis;
  */
 public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
+    private final boolean legacyLongestMatch;
     private final Object sharingKey;
 
     DictionaryCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
-        this.sharingKey = new Key(minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch, wordListKey);
+        this.legacyLongestMatch = indexSettings.getIndexVersionCreated().before(IndexVersions.UPGRADE_TO_LUCENE_11_0_0);
+        this.sharingKey = new Key(minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch, legacyLongestMatch, wordListKey);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new DictionaryCompoundWordTokenFilter(
-            tokenStream,
-            wordList,
-            minWordSize,
-            minSubwordSize,
-            maxSubwordSize,
-            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163528):
-            // onlyLongestMatchIgnoreSubwords is hard-coded; dictionary only_longest_match is not passed to Lucene
-            true
-        );
+        return legacyLongestMatch
+            ? new XDictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch)
+            : new DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch);
     }
 
     @Override
@@ -54,6 +50,7 @@ public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWo
         int minSubwordSize,
         int maxSubwordSize,
         boolean onlyLongestMatch,
+        boolean legacyLongestMatch,
         Analysis.StableCharArraySet wordList
     ) {}
 }

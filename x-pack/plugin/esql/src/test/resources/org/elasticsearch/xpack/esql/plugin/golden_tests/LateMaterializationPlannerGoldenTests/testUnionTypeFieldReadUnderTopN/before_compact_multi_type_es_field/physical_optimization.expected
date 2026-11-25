@@ -1,0 +1,8 @@
+ProjectExec[[$$@timestamp$converted_to$keyword{f(MultiTypeEsField)$}#0 AS ts#1, message{f}#2]]
+\_TopNExec[[Order[client_ip{f}#3,ASC,LAST]],5[INTEGER],null]
+  \_ExchangeExec[[client_ip{f}#3, message{f}#2, $$@timestamp$converted_to$keyword{f(MultiTypeEsField)$}#0],false]
+    \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[client_ip{f}#3, message{f}#2, $$@timestamp$converted_to$keyword{f(MultiTypeEsField)$}#0]]
+\_TopN[[Order[client_ip{f}#3,ASC,LAST]],5[INTEGER],false]
+  \_Filter[LENGTH($$@timestamp$converted_to$keyword{f(MultiTypeEsField)$}#0) > 3[INTEGER]]
+    \_EsRelation[sample_data,sample_data_ts_long][!@timestamp, client_ip{f}#3, event_duration{f}#4, message{f}#2, $$@timestamp$converted_to$keyword{f(MultiTypeEsField)$}#0]<>]]

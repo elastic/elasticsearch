@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -241,26 +243,137 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
         try (var result = sendQuery(query)) {
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));
-            Set<String> nodeReduceReaders = result.profile()
-                .drivers()
-                .stream()
-                .filter(d -> d.description().equals("node_reduce"))
-                .flatMap(d -> d.operators().stream())
-                .filter(o -> o.operator().startsWith("ValuesSourceReaderOperator"))
-                .flatMap(o -> ((ValuesSourceReaderOperatorStatus) o.status()).readersBuilt().keySet().stream())
-                .collect(Collectors.toSet());
-            for (String name : List.of("_id", "_index")) {
-                assertTrue(
-                    "node_reduce does not load [" + name + "]: " + nodeReduceReaders,
-                    nodeReduceReaders.stream().anyMatch(r -> r.contains(name))
-                );
-            }
+            assertNodeReduceLoads(result, "_id", "_index");
             List<Object> ids = column(result, "_id");
             assertThat(ids, equalTo(List.of("1023", "1022", "1021")));
             assertThat(column(result, "_index"), equalTo(List.of("test", "test", "test")));
             assertThat(column(result, "e"), equalTo(ids.stream().<Object>map(id -> "test/" + id).toList()));
             assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L)));
             assertThat(column(result, "read"), equalTo(List.of(1023L, 1022L, 1021L)));
+        }
+    }
+
+    /**
+     * A {@code FORK} branch with a {@code LOOKUP JOIN} under its TopN. {@code animal} is a field of the lookup index, which has no
+     * {@code _doc} on the node-reduce driver, so it crosses the exchange. The data drivers of the first branch have one reader
+     * for the join key and one for the sort key, so only the node-reduce drivers are checked.
+     */
+    public void testForkBranchWithLookupJoin() throws Exception {
+        setupIndex();
+        client().admin()
+            .indices()
+            .prepareCreate("test-lookup")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+            .setMapping("read", "type=long", "animal", "type=keyword")
+            .get();
+        indexRandom(
+            true,
+            prepareIndex("test-lookup").setSource("read", 1023, "animal", "fox"),
+            prepareIndex("test-lookup").setSource("read", 1022, "animal", "dog"),
+            prepareIndex("test-lookup").setSource("read", 1021, "animal", "cat")
+        );
+        String query = """
+            from test
+            | fork ( lookup join test-lookup on read | where filtered > 0 | sort sorted desc | limit 3 )
+                   ( where more > 0 | sort sorted desc | limit 3 )
+            | sort _fork, sorted desc
+            """;
+        try (var result = sendQuery(query)) {
+            assertThat(result.isRunning(), equalTo(false));
+            assertThat(result.isPartial(), equalTo(false));
+            assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read", "filtered", "more", "some_more"));
+            assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L, 2046L, 2044L, 2042L)));
+            assertThat(column(result, "read"), equalTo(List.of(1023L, 1022L, 1021L, 1023L, 1022L, 1021L)));
+            assertThat(column(result, "animal"), equalTo(Arrays.asList("fox", "dog", "cat", null, null, null)));
+        }
+    }
+
+    /**
+     * {@code SORT ... | LIMIT n BY} without a narrowing {@code KEEP}. The data drivers cannot push {@code payload % 7 >= 0} to
+     * Lucene, so they load {@code payload}, and the node-reduce driver loads it again for the rows that survive. Each
+     * {@code payload} must sit next to its own sort key.
+     */
+    public void testLimitByValues() throws Exception {
+        assumeTrue("requires SORT | LIMIT BY", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        client().admin()
+            .indices()
+            .prepareCreate("limit_by")
+            .setSettings(indexSettings(10, 0))
+            .setMapping("grp", "type=long", "sorted", "type=long", "payload", "type=long")
+            .get();
+        indexRandom(
+            true,
+            IntStream.range(0, 100)
+                .mapToObj(i -> prepareIndex("limit_by").setId(Integer.toString(i)).setSource("grp", i % 3, "sorted", i, "payload", i * 10))
+                .toList()
+        );
+        try (var result = sendQuery("from limit_by | where payload % 7 >= 0 | sort sorted desc | limit 2 by grp | sort sorted desc")) {
+            assertThat(result.isRunning(), equalTo(false));
+            assertThat(result.isPartial(), equalTo(false));
+            assertNodeReduceLoads(result, "payload");
+            assertThat(column(result, "sorted"), equalTo(List.of(99L, 98L, 97L, 96L, 95L, 94L)));
+            assertThat(column(result, "grp"), equalTo(List.of(0L, 2L, 1L, 0L, 2L, 1L)));
+            assertThat(column(result, "payload"), equalTo(List.of(990L, 980L, 970L, 960L, 950L, 940L)));
+        }
+    }
+
+    /**
+     * {@code u} is a {@code long} in one index and a {@code keyword} in the other. The {@code WHERE} under the TopN reads the
+     * converted field and the query returns it. {@code Fetchability} does not accept union types, so the converted values cross
+     * the exchange and the node-reduce driver does not load {@code u}.
+     */
+    public void testUnionTypeReadBelowTopNCrossesTheExchange() throws Exception {
+        client().admin()
+            .indices()
+            .prepareCreate("union_long")
+            .setSettings(indexSettings(shardCount, 0))
+            .setMapping("u", "type=long", "sorted", "type=long", "read", "type=long")
+            .get();
+        client().admin()
+            .indices()
+            .prepareCreate("union_keyword")
+            .setSettings(indexSettings(shardCount, 0))
+            .setMapping("u", "type=keyword", "sorted", "type=long", "read", "type=long")
+            .get();
+        var builders = new ArrayList<IndexRequestBuilder>();
+        for (int i = 0; i < 50; i++) {
+            builders.add(prepareIndex("union_long").setSource("u", i, "sorted", 2 * i, "read", i));
+            builders.add(prepareIndex("union_keyword").setSource("u", "k" + i, "sorted", 2 * i + 1, "read", -i));
+        }
+        indexRandom(true, builders);
+        String query = """
+            from union_long, union_keyword
+            | eval s = u::keyword
+            | where length(s) > 0
+            | sort sorted desc
+            | limit 3
+            | keep sorted, s, read
+            """;
+        try (var result = sendQuery(query)) {
+            assertThat(result.isRunning(), equalTo(false));
+            assertThat(result.isPartial(), equalTo(false));
+            assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read"));
+            assertThat(column(result, "sorted"), equalTo(List.of(99L, 98L, 97L)));
+            assertThat(column(result, "s"), equalTo(List.of("k49", "49", "k48")));
+            assertThat(column(result, "read"), equalTo(List.of(-49L, 49L, -48L)));
+        }
+    }
+
+    /** Asserts that the node-reduce drivers build a reader for each of the fields. */
+    private static void assertNodeReduceLoads(EsqlQueryResponse response, String... fields) {
+        Set<String> nodeReduceReaders = response.profile()
+            .drivers()
+            .stream()
+            .filter(d -> d.description().equals("node_reduce"))
+            .flatMap(d -> d.operators().stream())
+            .filter(o -> o.operator().startsWith("ValuesSourceReaderOperator"))
+            .flatMap(o -> ((ValuesSourceReaderOperatorStatus) o.status()).readersBuilt().keySet().stream())
+            .collect(Collectors.toSet());
+        for (String name : fields) {
+            assertTrue(
+                "node_reduce does not load [" + name + "]: " + nodeReduceReaders,
+                nodeReduceReaders.stream().anyMatch(r -> r.contains(name))
+            );
         }
     }
 

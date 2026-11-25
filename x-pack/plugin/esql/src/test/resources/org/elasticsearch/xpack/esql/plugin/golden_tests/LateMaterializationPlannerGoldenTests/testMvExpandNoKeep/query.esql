@@ -1,0 +1,4 @@
+FROM employees
+| MV_EXPAND job_positions
+| SORT salary
+| LIMIT 20

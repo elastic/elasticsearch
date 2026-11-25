@@ -152,6 +152,52 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
+    /**
+     * {@code MV_EXPAND} without a narrowing {@code KEEP}. The expanded {@code job_positions} is not an output of the relation,
+     * so the node-reduce driver cannot load it and it crosses the exchange with {@code _doc} and the sort key.
+     */
+    public void testMvExpandNoKeep() {
+        String query = """
+            FROM employees
+            | MV_EXPAND job_positions
+            | SORT salary
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code Fetchability} does not accept a field that may be unmapped. The {@code WHERE} reads {@code does_not_exist} and the
+     * query returns it, so it crosses the exchange.
+     */
+    public void testUnmappedLoadFieldReadUnderTopN() {
+        String query = """
+            SET unmapped_fields="load";
+            FROM employees
+            | WHERE LENGTH(does_not_exist) > 0
+            | SORT hire_date
+            | LIMIT 20
+            | KEEP emp_no, does_not_exist
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code Fetchability} does not accept a union-type field, {@code MultiTypeEsField} or {@code CompactMultiTypeEsField}. The
+     * {@code WHERE} reads the converted {@code @timestamp} and the query returns it, so it crosses the exchange.
+     */
+    public void testUnionTypeFieldReadUnderTopN() {
+        String query = """
+            FROM sample_data, sample_data_ts_long
+            | EVAL ts = TO_STRING(@timestamp)
+            | WHERE LENGTH(ts) > 3
+            | SORT client_ip
+            | LIMIT 5
+            | KEEP ts, message
+            """;
+        builder(query).stages(STAGES).searchStats(unindexedStats()).expectationChangesAt("compact_multi_type_es_field").run();
+    }
+
     public void testMultipleFieldSortTopN() {
         String query = """
             FROM employees

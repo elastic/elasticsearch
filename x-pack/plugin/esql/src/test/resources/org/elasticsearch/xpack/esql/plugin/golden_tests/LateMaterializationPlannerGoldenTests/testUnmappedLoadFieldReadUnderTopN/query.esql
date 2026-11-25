@@ -1,0 +1,6 @@
+SET unmapped_fields="load";
+FROM employees
+| WHERE LENGTH(does_not_exist) > 0
+| SORT hire_date
+| LIMIT 20
+| KEEP emp_no, does_not_exist

@@ -942,3 +942,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testSerializationOfSimple {TestCase=<double, 17 ints> null in 7}
   issue: https://github.com/elastic/elasticsearch/issues/167446
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSplitCopyOutlivingSourceRelocationAwayAndBack
+  issue: https://github.com/elastic/elasticsearch/issues/167505

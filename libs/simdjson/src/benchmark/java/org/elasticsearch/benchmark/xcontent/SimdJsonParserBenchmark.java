@@ -152,6 +152,14 @@ public class SimdJsonParserBenchmark {
     @Param({ "analytics", "small_sparse" })
     private String shape;
 
+    /**
+     * Percentage of generated string values that carry a {@code \n} escape. Defaults to 0 so the
+     * standard matrix is unchanged; pass {@code -p escapePercent=0,10} to measure the unescaping
+     * path, which no shape exercises otherwise.
+     */
+    @Param({ "0" })
+    private int escapePercent;
+
     private static final Recycler<BytesRef> RECYCLER = new BytesRefRecycler(new PageCacheRecycler(Settings.EMPTY));
 
     private BytesReference[] docs;
@@ -165,7 +173,7 @@ public class SimdJsonParserBenchmark {
         int minLen = Integer.MAX_VALUE, maxLen = 0;
         long totalLen = 0;
         for (int i = 0; i < docCount; i++) {
-            byte[] raw = applyMapping(generateDoc(random, shape, i), i % mappingCount).getBytes(UTF_8);
+            byte[] raw = applyMapping(generateDoc(random, shape, i, escapePercent), i % mappingCount).getBytes(UTF_8);
             docs[i] = new BytesArray(raw);
             minLen = Math.min(minLen, raw.length);
             maxLen = Math.max(maxLen, raw.length);
@@ -284,13 +292,56 @@ public class SimdJsonParserBenchmark {
         return renamed;
     }
 
-    private static String generateDoc(Random random, String shape, int docIndex) {
-        return switch (shape) {
+    /**
+     * Package-private so {@link Stage1IndexingBenchmark} can measure stage 1 in isolation.
+     */
+    static String generateDoc(Random random, String shape, int docIndex, int escapePercent) {
+        String json = switch (shape) {
             case "analytics" -> AnalyticsDocs.generate(random);
             case "otel_nested" -> generateOtelNested(random);
             case "small_sparse" -> generateSmallSparse(random, docIndex);
             default -> throw new IllegalArgumentException("unknown shape: " + shape);
         };
+        return escapePercent > 0 ? injectEscapes(json, random, escapePercent) : json;
+    }
+
+    /**
+     * Rewrites {@code escapePercent} of the document's string <em>values</em> to carry a {@code \n}
+     * escape, so the walker's unescaping path is exercised.
+     *
+     * <p>The rewrite is done as a pass over the finished document, to cover all strings produced by
+     * the generators.
+     *
+     * <p>Keys are left alone: escaped field names are a separate concern from
+     * escaped values. The escape is placed mid-value so the scan for it can terminate neither on
+     * the first nor the last byte.
+     */
+    private static String injectEscapes(String json, Random random, int escapePercent) {
+        StringBuilder out = new StringBuilder(json.length() + 16);
+        int i = 0;
+        while (i < json.length()) {
+            char c = json.charAt(i);
+            if (c != '"') {
+                out.append(c);
+                i++;
+                continue;
+            }
+            int close = json.indexOf('"', i + 1);
+            String content = json.substring(i + 1, close);
+            int after = close + 1;
+            while (after < json.length() && Character.isWhitespace(json.charAt(after))) {
+                after++;
+            }
+            boolean isKey = after < json.length() && json.charAt(after) == ':';
+            if (isKey == false && content.length() >= 2 && random.nextInt(100) < escapePercent) {
+                int at = content.length() / 2;
+                out.append('"').append(content, 0, at).append("\\n").append(content, at, content.length()).append('"');
+            } else {
+                out.append('"').append(content).append('"');
+            }
+            i = close + 1;
+        }
+        return out.toString();
     }
 
     private static String generateOtelNested(Random random) {

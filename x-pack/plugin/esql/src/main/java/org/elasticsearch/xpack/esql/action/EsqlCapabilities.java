@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -4232,13 +4231,13 @@ public class EsqlCapabilities {
          * Enables {@code FROM index METADATA _slice}, {@code KEEP _slice}, and pushable
          * {@code WHERE _slice ==} / {@code LIKE} / {@code RLIKE} filters.
          */
-        METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
+        METADATA_SLICE,
 
         /**
          * A source reads the slices selected by a {@code _slice == <literal>} or {@code _slice IN (<literals>)} condition that
          * filters it before any {@code LIMIT} or {@code STATS}. A knn function fails on a slice-enabled index without one.
          */
-        SLICE_SELECTION_FROM_FILTER(SliceIndexing.SLICE_FEATURE_FLAG),
+        SLICE_SELECTION_FROM_FILTER,
 
         /**
          * Support for the {@code _class} and {@code _name} metadata fields: {@code _class} is the kind

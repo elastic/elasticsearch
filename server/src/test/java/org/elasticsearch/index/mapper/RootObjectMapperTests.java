@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -720,7 +719,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSliceEnabledRejectsExplicitSliceFieldName() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> createMapperService(sliceEnabledSettings(), mapping(b -> b.startObject("_slice").field("type", "keyword").endObject()))
@@ -730,7 +728,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSliceEnabledRejectsRuntimeSliceFieldName() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(sliceEnabledSettings(), topMapping(b -> {
@@ -744,7 +741,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSliceEnabledAllowsNestedSliceFieldName() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createMapperService(sliceEnabledSettings(), mapping(b -> {
             b.startObject("obj");
             b.field("type", "object");
@@ -756,7 +752,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSliceDisabledAllowsSliceFieldName() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createMapperService(mapping(b -> b.startObject("_slice").field("type", "keyword").endObject()));
     }
 

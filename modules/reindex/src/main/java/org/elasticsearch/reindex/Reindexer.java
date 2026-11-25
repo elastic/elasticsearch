@@ -55,7 +55,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -1041,7 +1040,7 @@ public class Reindexer {
                 "reindex_bulk_batch"
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
-            this.destinationSliceEnabled = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && destinationSliceEnabled(state);
+            this.destinationSliceEnabled = destinationSliceEnabled(state);
         }
 
         private boolean destinationSliceEnabled(ProjectState state) {

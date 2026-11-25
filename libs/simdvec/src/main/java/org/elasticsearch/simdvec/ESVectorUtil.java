@@ -71,13 +71,13 @@ public class ESVectorUtil {
 
     /** Creates an ASH float-query scorer. */
     public static AshScorer<float[]> getAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
-        return SCORERS.newESNextAshFloatVectorsScorer(input, nDims, bitsPerDim);
+        return SCORERS.newES970AshFloatVectorsScorer(input, nDims, bitsPerDim);
     }
 
     /** Creates an ASH integer-query scorer. */
     public static AshScorer<ScoringQuery> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException {
-        return SCORERS.newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
+        return SCORERS.newES970AshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
     }
 
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(

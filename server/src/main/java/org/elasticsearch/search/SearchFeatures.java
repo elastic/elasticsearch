@@ -207,12 +207,10 @@ public final class SearchFeatures implements FeatureSpecification {
                 PROFILE_RESCORE,
                 SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE,
                 RECENT_SEARCH_WAITING,
-                RECENT_SEARCH_CPU
+                RECENT_SEARCH_CPU,
+                OPEN_POINT_IN_TIME_SLICE
             )
         );
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            features.add(OPEN_POINT_IN_TIME_SLICE);
-        }
         return Set.copyOf(features);
     }
 }

@@ -32,13 +32,13 @@ import java.util.List;
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**
- * Tests for {@link org.elasticsearch.simdvec.ESNextAshVectorsScorer} and its Panama/native-accelerated subclasses.
+ * Tests for {@link org.elasticsearch.simdvec.ES970AshVectorsScorer} and its Panama/native-accelerated subclasses.
  * <p>
  * For each (DirectoryType, bitsPerDim, queryBitsPerDim) combination, writes random
  * packed ASH data to an IndexInput, creates scorers via {@link org.elasticsearch.simdvec.VectorScorerFactory},
  * and asserts that the scalar, Panama, and (for integer path) native tiers produce matching results.
  */
-public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
+public class ES970AshVectorsScorerTests extends BaseVectorizationTests {
 
     private final DirectoryType directoryType;
     private final int bitsPerDim;
@@ -50,7 +50,7 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
         SNAP
     }
 
-    public ESNextAshVectorsScorerTests(DirectoryType directoryType, int bitsPerDim, int queryBitsPerDim) {
+    public ES970AshVectorsScorerTests(DirectoryType directoryType, int bitsPerDim, int queryBitsPerDim) {
         this.directoryType = directoryType;
         this.bitsPerDim = bitsPerDim;
         this.queryBitsPerDim = queryBitsPerDim;
@@ -136,13 +136,13 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     // Integer path: compare scalar, Panama, and native
                     IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
                     AshScorer<ScoringQuery> scalarScorer = defaultProvider().getVectorScorerFactory()
-                        .newESNextAshIntegerVectorsScorer(scalarSlice, nDims, bitsPerDim, queryBitsPerDim);
+                        .newES970AshIntegerVectorsScorer(scalarSlice, nDims, bitsPerDim, queryBitsPerDim);
                     IndexInput panamaInput = in.clone();
                     AshScorer<ScoringQuery> panamaScorer = panamaProvider().getVectorScorerFactory()
-                        .newESNextAshIntegerVectorsScorer(panamaInput, nDims, bitsPerDim, queryBitsPerDim);
+                        .newES970AshIntegerVectorsScorer(panamaInput, nDims, bitsPerDim, queryBitsPerDim);
                     IndexInput nativeInput = in.clone();
                     AshScorer<ScoringQuery> nativeScorer = nativeProvider().getVectorScorerFactory()
-                        .newESNextAshIntegerVectorsScorer(nativeInput, nDims, bitsPerDim, queryBitsPerDim);
+                        .newES970AshIntegerVectorsScorer(nativeInput, nDims, bitsPerDim, queryBitsPerDim);
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
@@ -160,10 +160,10 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     // TODO: no native impls yet
                     IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
                     AshScorer<float[]> scalarScorer = defaultProvider().getVectorScorerFactory()
-                        .newESNextAshFloatVectorsScorer(scalarSlice, nDims, bitsPerDim);
+                        .newES970AshFloatVectorsScorer(scalarSlice, nDims, bitsPerDim);
                     IndexInput panamaInput = in.clone();
                     AshScorer<float[]> panamaScorer = panamaProvider().getVectorScorerFactory()
-                        .newESNextAshFloatVectorsScorer(panamaInput, nDims, bitsPerDim);
+                        .newES970AshFloatVectorsScorer(panamaInput, nDims, bitsPerDim);
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
@@ -211,15 +211,15 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     IndexInput maskedInput = in.clone();
                     if (queryBitsPerDim > 0) {
                         assertMaskedMatchBulk(
-                            factory.newESNextAshIntegerVectorsScorer(bulkInput, nDims, bitsPerDim, queryBitsPerDim),
-                            factory.newESNextAshIntegerVectorsScorer(maskedInput, nDims, bitsPerDim, queryBitsPerDim),
+                            factory.newES970AshIntegerVectorsScorer(bulkInput, nDims, bitsPerDim, queryBitsPerDim),
+                            factory.newES970AshIntegerVectorsScorer(maskedInput, nDims, bitsPerDim, queryBitsPerDim),
                             new ScoringQuery(queryQuantized),
                             numVectors
                         );
                     } else {
                         assertMaskedMatchBulk(
-                            factory.newESNextAshFloatVectorsScorer(bulkInput, nDims, bitsPerDim),
-                            factory.newESNextAshFloatVectorsScorer(maskedInput, nDims, bitsPerDim),
+                            factory.newES970AshFloatVectorsScorer(bulkInput, nDims, bitsPerDim),
+                            factory.newES970AshFloatVectorsScorer(maskedInput, nDims, bitsPerDim),
                             queryTransformed,
                             numVectors
                         );
@@ -302,11 +302,11 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     if (queryBitsPerDim > 0) {
                         IndexInput singleInput = in.clone();
                         AshScorer<ScoringQuery> singleScorer = provider.getVectorScorerFactory()
-                            .newESNextAshIntegerVectorsScorer(singleInput, nDims, bitsPerDim, queryBitsPerDim);
+                            .newES970AshIntegerVectorsScorer(singleInput, nDims, bitsPerDim, queryBitsPerDim);
 
                         IndexInput bulkInput = in.clone();
                         AshScorer<ScoringQuery> bulkScorer = provider.getVectorScorerFactory()
-                            .newESNextAshIntegerVectorsScorer(bulkInput, nDims, bitsPerDim, queryBitsPerDim);
+                            .newES970AshIntegerVectorsScorer(bulkInput, nDims, bitsPerDim, queryBitsPerDim);
 
                         float singleScore = singleScorer.score(new ScoringQuery(queryQuantized));
                         float[] bulkScores = new float[1];
@@ -315,11 +315,11 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                     } else {
                         IndexInput singleInput = in.clone();
                         AshScorer<float[]> singleScorer = provider.getVectorScorerFactory()
-                            .newESNextAshFloatVectorsScorer(singleInput, nDims, bitsPerDim);
+                            .newES970AshFloatVectorsScorer(singleInput, nDims, bitsPerDim);
 
                         IndexInput bulkInput = in.clone();
                         AshScorer<float[]> bulkScorer = provider.getVectorScorerFactory()
-                            .newESNextAshFloatVectorsScorer(bulkInput, nDims, bitsPerDim);
+                            .newES970AshFloatVectorsScorer(bulkInput, nDims, bitsPerDim);
 
                         float singleScore = singleScorer.score(queryTransformed);
                         float[] bulkScores = new float[1];

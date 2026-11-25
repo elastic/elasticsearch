@@ -68,7 +68,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
@@ -394,7 +393,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testRequireSliceRoutingWhenSliceEnabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         var request = new IndexRequest("idx").id("1");
         var indexAbstraction = mock(IndexAbstraction.class);
         var writeIndex = new Index("idx-000001", "uuid");
@@ -412,7 +410,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndRoutingProvided() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         var request = new IndexRequest("idx").id("1").routing("s1");
         var indexAbstraction = mock(IndexAbstraction.class);
         var writeIndex = new Index("idx-000001", "uuid");
@@ -431,7 +428,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndSliceProvided() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
         var indexAbstraction = mock(IndexAbstraction.class);
         var writeIndex = new Index("idx-000001", "uuid");
@@ -445,7 +441,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testSliceProvenanceRejectedWhenSliceSettingDisabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
         var indexAbstraction = mock(IndexAbstraction.class);
         var writeIndex = new Index("idx-000001", "uuid");
@@ -463,7 +458,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(false);
         var indexAbstraction = mock(IndexAbstraction.class);
         var writeIndex = new Index("idx-000001", "uuid");
@@ -477,7 +471,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testDeleteSliceProvenanceRejectedWhenSliceSettingDisabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         var request = new DeleteRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
         var indexAbstraction = mock(IndexAbstraction.class);
         var writeIndex = new Index("idx-000001", "uuid");
@@ -495,7 +488,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testDeleteRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         var request = new DeleteRequest("idx").id("1").routing("s1").setRoutingFromSlice(false);
         var indexAbstraction = mock(IndexAbstraction.class);
         var writeIndex = new Index("idx-000001", "uuid");

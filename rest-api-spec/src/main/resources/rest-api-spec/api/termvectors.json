@@ -63,8 +63,7 @@
             },
             "_slice": {
               "type": "string",
-              "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the operation to that slice",
-              "feature_flag": "es.slice_indexing_feature_flag_enabled"
+              "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the operation to that slice"
             }
           }
         },
@@ -81,8 +80,7 @@
             },
             "_slice": {
               "type": "string",
-              "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the operation to that slice",
-              "feature_flag": "es.slice_indexing_feature_flag_enabled"
+              "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the operation to that slice"
             }
           }
         }

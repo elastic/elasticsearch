@@ -124,7 +124,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRejectRoutingInSliceEnabledDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         request.getDestination().routing("keep");
@@ -141,7 +140,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRequireSliceInSliceEnabledDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
 
@@ -150,7 +148,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testAllowOmittedSliceInSliceEnabledDestinationWhenSourceIsSliceMode() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         // Reading in slice mode lets an omitted destination [slice] preserve the source slice on each document.
@@ -160,7 +157,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testAllowOmittedSliceInSliceEnabledDestinationWhenSourceIsSliceEnabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithSliceEnabledSourceAndDestination());
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
 
@@ -169,7 +165,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRequireSliceInSliceEnabledDestinationWhenSourceMixesSliceEnabledAndOtherIndices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(true));
         // the documents of the index without slices have no slice to keep, and the pattern is what finds that index
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index", "plain-*").setDestIndex("dest-index");
@@ -183,7 +178,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testAllowMixedSourceIntoSliceEnabledDestinationWhenAnotherMechanismSuppliesTheSlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(true));
 
         // a destination slice
@@ -203,7 +197,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testAllowMixedSourceIntoDestinationWithoutSlices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(false));
         // the slices of the slice-enabled index are dropped and the others keep their routing, so nothing is left without a slice
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index", "plain-index").setDestIndex("dest-index");
@@ -212,7 +205,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRemoteSourceIsNotReadInSliceMode() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:9200").build();
         ReindexValidator validator = validatorWithProject(projectMetadataWithSliceEnabledSourceAndDestination(), settings);
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
@@ -237,7 +229,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testAllowOmittedSliceInSliceEnabledDestinationWhenScriptPresent() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         // A script may assign ctx._slice per document, so a static destination [_slice] is not required. Documents the script leaves
@@ -248,7 +239,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testAllowSliceInSliceEnabledDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         request.getDestination().routing("s1").setRoutingFromSlice(true);
@@ -257,7 +247,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRejectSliceInSliceDisabledDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(false));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
         request.getDestination().routing("s1").setRoutingFromSlice(true);
@@ -267,7 +256,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRequireSliceInSliceEnabledDestinationFromV1Template() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationV1TemplateSetting(true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
 
@@ -276,7 +264,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRejectSliceInSliceDisabledDestinationFromV1Template() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationV1TemplateSetting(false));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-auto");
         request.getDestination().routing("s1").setRoutingFromSlice(true);
@@ -286,7 +273,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRejectReindexFromRoutingRequiredSourceIntoDestinationSlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         // A non-slice source that requires routing must not be reindexed into a slice destination.
         ReindexValidator validator = validatorWithProject(projectMetadataWithRoutingRequired(true, false));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
@@ -297,7 +283,6 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     public void testRejectReindexFromSourceSliceIntoRoutingRequiredDestination() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         // A slice source must not be reindexed into a non-slice destination that requires routing.
         ReindexValidator validator = validatorWithProject(projectMetadataWithRoutingRequired(false, true));
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");

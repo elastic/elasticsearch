@@ -10,7 +10,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.simdvec.AshScorer;
-import org.elasticsearch.simdvec.ESNextAshVectorsScorer;
+import org.elasticsearch.simdvec.ES970AshVectorsScorer;
 
 /**
  * Panama-accelerated scorers for ASH-encoded vectors stored as an {@link IndexInput}
@@ -18,11 +18,11 @@ import org.elasticsearch.simdvec.ESNextAshVectorsScorer;
  * <p>
  * Provides factory methods that return typed {@link AshScorer} instances, delegating
  * to encoding-specific inner scorers for SIMD acceleration and falling back to the
- * scalar {@link ESNextAshVectorsScorer} implementations when the SIMD path is unavailable.
+ * scalar {@link ES970AshVectorsScorer} implementations when the SIMD path is unavailable.
  */
-public final class MemorySegmentESNextAshVectorsScorer {
+public final class MemorySegmentES970AshVectorsScorer {
 
-    private MemorySegmentESNextAshVectorsScorer() {}
+    private MemorySegmentES970AshVectorsScorer() {}
 
     /**
      * Creates a Panama-accelerated float-path scorer for D*QF combinations.
@@ -37,6 +37,6 @@ public final class MemorySegmentESNextAshVectorsScorer {
         if (planeBytes >= 2 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             return new MSAshD1QFScorer(in, nDims, planeBytes);
         }
-        return ESNextAshVectorsScorer.createFloat(in, nDims, bitsPerDim);
+        return ES970AshVectorsScorer.createFloat(in, nDims, bitsPerDim);
     }
 }

@@ -64,7 +64,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testDispatchPathSliceSearch() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SetOnce<SearchRequest> executed = new SetOnce<>();
         verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             executed.set((SearchRequest) request);
@@ -189,7 +188,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchRequestWithPathMultiSlice() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/my-index/tenant-a,tenant-b/_search")
             .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a,tenant-b"))
@@ -202,7 +200,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchRequestRejectsRoutingAndSliceTogether() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/tenant-a/_search")
             .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "s1", "routing", "r1"))
@@ -215,22 +212,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
     }
 
-    public void testParseSearchRequestRejectsPathSliceWhenFeatureDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/my-index/tenant-a/_search")
-            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "s1"))
-            .build();
-        SearchRequest searchRequest = new SearchRequest();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> parsePathSliceSearchRequest(searchRequest, request)
-        );
-        assertEquals("request does not support [_slice]", e.getMessage());
-    }
-
     public void testParseSearchRequestAllowsPathSliceWithPointInTime() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/s1/_search")
             .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "s1"))
@@ -245,7 +227,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testParseSearchRequestWithPathSlice() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/my-index/tenant-a/_search")
             .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a"))
@@ -259,7 +240,6 @@ public final class RestSearchActionTests extends RestActionTestCase {
     }
 
     public void testPathSliceSearchRouteIsRegistered() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertTrue(
             "path slice search route must be registered",
             action.routes().stream().anyMatch(route -> route.getPath().equals("/{index}/{_slice}/_search"))

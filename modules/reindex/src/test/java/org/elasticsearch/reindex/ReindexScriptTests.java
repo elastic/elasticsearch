@@ -89,7 +89,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
     }
 
     public void testSetRoutingKeepsSliceAliasReadableButNotProvenance() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> {
             ctx.put("_routing", routing);
@@ -101,7 +100,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
     }
 
     public void testSetRoutingSameValueClearsSliceProvenance() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         ReindexRequest request = request();
         IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing(routing).setRoutingFromSlice(true);
@@ -113,7 +111,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
     }
 
     public void testSetRoutingFromSourceCanOverridePrepopulatedRequestRouting() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String sourceRouting = randomRealisticUnicodeOfLengthBetween(5, 20);
         String prepopulatedRouting = randomValueOtherThan(sourceRouting, () -> randomRealisticUnicodeOfLengthBetween(5, 20));
         ReindexRequest request = request();
@@ -129,20 +126,10 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
     }
 
     public void testSetSlice() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String slice = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.FIELD_NAME, slice));
         assertEquals(slice, index.routing());
         assertTrue(index.isRoutingFromSlice());
-    }
-
-    public void testSetSliceRejectedWhenFeatureFlagDisabled() {
-        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.FIELD_NAME, "slice1"))
-        );
-        assertThat(e.getMessage(), containsString("Cannot put key [" + SliceIndexing.FIELD_NAME + "]"));
     }
 
     @Override

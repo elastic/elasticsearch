@@ -13,7 +13,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -46,7 +45,6 @@ public class UpdateByQuerySliceEnabledIT extends ESIntegTestCase {
     }
 
     public void testUpdateByQueryWithSlicePath() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String index = "ubq-slice";
         createSliceIndexWithDocs(index);
 
@@ -61,7 +59,6 @@ public class UpdateByQuerySliceEnabledIT extends ESIntegTestCase {
     }
 
     public void testUpdateByQueryWithMultipleSlicesPath() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String index = "ubq-multi-slice";
         createSliceIndexWithDocs(index);
 
@@ -72,7 +69,6 @@ public class UpdateByQuerySliceEnabledIT extends ESIntegTestCase {
     }
 
     public void testSlicePathOnNonSliceIndexMatchesNothing() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String index = "ubq-plain";
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put("number_of_replicas", 0)).get());
         client().index(new IndexRequest(index).id("1").source("value", "a")).get();

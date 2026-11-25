@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -59,7 +58,6 @@ public class SliceKnnCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
     @Before
     public void setupIndices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         for (String cluster : List.of(LOCAL_CLUSTER, REMOTE)) {
             createSlicedIndex(cluster);
         }

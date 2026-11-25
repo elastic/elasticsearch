@@ -17,7 +17,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.IdFieldMapper.AbstractIdFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -69,7 +68,6 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeStoresCompoundId() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         assertFalse(sliceIdMapper(mapperService).isColumnarMode());
@@ -93,7 +91,6 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
      * through the field type to expose the plain id.
      */
     public void testStoredIdDecodesToPlainIdNotCompound() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
 
@@ -114,7 +111,6 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModeStoresCompoundIdInBinaryDocValues() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
             .put(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT.getKey(), true)
@@ -144,7 +140,6 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
      * field schema, so every non-root document carries the root's compound {@code _id} doc values.
      */
     public void testColumnarModeAddsCompoundIdToNestedDocuments() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
             .put(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT.getKey(), true)
@@ -184,7 +179,6 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
      * carry the compound identity term.
      */
     public void testNestedDocumentsCarryCompoundIdentityTerm() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
         MapperService mapperService = createMapperService(
             settings,

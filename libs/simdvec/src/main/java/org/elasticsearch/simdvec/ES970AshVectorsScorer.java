@@ -19,9 +19,9 @@ import java.io.IOException;
  *
  * @see AshScorer
  */
-public final class ESNextAshVectorsScorer {
+public final class ES970AshVectorsScorer {
 
-    private ESNextAshVectorsScorer() {}
+    private ES970AshVectorsScorer() {}
 
     /** Creates a scalar {@link AshScorer} for the float-query path. */
     public static AshScorer<float[]> createFloat(IndexInput in, int nDims, int bitsPerDim) {

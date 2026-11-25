@@ -91,7 +91,7 @@ public class RestExplainAction extends BaseRestHandler {
 
     private static void validateSliceParamForExplain(RestRequest request) {
         final String slice = request.param(SliceIndexing.FIELD_NAME);
-        if (slice == null || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+        if (slice == null) {
             return;
         }
         if (Strings.splitStringByCommaToArray(slice).length != 1) {

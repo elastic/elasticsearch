@@ -197,10 +197,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
          * those are not expected, making it an acceptable trade.
          */
         private static boolean isSliceKeySorted(SearchExecutionContext context) {
-            return SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()
-                && context != null
-                && context.getIndexSettings() != null
-                && context.getIndexSettings().isSliceEnabled();
+            return context != null && context.getIndexSettings() != null && context.getIndexSettings().isSliceEnabled();
         }
 
         private static Query sliceKeyExactQuery(BytesRef slice) {

@@ -125,9 +125,6 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             );
 
         }
-        if (routingFromSlice && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            validationException = addValidationError("request does not support [_slice]", validationException);
-        }
         return validationException;
     }
 
@@ -199,9 +196,6 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
      */
     public OpenPointInTimeRequest searchSlice(String searchSlice) {
         Objects.requireNonNull(searchSlice, "[_slice] must not be null");
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [_slice]");
-        }
         return routing(searchSlice).setRoutingFromSlice(true);
     }
 

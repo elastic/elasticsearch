@@ -593,7 +593,6 @@ public class MultiSearchIT extends ESIntegTestCase {
     }
 
     public void testTopLevelSliceParamIsAppliedToAllSubRequests() throws IOException {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
             {"index": "index-1" }
             {"query" : {"match" : { "message": "this is a test"}}}
@@ -610,7 +609,6 @@ public class MultiSearchIT extends ESIntegTestCase {
     }
 
     public void testRoutingAndSliceCannotBeMixedAcrossRequestLevels() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
             {"_slice": "s1" }
             {"query" : {"match_all" : {}}}
@@ -620,7 +618,6 @@ public class MultiSearchIT extends ESIntegTestCase {
     }
 
     public void testSliceEnabledIndexDefaultsToAllAndRejectsRoutingInExecution() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
         ensureGreen("slice-enabled");
 
@@ -647,7 +644,6 @@ public class MultiSearchIT extends ESIntegTestCase {
     }
 
     public void testExecutionWithMultipleRoutingAndSliceMetadataOptions() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("routing-index", Settings.builder().put("number_of_shards", 1).build());
         createIndex("slice-index", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
         ensureGreen("routing-index", "slice-index");

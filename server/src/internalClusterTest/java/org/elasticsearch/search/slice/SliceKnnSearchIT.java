@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -50,7 +49,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
     private static final String SLICES_REQUIRED = "to perform knn search on field [vector], the slices to search must be selected";
 
     public void testKnnSearchSelectsNeighboursWithinSlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = createSliceIndex();
 
         for (int k = 1; k <= FAR_DOCS; k++) {
@@ -70,7 +68,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
     }
 
     public void testKnnQuerySelectsNeighboursWithinSlice() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = createSliceIndex();
 
         final SearchRequestBuilder search = prepareSearch(index).setQuery(
@@ -92,7 +89,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
      * knn query at any depth of the query.
      */
     public void testKnnRequiresSelectedSlices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = createSliceIndex();
 
         final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder("vector", queryVector(), 2, 10, null, null, null);
@@ -112,7 +108,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
      * shards of the slice-enabled index fail.
      */
     public void testKnnRequiresSelectedSlicesOnlyOnSliceEnabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = createSliceIndex();
         assertAcked(prepareCreate("plain").setSettings(Settings.builder().put("index.number_of_shards", 1)).setMapping("""
             { "properties": { "vector": { "type": "dense_vector", "dims": 8, "index": true, "similarity": "l2_norm" } } }"""));
@@ -134,7 +129,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
      * nearest neighbours of a search that also targets a slice-enabled index.
      */
     public void testNamedSlicesOnIndexWithoutSlices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = createSliceIndex();
         assertAcked(prepareCreate("plain").setSettings(Settings.builder().put("index.number_of_shards", 1)).setMapping("""
             { "properties": { "vector": { "type": "dense_vector", "dims": 8, "index": true, "similarity": "l2_norm" } } }"""));
@@ -161,7 +155,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
      * A request that names no slice reads every slice when none of its queries needs them by name.
      */
     public void testOtherQueriesNeedNoSlices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = createSliceIndex();
 
         for (QueryBuilder query : List.of(QueryBuilders.matchAllQuery(), QueryBuilders.existsQuery("vector"))) {
@@ -175,7 +168,6 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
      * when its documents are routed with the name of the slice.
      */
     public void testSliceMatchesNothingOnIndexWithoutSlices() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String sliced = createSliceIndex();
         assertAcked(prepareCreate("plain").setSettings(Settings.builder().put("index.number_of_shards", 1)));
         prepareIndex("plain").setId("plain-1").setSource("field", "value").setRouting("far").get();

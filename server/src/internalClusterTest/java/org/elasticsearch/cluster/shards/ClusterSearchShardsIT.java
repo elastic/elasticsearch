@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -164,7 +163,6 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     public void testNoSliceDefaultsToAllWhenSliceEnabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         indicesAdmin().prepareCreate("slice-enabled")
             .setSettings(indexSettings(1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), true))
             .get();
@@ -181,7 +179,6 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     public void testSliceAcceptedWhenSliceDisabledIndex() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-disabled");
         ensureGreen("slice-disabled");
 
@@ -190,7 +187,6 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     public void testSliceRoutingReturnsExpectedShardGroupsWhenSliceEnabled() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         indicesAdmin().prepareCreate("slice-routing")
             .setSettings(indexSettings(4, 0).put(IndexSettings.SLICE_ENABLED.getKey(), true))
             .get();

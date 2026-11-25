@@ -82,7 +82,6 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         super(in);
         destination = new IndexRequest(in);
         if (in.getTransportVersion().supports(SliceIndexing.REINDEX_DEST_ROUTING_PROVENANCE_VERSION)) {
-            assert !destination.isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
             destination.setRoutingFromSlice(in.readBoolean());
         }
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
@@ -167,7 +166,6 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         }
         // A destination [_slice] is a plain slice value that every reindexed document is routed to.
         if (destination.isRoutingFromSlice()) {
-            assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
             try {
                 SliceIndexing.validateUserSliceValue(routing);
                 return true;
@@ -335,7 +333,6 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         super.writeTo(out);
         destination.writeTo(out);
         if (out.getTransportVersion().supports(SliceIndexing.REINDEX_DEST_ROUTING_PROVENANCE_VERSION)) {
-            assert !destination.isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
             out.writeBoolean(destination.isRoutingFromSlice());
         }
         out.writeOptionalWriteable(remoteInfo);
@@ -365,7 +362,6 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             }
             builder.array("index", getSearchRequest().indices());
             if (getSearchRequest().isRoutingFromSlice()) {
-                assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
                 builder.field(SliceIndexing.FIELD_NAME, getSearchRequest().searchSlice());
             }
             getSearchRequest().source().innerToXContent(builder, params);
@@ -376,7 +372,6 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             builder.startObject("dest");
             builder.field("index", getDestination().index());
             if (getDestination().routing() != null) {
-                assert !getDestination().isRoutingFromSlice() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
                 builder.field(getDestination().isRoutingFromSlice() ? SliceIndexing.FIELD_NAME : "routing", getDestination().routing());
             }
             builder.field("op_type", getDestination().opType().getLowercase());
@@ -418,7 +413,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             final Object sourceSlice = source.get(SliceIndexing.FIELD_NAME);
             if (sourceSlice instanceof String sliceValue) {
                 source.remove(SliceIndexing.FIELD_NAME);
-                if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false || context.test(IndexFeatures.SLICE_INDEXING) == false) {
+                if (context.test(IndexFeatures.SLICE_INDEXING) == false) {
                     throw new IllegalArgumentException("request does not support [" + SliceIndexing.FIELD_NAME + "]");
                 }
                 SliceIndexing.validateUserSliceValue(sliceValue);
@@ -453,8 +448,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
         }, new ParseField("routing"));
         destParser.declareField((parser, request, clusterSupportsFeature) -> {
             final String slice = parser.text();
-            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false
-                || clusterSupportsFeature.test(IndexFeatures.SLICE_INDEXING) == false) {
+            if (clusterSupportsFeature.test(IndexFeatures.SLICE_INDEXING) == false) {
                 throw new IllegalArgumentException("request does not support [" + SliceIndexing.FIELD_NAME + "]");
             }
             if (request.routing() != null) {

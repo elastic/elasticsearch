@@ -11,7 +11,6 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -33,7 +32,6 @@ public class SearchTemplateSliceSupportIT extends ESIntegTestCase {
     }
 
     public void testSearchTemplateSupportsSliceParam() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/search-template-slice-support-it");
         create.setJsonEntity("""
             {

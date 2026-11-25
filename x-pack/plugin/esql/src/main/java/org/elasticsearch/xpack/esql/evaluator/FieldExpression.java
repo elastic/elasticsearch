@@ -22,8 +22,10 @@ import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -178,8 +180,8 @@ public final class FieldExpression {
     /**
      * Resolves a parsed expression over fields of the given types and builds its evaluator, whose input pages hold the fields
      * in the order of {@code fieldTypes}. ES|QL analyzes the expression as {@code EVAL key = expression} on a relation of these
-     * fields, then folds its constants. It doesn't optimize it, since the optimizer's rewrites change between versions and some
-     * don't keep the values, for example on overflow.
+     * fields, then folds its constants and the functions they make null. It doesn't optimize it, since the optimizer's rewrites
+     * change between versions and some don't keep the values, for example on overflow.
      *
      * @throws IllegalArgumentException if the expression is invalid for these types
      */
@@ -217,7 +219,7 @@ public final class FieldExpression {
         Holder<Expression> resolved = new Holder<>();
         analyzed.forEachExpressionDown(Alias.class, alias -> {
             if (alias.name().equals(KEY)) {
-                resolved.set(alias.child().transformDown(e -> e.foldable() ? Literal.of(foldContext, e) : e));
+                resolved.set(alias.child().transformUp(e -> fold(foldContext, e)));
             }
         });
         if (resolved.get() == null) {
@@ -233,6 +235,17 @@ public final class FieldExpression {
         fields.forEach(layout::append);
         ExpressionEvaluator.Factory evaluator = EvalMapper.toEvaluator(foldContext, resolved.get(), layout.build());
         return new FieldExpression(resolved.get().dataType(), evaluator);
+    }
+
+    /** Folds a constant, and a function that is null when any of its arguments is null, as its evaluator would compute it. */
+    private static Expression fold(FoldContext foldContext, Expression e) {
+        if (e.foldable()) {
+            return Literal.of(foldContext, e);
+        }
+        if (e instanceof AnyNullIsNull && e.children().stream().anyMatch(Expressions::isGuaranteedNull)) {
+            return Literal.of(e, null);
+        }
+        return e;
     }
 
     public DataType type() {

@@ -42,6 +42,14 @@ public class FieldExpressionValuesTests extends ESTestCase {
         assertValues("-n > 0", Map.of("n", DataType.LONG), rows(Long.MIN_VALUE, -1L, 1L), Arrays.asList(null, true, false));
     }
 
+    public void testNullLiterals() {
+        assertValues("n + NULL", Map.of("n", DataType.LONG), rows(1L, null), Arrays.asList(null, null));
+        assertValues("n > NULL", Map.of("n", DataType.LONG), rows(1L, null), Arrays.asList(null, null));
+        assertValues("t + NULL", Map.of("t", DataType.DATETIME), rows(1L, null), Arrays.asList(null, null));
+        assertValues("t - NULL > t", Map.of("t", DataType.DATETIME), rows(1L), Arrays.asList((Object) null));
+        assertValues("COALESCE(NULL, n)", Map.of("n", DataType.LONG), rows(1L, null), Arrays.asList(1L, null));
+    }
+
     public void testLongArithmetic() {
         Map<String, DataType> n = Map.of("n", DataType.LONG);
         assertValues("n + 1", n, rows(Long.MAX_VALUE, 1L, null, List.of(1L, 2L)), Arrays.asList(null, 2L, null, null));

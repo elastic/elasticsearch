@@ -33,7 +33,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -113,20 +112,23 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     /**
      * When the row cap is hit, the rows that survive must be the earliest by time (the injected cap follows the time
-     * sort). Documents are indexed latest-first so that a cap applied before the sort would keep the latest rows
-     * in index order instead.
+     * sort). The later documents are indexed first so that a cap applied before the sort would let them in.
      */
     public void testEsqlDatafeedAtRowCapShouldKeepEarliestRowsByTime() throws Exception {
         String index = "esql-cap-order-oracle";
         String jobId = "esql-cap-order-job";
         String datafeedId = jobId + "-datafeed";
         createSourceIndex(index);
-        int totalDocs = ROW_LIMIT + 50;
         long firstEventTime = BASE_TIME + 1_000L;
+        int laterDocs = 50;
         BulkRequestBuilder bulk = client().prepareBulk();
-        for (int i = 0; i < totalDocs; i++) {
-            long eventTime = firstEventTime + (totalDocs - 1 - i);
-            bulk.add(new IndexRequest(index).source("event_time", eventTime, "value", i));
+        for (int i = 1; i <= laterDocs; i++) {
+            bulk.add(new IndexRequest(index).source("event_time", firstEventTime + i, "value", i));
+        }
+        // Raw rows keep source timestamps, so the extractor shrinks a truncated chunk by time. The rows that fill the cap
+        // share one timestamp so that no window can drop below it.
+        for (int i = 0; i < ROW_LIMIT; i++) {
+            bulk.add(new IndexRequest(index).source("event_time", firstEventTime, "value", laterDocs + 1 + i));
         }
         BulkResponse bulkResponse = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         for (BulkItemResponse item : bulkResponse) {
@@ -141,9 +143,9 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         List<Map<String, Object>> rows = previewRows(datafeedId, BASE_TIME, FIRST_WINDOW_END);
 
         assertThat(rows.size(), equalTo(ROW_LIMIT));
-        LongSummaryStatistics eventTimes = rows.stream().mapToLong(row -> ((Number) row.get("event_time")).longValue()).summaryStatistics();
-        assertThat(eventTimes.getMin(), equalTo(firstEventTime));
-        assertThat(eventTimes.getMax(), equalTo(firstEventTime + ROW_LIMIT - 1L));
+        for (Map<String, Object> row : rows) {
+            assertThat(((Number) row.get("event_time")).longValue(), equalTo(firstEventTime));
+        }
     }
 
     private void assertPreviewAndLookbackRowCount(String jobId, String query, long expectedRecords) throws Exception {

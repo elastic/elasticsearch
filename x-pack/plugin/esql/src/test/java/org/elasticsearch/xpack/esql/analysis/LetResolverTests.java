@@ -364,8 +364,12 @@ public class LetResolverTests extends ESTestCase {
      * A remote pattern whose index part equals a binding name refers to the remote index, not the binding.
      */
     public void testRemotePatternNamedLikeBindingIsNotSubstituted() {
-        LogicalPlan result = parseAndResolveLet("LET a = (FROM base | LIMIT 1); FROM remote:a");
-        assertUnresolvedRelation(result, "remote:a");
+        LogicalPlan result = parseAndResolveLet("LET a = (FROM base | LIMIT 1); FROM a, remote:a");
+        assertThat(result, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = result.children();
+        assertThat(children, hasSize(2));
+        assertLimitOver(binding(children.get(0), "a"), "base");
+        assertUnresolvedRelation(children.get(1), "remote:a");
     }
 
     /**

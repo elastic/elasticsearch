@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPosi
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LoadNestedFromIndex;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountByKeywordToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
@@ -108,7 +109,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             "Substitute RoundTo with QueryAndTags",
             Limiter.ONCE,
             new ReplaceRoundToWithQueryAndTags(),
-            new PushCountQueryAndTagsToSource()
+            new PushCountQueryAndTagsToSource(),
+            new PushCountByKeywordToSource()
         );
 
         // add the field extraction in just one pass

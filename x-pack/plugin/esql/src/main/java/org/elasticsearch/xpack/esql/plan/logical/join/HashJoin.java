@@ -38,9 +38,8 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 /**
  * Coordinator hash join over a local build side (maps to {@code HashJoinExec}).
  * <p>
- * {@link JoinTypes#INNER} drops unmatched probe rows; {@link JoinTypes#LEFT} keeps them (PromQL {@code unless}).
- * <p>
- * The {@link Kind} says which command the join runs, and with it how the build side's keys match.
+ * The {@link Kind} says which command the join runs, and with it the join type and how the build side's keys match.
+ * {@link JoinTypes#INNER} drops unmatched probe rows; {@link JoinTypes#LEFT} keeps them.
  */
 public class HashJoin extends Join implements SortPreserving, PostOptimizationPlanVerificationAware {
 
@@ -51,22 +50,28 @@ public class HashJoin extends Join implements SortPreserving, PostOptimizationPl
         /**
          * A PromQL one-to-one vector match: a probe row matches at most one build row, and a repeated build key fails.
          */
-        PROMQL_ONE_TO_ONE,
+        PROMQL_ONE_TO_ONE(JoinTypes.INNER),
         /**
          * A PromQL many-to-one or one-to-many vector match ({@code group_left}, {@code group_right}): the build keys are unique and
          * the probe keys may repeat. A repeated build key fails.
          */
-        PROMQL_MANY_TO_ONE,
+        PROMQL_MANY_TO_ONE(JoinTypes.INNER),
         /**
          * The ES|QL {@code LEFT OUTER JOIN} command. A probe row comes out once for each build row it matches. A null or multivalued
          * key matches nothing, as in {@code LOOKUP JOIN}, and a multivalued build key warns once, even if no probe key would have
          * matched it (see {@code RowInTableLookupOperator}).
          */
-        ESQL_LEFT_OUTER_JOIN,
+        ESQL_LEFT_OUTER_JOIN(JoinTypes.LEFT),
         /**
          * The ES|QL {@code INNER JOIN} command: as {@link #ESQL_LEFT_OUTER_JOIN}, but a probe row that matches nothing is dropped.
          */
-        ESQL_INNER_JOIN
+        ESQL_INNER_JOIN(JoinTypes.INNER);
+
+        private final JoinType joinType;
+
+        Kind(JoinType joinType) {
+            this.joinType = joinType;
+        }
     }
 
     private final List<Attribute> addedFields;
@@ -82,26 +87,7 @@ public class HashJoin extends Join implements SortPreserving, PostOptimizationPl
         List<Attribute> addedFields,
         Kind kind
     ) {
-        this(source, left, right, leftFields, rightFields, addedFields, kind, JoinTypes.INNER);
-    }
-
-    public HashJoin(
-        Source source,
-        LogicalPlan left,
-        LogicalPlan right,
-        List<Attribute> leftFields,
-        List<Attribute> rightFields,
-        List<Attribute> addedFields,
-        Kind kind,
-        JoinType type
-    ) {
-        super(source, left, right, type, leftFields, rightFields, null, ExecuteLocation.COORDINATOR);
-        if (type != JoinTypes.INNER && type != JoinTypes.LEFT) {
-            throw new IllegalArgumentException("HashJoin supports INNER or LEFT, got [" + type.joinName() + "]");
-        }
-        if ((kind == Kind.ESQL_LEFT_OUTER_JOIN && type != JoinTypes.LEFT) || (kind == Kind.ESQL_INNER_JOIN && type != JoinTypes.INNER)) {
-            throw new IllegalArgumentException("[" + kind + "] can't be a [" + type.joinName() + "] join");
-        }
+        super(source, left, right, kind.joinType, leftFields, rightFields, null, ExecuteLocation.COORDINATOR);
         this.addedFields = addedFields;
         this.kind = kind;
     }
@@ -230,12 +216,12 @@ public class HashJoin extends Join implements SortPreserving, PostOptimizationPl
 
     @Override
     public HashJoin replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new HashJoin(source(), left, right, leftFields(), rightFields(), addedFields, kind, config().type());
+        return new HashJoin(source(), left, right, leftFields(), rightFields(), addedFields, kind);
     }
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, HashJoin::new, left(), right(), leftFields(), rightFields(), addedFields, kind, config().type());
+        return NodeInfo.create(this, HashJoin::new, left(), right(), leftFields(), rightFields(), addedFields, kind);
     }
 
     @Override

@@ -67,8 +67,7 @@ public class HashJoinTests extends ESTestCase {
             List.of(leftKey),
             List.of(rightKey),
             List.of(value),
-            HashJoin.Kind.PROMQL_MANY_TO_ONE,
-            JoinTypes.LEFT
+            HashJoin.Kind.ESQL_LEFT_OUTER_JOIN
         );
         assertThat(hashJoin.config().type(), sameInstance(JoinTypes.LEFT));
     }
@@ -89,8 +88,7 @@ public class HashJoinTests extends ESTestCase {
             plain.leftFields(),
             plain.rightFields(),
             plain.addedFields(),
-            HashJoin.Kind.ESQL_LEFT_OUTER_JOIN,
-            JoinTypes.LEFT
+            HashJoin.Kind.ESQL_LEFT_OUTER_JOIN
         );
         assertThat(repeated, not(equalTo(plain)));
 

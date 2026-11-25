@@ -1747,7 +1747,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         }
         LocalRelation build = new LocalRelation(Source.EMPTY, buildOutput, LocalSupplier.of(buildPage));
         HashJoin.Kind kind = type == JoinTypes.LEFT ? HashJoin.Kind.ESQL_LEFT_OUTER_JOIN : HashJoin.Kind.ESQL_INNER_JOIN;
-        return new HashJoin(new Source(1, 0, "join"), probe, build, List.of(probeKey), List.of(buildKey), addedFields, kind, type);
+        return new HashJoin(new Source(1, 0, "join"), probe, build, List.of(probeKey), List.of(buildKey), addedFields, kind);
     }
 
     private static PhysicalPlan mapHashJoin(HashJoin join) {

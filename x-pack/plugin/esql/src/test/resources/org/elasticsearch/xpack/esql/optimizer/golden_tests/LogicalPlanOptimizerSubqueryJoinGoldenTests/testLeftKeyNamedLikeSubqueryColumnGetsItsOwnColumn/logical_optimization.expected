@@ -1,7 +1,7 @@
 Project[[emp_no{f}#0, languages{r}#1]]
 \_Limit[1000[INTEGER],true,false]
   \_Project[[emp_no{f}#0, languages{r}#1]]
-    \_HashJoin[[$$languages$join_key$0{r$}#2],[language_code{f}#3],[language_name{r}#4, languages{r}#1],ESQL_LEFT_OUTER_JOIN,LEFT]
+    \_HashJoin[[$$languages$join_key$0{r$}#2],[language_code{f}#3],[language_name{r}#4, languages{r}#1],ESQL_LEFT_OUTER_JOIN]
       |_Project[[emp_no{f}#0, $$languages$join_key$0{r$}#2]]
       | \_Eval[[languages{f}#5 AS $$languages$join_key$0#2]]
       |   \_Limit[1000[INTEGER],false,false]

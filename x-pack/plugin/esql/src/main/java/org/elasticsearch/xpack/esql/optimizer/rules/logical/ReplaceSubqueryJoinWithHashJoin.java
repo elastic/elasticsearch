@@ -109,16 +109,7 @@ public final class ReplaceSubqueryJoinWithHashJoin extends Rule<LogicalPlan, Log
             subquery = new Project(source, new Eval(source, subquery, rightCasts), projections);
         }
 
-        HashJoin hashJoin = new HashJoin(
-            source,
-            left,
-            subquery,
-            leftKeys,
-            rightKeys,
-            join.rightOutputFields(),
-            kind(join),
-            join.config().type()
-        );
+        HashJoin hashJoin = new HashJoin(source, left, subquery, leftKeys, rightKeys, join.rightOutputFields(), kind(join));
         return new Project(source, hashJoin, join.output());
     }
 

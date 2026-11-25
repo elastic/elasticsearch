@@ -76,7 +76,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -425,8 +424,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return JoinTypes.ANTI;
         } else if (toBuildClass == MarkJoin.class) {
             return JoinTypes.MARK;
-        } else if (toBuildClass == HashJoin.class) {
-            return JoinTypes.INNER;
         } else if (toBuildClass == Join.class
             || toBuildClass == LookupJoin.class
             || toBuildClass == InlineJoin.class
@@ -591,9 +588,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == JoinType.class) {
             // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
             return joinTypeFor(toBuildClass);
-        } else if (argClass == HashJoin.Kind.class) {
-            // HashJoin is built as an INNER join (see joinTypeFor), which an ES|QL LEFT OUTER JOIN can't be.
-            return randomValueOtherThan(HashJoin.Kind.ESQL_LEFT_OUTER_JOIN, () -> randomFrom(HashJoin.Kind.values()));
         } else if (toBuildClass == ResolvingProject.class && argType == LogicalPlan.class) {
             // ResolvingProject's ctor asserts at most one _unmapped_fields in the child output. randomResolvedExpression can draw
             // UnmappedFieldsAttribute for any Attribute arg, letting the random tree stack two — a shape the analyzer never builds.

@@ -1,7 +1,7 @@
 Limit[1000[INTEGER],false,false]
 \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#0]]
   \_Project[[languages{f}#1]]
-    \_HashJoin[[$$languages$join_key$0{r$}#2],[language_code{r}#3],[],ESQL_LEFT_OUTER_JOIN,LEFT]
+    \_HashJoin[[$$languages$join_key$0{r$}#2],[language_code{r}#3],[],ESQL_LEFT_OUTER_JOIN]
       |_Project[[languages{f}#1, $$languages$join_key$0{r$}#2]]
       | \_Eval[[TOLONG(languages{f}#1) AS $$languages$join_key$0#2]]
       |   \_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#6, first_name{f}#7, gender{f}#8, height{f}#9, height.float{f}#10, height.half_float{f}#11, height.scaled_float{f}#12, hire_date{f}#13, is_rehired{f}#14, job_positions{f}#15, languages{f}#1, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#20, salary_change{f}#21, salary_change.int{f}#22, salary_change.keyword{f}#23, salary_change.long{f}#24, still_hired{f}#25]

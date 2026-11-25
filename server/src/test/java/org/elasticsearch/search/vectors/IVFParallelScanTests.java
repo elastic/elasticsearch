@@ -64,6 +64,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 public class IVFParallelScanTests extends ESTestCase {
 
     private static final String SLICE = "_slice";
+    private static final int SKIPPER_INTERVAL = 4096; // docs per interval of Lucene's doc values skipper
     private static final BitSetProducer PARENTS = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
 
     private static ExecutorService executor;
@@ -86,7 +87,7 @@ public class IVFParallelScanTests extends ESTestCase {
     public void testALeafUnderAMillionVectorsIsNotSplit() throws IOException {
         int dims = randomIntBetween(8, 32);
         try (Directory dir = newDirectory()) {
-            indexLeaves(dir, dims, 20_000);
+            indexLeaves(dir, dims, vectorsToSplit(0.5f));
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 IVFKnnFloatVectorQuery query = query(randomVector(dims), 10, null, 0.5f);
                 assertTrue(splitsALeaf(reader, query));
@@ -152,8 +153,8 @@ public class IVFParallelScanTests extends ESTestCase {
         int dims = randomIntBetween(8, 32);
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, randomConfig())) {
             for (int leaf = 0, leaves = randomIntBetween(1, 6); leaf < leaves; leaf++) {
-                // the first leaf is big enough to be split
-                int docs = leaf == 0 ? randomIntBetween(15_000, 20_000) : randomIntBetween(10, 1_500);
+                // the first leaf is big enough to be split, at a visit ratio of 0.3 or more
+                int docs = leaf == 0 ? vectorsToSplit(0.3f) + randomInt(5_000) : randomIntBetween(10, 1_500);
                 for (int i = 0; i < docs; i++) {
                     Document doc = vectorDoc(dims);
                     doc.add(new StringField("tag", randomFrom("a", "b", "c"), Field.Store.NO));
@@ -166,6 +167,7 @@ public class IVFParallelScanTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(writer)) {
                 warmUp(reader, dims);
+                assertTrue(splitsALeaf(reader, query(randomVector(dims), 10, null, 0.3f)));
                 for (int q = 0; q < 10; q++) {
                     int k = randomIntBetween(1, 50);
                     float visitRatio = randomFrom(0f, 0.05f, 0.3f, 0.5f);
@@ -180,7 +182,8 @@ public class IVFParallelScanTests extends ESTestCase {
         float[] repeated = randomVector(dims);
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, randomConfig())) {
             for (int leaf = 0, leaves = randomIntBetween(1, 4); leaf < leaves; leaf++) {
-                int parents = leaf == 0 ? randomIntBetween(3_000, 4_000) : randomIntBetween(5, 300);
+                // at 4.5 children a parent, the first leaf is big enough to be split at a visit ratio of 0.5 or more
+                int parents = leaf == 0 ? vectorsToSplit(0.5f) / 4 + randomInt(1_000) : randomIntBetween(5, 300);
                 for (int p = 0; p < parents; p++) {
                     List<Document> block = new ArrayList<>();
                     // alike children tie; copies of one vector make parents tie too
@@ -202,16 +205,14 @@ public class IVFParallelScanTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(writer)) {
                 warmUp(reader, dims);
+                assertTrue(splitsALeaf(reader, nestedQuery(repeated, 10, null, 0.5f)));
                 for (int q = 0; q < 10; q++) {
                     float[] vector = randomBoolean() ? repeated : randomVector(dims);
                     // a small budget, or the rare filter, makes a search go on past its budget
                     float visitRatio = randomFrom(0f, 0.05f, 0.5f, 0.9f);
                     Query filter = randomBoolean() ? null : new TermQuery(new Term("rare", "yes"));
                     int k = randomIntBetween(1, 50);
-                    assertParallelScanMatchesPerLeaf(
-                        reader,
-                        new DiversifyingChildrenIVFKnnFloatVectorQuery("v", vector, k, k, filter, PARENTS, visitRatio, resolver())
-                    );
+                    assertParallelScanMatchesPerLeaf(reader, nestedQuery(vector, k, filter, visitRatio));
                 }
             }
         }
@@ -225,14 +226,16 @@ public class IVFParallelScanTests extends ESTestCase {
             IndexWriterConfig otherConfig = new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()).setRAMBufferSizeMB(256);
             for (IndexWriterConfig config : List.of(otherConfig, ivfConfig())) {
                 try (IndexWriter writer = new IndexWriter(dir, config)) {
-                    for (int i = 0; i < 20_000; i++) {
+                    for (int i = 0, docs = vectorsToSplit(0.5f); i < docs; i++) {
                         writer.addDocument(vectorDoc(dims));
                     }
                 }
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
-                assertParallelScanMatchesPerLeaf(reader, query(randomVector(dims), 10, null, 0.5f));
+                IVFKnnFloatVectorQuery query = query(randomVector(dims), 10, null, 0.5f);
+                assertTrue("the DiskBBQ segment is split", splitsALeaf(reader, query));
+                assertParallelScanMatchesPerLeaf(reader, query);
             }
         }
     }
@@ -240,9 +243,10 @@ public class IVFParallelScanTests extends ESTestCase {
     /** A filtered search goes on past its budget. On and off follow the same rule, so comparing them cannot show it. */
     public void testAFilteredSearchGoesOnPastItsBudget() throws IOException {
         int dims = randomIntBetween(8, 32);
+        float visitRatio = 0.3f;
         try (Directory dir = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, ivfConfig())) {
-                for (int i = 0; i < 18_000; i++) {
+                for (int i = 0, docs = vectorsToSplit(visitRatio); i < docs; i++) {
                     Document doc = vectorDoc(dims);
                     doc.add(new StringField("tag", randomFrom("a", "b", "c", "d"), Field.Store.NO));
                     writer.addDocument(doc);
@@ -251,7 +255,7 @@ public class IVFParallelScanTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 float[] vector = randomVector(dims);
                 Query filter = new TermQuery(new Term("tag", "a"));
-                float visitRatio = 0.3f; // a budget big enough for the leaf to be split
+                assertTrue(splitsALeaf(reader, query(vector, 10, null, visitRatio)));
                 for (boolean parallelScan : new boolean[] { false, true }) {
                     long scored = hits(reader, parallelScan, query(vector, 10, null, visitRatio)).vectorOps();
                     long scoredWithFilter = hits(reader, parallelScan, query(vector, 10, filter, visitRatio)).vectorOps();
@@ -266,7 +270,7 @@ public class IVFParallelScanTests extends ESTestCase {
     public void testOnlySplitLeavesShareAScan() throws IOException {
         int dims = randomIntBetween(8, 32);
         try (Directory dir = newDirectory()) {
-            indexLeaves(dir, dims, 20_000, 300, 300);
+            indexLeaves(dir, dims, vectorsToSplit(0.5f), 300, 300);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 List<RecordingCollectorManager> leaves = recordingManagers(reader, null);
                 IVFKnnFloatVectorQuery query = query(randomVector(dims), 10, null, 0.5f);
@@ -284,7 +288,7 @@ public class IVFParallelScanTests extends ESTestCase {
     public void testAQueryThatCannotSplitSkipsTheParallelScan() throws IOException {
         int dims = randomIntBetween(8, 32);
         try (Directory dir = newDirectory()) {
-            indexLeaves(dir, dims, 20_000, 300);
+            indexLeaves(dir, dims, vectorsToSplit(0.5f), 300);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 for (boolean optsIn : new boolean[] { true, false }) {
                     RecordingQuery query = new RecordingQuery(randomVector(dims), optsIn);
@@ -300,7 +304,7 @@ public class IVFParallelScanTests extends ESTestCase {
     public void testPartsGetTheTransformCacheOfTheirLeaf() throws IOException {
         int dims = randomIntBetween(8, 32);
         try (Directory dir = newDirectory()) {
-            indexLeaves(dir, dims, 20_000, 300);
+            indexLeaves(dir, dims, vectorsToSplit(0.5f), 300);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 for (boolean copiesQuery : new boolean[] { false, true }) {
                     RecordingQuery query = new RecordingQuery(randomVector(dims), true) {
@@ -329,7 +333,7 @@ public class IVFParallelScanTests extends ESTestCase {
         int dims = randomIntBetween(8, 32);
         int k = 10;
         try (Directory dir = newDirectory()) {
-            indexLeaves(dir, dims, 20_000, k / 2);
+            indexLeaves(dir, dims, vectorsToSplit(0.5f), k / 2);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 SharedMinCompetitiveScore cutoff = new SharedMinCompetitiveScore();
                 List<RecordingCollectorManager> leaves = recordingManagers(reader, cutoff);
@@ -384,8 +388,8 @@ public class IVFParallelScanTests extends ESTestCase {
     private static void assertOneSliceMatchesPerLeafSearch(Supplier<Field> vectorField, boolean nested, OneSliceQuery queries)
         throws IOException {
         try (Directory dir = newDirectory()) {
-            // slice 0 is most of the first leaf; the last leaf has none of it
-            int[][] vectorsPerSlice = { { 18_000, 600, 400 }, { 300, 500 }, { 0, 200, 300 } };
+            // slice 0 is most of the first leaf, and is split even if read a skipper interval short; the last leaf has none of it
+            int[][] vectorsPerSlice = { { vectorsToSplit(0.5f) + SKIPPER_INTERVAL, 600, 400 }, { 300, 500 }, { 0, 200, 300 } };
             indexSlicedLeaves(dir, vectorField, nested, randomBoolean(), vectorsPerSlice);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 BytesRef slice0 = new BytesRef("slice0");
@@ -436,8 +440,7 @@ public class IVFParallelScanTests extends ESTestCase {
     /** A leaf's work for a one-slice query is the slice's, read off the skipper: within one skipper interval of the truth. */
     public void testALeafIsSizedByTheSliceTheQuerySearches() throws IOException {
         int dims = randomIntBetween(8, 32);
-        int[] vectorsPerSlice = { 15_000, 2_000, 300, 5_000 };
-        int skipperInterval = 4096; // docs per interval of Lucene's doc values skipper
+        int[] vectorsPerSlice = { vectorsToSplit(0.5f) + SKIPPER_INTERVAL, 2_000, 300, 5_000 };
         try (Directory dir = newDirectory()) {
             indexSlicedLeaves(dir, () -> floatField(dims), false, false, vectorsPerSlice);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
@@ -448,7 +451,7 @@ public class IVFParallelScanTests extends ESTestCase {
                     BytesRef id = new BytesRef("slice" + slice);
                     var query = new IVFKnnFloatSlicedVectorQuery("v", randomVector(dims), 10, 10, null, 0.5f, resolver(), SLICE, id);
                     int searched = query.searchedVectors(leaf, leafVectors);
-                    assertTrue(searched + " for slice " + slice, Math.abs(searched - vectorsPerSlice[slice]) <= skipperInterval);
+                    assertTrue(searched + " for slice " + slice, Math.abs(searched - vectorsPerSlice[slice]) <= SKIPPER_INTERVAL);
                     boolean split = slice == 0; // only slice 0 has two parts' worth of work
                     assertEquals("slice " + slice, split, splitsALeaf(reader, query));
                 }
@@ -528,6 +531,11 @@ public class IVFParallelScanTests extends ESTestCase {
         }
     }
 
+    /** The fewest vectors with which a leaf is split in two at this visit ratio. */
+    private static int vectorsToSplit(float visitRatio) {
+        return (int) Math.ceil(IVFParallelScan.MIN_PART_WORK / visitRatio);
+    }
+
     private static void indexLeaves(Directory dir, int dims, int... docsPerLeaf) throws IOException {
         try (IndexWriter writer = new IndexWriter(dir, ivfConfig())) {
             for (int docs : docsPerLeaf) {
@@ -584,6 +592,10 @@ public class IVFParallelScanTests extends ESTestCase {
         return new IVFKnnFloatVectorQuery("v", vector, k, k, filter, visitRatio, resolver());
     }
 
+    private static AbstractIVFKnnVectorQuery nestedQuery(float[] vector, int k, Query filter, float visitRatio) {
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery("v", vector, k, k, filter, PARENTS, visitRatio, resolver());
+    }
+
     private static TestIvfQueryConfigResolver resolver() {
         return new TestIvfQueryConfigResolver(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
     }
@@ -604,7 +616,7 @@ public class IVFParallelScanTests extends ESTestCase {
         return searcher.search(query, query.k);
     }
 
-    /** A parallel scan at a visit ratio of 0.5, each leaf with the collector manager at its position. */
+    /** A parallel scan of the query, each leaf with the collector manager at its position. */
     private static IVFParallelScan parallelScan(
         DirectoryReader reader,
         AbstractIVFKnnVectorQuery query,
@@ -615,7 +627,7 @@ public class IVFParallelScanTests extends ESTestCase {
         for (LeafReaderContext leaf : reader.leaves()) {
             inputs.add(new LeafInput(leaf, managers.get(leaf.ord), false));
         }
-        return new IVFParallelScan(query, null, 0.5f, inputs, maxTasks);
+        return new IVFParallelScan(query, null, query.providedVisitRatio, inputs, maxTasks);
     }
 
     private static boolean splitsALeaf(DirectoryReader reader, AbstractIVFKnnVectorQuery query) throws IOException {

@@ -30,7 +30,7 @@ public class BlobLocationTestUtils {
         long generation,
         long offset,
         long fileLength,
-        StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+        TimestampFieldValueRange timestampRange
     ) {
         return new BlobFileRanges(createBlobLocation(primaryTerm, generation, offset, fileLength), timestampRange);
     }

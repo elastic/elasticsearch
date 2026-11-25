@@ -9,10 +9,19 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -20,6 +29,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.node.HealthInfoTests;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +38,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +76,57 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         var health = determineHealth(Map.of(active, randomIntBetween(1, 10)));
 
         assertThat(health, equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
+    }
+
+    /// [clusterService] hands back whatever routings it's given regardless of node, which doesn't exercise the
+    /// tracker's actual job of selecting the *local* node's allocations out of the cluster-state routing table.
+    /// This builds a real two-node cluster state -- one allocation on the local node, one on a remote node -- and
+    /// confirms only the local one is ever asked about or reported.
+    public void testOnlyLocalNodeAllocationsAreConsidered() {
+        DiscoveryNode localNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));
+        DiscoveryNode remoteNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomIndexName())
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 0))
+            .build();
+        ShardRouting localRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            localNode.getId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        ShardRouting remoteRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 1),
+            remoteNode.getId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
+        indexRoutingTable.addShard(localRouting);
+        indexRoutingTable.addShard(remoteRouting);
+
+        ClusterState state = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, new DiscoveryNode[] { remoteNode }))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(indexMetadata, false)))
+            .routingTable(
+                GlobalRoutingTable.builder().put(Metadata.DEFAULT_PROJECT_ID, RoutingTable.builder().add(indexRoutingTable)).build()
+            )
+            .build();
+
+        var service = mock(IndicesClusterStateService.class);
+        // Stub a nonzero answer for *any* routing first, so a remote-allocation leak would show up as a false
+        // positive rather than coincidentally looking right because the mock only knows about the local one.
+        when(service.getLocalRecoveryRetryCount(any())).thenReturn(randomIntBetween(1, 10));
+        int localRetries = randomIntBetween(1, 10);
+        when(service.getLocalRecoveryRetryCount(localRouting)).thenReturn(localRetries);
+
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        var tracker = new LocalRecoveryRetriesHealthTracker(clusterService, () -> service);
+
+        var health = tracker.determineCurrentHealth();
+
+        assertThat(health.localRetries(), equalTo(Map.of(ShardAllocationId.fromRouting(localRouting), localRetries)));
+        verify(service, never()).getLocalRecoveryRetryCount(remoteRouting);
     }
 
     /// The local node may not be in the routing table at all (non-data node, or not

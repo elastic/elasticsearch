@@ -10,6 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -148,7 +150,19 @@ class FetchSearchPhase extends SearchPhase {
         final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-            () -> moveToNextPhase(fetchResults.getAtomicArray(), fetchResults::transferCharge, reducedQueryPhase, phaseStartTimeInNanos),
+            () -> context.getTask()
+                .getFetchedHitsCheck()
+                .onFetchDone(
+                    ActionListener.wrap(
+                        ignored -> moveToNextPhase(
+                            fetchResults.getAtomicArray(),
+                            fetchResults::transferCharge,
+                            reducedQueryPhase,
+                            phaseStartTimeInNanos
+                        ),
+                        e -> context.onPhaseFailure(NAME, "", e)
+                    )
+                ),
             context
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -227,9 +241,8 @@ class FetchSearchPhase extends SearchPhase {
                 try {
                     try {
                         fetchResults.reserve(result);
-                    } catch (Exception e) {
-                        // A breaker trip, a rejection by the task's FetchedHitsCheck, or anything else that stops us holding these hits.
-                        // Failing through the trip keeps its deferral.
+                    } catch (CircuitBreakingException | IllegalArgumentException e) {
+                        // A breaker trip, or a rejection by the task's FetchedHitsCheck. Failing through the trip keeps its deferral.
                         // The shard did the IO even though we cannot hold what it sent back.
                         context.accumulateDirectoryMetrics(result.getDirectoryMetrics());
                         context.failOnCoordinatorTrip(NAME, e);

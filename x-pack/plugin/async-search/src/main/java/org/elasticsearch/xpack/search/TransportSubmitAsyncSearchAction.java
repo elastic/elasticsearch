@@ -26,6 +26,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -46,6 +48,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private final SearchService searchService;
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
+    private final Executor hitsSamplingExecutor;
     private final AsyncTaskIndexService<AsyncSearchResponse> store;
 
     @Inject
@@ -72,6 +75,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.searchService = searchService;
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
+        this.hitsSamplingExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
         this.store = new AsyncTaskIndexService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
             clusterService,
@@ -101,7 +105,9 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 searchRequest
             );
             // Fails a search whose stored response won't fit as its hits arrive, rather than after the response is built.
-            searchTask.setFetchedHitsCheck(new StoredResponseSizeCheck(store::getMaxResponseSize, searchTask::isResultStored));
+            searchTask.setFetchedHitsCheck(
+                new StoredResponseSizeCheck(store::getMaxResponseSize, searchTask::isResultStored, hitsSamplingExecutor)
+            );
             if (request.isKeepOnCompletion()) {
                 searchTask.markResultStored();
             }

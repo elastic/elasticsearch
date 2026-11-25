@@ -143,12 +143,12 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * Runs the search's {@link FetchedHitsCheck} on hits already charged and queued here, and reports a rejection to the search the
      * same way as a trip.
      *
-     * @throws RuntimeException if the check rejects the hits
+     * @throws IllegalArgumentException if the check rejects the hits
      */
     void checkHits(List<SearchHit> hits, long bytes) {
         try {
             fetchedHitsCheck.onHits(hits, bytes);
-        } catch (RuntimeException e) {
+        } catch (IllegalArgumentException e) {
             coordinatorTripListener.accept(e);
             throw e;
         }

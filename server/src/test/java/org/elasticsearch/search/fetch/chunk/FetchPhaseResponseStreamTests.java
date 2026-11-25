@@ -484,6 +484,26 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testUnexpectedExceptionFromTheCheckIsNotReportedAsATrip() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
+        AtomicReference<Exception> reported = new AtomicReference<>();
+        stream.setCoordinatorTripListener(reported::set);
+        // Not a rejection but a bug, so it fails the chunk without failing the search through the trip.
+        IllegalStateException bug = new IllegalStateException("bug in the check");
+        stream.setFetchedHitsCheck((hits, bytes) -> { throw bug; });
+
+        FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 1024);
+        try {
+            assertThat(expectThrows(IllegalStateException.class, () -> stream.writeChunk(chunk, () -> {})), sameInstance(bug));
+        } finally {
+            chunk.close();
+        }
+        assertNull(reported.get());
+        stream.decRef();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testCircuitBreakerTripsOnSecondChunk() throws IOException {
         long chunk1Size = estimatedRetainedBytesForSourceSize(0, 5, 1024);
         long chunk2Size = estimatedRetainedBytesForSourceSize(5, 5, 1024);

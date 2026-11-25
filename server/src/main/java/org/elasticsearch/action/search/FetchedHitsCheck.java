@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.List;
@@ -30,7 +31,16 @@ public interface FetchedHitsCheck {
      *
      * @param hits  the hits that just arrived
      * @param bytes the estimated heap size of these hits, the amount charged for them
-     * @throws RuntimeException to fail the search the way a circuit breaker trip does
+     * @throws IllegalArgumentException to fail the search the way a circuit breaker trip does
      */
     void onHits(List<SearchHit> hits, long bytes);
+
+    /**
+     * Called once every shard has answered the fetch phase, before the hits are merged into the response, so a check that works in the
+     * background can finish. The search fails if the listener fails, with an {@link IllegalArgumentException} for hits the check
+     * rejects. Completes the listener at once by default.
+     */
+    default void onFetchDone(ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 }

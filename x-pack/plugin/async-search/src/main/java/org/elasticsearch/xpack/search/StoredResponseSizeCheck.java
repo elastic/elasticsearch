@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.FetchedHitsCheck;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -22,7 +26,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
@@ -38,12 +45,15 @@ import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_S
  * too high where the other doesn't, so the projection is the lower of the two. Calls with less than {@link #MIN_SAMPLE_BYTES} of hits
  * share two samples. The search fails once the projections add up to more than {@link #MARGIN} times the limit.
  * <p>
- * Nothing is compressed until the hits on the heap reach the limit. Until then calls are only remembered, and from then on each call
- * samples the remembered ones, up to {@link #MAX_SAMPLED_BYTES_PER_CALL}. Samples with released hits are skipped.
+ * Nothing is compressed until the hits on the heap reach the limit. Until then calls are only remembered. From then on they are sampled
+ * on an executor, since compressing takes too long for the transport thread that delivers the hits. A call fails if the samples so far
+ * project too much, and {@link #onFetchDone} samples the calls that are left before the hits are merged. Samples with released hits
+ * are skipped.
  * <p>
- * These are left to the store: hits that arrived before the result was marked as stored, hits not sampled yet when the last call
- * returns, small calls that don't fill their shared samples, calls whose hits are each over twice {@link #MAX_SAMPLE_BYTES}, the
- * unsampled hits of a call where one sample finds only such hits, and the rest of the response, such as aggregations.
+ * These are left to the store: hits that arrived before the result was marked as stored, small calls that don't fill their shared
+ * samples, calls whose hits are each over twice {@link #MAX_SAMPLE_BYTES}, the unsampled hits of a call where one sample finds only
+ * such hits, and the rest of the response, such as aggregations. So are the hits still unsampled if the executor rejects the sampling
+ * when the fetch phase is done.
  * <p>
  * The projection can be high for hits that repeat across indices, and for hits of a chunked shard that fails later. It can also be high
  * when a hit that compresses much worse than the rest is in both samples. That happens at about one position in 64, in calls of up to
@@ -62,8 +72,8 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
     static final long MIN_SAMPLE_BYTES = ByteSizeValue.ofKb(64).getBytes();
 
     /**
-     * The largest heap size each of a call's samples aims for. Compressing runs on a transport thread, where this takes a few
-     * milliseconds. No sample is larger than twice this.
+     * The largest heap size each of a call's samples aims for. Compressing this much takes a few milliseconds. No sample is larger than
+     * twice this.
      */
     static final long MAX_SAMPLE_BYTES = ByteSizeValue.ofKb(256).getBytes();
 
@@ -75,35 +85,36 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
     static final int SAMPLE_SHARE = 8;
 
     /**
-     * Stops a call from sampling remembered calls once its samples reach this heap size, so the call that takes the hits to the limit
-     * doesn't hold its transport thread until all of them are sampled. The calls after it sample the rest. A call can go over by one
-     * call's samples. The cap is twice what a call's samples aim for, so a call samples about two remembered calls for each one it
-     * adds, and the remembered calls run out.
-     */
-    static final long MAX_SAMPLED_BYTES_PER_CALL = 4 * MAX_SAMPLE_BYTES;
-
-    /**
      * How many times the limit the projection must exceed to fail the search. A sample can compress differently from the rest of the
      * hits, so this leaves room for a projection a little higher than the stored size.
      */
     static final double MARGIN = 1.5;
 
+    private static final Logger logger = LogManager.getLogger(StoredResponseSizeCheck.class);
+
     private final LongSupplier maxStoredSize;
     private final BooleanSupplier isStored;
+    private final Executor executor;
     private final AtomicLong hitsBytes = new AtomicLong();
     private final AtomicLong projectedBytes = new AtomicLong();
     // Calls to sample once the hits reach the limit.
     private final Queue<Call> unsampled = new ConcurrentLinkedQueue<>();
     private final SmallCalls smallCalls = new SmallCalls();
     private volatile boolean reachedLimit;
+    // How many times sampling was asked for since it last ran out of calls. Only the first of them starts a task.
+    private final AtomicInteger samplingRequests = new AtomicInteger();
+    // Completed once the calls left when the fetch phase was done are sampled.
+    private final AtomicReference<ActionListener<Void>> fetchDone = new AtomicReference<>();
 
     /**
      * @param maxStoredSize the size limit of stored responses, read on each call since the setting is dynamic
      * @param isStored      whether the response will be stored, which can turn true while the search runs
+     * @param executor      where the hits are compressed
      */
-    StoredResponseSizeCheck(LongSupplier maxStoredSize, BooleanSupplier isStored) {
+    StoredResponseSizeCheck(LongSupplier maxStoredSize, BooleanSupplier isStored, Executor executor) {
         this.maxStoredSize = maxStoredSize;
         this.isStored = isStored;
+        this.executor = executor;
     }
 
     @Override
@@ -114,47 +125,135 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
         if (limit <= 0L || isStored.getAsBoolean() == false) {
             return;
         }
+        // Once the projection fails the search, the shards and chunks still arriving fail too, without sampling.
+        ensureProjectionFits(limit);
         unsampled.add(new Call(hits, bytes));
-        // Read after adding, so a call added while another one samples the remembered calls is sampled by one of the two.
+        // Read after adding, so a call added while the remembered calls are sampled is sampled too.
         if (reachedLimit == false) {
             if (total < limit) {
                 return;
             }
             reachedLimit = true;
         }
-        final long projected = sampleCalls();
-        if (projected > limit * MARGIN) {
-            throw new IllegalArgumentException(
-                "Can't store an async search response larger than ["
-                    + limit
-                    + "] bytes, and the hits of this search are estimated to need ["
-                    + projected
-                    + "] bytes. This limit can be set by changing the ["
-                    + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey()
-                    + "] setting."
-            );
+        startSampling();
+        // The sampling may be done already.
+        ensureProjectionFits(limit);
+    }
+
+    /**
+     * Samples the calls that are left, and fails the listener if the hits are projected to be too large to store. Completes at once if
+     * the hits never reached the limit, since nothing was sampled.
+     */
+    @Override
+    public void onFetchDone(ActionListener<Void> listener) {
+        if (reachedLimit == false) {
+            listener.onResponse(null);
+            return;
+        }
+        final ActionListener<Void> previous = fetchDone.getAndSet(listener);
+        assert previous == null : "the fetch phase is done only once";
+        startSampling();
+    }
+
+    private void ensureProjectionFits(long limit) {
+        final long projected = projectedBytes.get();
+        if (isOverMargin(limit, projected)) {
+            throw tooLarge(limit, projected);
+        }
+    }
+
+    private boolean projectionFits() {
+        final long limit = maxStoredSize.getAsLong();
+        return limit <= 0L || isOverMargin(limit, projectedBytes.get()) == false;
+    }
+
+    private static boolean isOverMargin(long limit, long projected) {
+        return projected > limit * MARGIN;
+    }
+
+    private static IllegalArgumentException tooLarge(long limit, long projected) {
+        return new IllegalArgumentException(
+            "Can't store an async search response larger than ["
+                + limit
+                + "] bytes, and the hits of this search are estimated to need ["
+                + projected
+                + "] bytes. This limit can be set by changing the ["
+                + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey()
+                + "] setting."
+        );
+    }
+
+    /**
+     * Samples the remembered calls on the executor. At most one task samples at a time, and it runs until no request for sampling is
+     * left, so every call remembered before a request is sampled.
+     */
+    private void startSampling() {
+        if (samplingRequests.getAndIncrement() != 0) {
+            return;
+        }
+        executor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                int requests = samplingRequests.get();
+                do {
+                    // Taken before sampling, so every call of the fetch phase is sampled before the listener is completed.
+                    final ActionListener<Void> listener = fetchDone.getAndSet(null);
+                    try {
+                        sampleCalls();
+                    } catch (Exception e) {
+                        // Must not stop later sampling or leave the fetch phase waiting.
+                        assert false : e;
+                        logger.warn("failed to sample the hits of an async search", e);
+                    }
+                    if (listener != null) {
+                        completeFetchDone(listener);
+                    }
+                } while ((requests = samplingRequests.addAndGet(-requests)) > 0);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // The calls stay remembered for a later request to sample, and a fetch phase that is done leaves them to the store.
+                samplingRequests.set(0);
+                final ActionListener<Void> listener = fetchDone.getAndSet(null);
+                if (listener != null) {
+                    listener.onResponse(null);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+                logger.warn("failed to sample the hits of an async search", e);
+            }
+        });
+    }
+
+    private void completeFetchDone(ActionListener<Void> listener) {
+        final long limit = maxStoredSize.getAsLong();
+        final long projected = projectedBytes.get();
+        if (limit > 0L && isOverMargin(limit, projected)) {
+            listener.onFailure(tooLarge(limit, projected));
+        } else {
+            listener.onResponse(null);
         }
     }
 
     /**
-     * Samples calls that aren't sampled yet, up to {@link #MAX_SAMPLED_BYTES_PER_CALL}.
-     *
-     * @return the stored size projected for all the calls sampled so far
+     * Samples the calls that aren't sampled yet, unless the projection already fails the search.
      */
-    private long sampleCalls() {
-        long sampledBytes = 0L;
+    private void sampleCalls() {
         Call call;
-        while (sampledBytes < MAX_SAMPLED_BYTES_PER_CALL && (call = unsampled.poll()) != null) {
+        while (projectionFits() && (call = unsampled.poll()) != null) {
             if (call.bytes() >= MIN_SAMPLE_BYTES) {
-                sampledBytes += project(Sample.spread(call.hits(), call.bytes()), Sample.runs(call.hits(), call.bytes()), call.bytes());
+                project(Sample.spread(call.hits(), call.bytes()), Sample.runs(call.hits(), call.bytes()), call.bytes());
             } else {
                 final SharedSample shared = smallCalls.add(call);
                 if (shared != null) {
-                    sampledBytes += project(Sample.of(shared.spread()), Sample.of(shared.runs()), shared.callsBytes());
+                    project(Sample.of(shared.spread()), Sample.of(shared.runs()), shared.callsBytes());
                 }
             }
         }
-        return projectedBytes.get();
     }
 
     /**
@@ -163,19 +262,16 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
      * large for it, and how many of the call's hits are that large isn't known. So only the stored size of the hits the other sample
      * took is added, and the rest of the call is left to the store. Adds nothing if neither took hits, or if either is {@code null}
      * because a hit was released.
-     *
-     * @return the heap size of the two samples
      */
-    private long project(@Nullable Sample spread, @Nullable Sample runs, long bytes) {
+    private void project(@Nullable Sample spread, @Nullable Sample runs, long bytes) {
         if (spread == null || runs == null) {
-            return (spread == null ? 0L : spread.hitsBytes()) + (runs == null ? 0L : runs.hitsBytes());
+            return;
         }
         if (spread.hitsBytes() > 0L && runs.hitsBytes() > 0L) {
             projectedBytes.addAndGet((long) (bytes * Math.min(spread.storedPerHeapByte(), runs.storedPerHeapByte())));
         } else if (spread.hitsBytes() > 0L || runs.hitsBytes() > 0L) {
             projectedBytes.addAndGet(spread.hitsBytes() > 0L ? spread.storedBytes() : runs.storedBytes());
         }
-        return spread.hitsBytes() + runs.hitsBytes();
     }
 
     /**

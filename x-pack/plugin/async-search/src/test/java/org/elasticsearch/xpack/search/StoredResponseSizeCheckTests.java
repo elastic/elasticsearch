@@ -7,11 +7,18 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ZeroBytesReference;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,6 +28,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -33,6 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -49,7 +58,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
 
     public void testCallsUnderTheLimitAreNotCompressed() {
         AtomicLong compressedBytes = new AtomicLong();
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> hits = countingHits(HITS_PER_BATCH, compressedBytes);
         assertThat(heapBytes(hits), greaterThanOrEqualTo(StoredResponseSizeCheck.MIN_SAMPLE_BYTES));
         check.onHits(hits, heapBytes(hits));
@@ -64,7 +73,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
      */
     public void testSmallCallThatReachesTheLimitStartsSampling() {
         AtomicLong compressedBytes = new AtomicLong();
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> hits = countingHits(HITS_PER_BATCH, compressedBytes);
         check.onHits(hits, heapBytes(hits));
         long total = heapBytes(hits);
@@ -79,40 +88,168 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     /**
-     * The call that takes the hits to the limit samples only some of the remembered calls, and the calls after it sample the rest.
+     * The call that takes the hits to the limit only starts sampling on the executor, and the calls after it don't start more while
+     * that runs.
      */
-    public void testCallSamplesRememberedCallsOnlyUpToTheCap() {
+    public void testHitsAreCompressedOnTheExecutor() {
         final long sampledOfACall = sampledSourceBytes();
-        final long callBytes = heapBytes(countingHits(HITS_PER_BATCH, new AtomicLong()));
-        final int remembered = 40;
-        assertThat(remembered * sampledOfACall, greaterThan(2 * StoredResponseSizeCheck.MAX_SAMPLED_BYTES_PER_CALL));
+        Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
         AtomicLong compressedBytes = new AtomicLong();
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> remembered * callBytes + 1, () -> true);
-        for (int i = 0; i < remembered; i++) {
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, tasks::add);
+        int calls = 0;
+        long total = 0L;
+        while (total < LIMIT) {
             List<SearchHit> hits = countingHits(HITS_PER_BATCH, compressedBytes);
-            check.onHits(hits, callBytes);
-        }
-        assertThat(compressedBytes.get(), equalTo(0L));
-
-        int calls = remembered;
-        long compressedBefore = 0L;
-        while (compressedBytes.get() < calls * sampledOfACall) {
-            assertThat("the remembered calls should run out", calls, lessThan(remembered + 100));
-            List<SearchHit> hits = countingHits(HITS_PER_BATCH, compressedBytes);
-            check.onHits(hits, callBytes);
+            check.onHits(hits, heapBytes(hits));
+            total += heapBytes(hits);
             calls++;
-            long compressedByCall = compressedBytes.get() - compressedBefore;
-            compressedBefore = compressedBytes.get();
-            assertThat(
-                compressedByCall,
-                both(greaterThanOrEqualTo(sampledOfACall)).and(
-                    lessThan(StoredResponseSizeCheck.MAX_SAMPLED_BYTES_PER_CALL + 2 * StoredResponseSizeCheck.MAX_SAMPLE_BYTES)
-                )
-            );
         }
-        // Each call was sampled once, and the call that reached the limit didn't sample them all.
+        List<SearchHit> more = countingHits(HITS_PER_BATCH, compressedBytes);
+        check.onHits(more, heapBytes(more));
+        calls++;
+        assertThat(compressedBytes.get(), equalTo(0L));
+        assertThat(tasks.size(), equalTo(1));
+
+        tasks.poll().run();
         assertThat(compressedBytes.get(), equalTo(calls * sampledOfACall));
-        assertThat(calls, greaterThan(remembered + 1));
+        assertThat(tasks.size(), equalTo(0));
+    }
+
+    /**
+     * Once the fetch phase is done, the calls that are left are sampled before the listener is completed.
+     */
+    public void testFetchDoneWaitsForTheCallsLeft() {
+        Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, tasks::add);
+        List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        check.onHits(hits, heapBytes(hits));
+        // Over the limit, but nothing is sampled yet, so it passes.
+        List<SearchHit> more = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        check.onHits(more, heapBytes(more));
+
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        check.onFetchDone(done);
+        assertFalse(done.isDone());
+        // Sampling started with the second call is still pending, so the fetch phase doesn't start another task.
+        assertThat(tasks.size(), equalTo(1));
+        tasks.poll().run();
+        assertThat(expectThrows(ExecutionException.class, done::result).getCause(), instanceOf(IllegalArgumentException.class));
+    }
+
+    /**
+     * The fetch phase is done after the sampling ran out of calls, so it starts sampling again.
+     */
+    public void testFetchDoneAfterSamplingFinishedStartsSampling() {
+        Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, tasks::add);
+        for (int i = 0; i < 2; i++) {
+            List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+            check.onHits(hits, heapBytes(hits));
+        }
+        tasks.poll().run();
+
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        check.onFetchDone(done);
+        assertFalse(done.isDone());
+        assertThat(tasks.size(), equalTo(1));
+        tasks.poll().run();
+        assertThat(expectThrows(ExecutionException.class, done::result).getCause(), instanceOf(IllegalArgumentException.class));
+    }
+
+    /**
+     * Calls from several threads and the end of the fetch phase race with the sampling on a real executor. Each call is sampled once,
+     * and the fetch phase is completed once, after all of them.
+     */
+    public void testConcurrentCallsAndFetchDoneOnAnExecutor() {
+        final long sampledOfACall = sampledSourceBytes();
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            // A single round only sometimes ends the fetch phase while a task is sampling, so repeat it.
+            for (int round = 0; round < 20; round++) {
+                final int threads = between(2, 8);
+                final int callsPerThread = between(5, 20);
+                AtomicLong compressedBytes = new AtomicLong();
+                StoredResponseSizeCheck check = new StoredResponseSizeCheck(
+                    () -> LIMIT,
+                    () -> true,
+                    threadPool.executor(ThreadPool.Names.GENERIC)
+                );
+                startInParallel(threads, thread -> {
+                    for (int i = 0; i < callsPerThread; i++) {
+                        List<SearchHit> hits = countingHits(HITS_PER_BATCH, compressedBytes);
+                        check.onHits(hits, heapBytes(hits));
+                    }
+                });
+                PlainActionFuture<Void> done = new PlainActionFuture<>();
+                check.onFetchDone(ActionListener.assertOnce(done));
+                assertNull(safeGet(done));
+                assertThat(compressedBytes.get(), equalTo(threads * callsPerThread * sampledOfACall));
+            }
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testFetchDoneOfCompressibleHitsOverTheLimitPasses() throws Exception {
+        Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, tasks::add);
+        for (int i = 0; i < 4; i++) {
+            List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, false);
+            check.onHits(hits, heapBytes(hits));
+        }
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        check.onFetchDone(done);
+        assertThat(tasks.size(), equalTo(1));
+        tasks.poll().run();
+        assertNull(done.result());
+    }
+
+    public void testFetchDoneUnderTheLimitCompletesAtOnce() throws Exception {
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, r -> fail("nothing to sample"));
+        List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        check.onHits(hits, heapBytes(hits));
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        check.onFetchDone(done);
+        assertNull(done.result());
+    }
+
+    /**
+     * Calls whose sampling is rejected stay remembered, so a later call samples them.
+     */
+    public void testCallsOfRejectedSamplingAreSampledLater() {
+        AtomicBoolean reject = new AtomicBoolean(true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, r -> {
+            if (reject.getAndSet(false)) {
+                ((AbstractRunnable) r).onRejection(new EsRejectedExecutionException("rejected"));
+            } else {
+                r.run();
+            }
+        });
+        List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        check.onHits(hits, heapBytes(hits));
+        List<SearchHit> more = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        check.onHits(more, heapBytes(more));
+        assertFalse(reject.get());
+        List<SearchHit> last = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        expectThrows(IllegalArgumentException.class, () -> check.onHits(last, heapBytes(last)));
+    }
+
+    /**
+     * A fetch phase whose sampling is rejected leaves its hits to the store.
+     */
+    public void testRejectedSamplingIsLeftToTheStore() throws Exception {
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(
+            () -> LIMIT,
+            () -> true,
+            r -> ((AbstractRunnable) r).onRejection(new EsRejectedExecutionException("rejected", true))
+        );
+        for (int i = 0; i < 4; i++) {
+            List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+            check.onHits(hits, heapBytes(hits));
+        }
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        check.onFetchDone(done);
+        assertNull(done.result());
     }
 
     public void testConcurrentCallsAreEachSampledOnce() {
@@ -120,7 +257,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         final int threads = between(2, 8);
         final int callsPerThread = between(5, 20);
         AtomicLong compressedBytes = new AtomicLong();
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         startInParallel(threads, thread -> {
             for (int i = 0; i < callsPerThread; i++) {
                 List<SearchHit> hits = countingHits(HITS_PER_BATCH, compressedBytes);
@@ -179,7 +316,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     public void testEmptyCallsDoNotChangeTheProjection() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         check.onHits(List.of(), 0L);
         List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
         check.onHits(hits, heapBytes(hits));
@@ -195,14 +332,14 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
 
     public void testLimitOfZeroOrLessIsLeftToTheStore() {
         long limit = randomFrom(0L, -1L);
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         // Incompressible hits that would fail the search with any positive limit this small.
         List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
         check.onHits(hits, heapBytes(hits));
     }
 
     public void testIncompressibleHitsOverTheLimitFail() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
         assertThat(heapBytes(hits), lessThan(LIMIT));
         check.onHits(hits, heapBytes(hits));
@@ -215,21 +352,65 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     /**
+     * Once the check fails the search, the shards or chunks that still arrive fail too, without starting sampling.
+     */
+    public void testCallsAfterAFailureFailWithoutSampling() {
+        Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, tasks::add);
+        List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        check.onHits(hits, heapBytes(hits));
+        List<SearchHit> more = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        check.onHits(more, heapBytes(more));
+        tasks.poll().run();
+
+        List<SearchHit> later = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> check.onHits(later, heapBytes(later)));
+        assertThat(e.getMessage(), containsString("Can't store an async search response larger than [" + LIMIT + "] bytes"));
+        assertThat(tasks.size(), equalTo(0));
+    }
+
+    /**
+     * Sampling stops once the calls sampled so far fail the search, so the calls remembered after them aren't compressed.
+     */
+    public void testRememberedCallsAfterAFailureAreNotSampled() {
+        Queue<Runnable> tasks = new ConcurrentLinkedQueue<>();
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, tasks::add);
+        for (int i = 0; i < 2; i++) {
+            List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
+            check.onHits(hits, heapBytes(hits));
+        }
+        AtomicLong compressedBytes = new AtomicLong();
+        for (int i = 0; i < 5; i++) {
+            List<SearchHit> hits = countingHits(HITS_PER_BATCH, compressedBytes);
+            check.onHits(hits, heapBytes(hits));
+        }
+        assertThat(tasks.size(), equalTo(1));
+        tasks.poll().run();
+        assertThat(compressedBytes.get(), equalTo(0L));
+    }
+
+    /**
      * A call of exactly the smallest sample is sampled alone, and one just under it is left to the shared samples.
      */
     public void testCallOfTheSmallestSampleIsSampledAlone() {
         // The calls are about 85 KB on the heap, but are given as sizes on either side of the boundary to land on it exactly.
         final long bytes = StoredResponseSizeCheck.MIN_SAMPLE_BYTES;
         AtomicLong shared = new AtomicLong();
-        new StoredResponseSizeCheck(() -> bytes - 1, () -> true).onHits(countingHits(HITS_PER_BATCH, shared), bytes - 1);
+        new StoredResponseSizeCheck(() -> bytes - 1, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(
+            countingHits(HITS_PER_BATCH, shared),
+            bytes - 1
+        );
         assertThat(shared.get(), equalTo(0L));
         AtomicLong alone = new AtomicLong();
-        new StoredResponseSizeCheck(() -> bytes, () -> true).onHits(countingHits(HITS_PER_BATCH, alone), bytes);
+        new StoredResponseSizeCheck(() -> bytes, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(
+            countingHits(HITS_PER_BATCH, alone),
+            bytes
+        );
         assertThat(alone.get(), greaterThan(0L));
     }
 
     public void testCompressibleHitsFarOverTheLimitPass() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         for (int i = 0; i < 20; i++) {
             List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, false);
             check.onHits(hits, heapBytes(hits));
@@ -237,7 +418,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     public void testSmallIncompressibleCallsOverTheLimitFail() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         expectThrows(IllegalArgumentException.class, () -> {
             for (int i = 0; i < 200; i++) {
                 List<SearchHit> hits = hits(2, SOURCE_SIZE, true);
@@ -251,7 +432,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
      * Small calls that don't fill a shared sample are never projected, so the store decides, even when they don't fit.
      */
     public void testSmallCallsThatDoNotFillASharedSampleAreLeftToTheStore() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> allHits = new ArrayList<>();
         for (int i = 0; i < 40; i++) {
             List<SearchHit> hits = hits(2, SOURCE_SIZE, true);
@@ -263,7 +444,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     public void testSmallCompressibleCallsFarOverTheLimitPass() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         for (int i = 0; i < 300; i++) {
             List<SearchHit> hits = hits(2, SOURCE_SIZE, false);
             check.onHits(hits, heapBytes(hits));
@@ -328,11 +509,11 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
             callsBytes += heapBytes(call);
         }
         long stored = storedBytes(allHits);
-        StoredResponseSizeCheck fits = new StoredResponseSizeCheck(() -> stored, () -> true);
+        StoredResponseSizeCheck fits = new StoredResponseSizeCheck(() -> stored, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         for (List<SearchHit> call : calls) {
             fits.onHits(call, heapBytes(call));
         }
-        StoredResponseSizeCheck tooLarge = new StoredResponseSizeCheck(() -> stored / 8, () -> true);
+        StoredResponseSizeCheck tooLarge = new StoredResponseSizeCheck(() -> stored / 8, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         expectThrows(IllegalArgumentException.class, () -> {
             for (List<SearchHit> call : calls) {
                 tooLarge.onHits(call, heapBytes(call));
@@ -345,7 +526,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
      * first shard with the second one's ratio would fail the search.
      */
     public void testHitsOfOneShardDoNotSkewAnother() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> compressible = hits(HITS_PER_BATCH, SOURCE_SIZE, false);
         check.onHits(compressible, heapBytes(compressible));
         List<SearchHit> incompressible = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
@@ -354,7 +535,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     public void testHitsReleasedBeforeTheLimitAreSkipped() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> released = pooledHits(HITS_PER_BATCH);
         check.onHits(released, heapBytes(released));
         // Their shard failed, or the search ended.
@@ -366,7 +547,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     public void testCallWithSomeHitsReleasedIsSkipped() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> hits = pooledHits(HITS_PER_BATCH);
         check.onHits(hits, heapBytes(hits));
         // The single hits at even steps take every hit of a call this small, so the released hit is in a sample.
@@ -402,7 +583,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         }
         assertThat(heapBytes(released), lessThan(StoredResponseSizeCheck.MIN_SAMPLE_BYTES));
 
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         check.onHits(released, heapBytes(released));
         released.forEach(SearchHit::decRef);
         // Each shared sample is projected far over the limit, unless it has a released hit.
@@ -418,7 +599,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
      * and fail the search.
      */
     public void testHitsThatCompressWorseThanEarlierOnesFail() {
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> compressible = hits(HITS_PER_BATCH, SOURCE_SIZE, false);
         check.onHits(compressible, heapBytes(compressible));
         List<SearchHit> incompressible = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
@@ -431,14 +612,14 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         List<SearchHit> hits = partlyCompressibleHits();
         // Just under the margin, so this and the test below pin it.
         long limit = (long) (projectedStoredBytes(hits) / 1.4);
-        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+        new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(hits, heapBytes(hits));
     }
 
     public void testProjectionOverTheMarginFails() {
         List<SearchHit> hits = partlyCompressibleHits();
         // Just over the margin.
         long limit = (long) (projectedStoredBytes(hits) / 1.6);
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         expectThrows(IllegalArgumentException.class, () -> check.onHits(hits, heapBytes(hits)));
     }
 
@@ -487,7 +668,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         List<SearchHit> hits = hits(4, 250 * 1024, true);
         long limit = 512 * 1024;
         assertThat((double) storedBytes(hits), greaterThan(limit * StoredResponseSizeCheck.MARGIN));
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         expectThrows(IllegalArgumentException.class, () -> check.onHits(hits, heapBytes(hits)));
     }
 
@@ -558,7 +739,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         long limit = 1024 * 1024;
         assertThat((double) storedBytes(hits), greaterThan(limit * StoredResponseSizeCheck.MARGIN));
         assertThat(heapBytes(hits), greaterThan(limit));
-        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+        new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(hits, heapBytes(hits));
     }
 
     /**
@@ -571,7 +752,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         long limit = 4 * 1024 * 1024;
         assertThat(storedBytes(hits), lessThan(limit));
         assertThat(heapBytes(hits), greaterThan((long) (limit * StoredResponseSizeCheck.MARGIN)));
-        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+        new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(hits, heapBytes(hits));
     }
 
     /**
@@ -586,7 +767,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         StoredResponseSizeCheck.Sample spread = StoredResponseSizeCheck.Sample.spread(hits, heapBytes(hits));
         assertNotNull(spread);
         assertThat(spread.hitsBytes(), equalTo(0L));
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         expectThrows(IllegalArgumentException.class, () -> check.onHits(hits, heapBytes(hits)));
     }
 
@@ -607,7 +788,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         assertThat(spread.hitsBytes(), equalTo(0L));
         assertThat(storedBytes(hits), lessThan(limit));
         assertThat(heapBytes(hits), greaterThan(limit));
-        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+        new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(hits, heapBytes(hits));
     }
 
     /**
@@ -622,7 +803,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         long limit = 1024 * 1024;
         assertThat(storedBytes(hits), lessThan(limit));
         assertThat(heapBytes(hits), greaterThan(limit));
-        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+        new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(hits, heapBytes(hits));
     }
 
     /**
@@ -636,7 +817,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         long limit = 1024 * 1024;
         assertThat(storedBytes(hits), lessThan(limit));
         assertThat(heapBytes(hits), greaterThan(limit));
-        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+        new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(hits, heapBytes(hits));
     }
 
     /**
@@ -652,7 +833,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         }
         long limit = 200 * 1024;
         assertThat(storedBytes(calls.stream().flatMap(List::stream).toList()), lessThan(limit));
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         for (List<SearchHit> call : calls) {
             check.onHits(call, heapBytes(call));
         }
@@ -666,7 +847,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         List<SearchHit> hits = new ArrayList<>(hits(110, 2048, true));
         hits.addAll(hits(330, 2048, false));
         long limit = storedBytes(hits);
-        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+        new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(hits, heapBytes(hits));
     }
 
     /**
@@ -676,7 +857,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         List<SearchHit> hits = new ArrayList<>(hits(220, 2048, false));
         hits.addAll(hits(220, 2048, true));
         long limit = storedBytes(hits) / 2;
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         expectThrows(IllegalArgumentException.class, () -> check.onHits(hits, heapBytes(hits)));
     }
 
@@ -693,7 +874,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
             }
         }
         long limit = storedBytes(hits);
-        new StoredResponseSizeCheck(() -> limit, () -> true).onHits(hits, heapBytes(hits));
+        new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE).onHits(hits, heapBytes(hits));
     }
 
     public void testEvenlyMixedHitsFailOnlyOnceOverTheLimit() {
@@ -726,7 +907,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
             }
         }
         final long limit = limitBytes;
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> limit, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         for (List<SearchHit> chunk : chunks.subList(0, 6)) {
             check.onHits(chunk, heapBytes(chunk));
         }
@@ -773,7 +954,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
 
     public void testHitsBeforeTheResponseIsStoredAreNotCounted() {
         AtomicBoolean stored = new AtomicBoolean();
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, stored::get);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, stored::get, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         for (int i = 0; i < 3; i++) {
             List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
             check.onHits(hits, heapBytes(hits));
@@ -789,7 +970,7 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
 
     public void testLimitIsReadOnEachCall() {
         AtomicLong limit = new AtomicLong(LIMIT * 100);
-        StoredResponseSizeCheck check = new StoredResponseSizeCheck(limit::get, () -> true);
+        StoredResponseSizeCheck check = new StoredResponseSizeCheck(limit::get, () -> true, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         List<SearchHit> hits = hits(HITS_PER_BATCH, SOURCE_SIZE, true);
         check.onHits(hits, heapBytes(hits));
 

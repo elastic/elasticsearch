@@ -48,7 +48,8 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
      * the hits to the caller to release.
      *
      * @throws CircuitBreakingException if the coordinating node cannot hold these hits
-     * @throws RuntimeException if the {@link FetchedHitsCheck} rejects these hits, in which case this collection still owns the charge
+     * @throws IllegalArgumentException if the {@link FetchedHitsCheck} rejects these hits, in which case this collection still owns
+     *                                  the charge
      */
     void reserve(FetchSearchResult result) {
         final long bytes;

@@ -19,7 +19,9 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
@@ -70,25 +72,39 @@ abstract class ProcessorTestCase extends TestCase {
         }
     }
 
+    protected CompilationResult compile(String className, String source) {
+        Map<String, String> sources = new LinkedHashMap<>();
+        sources.put(className, source);
+        return compile(sources);
+    }
+
+    /**
+     * Compiles multiple source files in a single compilation task, handing them to javac in the
+     * iteration order of {@code sources}.
+     */
     @SuppressForbidden(
         reason = "StandardJavaFileManager.setLocation() requires java.io.File; no NIO alternative exists in the javax.tools API"
     )
-    protected CompilationResult compile(String className, String source) {
+    protected CompilationResult compile(Map<String, String> sources) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         assertNotNull("System Java compiler not available", compiler);
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         String processorClasspath = System.getProperty("java.class.path");
 
-        JavaFileObject sourceFile = new SimpleJavaFileObject(
-            URI.create("string:///" + className.replace('.', '/') + ".java"),
-            JavaFileObject.Kind.SOURCE
-        ) {
-            @Override
-            public CharSequence getCharContent(boolean ignoreEncodingErrors) {
-                return source;
-            }
-        };
+        List<JavaFileObject> sourceFiles = new ArrayList<>();
+        for (Map.Entry<String, String> entry : sources.entrySet()) {
+            String className = entry.getKey();
+            String source = entry.getValue();
+            sourceFiles.add(
+                new SimpleJavaFileObject(URI.create("string:///" + className.replace('.', '/') + ".java"), JavaFileObject.Kind.SOURCE) {
+                    @Override
+                    public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+                        return source;
+                    }
+                }
+            );
+        }
 
         try {
             Path outputDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "native-lib-gen-test");
@@ -101,7 +117,7 @@ abstract class ProcessorTestCase extends TestCase {
                 options.add("-processor");
                 options.add(LibraryProcessor.class.getName());
 
-                JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, options, null, List.of(sourceFile));
+                JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, options, null, sourceFiles);
                 boolean success = task.call();
 
                 List<String> notes = new ArrayList<>();

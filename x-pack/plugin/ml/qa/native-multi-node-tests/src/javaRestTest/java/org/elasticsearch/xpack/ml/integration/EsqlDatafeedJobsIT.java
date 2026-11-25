@@ -34,7 +34,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.containsString;
@@ -142,7 +145,11 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         List<Map<String, Object>> rows = previewRows(datafeedId, BASE_TIME, FIRST_WINDOW_END);
 
+        // The cap rows tie on time, so check the exact set of unique values: no earliest document dropped or repeated.
+        Set<Long> expectedValues = LongStream.range(laterDocs + 1L, laterDocs + 1L + ROW_LIMIT).boxed().collect(Collectors.toSet());
+        Set<Long> actualValues = rows.stream().map(row -> ((Number) row.get("value")).longValue()).collect(Collectors.toSet());
         assertThat(rows.size(), equalTo(ROW_LIMIT));
+        assertThat(actualValues, equalTo(expectedValues));
         for (Map<String, Object> row : rows) {
             assertThat(((Number) row.get("event_time")).longValue(), equalTo(firstEventTime));
         }

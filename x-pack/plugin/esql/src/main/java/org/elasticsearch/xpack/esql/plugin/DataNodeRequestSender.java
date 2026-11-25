@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -70,6 +71,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -116,7 +118,12 @@ abstract class DataNodeRequestSender {
     private final ThreadPool threadPool;
     private final TimeValue routingWaitTimeout;
     private final ShardResolutionMetrics metrics;
-    private ProjectId projectId;
+    /**
+     * The project of the query, read once from the thread that builds the sender, which carries the query's context. Every routing
+     * lookup made later takes this id. Some of them run where that context is not installed: the predicate of a routing wait runs
+     * on the cluster applier thread, where {@link ProjectResolver} would name another project or throw.
+     */
+    private final ProjectId projectId;
 
     private final String clusterAlias;
     private final OriginalIndices originalIndices;
@@ -131,7 +138,14 @@ abstract class DataNodeRequestSender {
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
     private final Set<DiscoveryNode> refusedNodes = ConcurrentCollections.newConcurrentSet();
     /**
-     * Copies that failed as unavailable, by allocation id. The value is whether the copy was active when sent.
+     * The copies of a shard that failed as unavailable, by {@link AllocationId#getId}. The value says whether the routing showed
+     * the copy active when the request was sent: a copy tried while initializing is untried again once active.
+     * <p>
+     * Copies are told apart by allocation id and not by node, so that a shard that comes back on a node that failed it before, under
+     * a new allocation, is tried there again, while the same copy is not asked twice under unchanged routing.
+     * <p>
+     * Concurrent: written by response handlers outside {@link #sendingLock}, read by the sending loop and, through the predicate of
+     * a routing wait, by the cluster applier thread.
      */
     private final Map<ShardId, Map<String, Boolean>> triedCopies = ConcurrentCollections.newConcurrentMap();
     private final AtomicInteger skippedShards = new AtomicInteger();
@@ -143,7 +157,15 @@ abstract class DataNodeRequestSender {
     private final AtomicBoolean attemptsExhaustedCounted = new AtomicBoolean();
 
     private final Set<ShardId> waitingShards = new HashSet<>(); // guarded by sendingLock
-    private final Map<ShardId, Long> stallDeadlines = new HashMap<>(); // guarded by sendingLock
+    /**
+     * When the stall of a shard ends, in relative millis, or {@link #STALL_EXPIRED}. Guarded by {@link #sendingLock}.
+     */
+    private final Map<ShardId, Long> stallDeadlines = new HashMap<>();
+    /**
+     * Marks a stall whose wait timed out. The pass that follows gives the shard its last try and does not compare clocks again:
+     * the relative time is a cached clock, and could still read as before the deadline.
+     */
+    private static final long STALL_EXPIRED = Long.MIN_VALUE;
     private boolean clusterServiceClosed; // guarded by sendingLock
     private final Queue<EndedWait> endedWaits = ConcurrentCollections.newQueue();
     private final Queue<RoutingWait> waitsToStart = ConcurrentCollections.newQueue();
@@ -168,6 +190,7 @@ abstract class DataNodeRequestSender {
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
+        this.projectId = projectResolver.getProjectId();
         this.transportService = transportService;
         this.searchExecutor = searchExecutor;
         this.rootTask = rootTask;
@@ -203,7 +226,6 @@ abstract class DataNodeRequestSender {
             // pool after ExternalSourceResolver completes on that pool.
             EsqlPlugin.externalBlobStorePool()
         );
-        projectId = projectResolver.getProjectId();
         final long startTimeInNanos = System.nanoTime();
         searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
             try (var computeListener = new ComputeListener(runOnTaskFailure, listener.map(completionInfo -> {
@@ -301,10 +323,7 @@ abstract class DataNodeRequestSender {
                             Set<ShardId> shardsToResolve = new HashSet<>();
                             for (ShardId shardId : pendingRetries) {
                                 ShardFailure failure = shardFailures.get(shardId);
-                                if (routingWaitTimeout.millis() != 0
-                                    || budgetLeft
-                                    || failure.lastRefused
-                                    || Long.valueOf(Long.MIN_VALUE).equals(stallDeadlines.get(shardId))) {
+                                if (routingWaitTimeout.millis() != 0 || budgetLeft || failure.lastRefused || stallExpired(shardId)) {
                                     shardsToResolve.add(shardId);
                                 } else {
                                     countAttemptsExhausted();
@@ -331,8 +350,7 @@ abstract class DataNodeRequestSender {
                                 if (clusterServiceClosed) {
                                     continue;
                                 }
-                                Long deadline = stallDeadlines.get(shardId);
-                                if (deadline != null && deadline == Long.MIN_VALUE) {
+                                if (stallExpired(shardId)) {
                                     remainingNodes.addAll(eligibleActiveCopies(copies));
                                     stallDeadlines.remove(shardId);
                                     shardFailures.computeIfPresent(
@@ -448,7 +466,7 @@ abstract class DataNodeRequestSender {
                     }
                     case TIMED_OUT -> stallDeadlines.computeIfPresent(
                         shardId,
-                        (ignored, deadline) -> deadline <= endedRoutingWait.deadlineMillis ? Long.MIN_VALUE : deadline
+                        (ignored, deadline) -> deadline <= endedRoutingWait.deadlineMillis ? STALL_EXPIRED : deadline
                     );
                     case CLUSTER_SERVICE_CLOSED -> clusterServiceClosed = true;
                     case CANCELLED -> {
@@ -469,6 +487,13 @@ abstract class DataNodeRequestSender {
                 }
             }
         }
+    }
+
+    /** Whether the wait of the shard timed out, so that the shard is due its last try. */
+    private boolean stallExpired(ShardId shardId) {
+        assert sendingLock.isHeldByCurrentThread();
+        Long deadline = stallDeadlines.get(shardId);
+        return deadline != null && deadline == STALL_EXPIRED;
     }
 
     private void skipShard(ShardId shardId) {
@@ -724,32 +749,75 @@ abstract class DataNodeRequestSender {
         return failure != null && failure.fatal == false && failure.resolvable;
     }
 
-    /** How a copy participates in a retry decision. */
+    /**
+     * What the routing says about a searchable copy, which decides whether a retry may go to it.
+     */
     enum CopyState {
+        /** Started, or relocating away: the copy the routing sends searches to. */
         ACTIVE,
+        /**
+         * The copy a relocating one is moving to. It is a candidate although it has not started: by the time the source answers
+         * "not available" the hand-off is often done, and the target answers before the state that shows it started is applied here.
+         */
         RELOCATION_TARGET,
+        /**
+         * Initializing and not the target of a relocation. Never a candidate. It is listed so that a shard that has only such
+         * copies reads as "none yet", and waits for one to start, and not as "gone".
+         */
         INITIALIZING
     }
 
-    /** One searchable shard copy, identified by its stable allocation id. */
+    /**
+     * One searchable copy as the routing lists it.
+     *
+     * @param allocationId {@link AllocationId#getId}, which a relocation target keeps when it starts. It tells a copy that was
+     *                     tried from a new one on the same node.
+     */
     record ShardCopy(DiscoveryNode node, String allocationId, CopyState state) {}
 
-    /** Routing copies and the exact state from which they were resolved. */
+    /**
+     * The copies of the shards that were resolved, with the state they were read from. A routing wait observes from that state on:
+     * a state applied between the resolution and the start of the wait is newer than it, and ends the wait.
+     *
+     * @param copies no entry for a shard whose index or shard table the state does not have
+     */
     record ResolvedShards(ClusterState state, Map<ShardId, List<ShardCopy>> copies) {}
 
-    /** The routing identity recorded atomically with sending a node request. */
+    /**
+     * The copy a request was sent to, as the applied state showed it when the request was sent. It is recorded then and read when
+     * the request fails, since by that time the routing may show another copy on the node, or the same one started.
+     *
+     * @param active whether the routing showed the copy active; a copy that failed while it was initializing is tried again once
+     *               it is active
+     */
     record SentCopy(String allocationId, boolean active) {}
 
-    /** The three possible answers when routing is compared with the copies already tried. */
+    /**
+     * What a routing table says about a shard whose known copies have all failed as unavailable.
+     */
     enum Untried {
+        /** There is a copy to try. */
         COPY,
+        /** The shard is there, and every copy that could be tried has been: newer routing may bring one, so the shard can wait. */
         NONE_YET,
+        /** The routing has no copy of the shard at all, or not the shard: nothing to wait for. */
         GONE
     }
 
-    /** For {@link Untried#COPY}, {@code nodes} contains active copies followed by relocation targets. */
+    /**
+     * @param nodes for {@link Untried#COPY}: the nodes of the untried copies, active ones first, then relocation targets; empty
+     *              otherwise
+     */
     record RoutingAnswer(Untried kind, List<DiscoveryNode> nodes) {}
 
+    /**
+     * Compares the copies the routing lists for a shard with the ones that were tried. Static and total, since it also runs in the
+     * predicate of a routing wait on the cluster applier thread, where it must neither throw nor read anything of the pass.
+     *
+     * @param copies  the copies of the shard as {@link #resolve} lists them, or {@code null} when the routing does not have the shard
+     * @param tried   the copies that failed as unavailable, see {@link #triedCopies}
+     * @param refused the nodes that refused a request; none of their copies is tried again
+     */
     static RoutingAnswer untriedCopies(@Nullable List<ShardCopy> copies, Map<String, Boolean> tried, Set<DiscoveryNode> refused) {
         if (copies == null || copies.isEmpty()) {
             return new RoutingAnswer(Untried.GONE, List.of());
@@ -1155,7 +1223,7 @@ abstract class DataNodeRequestSender {
                     }
                     Exception retained = shards.stream()
                         .map(shardFailures::get)
-                        .filter(java.util.Objects::nonNull)
+                        .filter(Objects::nonNull)
                         .map(ShardFailure::failure)
                         .findFirst()
                         .orElse(failure);

@@ -11,7 +11,10 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 /**
- * Metrics for retrying shard-backed ES|QL work after routing or node availability changes.
+ * Counters for what the sender of data node requests does when every known copy of a shard has failed as unavailable. They show
+ * whether queries wait for newer routing at all, whether the wait is long enough, and whether the resolution attempts run out.
+ * <p>
+ * The counters are registered once per node, when the instance is built, and shared by every sender.
  */
 final class ShardResolutionMetrics {
 
@@ -35,14 +38,29 @@ final class ShardResolutionMetrics {
         );
     }
 
+    /**
+     * A routing wait was armed. One wait covers every shard that stalled in the same pass of the sending loop, so this counts
+     * stalls of a sender, not shards.
+     */
     void routingWaitStarted() {
         routingWaits.increment();
     }
 
+    /**
+     * A routing wait ended because no newer routing arrived in time. Compared with {@link #routingWaitStarted()} it tells whether
+     * {@link EsqlPlugin#SHARD_ROUTING_WAIT_TIMEOUT} is long enough for the relocations of the cluster.
+     */
     void routingWaitTimedOut() {
         routingWaitTimeouts.increment();
     }
 
+    /**
+     * A sender failed a shard because its resolution attempts were spent. Counted once per sender, the first time it happens.
+     * <p>
+     * This counts senders and not queries. A query has one sender per executed plan and per cluster, and nothing is shared between
+     * the senders of a query that could tell them that another one has counted already. The number is an upper bound of the number
+     * of queries, and answers the question it is there for: whether the attempts run out at all.
+     */
     void attemptsExhausted() {
         attemptsExhausted.increment();
     }

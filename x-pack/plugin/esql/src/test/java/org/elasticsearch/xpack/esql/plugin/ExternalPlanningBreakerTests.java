@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -611,7 +612,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(transportService.getTelemetryProvider()).thenReturn(org.elasticsearch.telemetry.TelemetryProvider.NOOP);
+        when(transportService.getTelemetryProvider()).thenReturn(TelemetryProvider.NOOP);
 
         Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registered.add(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);

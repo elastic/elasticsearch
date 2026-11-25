@@ -147,6 +147,17 @@ public record TranslationContext(
     }
 
     /**
+     * The labels a {@code without (labels)} leaves out: the listed ones and, where the source stores it, the metric name,
+     * which Prometheus drops from every {@code without} grouping.
+     */
+    public List<String> withoutLabels(List<String> labels) {
+        if (cmd.storesMetricName() == false || labels.contains(LabelMatcher.NAME)) {
+            return labels;
+        }
+        return Stream.concat(labels.stream(), Stream.of(LabelMatcher.NAME)).toList();
+    }
+
+    /**
      * Whether the translation may read and rewrite labels in a {@code _timeseries} with the label container functions: only
      * in a snapshot build, and only when every node knows them. See {@link PromqlCommand#containerFunctions}.
      */

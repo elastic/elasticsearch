@@ -12,12 +12,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.EOFException;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class PublishIndexingOperationsHeapMemoryRequirementsRequestSerializationTests extends AbstractWireSerializingTestCase<
     TransportPublishIndexingOperationsHeapMemoryRequirements.Request> {
@@ -28,9 +28,6 @@ public class PublishIndexingOperationsHeapMemoryRequirementsRequestSerialization
 
     @Override
     protected TransportPublishIndexingOperationsHeapMemoryRequirements.Request createTestInstance() {
-        if (randomBoolean()) {
-            return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(randomLongBetween(0, Long.MAX_VALUE));
-        }
         return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(
             randomLongBetween(0, Long.MAX_VALUE),
             randomLongBetween(0, Long.MAX_VALUE)
@@ -40,33 +37,34 @@ public class PublishIndexingOperationsHeapMemoryRequirementsRequestSerialization
     @Override
     protected TransportPublishIndexingOperationsHeapMemoryRequirements.Request mutateInstance(
         TransportPublishIndexingOperationsHeapMemoryRequirements.Request instance
-    ) throws IOException {
-        if (instance.hasLargestOperationSize() && randomBoolean()) {
+    ) {
+        if (randomBoolean()) {
             return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(
-                instance.getMinimumRequiredHeapInBytes(),
-                randomValueOtherThan(instance.getLargestOperationSizeInBytes(), () -> randomLongBetween(0, Long.MAX_VALUE))
+                randomValueOtherThan(instance.getMinimumRequiredHeapInBytes(), () -> randomLongBetween(0, Long.MAX_VALUE)),
+                instance.getLargestOperationSizeInBytes()
             );
         }
-        long heap = randomValueOtherThan(instance.getMinimumRequiredHeapInBytes(), () -> randomLongBetween(0, Long.MAX_VALUE));
-        if (instance.hasLargestOperationSize()) {
-            return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(heap, instance.getLargestOperationSizeInBytes());
-        }
-        return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(heap);
+        return new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(
+            instance.getMinimumRequiredHeapInBytes(),
+            randomValueOtherThan(instance.getLargestOperationSizeInBytes(), () -> randomLongBetween(0, Long.MAX_VALUE))
+        );
     }
 
-    public void testOlderTransportVersionOmitsRawOperationSize() throws IOException {
+    public void testTransportVersionBeforePublishLargestIndexingOperationSize() throws IOException {
         long heap = randomLongBetween(0, Long.MAX_VALUE);
         long operationSize = randomLongBetween(0, Long.MAX_VALUE);
         var request = new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(heap, operationSize);
 
+        final TransportVersion before = TransportVersionUtils.randomVersionNotSupporting(
+            TransportPublishIndexingOperationsHeapMemoryRequirements.PUBLISH_LARGEST_INDEXING_OPERATION_SIZE
+        );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersion.minimumCompatible());
+            out.setTransportVersion(before);
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setTransportVersion(TransportVersion.minimumCompatible());
+                in.setTransportVersion(before);
                 var read = new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(in);
                 assertThat(read.getMinimumRequiredHeapInBytes(), equalTo(heap));
-                assertThat(read.hasLargestOperationSize(), is(false));
                 assertThat(read.getLargestOperationSizeInBytes(), equalTo(0L));
                 expectThrows(EOFException.class, in::readByte);
             }

@@ -1166,13 +1166,13 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(0L));
     }
 
-    public void testMasterOperationKeepsRawSizeAndIgnoresPrecomputedHeap() throws Exception {
+    public void testMasterOperationRecordsPrecomputedHeapAndIgnoresRawSize() throws Exception {
         final AtomicLong now = new AtomicLong(0L);
         final long operationSize = 1_000L;
         final long precomputedHeap = 1_000_000L;
         final StatelessMemoryMetricsService raw = new StatelessMemoryMetricsService(now::get, clusterService);
         publish(raw, new TransportPublishIndexingOperationsHeapMemoryRequirements.Request(precomputedHeap, operationSize));
-        assertThat(raw.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
+        assertThat(raw.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(precomputedHeap));
 
         final long legacyHeap = 777L;
         final StatelessMemoryMetricsService legacy = new StatelessMemoryMetricsService(now::get, clusterService);

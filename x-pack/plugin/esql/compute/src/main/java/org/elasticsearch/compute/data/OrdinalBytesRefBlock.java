@@ -256,6 +256,11 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
     }
 
     @Override
+    public int nullValuesCount() {
+        return ordinals.nullValuesCount();
+    }
+
+    @Override
     public boolean mayHaveMultivaluedFields() {
         return ordinals.mayHaveMultivaluedFields();
     }

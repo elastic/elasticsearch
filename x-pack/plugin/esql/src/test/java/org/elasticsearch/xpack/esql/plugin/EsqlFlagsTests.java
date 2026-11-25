@@ -17,21 +17,42 @@ import java.util.HashSet;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class EsqlFlagsTests extends ESTestCase {
 
-    /** A build without the feature can't turn the fetch phase on. A build with it leaves it to the pragma. */
+    /** The setting only takes effect on builds that carry the feature, and then plans the fetch only where it pays off. */
     public void testFetchPhaseModeNeedsFeatureFlag() {
-        assertThat(EsqlFlags.fetchPhaseMode(false), equalTo(FetchPhaseMode.UNAVAILABLE));
-        assertThat(EsqlFlags.fetchPhaseMode(true), equalTo(FetchPhaseMode.DISABLED));
+        assertThat(EsqlFlags.fetchPhaseMode(false, true), equalTo(FetchPhaseMode.UNAVAILABLE));
+        assertThat(EsqlFlags.fetchPhaseMode(false, false), equalTo(FetchPhaseMode.UNAVAILABLE));
+        assertThat(EsqlFlags.fetchPhaseMode(true, true), equalTo(FetchPhaseMode.AUTO));
+        assertThat(EsqlFlags.fetchPhaseMode(true, false), equalTo(FetchPhaseMode.DISABLED));
     }
 
-    /** Off by default: the defaults and the flags built from the cluster settings never plan the fetch phase. */
-    public void testFetchPhaseIsOffByDefault() {
-        FetchPhaseMode off = EsqlFlags.fetchPhaseMode(EsqlFlags.FETCH_PHASE_FEATURE_FLAG.isEnabled());
-        assertThat(EsqlFlags.DEFAULTS.fetchPhaseMode(), equalTo(off));
+    public void testFetchPhaseFromClusterSettings() {
+        boolean enabled = randomBoolean();
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(EsqlFlags.ESQL_FETCH_PHASE.getKey(), enabled).build(),
+            new HashSet<>(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS)
+        );
+        assertThat(
+            new EsqlFlags(clusterSettings).fetchPhaseMode(),
+            equalTo(EsqlFlags.fetchPhaseMode(EsqlFlags.FETCH_PHASE_FEATURE_FLAG.isEnabled(), enabled))
+        );
+    }
+
+    /**
+     * The setting defaults to the feature flag. A build with the fetch phase plans it where it pays off without any
+     * configuration, and a build without it reports the setting off.
+     */
+    public void testFetchPhaseFollowsTheFeatureFlagByDefault() {
+        boolean featureFlag = EsqlFlags.FETCH_PHASE_FEATURE_FLAG.isEnabled();
+        FetchPhaseMode byDefault = featureFlag ? FetchPhaseMode.AUTO : FetchPhaseMode.UNAVAILABLE;
+        assertThat(EsqlFlags.ESQL_FETCH_PHASE.getDefault(Settings.EMPTY), equalTo(featureFlag));
+        assertThat(EsqlFlags.DEFAULTS.fetchPhaseMode(), equalTo(byDefault));
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS));
-        assertThat(new EsqlFlags(clusterSettings).fetchPhaseMode(), equalTo(off));
+        assertThat(new EsqlFlags(clusterSettings).fetchPhaseMode(), equalTo(byDefault));
+        assertThat(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS, hasItem(EsqlFlags.ESQL_FETCH_PHASE));
     }
 
     /** Planner tests pin the mode, so they behave the same whether the test JVM carries the feature flag or not. */

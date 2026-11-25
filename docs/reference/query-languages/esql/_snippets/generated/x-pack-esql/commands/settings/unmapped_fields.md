@@ -58,6 +58,11 @@ either, the value is `DEFAULT`.
 
 **Type**: `keyword`
 
+**Can also be set in**:
+- the request body, as `settings.unmapped_fields` {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.unmapped_fields` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
+- a view definition {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+
 #### Example
 
 Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,

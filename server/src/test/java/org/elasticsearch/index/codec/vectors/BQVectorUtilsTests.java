@@ -21,7 +21,10 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
+@RunWith(ESRandomizedRunner.class)
 public class BQVectorUtilsTests extends LuceneTestCase {
 
     static {

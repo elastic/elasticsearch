@@ -144,6 +144,8 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
      * @param canonical     the form in which a value is compared, applied to the expected values and to those in the reconstructed source
      * @param hasIndex      whether the type has an {@code index} parameter, which the tests run both ways
      * @param batchedGroups the configurations and column shapes that are known to take the batch path today
+     * @param modes         the strict modes that accept the type
+     * @param singleValued  whether the type rejects a document with more than one value, which the documents then respect
      */
     protected record Scenario(
         String type,
@@ -152,32 +154,42 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
         Object nullValue,
         Function<Object, String> canonical,
         boolean hasIndex,
-        BiPredicate<Configuration, Integer> batchedGroups
+        BiPredicate<Configuration, Integer> batchedGroups,
+        List<IndexMode> modes,
+        boolean singleValued
     ) {
         public Scenario withParameters(Map<String, Object> parameters) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
         }
 
         public Scenario withNullValue(Object nullValue) {
             final Map<String, Object> withNullValue = new HashMap<>(parameters);
             withNullValue.put("null_value", nullValue);
-            return new Scenario(type, withNullValue, values, nullValue, canonical, hasIndex, batchedGroups);
+            return new Scenario(type, withNullValue, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
         }
 
         public Scenario withValues(Supplier<Object> values) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
         }
 
         public Scenario withCanonical(Function<Object, String> canonical) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
         }
 
         public Scenario withoutIndex() {
-            return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups);
+            return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups, modes, singleValued);
+        }
+
+        public Scenario withModes(IndexMode... modes) {
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, List.of(modes), singleValued);
+        }
+
+        public Scenario asSingleValued() {
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, true);
         }
 
         public Scenario batchedGroups(BiPredicate<Configuration, Integer> batchedGroups) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups);
+            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, singleValued);
         }
 
         List<Object> expected(TestDocument document) {
@@ -197,7 +209,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
     }
 
     protected static Scenario scenario(String type, Supplier<Object> values) {
-        return new Scenario(type, Map.of(), values, null, String::valueOf, true, (configuration, group) -> false);
+        return new Scenario(type, Map.of(), values, null, String::valueOf, true, (configuration, group) -> false, MODES, false);
     }
 
     protected static TestDocument absent() {
@@ -218,7 +230,16 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     // NOTE: each group is one column shape. The batch path maps a column of mixed scalars and arrays, or one that holds a null, as a
     // UNION, which most mappers refuse, so a group that mixes shapes would hide whether the others reach the batch path.
-    private static List<List<TestDocument>> documentGroups(Supplier<Object> values) {
+    private static List<List<TestDocument>> documentGroups(Scenario scenario) {
+        final Supplier<Object> values = scenario.values();
+        if (scenario.singleValued()) {
+            return List.of(
+                List.of(scalar(values.get()), absent(), scalar(values.get())),
+                List.of(array(values.get()), array()),
+                List.of(scalar(values.get()), bareNull()),
+                List.of(array((Object) null), array(values.get(), null), array(null, values.get()))
+            );
+        }
         final Object repeated = values.get();
         return List.of(
             List.of(scalar(values.get()), absent(), scalar(values.get())),
@@ -251,7 +272,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     private static List<Configuration> configurations(Scenario scenario) {
         final List<Configuration> configurations = new ArrayList<>();
-        for (final IndexMode mode : MODES) {
+        for (final IndexMode mode : scenario.modes()) {
             configurations.add(new Configuration(mode, true));
             if (scenario.hasIndex()) {
                 configurations.add(new Configuration(mode, false));
@@ -447,7 +468,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             scenario,
             path,
             slice,
-            documentGroups(scenario.values()),
+            documentGroups(scenario),
             DOCUMENT_SHAPES,
             (configuration, mapperService, indexWriter, docs) -> {
                 final List<Integer> expected = new ArrayList<>();
@@ -483,7 +504,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             scenario,
             path,
             slice,
-            documentGroups(scenario.values()),
+            documentGroups(scenario),
             DOCUMENT_SHAPES,
             (configuration, mapperService, indexWriter, docs) -> {
                 final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
@@ -509,7 +530,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             scenario,
             path,
             ALL,
-            documentGroups(scenario.values()),
+            documentGroups(scenario),
             DOCUMENT_SHAPES,
             (configuration, mapperService, indexWriter, docs) -> {
                 assertSources(scenario, mapperService, indexWriter, docs, false);

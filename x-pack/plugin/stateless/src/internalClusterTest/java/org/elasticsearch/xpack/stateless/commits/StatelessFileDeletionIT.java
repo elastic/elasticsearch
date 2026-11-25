@@ -1114,9 +1114,9 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         issueUrl = "https://github.com/elastic/elasticsearch/issues/166242",
         value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE,"
             + "org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner:DEBUG,"
-            + "org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService:TRACE,"
             + "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG,"
-            + "org.elasticsearch.xpack.stateless.engine.IndexEngine:TRACE"
+            + "org.elasticsearch.index.engine.Engine:TRACE"
     )
     public void testBlobsNotDeletedDuringFailedRelocation() throws Exception {
         verifyBlobDeletionDeferredDuringRelocation(false);

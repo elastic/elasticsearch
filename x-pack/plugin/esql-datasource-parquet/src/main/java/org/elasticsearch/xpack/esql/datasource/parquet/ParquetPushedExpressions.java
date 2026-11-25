@@ -1603,6 +1603,10 @@ final class ParquetPushedExpressions {
      * {@link OptimizedParquetColumnIterator#dictionaryBitmapsForCurrentRowGroup}) is
      * responsible for handing in a map scoped to the current row group — within a row group
      * the dictionary content is fixed so memoized results remain valid for every batch.
+     * That holds only if every {@link OrdinalBytesRefBlock} passed in carries the row group's
+     * whole dictionary, numbered as in the file: the predicate blocks must be read with
+     * {@code PageColumnReader} ordinal compaction off. A per-batch compact dictionary renumbers
+     * the ordinals, and a memoized bitmap applied to it silently yields wrong survivors.
      *
      * <p>A {@code null} cache is permitted and preserves the original per-batch behavior;
      * this matters for callers that do not know the row-group lifecycle (e.g. unit tests
@@ -2179,9 +2183,10 @@ final class ParquetPushedExpressions {
             // Dictionary short-circuit: evaluate the comparison once per dictionary entry,
             // then map each row's ordinal to a precomputed boolean. Avoids one string compareTo
             // per row in favor of one int lookup per row. The dictionary content is fixed
-            // within a row group, so the bitmap is memoized across batches when dictCache is
-            // provided — typically reducing dictSize * batchCount predicate calls to dictSize
-            // per row group.
+            // within a row group (predicate blocks are read with ordinal compaction off, so they
+            // carry the row group's whole dictionary), so the bitmap is memoized across batches
+            // when dictCache is provided — typically reducing dictSize * batchCount predicate
+            // calls to dictSize per row group.
             BytesRef val = toByteRef(literal);
             Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
             boolean[] dictMatches = memoizedDictionaryMatches(dictCache, cacheKey, obb.getDictionaryVector(), matcher);
@@ -2967,8 +2972,11 @@ final class ParquetPushedExpressions {
      * Returns {@code true} when evaluating the predicate against dictionary entries is expected
      * to be cheaper than per-row evaluation. For ordinal-encoded blocks, the dictionary path
      * runs the predicate once per unique value and then scatters results via integer lookups —
-     * always cheaper than running the predicate per row since dictionary size &lt;= row count.
-     * The minimum of 10 positions avoids the boolean[] allocation overhead for tiny blocks.
+     * cheaper than running the predicate per row when the dictionary size is at most the row count.
+     * That bound holds for compacted blocks only; predicate blocks are read uncompacted (so the
+     * row-group memo stays valid) and carry the whole row-group dictionary, which can exceed the
+     * batch, but the memo then amortizes it over the row group's batches. The minimum of 10
+     * positions avoids the boolean[] allocation overhead for tiny blocks.
      */
     private static boolean shouldShortCircuitOnDictionary(OrdinalBytesRefBlock block) {
         return block.getPositionCount() >= 10 && block.getOrdinalsBlock().mayHaveMultivaluedFields() == false;
@@ -3008,6 +3016,14 @@ final class ParquetPushedExpressions {
         }
         boolean[] cached = cache.get(key);
         if (cached != null) {
+            // Catches the realistic mix-up, a compact per-batch dictionary meeting a row-group bitmap.
+            // It can't catch two same-sized dictionaries with different numbering.
+            assert cached.length == dictionary.getPositionCount()
+                : "row-group dictionary bitmap of size ["
+                    + cached.length
+                    + "] applied to a dictionary of size ["
+                    + dictionary.getPositionCount()
+                    + "]; predicate blocks must be read with ordinal compaction off";
             return cached;
         }
         boolean[] fresh = matchingDictionaryEntries(dictionary, matcher);

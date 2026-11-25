@@ -62,6 +62,8 @@ import java.util.function.IntFunction;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * End-to-end tests verifying that {@link PageColumnReader} emits an
@@ -99,6 +101,66 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         byte[] data = writeStringFile(numRows, true, row -> row % 7 == 0 ? null : "color_" + (row % dictSize));
 
         verifyDictionaryEncoded(data, numRows, true, row -> row % 7 == 0 ? null : "color_" + (row % dictSize));
+    }
+
+    /**
+     * A clustered column whose row-group dictionary is much larger than a batch: each batch references
+     * only a slice of the dictionary and is safely below the compaction threshold, so it must carry
+     * exactly that slice. Downstream consumers ({@code VALUES}, dictionary-aware evaluators, and
+     * ordinal-aware hashing) process dictionary entries, so unreferenced entries add work.
+     */
+    public void testClusteredColumnEmitsFullyReferencedDictionaries() throws IOException {
+        int numRows = 6_000;
+        // 300 distinct values, 20 consecutive rows each: a 1000-row batch sees ~50 of them.
+        IntFunction<String> valueFor = row -> "v_" + (row / 20);
+        byte[] data = writeStringFile(numRows, false, valueFor);
+
+        assertOrdinalBlocksFullyReferenced(data, numRows, valueFor, 300);
+    }
+
+    /** Nullable variant: null slots must not keep dictionary entry 0 alive. */
+    public void testNullableClusteredColumnEmitsFullyReferencedDictionaries() throws IOException {
+        int numRows = 6_000;
+        IntFunction<String> valueFor = row -> row % 3 == 0 ? null : "v_" + (row / 20);
+        byte[] data = writeStringFile(numRows, true, valueFor);
+
+        assertOrdinalBlocksFullyReferenced(data, numRows, valueFor, 300);
+    }
+
+    private void assertOrdinalBlocksFullyReferenced(byte[] data, int numRows, IntFunction<String> valueFor, int distinctValues)
+        throws IOException {
+        List<Page> pages = readAll(data);
+        try {
+            int ordinalPages = 0;
+            int row = 0;
+            BytesRef scratch = new BytesRef();
+            for (Page page : pages) {
+                BytesRefBlock block = page.getBlock(0);
+                OrdinalBytesRefBlock ordinals = block.asOrdinals();
+                if (ordinals != null) {
+                    ordinalPages++;
+                    PageColumnReaderOrdinalCompactionTests.assertFullyReferenced(ordinals);
+                    assertThat(
+                        "a batch sees a slice of the row-group dictionary",
+                        ordinals.getDictionaryVector().getPositionCount(),
+                        lessThan(distinctValues)
+                    );
+                }
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    String expected = valueFor.apply(row);
+                    if (expected == null) {
+                        assertTrue("expected null at row " + row, block.isNull(p));
+                    } else {
+                        assertEquals("row " + row, new BytesRef(expected), block.getBytesRef(block.getFirstValueIndex(p), scratch));
+                    }
+                    row++;
+                }
+            }
+            assertEquals(numRows, row);
+            assertThat("the column must stay dictionary-encoded for this test to mean anything", ordinalPages, greaterThan(0));
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
     }
 
     /**

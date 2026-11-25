@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -47,11 +48,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
@@ -191,6 +191,54 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
         assertEquals("breaker must return to zero — a leaked cached BytesRefArray would show here", 0, breaker.getUsed());
     }
 
+    /** The baseline iterator closes page readers, and their compaction scratch, at row-group boundaries and on close. */
+    public void testBaselineIteratorReleasesPageColumnReaders() throws IOException {
+        int numRows = 6_000;
+        int batchSize = 256;
+        byte[] data = writeStringFile(numRows, false, row -> "term_" + (row % 50), /* rowGroupSize */ 8 * 1024L);
+
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        int totalRows = 0;
+        StorageObject object = storageObject(data);
+        try (
+            CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, false).read(
+                object,
+                FormatReadContext.of(List.of("name"), batchSize)
+            )
+        ) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(numRows, totalRows);
+        assertEquals("baseline page readers must release their compaction scratch", 0, breaker.getUsed());
+    }
+
+    /** Closing the baseline iterator before row-group exhaustion releases its active page readers. */
+    public void testBaselineIteratorEarlyCloseReleasesPageColumnReaders() throws IOException {
+        byte[] data = writeStringFile(1_500, false, row -> "term_" + (row % 50));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        try (
+            CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, false).read(
+                storageObject(data),
+                FormatReadContext.of(List.of("name"), 256)
+            )
+        ) {
+            Page page = iter.next();
+            page.releaseBlocks();
+            assertTrue("the active reader should retain charged scratch before iterator close", breaker.getUsed() > 0);
+        }
+        assertEquals("early close must release the active baseline page readers", 0, breaker.getUsed());
+    }
+
     /**
      * Producer-thread keeps decoding pages while a separate consumer-thread closes already-emitted
      * pages after a randomized small delay (and a {@code page.allowPassingToDifferentDriver()} hop
@@ -200,10 +248,9 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
      */
     public void testCrossDriverCloseDuringDecode() throws Exception {
         int iterations = 50;
-        int numRows = 1_500;
+        int numRows = 1_536;
         int batchSize = 64;
-        int dictSize = 32;
-        IntFunction<String> valueFor = row -> "v_" + (row % dictSize);
+        IntFunction<String> valueFor = row -> "v_" + ((row / 512) * 4 + row % 4);
         byte[] data = writeStringFile(numRows, false, valueFor);
 
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
@@ -211,44 +258,53 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
 
         ExecutorService consumer = Executors.newSingleThreadExecutor();
-        AtomicReference<Throwable> consumerFailure = new AtomicReference<>();
         try {
             for (int i = 0; i < iterations; i++) {
-                CountDownLatch consumed = new CountDownLatch(1);
-                List<Page> emitted = new ArrayList<>();
+                List<Future<?>> releases = new ArrayList<>();
                 int rowsRead = 0;
+                BytesRefVector previousDictionary = null;
+                int previousSegment = -1;
                 try (CloseableIterator<Page> iter = openIterator(blockFactory, data, batchSize)) {
                     while (iter.hasNext()) {
                         Page page = iter.next();
+                        BytesRefBlock block = page.getBlock(0);
+                        OrdinalBytesRefBlock ordinals = block.asOrdinals();
+                        assertNotNull(ordinals);
+                        BytesRefVector dictionary = ordinals.getDictionaryVector();
+                        int segment = rowsRead / 512;
+                        if (previousDictionary != null) {
+                            if (segment == previousSegment) {
+                                assertSame("batch " + rowsRead / batchSize, previousDictionary, dictionary);
+                            } else {
+                                assertNotSame(
+                                    "segment " + segment + " must replace the cached compact dictionary",
+                                    previousDictionary,
+                                    dictionary
+                                );
+                            }
+                        }
+                        BytesRef scratch = new BytesRef();
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            assertEquals(new BytesRef(valueFor.apply(rowsRead + p)), block.getBytesRef(p, scratch));
+                        }
                         rowsRead += page.getPositionCount();
+                        previousDictionary = dictionary;
+                        previousSegment = segment;
                         page.allowPassingToDifferentDriver();
-                        emitted.add(page);
+                        releases.add(consumer.submit(() -> {
+                            try {
+                                Thread.sleep(0, randomIntBetween(0, 200_000));
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            } finally {
+                                page.releaseBlocks();
+                            }
+                        }));
                     }
                 }
                 assertEquals(numRows, rowsRead);
-                final List<Page> toClose = emitted;
-                consumer.execute(() -> {
-                    try {
-                        for (Page page : toClose) {
-                            try {
-                                Thread.sleep(0, randomIntBetween(0, 200_000));
-                            } catch (InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                                break;
-                            }
-                            page.releaseBlocks();
-                        }
-                    } catch (Throwable t) {
-                        consumerFailure.compareAndSet(null, t);
-                    } finally {
-                        consumed.countDown();
-                    }
-                });
-                if (consumed.await(30, TimeUnit.SECONDS) == false) {
-                    fail("consumer did not finish in time on iteration " + i);
-                }
-                if (consumerFailure.get() != null) {
-                    throw new AssertionError("consumer thread failed on iteration " + i, consumerFailure.get());
+                for (Future<?> release : releases) {
+                    release.get(30, TimeUnit.SECONDS);
                 }
             }
         } finally {

@@ -101,6 +101,7 @@ public class AggregatorBenchmark {
     private static final String TWO_BYTES_REFS = "two_" + BYTES_REFS;
     private static final String TWO_ORDINALS = "two_" + ORDINALS;
     private static final String LONGS_AND_BYTES_REFS = LONGS + "_and_" + BYTES_REFS;
+    private static final String LONGS_AND_ORDINALS = LONGS + "_and_" + ORDINALS;
     private static final String TWO_LONGS_AND_BYTES_REFS = "two_" + LONGS + "_and_" + BYTES_REFS;
     private static final String TOP_N_LONGS = "top_n_" + LONGS;
 
@@ -159,6 +160,7 @@ public class AggregatorBenchmark {
             TWO_BYTES_REFS,
             TWO_ORDINALS,
             LONGS_AND_BYTES_REFS,
+            LONGS_AND_ORDINALS,
             TWO_LONGS_AND_BYTES_REFS,
             TOP_N_LONGS }
     )
@@ -200,7 +202,7 @@ public class AggregatorBenchmark {
                 new BlockHash.GroupSpec(0, ElementType.BYTES_REF),
                 new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
             );
-            case LONGS_AND_BYTES_REFS -> List.of(
+            case LONGS_AND_BYTES_REFS, LONGS_AND_ORDINALS -> List.of(
                 new BlockHash.GroupSpec(0, ElementType.LONG),
                 new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
             );
@@ -292,7 +294,7 @@ public class AggregatorBenchmark {
                 checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(0));
                 checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
             }
-            case LONGS_AND_BYTES_REFS -> {
+            case LONGS_AND_BYTES_REFS, LONGS_AND_ORDINALS -> {
                 checkGroupingBlock(prefix, LONGS, page.getBlock(0));
                 checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
             }
@@ -672,6 +674,7 @@ public class AggregatorBenchmark {
             case TWO_BYTES_REFS -> List.of(groupingBlock(BYTES_REFS, blockType), groupingBlock(BYTES_REFS, blockType));
             case TWO_ORDINALS -> List.of(groupingBlock(ORDINALS, blockType), groupingBlock(ORDINALS, blockType));
             case LONGS_AND_BYTES_REFS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(BYTES_REFS, blockType));
+            case LONGS_AND_ORDINALS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(ORDINALS, blockType));
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
                 groupingBlock(LONGS, blockType),
                 groupingBlock(LONGS, blockType),

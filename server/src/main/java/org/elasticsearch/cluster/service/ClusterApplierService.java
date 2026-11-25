@@ -552,6 +552,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     newMaster.appendDescriptionWithoutAttributes(message);
                 }
                 message.append("]}, term: ")
+                    .append(previousClusterState.term())
+                    .append(" -> ")
                     .append(newClusterState.term())
                     .append(", version: ")
                     .append(newClusterState.version())

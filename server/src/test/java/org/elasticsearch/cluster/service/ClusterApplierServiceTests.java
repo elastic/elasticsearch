@@ -136,20 +136,23 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 mockLog.assertAllExpectationsMatched();
             };
 
-            seenPatterns.accept("master node changed {previous [*node1*], current []}, term: 0, version: *, reason: test setting state");
+            seenPatterns.accept("master node changed {previous [*node1*], current []}, term: 0 -> 0, version: *, reason: *");
             changeLoggingAsserter.accept(
                 state -> ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null)).build()
             );
 
-            seenPatterns.accept("master node changed {previous [], current [*node1*]}, term: 0, version: *, reason: test setting state");
+            seenPatterns.accept("master node changed {previous [], current []}, term: 0 -> *, version: *, reason: test setting state");
+            changeLoggingAsserter.accept(ClusterStateCreationUtils::withNewTerm);
+
+            seenPatterns.accept("master node changed {previous [], current [*node1*]}, term: *, version: *, reason: *");
             changeLoggingAsserter.accept(
                 state -> ClusterState.builder(state)
                     .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
                     .build()
             );
 
-            seenPatterns.accept("master node changed {previous [*node1*], current [*node2*]}, term: 0, version: *, reason: *");
-            seenPatterns.accept("added {*node2*}, term: 0, version: *, reason: test setting state");
+            seenPatterns.accept("master node changed {previous [*node1*], current [*node2*]}, term: *, version: *, reason: *");
+            seenPatterns.accept("added {*node2*}, term: *, version: *, reason: test setting state");
             final var node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
             changeLoggingAsserter.accept(
                 state -> ClusterState.builder(state)

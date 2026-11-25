@@ -43,8 +43,6 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -179,8 +177,9 @@ public final class FieldExpression {
 
     /**
      * Resolves a parsed expression over fields of the given types and builds its evaluator, whose input pages hold the fields
-     * in the order of {@code fieldTypes}. ES|QL analyzes and optimizes the expression as {@code EVAL key = expression} on a
-     * relation of these fields.
+     * in the order of {@code fieldTypes}. ES|QL analyzes the expression as {@code EVAL key = expression} on a relation of these
+     * fields, then folds its constants. It doesn't optimize it, since the optimizer's rewrites change between versions and some
+     * don't keep the values, for example on overflow.
      *
      * @throws IllegalArgumentException if the expression is invalid for these types
      */
@@ -193,8 +192,7 @@ public final class FieldExpression {
                 new FieldAttribute(source, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.UNKNOWN))
             )
         );
-        // A relation on an index, which the optimizer doesn't replace with an empty one, and an explicit limit, which the
-        // analyzer doesn't add with a warning
+        // An explicit limit, which the analyzer doesn't add with a warning
         EsRelation relation = new EsRelation(
             source,
             INDEX,
@@ -208,27 +206,24 @@ public final class FieldExpression {
         LogicalPlan plan = new Limit(source, new Literal(source, 1, DataType.INTEGER), eval);
         // Each expression has its own budget for folding constants
         FoldContext foldContext = FoldContext.small();
-        LogicalPlan optimized;
+        LogicalPlan analyzed;
         try {
-            LogicalPlan analyzed = new Analyzer(ANALYZER_CONTEXT, VERIFIER).analyze(plan);
-            optimized = new LogicalPlanOptimizer(
-                new LogicalOptimizerContext(CONFIGURATION, foldContext, TransportVersion.current(), EsqlFlags.DEFAULTS)
-            ).optimize(analyzed);
+            analyzed = new Analyzer(ANALYZER_CONTEXT, VERIFIER).analyze(plan);
         } catch (VerificationException e) {
             // Keeps the problems, without their positions in the plan that holds the expression
             String problems = e.getMessage().lines().skip(1).map(l -> l.replaceFirst("^line \\d+:\\d+: ", "")).collect(joining("; "));
             throw new IllegalArgumentException(problems, e);
         }
         Holder<Expression> resolved = new Holder<>();
-        optimized.forEachExpressionDown(Alias.class, alias -> {
+        analyzed.forEachExpressionDown(Alias.class, alias -> {
             if (alias.name().equals(KEY)) {
-                resolved.set(alias.child());
+                resolved.set(alias.child().transformDown(e -> e.foldable() ? Literal.of(foldContext, e) : e));
             }
         });
         if (resolved.get() == null) {
-            throw new IllegalStateException("[" + expression.sourceText() + "] is missing from the optimized plan [" + optimized + "]");
+            throw new IllegalStateException("[" + expression.sourceText() + "] is missing from the analyzed plan [" + analyzed + "]");
         }
-        // The analyzer and optimizer may add functions, such as implicit casts
+        // The analyzer may add functions, such as implicit casts
         resolved.get().forEachDown(n -> {
             if ((n instanceof FieldAttribute || n instanceof Literal) == false) {
                 checkFunction(n, n.getClass());

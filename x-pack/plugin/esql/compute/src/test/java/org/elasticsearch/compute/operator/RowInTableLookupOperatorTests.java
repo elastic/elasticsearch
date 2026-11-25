@@ -27,6 +27,7 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -251,7 +252,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                 firstContext.warnings(),
                 contains(
                     "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                    "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
                 )
             );
             assertTrue(secondContext.warnings().isEmpty());
@@ -345,9 +346,69 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             context.warnings(),
             contains(
                 "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
             )
         );
+    }
+
+    /**
+     * A multivalued build key makes the operator warn once, even when no probe key equals one of its values, unlike
+     * {@code LOOKUP JOIN}, which only warns on a match.
+     */
+    public void testRepeatedTableWarnsOnceForMultivaluedBuildKeys() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext context = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.appendLong(7);
+            builder.beginPositionEntry().appendLong(20).appendLong(30).endPositionEntry();
+            try (LongBlock key = builder.build()) {
+                var factory = new RowInTableLookupOperator.Factory(
+                    new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) },
+                    new int[] { 0 },
+                    true,
+                    new TestWarningsSource("join")
+                );
+                try (Operator operator = factory.get(context)) {
+                    operator.addInput(new Page(blockFactory.newConstantLongBlockWith(9, 1)));
+                    operator.getOutput().releaseBlocks();
+                }
+            }
+        }
+        context.finish();
+        assertThat(
+            context.warnings(),
+            contains(
+                "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
+            )
+        );
+    }
+
+    /**
+     * A build row that is multivalued in several key columns adds nothing to the table, rather than one hash entry for each
+     * combination of its values: 30 values in each of 4 columns would be 810,000 entries.
+     */
+    public void testRepeatedTableDoesNotExpandMultivaluedBuildKeys() {
+        BlockFactory blockFactory = blockFactory();
+        Block[] keys = new Block[4];
+        try {
+            for (int k = 0; k < keys.length; k++) {
+                try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
+                    builder.beginPositionEntry();
+                    for (int v = 0; v < 30; v++) {
+                        builder.appendLong(v);
+                    }
+                    keys[k] = builder.endPositionEntry().build();
+                }
+            }
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+            RowInTableLookup.build(trackingBlockFactory(breaker), keys, true).close();
+            // Expanding the combinations would reserve tens of megabytes: each key packs four longs.
+            assertThat(breaker.peak(), lessThan(ByteSizeValue.ofMb(1).getBytes()));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            Releasables.close(keys);
+        }
     }
 
     /**

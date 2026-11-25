@@ -179,6 +179,16 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack(List.of());
     }
 
+    /** An EXPLAIN never writes, so a destination that is not there is fine, and the EXPLAIN does not create it. */
+    public void testExplainIntoMissingDestinationDoesNotCreateIt() {
+        String missing = "dest-into-missing";
+        try (EsqlQueryResponse response = run("EXPLAIN (ROW k = \"explained\" | INTO " + missing + ")")) {
+            List<String> plans = getValuesList(response).stream().map(row -> (String) row.getLast()).toList();
+            assertThat(plans, hasItem(containsString("IntoExec")));
+        }
+        assertFalse(indexExists(missing));
+    }
+
     public void testRefusedRowFailsTheQuery() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,

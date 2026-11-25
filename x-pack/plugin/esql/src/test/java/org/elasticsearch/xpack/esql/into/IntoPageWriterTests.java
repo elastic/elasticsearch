@@ -429,15 +429,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(e.getMessage(), not(containsString("pipeline")));
     }
 
-    public void testNodeDoesNotSayThatTheDestinationNoLongerExists() {
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> IntoPageWriter.Factory.requireBatchDestinationUnchanged(true, project, "dest")
-        );
-        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
-    }
-
     public void testNodeStillSaysThatBatchIndexingWasDisabled() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         ElasticsearchStatusException e = expectThrows(

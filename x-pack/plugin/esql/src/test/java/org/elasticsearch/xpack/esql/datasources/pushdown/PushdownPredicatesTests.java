@@ -250,13 +250,27 @@ public class PushdownPredicatesTests extends ESTestCase {
 
     public void testAllPushdownLiteralsAgreeDeclinesMultiValuedLiteralUnderAnd() {
         // canConvert(And) is left || right; Parquet then translates both children. A Collection
-        // sibling of a safe arm must fail the shared all-leaves walk, not only isComparison.
-        Equals mv = new Equals(SRC, field("id", DataType.INTEGER), new Literal(SRC, List.of(1, 2), DataType.INTEGER), null);
+        // sibling of a safe arm must fail the shared all-leaves walk, not only the leaf helpers.
         Equals scalar = new Equals(SRC, field("id", DataType.INTEGER), new Literal(SRC, 1, DataType.INTEGER), null);
-        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(mv));
-        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new And(SRC, scalar, mv)));
-        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new Or(SRC, scalar, mv)));
-        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new Not(SRC, mv)));
+        Equals mvEq = new Equals(SRC, field("id", DataType.INTEGER), new Literal(SRC, List.of(1, 2), DataType.INTEGER), null);
+        In mvIn = new In(SRC, field("id", DataType.INTEGER), List.of(new Literal(SRC, List.of(1, 2), DataType.INTEGER)));
+        Range mvRange = new Range(
+            SRC,
+            field("id", DataType.INTEGER),
+            new Literal(SRC, List.of(1, 2), DataType.INTEGER),
+            true,
+            new Literal(SRC, 9, DataType.INTEGER),
+            true,
+            ZoneOffset.UTC
+        );
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(mvEq));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new And(SRC, scalar, mvEq)));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new Or(SRC, scalar, mvEq)));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new Not(SRC, mvEq)));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(mvIn));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new And(SRC, scalar, mvIn)));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(mvRange));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new And(SRC, scalar, mvRange)));
         assertTrue(PushdownPredicates.allPushdownLiteralsAgree(scalar));
     }
 

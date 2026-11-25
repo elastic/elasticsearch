@@ -4193,6 +4193,56 @@ public class VerifierTests extends AnalyzerTestCase {
         checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
     }
 
+    /**
+     * A full-text function in the filter of an aggregate function is evaluated by the aggregation, against the Lucene document
+     * of each row. With more aggregate functions that don't share the filter it can't be turned into a {@code WHERE}, so it must
+     * be rejected after the commands that make the aggregation run on rows no longer tied to a document.
+     */
+    public void testFullTextFunctionsInStatsFilterAfterCommands() {
+        checkFullTextFunctionsInStatsFilterAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+        checkFullTextFunctionsInStatsFilterAfterCommands(":", "operator", "title : \"Meditation\"");
+        checkFullTextFunctionsInStatsFilterAfterCommands("QSTR", "function", "qstr(\"title: Meditation\")");
+        checkFullTextFunctionsInStatsFilterAfterCommands("KQL", "function", "kql(\"title: Meditation\")");
+        checkFullTextFunctionsInStatsFilterAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")");
+        checkFullTextFunctionsInStatsFilterAfterCommands("KNN", "function", "knn(vector, [0, 1, 2])");
+
+        // QSTR and KQL have no field to tell that the rows are not read from an index
+        for (String function : List.of("QSTR", "KQL")) {
+            String stats = " | stats c = max(id) where " + function + "(\"title: Meditation\"), d = count(*)";
+            String error = "[" + function + "] function cannot be used after ";
+            fullText().error("row title = \"Meditation\", id = 1" + stats, containsString(error + "ROW"));
+            // a filter shared by all the aggregate functions can be pushed into the branches, the optimized plan tells
+            fullText().query("from test | fork (where id > 0) (where id > 1)" + stats);
+        }
+    }
+
+    private void checkFullTextFunctionsInStatsFilterAfterCommands(String functionName, String functionType, String functionInvocation) {
+        String stats = " | stats c = max(id) where " + functionInvocation + ", d = count(*)";
+        String error = "[" + functionName + "] " + functionType + " cannot be used after ";
+        String fieldName = "KNN".equals(functionName) ? "vector" : "title";
+
+        fullText().error("from test | limit 10" + stats, containsString(error + "LIMIT"));
+        fullText().error("from test | sort id | limit 10" + stats, containsString(error + "LIMIT"));
+        fullText().error("from test | limit 1 by id" + stats, containsString(error + "LIMIT"));
+        fullText().error("from test | stats id = max(id) by " + fieldName + stats, containsString(error + "STATS"));
+        // a command that runs on the coordinator is left to the optimized plan: a filter can be pushed below some of them
+        fullText().query("from test | change_point id on id" + stats);
+        // the filter doesn't have to be the only one
+        fullText().error(
+            "from test | limit 10 | stats c = max(id) where " + functionInvocation + ", d = count(*) where id > 10",
+            containsString(error + "LIMIT")
+        );
+
+        // these commands only stop a WHERE from being pushed to Lucene, the rows are still tied to their documents
+        fullText().query("from test | mv_expand id" + stats);
+        fullText().query("from test | eval x = id + 1" + stats);
+        fullText().query("from test | keep id, title, vector" + stats);
+        fullText().query("from test | where id > 10 | sort id" + stats);
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
+            fullText().query("from test | inline stats m = max(id) by category" + stats);
+        }
+    }
+
     public void testDecayArgs() {
         // First arg cannot be null
         fullText().error(
@@ -5349,6 +5399,18 @@ public class VerifierTests extends AnalyzerTestCase {
                     + values.get(j).v2()
                     + "]";
                 tsdb().error(query, containsString(expected));
+            }
+        }
+    }
+
+    /** METRICS_INFO and TS_INFO return a row per metric or time series: there is no document to run a Lucene query against. */
+    public void testFullTextInStatsFilterAfterMetricsInfo() {
+        for (String command : List.of("METRICS_INFO", "TS_INFO")) {
+            for (String function : List.of("QSTR", "KQL")) {
+                k8s().error(
+                    "TS k8s | " + command + " | STATS c = COUNT(*) WHERE " + function + "(\"metric_name: network\"), d = COUNT(*)",
+                    containsString("[" + function + "] function cannot be used after " + command)
+                );
             }
         }
     }

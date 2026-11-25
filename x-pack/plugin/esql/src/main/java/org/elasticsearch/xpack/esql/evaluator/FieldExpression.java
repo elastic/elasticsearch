@@ -219,7 +219,10 @@ public final class FieldExpression {
         Holder<Expression> resolved = new Holder<>();
         analyzed.forEachExpressionDown(Alias.class, alias -> {
             if (alias.name().equals(KEY)) {
-                resolved.set(alias.child().transformUp(e -> fold(foldContext, e)));
+                // Constants fold from the top, so CASE skips the arms it doesn't take, and then nulls propagate up
+                resolved.set(
+                    alias.child().transformDown(e -> e.foldable() ? Literal.of(foldContext, e) : e).transformUp(FieldExpression::foldNull)
+                );
             }
         });
         if (resolved.get() == null) {
@@ -237,11 +240,8 @@ public final class FieldExpression {
         return new FieldExpression(resolved.get().dataType(), evaluator);
     }
 
-    /** Folds a constant, and a function that is null when any of its arguments is null, as its evaluator would compute it. */
-    private static Expression fold(FoldContext foldContext, Expression e) {
-        if (e.foldable()) {
-            return Literal.of(foldContext, e);
-        }
+    /** Folds a function that is null when any of its arguments is null, as its evaluator would compute it. */
+    private static Expression foldNull(Expression e) {
         if (e instanceof AnyNullIsNull && e.children().stream().anyMatch(Expressions::isGuaranteedNull)) {
             return Literal.of(e, null);
         }

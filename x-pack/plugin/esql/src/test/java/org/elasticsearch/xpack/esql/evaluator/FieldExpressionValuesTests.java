@@ -48,6 +48,14 @@ public class FieldExpressionValuesTests extends ESTestCase {
         assertValues("t + NULL", Map.of("t", DataType.DATETIME), rows(1L, null), Arrays.asList(null, null));
         assertValues("t - NULL > t", Map.of("t", DataType.DATETIME), rows(1L), Arrays.asList((Object) null));
         assertValues("COALESCE(NULL, n)", Map.of("n", DataType.LONG), rows(1L, null), Arrays.asList(1L, null));
+        assertThat(compile("t + NULL", Map.of("t", DataType.DATETIME)).type(), equalTo(DataType.DATETIME));
+        assertThat(compile("n > NULL", Map.of("n", DataType.LONG)).type(), equalTo(DataType.BOOLEAN));
+    }
+
+    public void testCaseSkipsArmsItDoesNotTake() {
+        // The second arm overflows, but CASE never computes it
+        Map<String, DataType> t = Map.of("t", DataType.DATETIME);
+        assertValues("t + CASE(true, 1 day, 2147483647 days + 1 day)", t, rows(0L), List.of(86_400_000L));
     }
 
     public void testLongArithmetic() {
@@ -186,6 +194,14 @@ public class FieldExpressionValuesTests extends ESTestCase {
         return new BytesRef(s);
     }
 
+    private static FieldExpression compile(String key, Map<String, DataType> types) {
+        return FieldExpression.compile(parse(key), types);
+    }
+
+    private static Expression parse(String key) {
+        return ((Eval) FieldExpression.parser().parseQuery("ROW x = 1 | EVAL k = " + key)).fields().getFirst().child();
+    }
+
     /** One row per value of a single field. */
     static List<List<Object>> rows(Object... values) {
         List<List<Object>> rows = new ArrayList<>();
@@ -200,7 +216,7 @@ public class FieldExpressionValuesTests extends ESTestCase {
      * of {@code types}. A multi-valued field or result is a {@link List}.
      */
     static void assertValues(String key, Map<String, DataType> types, List<List<Object>> rows, List<Object> expected) {
-        Expression expression = ((Eval) FieldExpression.parser().parseQuery("ROW x = 1 | EVAL k = " + key)).fields().getFirst().child();
+        Expression expression = parse(key);
         Map<String, DataType> fieldTypes = new LinkedHashMap<>();
         List<String> order = new ArrayList<>(types.keySet());
         for (String field : FieldExpression.fields(expression)) {

@@ -268,6 +268,127 @@ public class GroupingEqualityTests extends ESTestCase {
         assertTrue(valuesEqual(DataType.DOUBLE, 0.0d, -0.0d));
     }
 
+    /**
+     * {@code LIMIT BY} and {@code DEDUP} group a composite key when every column matches. A multivalue stays
+     * whole and in order, so {@code ([1, 2], a)} matches itself and not {@code ([2, 1], a)} or {@code (1, a)}.
+     * A null matches only when every column does.
+     */
+    public void testCompositeRowKeyGroupsByEveryColumn() {
+        BytesRef a = new BytesRef("a");
+        BytesRef b = new BytesRef("b");
+        try (
+            Block numbers = blockFactory.newIntBlockBuilder(12)
+                .appendInt(1)
+                .appendInt(1)
+                .appendInt(1)
+                .appendInt(2)
+                .beginPositionEntry()
+                .appendInt(1)
+                .appendInt(2)
+                .endPositionEntry()
+                .beginPositionEntry()
+                .appendInt(2)
+                .appendInt(1)
+                .endPositionEntry()
+                .beginPositionEntry()
+                .appendInt(1)
+                .appendInt(2)
+                .endPositionEntry()
+                .beginPositionEntry()
+                .appendInt(1)
+                .appendInt(1)
+                .endPositionEntry()
+                .appendNull()
+                .appendNull()
+                .appendNull()
+                .appendInt(1)
+                .build();
+            Block names = blockFactory.newBytesRefBlockBuilder(12)
+                .appendBytesRef(a)
+                .appendBytesRef(a)
+                .appendBytesRef(b)
+                .appendBytesRef(a)
+                .appendBytesRef(a)
+                .appendBytesRef(a)
+                .appendBytesRef(a)
+                .appendBytesRef(a)
+                .appendBytesRef(a)
+                .appendBytesRef(a)
+                .appendBytesRef(b)
+                .appendNull()
+                .build()
+        ) {
+            // (1, a), (1, a), (1, b), (2, a), ([1, 2], a), ([2, 1], a), ([1, 2], a), ([1, 1], a),
+            // (null, a), (null, a), (null, b), (1, null)
+            int[] ids = rowKeyGroups(List.of(ElementType.INT, ElementType.BYTES_REF), numbers, names);
+            assertThat(ids[1], equalTo(ids[0]));
+            assertThat(ids[2], not(equalTo(ids[0])));
+            assertThat(ids[3], not(equalTo(ids[0])));
+            assertThat(ids[2], not(equalTo(ids[3])));
+            assertThat(ids[6], equalTo(ids[4]));
+            assertThat(ids[5], not(equalTo(ids[4])));
+            assertThat(ids[4], not(equalTo(ids[0])));
+            assertThat(ids[7], not(equalTo(ids[0])));
+            assertThat(ids[9], equalTo(ids[8]));
+            assertThat(ids[10], not(equalTo(ids[8])));
+            assertThat(ids[11], not(equalTo(ids[0])));
+            assertThat(ids[11], not(equalTo(ids[8])));
+        }
+    }
+
+    /**
+     * A composite {@code LIMIT BY} or {@code DEDUP} key keeps {@code NaN} payloads and the sign of zero apart,
+     * as the packed hash does. Tracked by https://github.com/elastic/elasticsearch/issues/167086
+     */
+    public void testCompositeRowKeyFloatBitsStayRaw() {
+        double otherNan = Double.longBitsToDouble(Double.doubleToRawLongBits(Double.NaN) | 1L);
+        try (
+            Block ones = blockFactory.newIntBlockBuilder(4).appendInt(1).appendInt(1).appendInt(1).appendInt(2).build();
+            Block nans = blockFactory.newDoubleBlockBuilder(4)
+                .appendDouble(Double.NaN)
+                .appendDouble(Double.NaN)
+                .appendDouble(otherNan)
+                .appendDouble(Double.NaN)
+                .build()
+        ) {
+            // (1, NaN), (1, NaN), (1, other NaN), (2, NaN)
+            int[] ids = rowKeyGroups(List.of(ElementType.INT, ElementType.DOUBLE), ones, nans);
+            assertThat(ids[1], equalTo(ids[0]));
+            assertThat(ids[2], not(equalTo(ids[0])));
+            assertThat(ids[3], not(equalTo(ids[0])));
+            assertThat(ids[3], not(equalTo(ids[2])));
+        }
+        assertFalse(valuesEqual(DataType.DOUBLE, Double.NaN, otherNan));
+        try (
+            Block ones = blockFactory.newIntBlockBuilder(4).appendInt(1).appendInt(1).appendInt(1).appendInt(2).build();
+            Block zeros = blockFactory.newDoubleBlockBuilder(4)
+                .appendDouble(0.0d)
+                .appendDouble(0.0d)
+                .appendDouble(-0.0d)
+                .appendDouble(0.0d)
+                .build()
+        ) {
+            // (1, 0.0), (1, 0.0), (1, -0.0), (2, 0.0)
+            int[] ids = rowKeyGroups(List.of(ElementType.INT, ElementType.DOUBLE), ones, zeros);
+            assertThat(ids[1], equalTo(ids[0]));
+            assertThat(ids[2], not(equalTo(ids[0])));
+            assertThat(ids[3], not(equalTo(ids[0])));
+            assertThat(ids[3], not(equalTo(ids[2])));
+        }
+        assertTrue(valuesEqual(DataType.DOUBLE, 0.0d, -0.0d));
+    }
+
+    /** One group id per row from the {@code LIMIT BY} and {@code DEDUP} hash. */
+    private int[] rowKeyGroups(List<ElementType> types, Block... blocks) {
+        int[] channels = new int[blocks.length];
+        for (int i = 0; i < channels.length; i++) {
+            channels[i] = i;
+        }
+        try (RowKeyHash hash = new RowKeyHash(channels, types, blockFactory)) {
+            return hash.add(new Page(blocks));
+        }
+    }
+
     private static void assertOneIdEach(int[][] ids) {
         for (int[] id : ids) {
             assertThat(id.length, equalTo(1));

@@ -42,11 +42,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FetchDocsSourceOperatorTests extends ComputeTestCase {
-    /**
-     * The default of {@code index.esql.stored_fields_sequential_proportion}.
-     */
-    private static final double PROPORTION = 0.2;
-
     // the one reference its owner holds, like the shard contexts of a data node
     private final AbstractRefCounted shard = AbstractRefCounted.of(() -> {});
 
@@ -213,8 +208,8 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
             while (source.isFinished() == false) {
                 Page page = source.getOutput();
                 if (page != null) {
-                    int left = docCount - pages * FetchSliceQueue.DENSE_SLICE_DOCS;
-                    assertThat(page.getPositionCount(), equalTo(Math.min(FetchSliceQueue.DENSE_SLICE_DOCS, left)));
+                    int left = docCount - pages * FetchSliceQueue.SLICE_DOCS;
+                    assertThat(page.getPositionCount(), equalTo(Math.min(FetchSliceQueue.SLICE_DOCS, left)));
                     page.releaseBlocks();
                     pages++;
                 }
@@ -318,7 +313,7 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
     }
 
     private static FetchSliceQueue slices(FetchDocsSourceOperator.ShardDocs... shards) {
-        return FetchSliceQueue.create(List.of(shards), slot -> PROPORTION);
+        return FetchSliceQueue.create(List.of(shards));
     }
 
     private DriverContext driverContext() {

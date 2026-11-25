@@ -299,7 +299,7 @@ public final class FetchService {
                     contexts.add(openShard(position, shard, unmappedFieldNames));
                     docs.add(new FetchDocsSourceOperator.ShardDocs(position, shard.segments(), shard.docs()));
                 }
-                FetchSliceQueue slices = FetchSliceQueue.create(docs, slot -> contexts.get(slot).storedFieldsSequentialProportion());
+                FetchSliceQueue slices = FetchSliceQueue.create(docs);
                 pagesBySlice = new ArrayList<>(slices.sliceCount());
                 for (int s = 0; s < slices.sliceCount(); s++) {
                     pagesBySlice.add(new ArrayList<>(1));

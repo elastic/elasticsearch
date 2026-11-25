@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
@@ -536,16 +535,14 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
-     * The slices the node cuts {@code shards} into. The test index has the default
-     * {@code index.esql.stored_fields_sequential_proportion}.
+     * The slices the node cuts {@code shards} into.
      */
     private static FetchSliceQueue slices(List<FetchRequest.ShardDocs> shards) {
         List<FetchDocsSourceOperator.ShardDocs> docs = new ArrayList<>(shards.size());
         for (int position = 0; position < shards.size(); position++) {
             docs.add(new FetchDocsSourceOperator.ShardDocs(position, shards.get(position).segments(), shards.get(position).docs()));
         }
-        double proportion = EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(Settings.EMPTY);
-        return FetchSliceQueue.create(docs, slot -> proportion);
+        return FetchSliceQueue.create(docs);
     }
 
     /**

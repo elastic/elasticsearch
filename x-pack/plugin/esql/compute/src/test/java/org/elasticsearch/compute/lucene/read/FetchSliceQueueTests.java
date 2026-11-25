@@ -14,48 +14,19 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import static org.elasticsearch.compute.lucene.read.FetchSliceQueue.DENSE_SLICE_DOCS;
-import static org.elasticsearch.compute.lucene.read.FetchSliceQueue.SPARSE_SLICE_DOCS;
+import static org.elasticsearch.compute.lucene.read.FetchSliceQueue.SLICE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSliceQueueTests extends ESTestCase {
     /**
-     * The default of {@code index.esql.stored_fields_sequential_proportion}.
+     * A long run of a segment goes in slices of {@link FetchSliceQueue#SLICE_DOCS} documents, whether its documents lie next
+     * to each other or far apart.
      */
-    private static final double PROPORTION = 0.2;
-
-    /**
-     * Documents next to each other read their stored fields sequentially, so they go in larger slices. A short rest reads
-     * at random.
-     */
-    public void testCutsDenseDocumentsIntoLargerSlices() {
-        FetchSliceQueue queue = queue(shard(0, run(0, 0, 2 * DENSE_SLICE_DOCS + 5, 1)));
-        assertThat(sizes(queue), equalTo(List.of(DENSE_SLICE_DOCS, DENSE_SLICE_DOCS, 5)));
-    }
-
-    /**
-     * Documents far apart read their stored fields at random, so they go in smaller slices.
-     */
-    public void testCutsSparseDocumentsIntoSmallerSlices() {
-        FetchSliceQueue queue = queue(shard(0, run(0, 0, 2 * SPARSE_SLICE_DOCS + 3, 100)));
-        assertThat(sizes(queue), equalTo(List.of(SPARSE_SLICE_DOCS, SPARSE_SLICE_DOCS, 3)));
-    }
-
-    /**
-     * Every other document is dense enough for the default proportion, but not for an index that wants all of them.
-     */
-    public void testEachShardJudgesItsDocumentsWithItsOwnProportion() {
-        FetchSliceQueue queue = FetchSliceQueue.create(
-            List.of(shard(0, run(0, 0, DENSE_SLICE_DOCS, 2)), shard(1, run(0, 0, DENSE_SLICE_DOCS, 2))),
-            shard -> shard == 0 ? PROPORTION : 1.0
-        );
-        List<Integer> expected = new ArrayList<>();
-        expected.add(DENSE_SLICE_DOCS);
-        for (int left = DENSE_SLICE_DOCS; left > 0; left -= SPARSE_SLICE_DOCS) {
-            expected.add(Math.min(left, SPARSE_SLICE_DOCS));
-        }
-        assertThat(sizes(queue), equalTo(expected));
+    public void testCutsARunIntoSlicesOfOneSize() {
+        int rest = between(1, SLICE_DOCS - 1);
+        FetchSliceQueue queue = queue(shard(0, run(0, 0, 2 * SLICE_DOCS + rest, between(1, 100))));
+        assertThat(sizes(queue), equalTo(List.of(SLICE_DOCS, SLICE_DOCS, rest)));
     }
 
     /**
@@ -73,7 +44,7 @@ public class FetchSliceQueueTests extends ESTestCase {
      */
     public void testTheSlicesFollowTheRequestOrder() {
         List<FetchDocsSourceOperator.ShardDocs> shards = randomShards();
-        FetchSliceQueue queue = FetchSliceQueue.create(shards, shard -> randomFrom(0.0, PROPORTION, 0.5, 1.0));
+        FetchSliceQueue queue = FetchSliceQueue.create(shards);
 
         List<FetchSliceQueue.Slice> slices = inOrder(queue);
         List<int[]> fromSlices = new ArrayList<>();
@@ -100,7 +71,7 @@ public class FetchSliceQueueTests extends ESTestCase {
      * A driver keeps to the slice after the one it loaded, so one driver alone loads the slices in request order.
      */
     public void testADriverKeepsToTheSliceAfterItsLast() {
-        FetchSliceQueue queue = FetchSliceQueue.create(randomShards(), shard -> PROPORTION);
+        FetchSliceQueue queue = FetchSliceQueue.create(randomShards());
         FetchSliceQueue.Slice slice = queue.nextSlice(null);
         for (int position = 0; position < queue.sliceCount(); position++) {
             assertThat(slice.position(), equalTo(position));
@@ -115,10 +86,7 @@ public class FetchSliceQueueTests extends ESTestCase {
      */
     public void testADriverStartsAShardThenASegmentThenAnySlice() {
         // shard 0: segment 0 in slices 0 to 2, segment 1 in slice 3. Shard 1: segment 0 in slices 4 and 5.
-        FetchSliceQueue queue = queue(
-            shard(0, run(0, 0, 3 * SPARSE_SLICE_DOCS, 100), run(1, 0, 1, 1)),
-            shard(1, run(0, 0, 2 * SPARSE_SLICE_DOCS, 100))
-        );
+        FetchSliceQueue queue = queue(shard(0, run(0, 0, 3 * SLICE_DOCS, 1), run(1, 0, 1, 1)), shard(1, run(0, 0, 2 * SLICE_DOCS, 1)));
         List<Integer> taken = new ArrayList<>();
         for (FetchSliceQueue.Slice slice = queue.nextSlice(null); slice != null; slice = queue.nextSlice(null)) {
             taken.add(slice.position());
@@ -130,7 +98,7 @@ public class FetchSliceQueueTests extends ESTestCase {
      * When another driver took the slice after its last, a driver moves on to what is left.
      */
     public void testADriverMovesOnWhenAnotherTookItsNextSlice() {
-        FetchSliceQueue queue = queue(shard(0, run(0, 0, 3 * SPARSE_SLICE_DOCS, 100)));
+        FetchSliceQueue queue = queue(shard(0, run(0, 0, 3 * SLICE_DOCS, 1)));
         FetchSliceQueue.Slice first = queue.nextSlice(null);
         FetchSliceQueue.Slice stolen = queue.nextSlice(null);
         assertThat(first.position(), equalTo(0));
@@ -143,7 +111,7 @@ public class FetchSliceQueueTests extends ESTestCase {
      * Drivers on several threads take every slice, and each slice once.
      */
     public void testEverySliceGoesToOneDriver() {
-        FetchSliceQueue queue = FetchSliceQueue.create(randomShards(), shard -> PROPORTION);
+        FetchSliceQueue queue = FetchSliceQueue.create(randomShards());
         int drivers = between(2, 8);
         List<List<Integer>> takenByDriver = new ArrayList<>();
         for (int d = 0; d < drivers; d++) {
@@ -171,7 +139,7 @@ public class FetchSliceQueueTests extends ESTestCase {
     }
 
     private static FetchSliceQueue queue(FetchDocsSourceOperator.ShardDocs... shards) {
-        return FetchSliceQueue.create(List.of(shards), shard -> PROPORTION);
+        return FetchSliceQueue.create(List.of(shards));
     }
 
     /**
@@ -203,7 +171,7 @@ public class FetchSliceQueueTests extends ESTestCase {
     }
 
     /**
-     * Shards in random order with a few segments each. Their documents are dense, sparse or a mix.
+     * Shards in random order with a few segments each.
      */
     private static List<FetchDocsSourceOperator.ShardDocs> randomShards() {
         List<Integer> slots = new ArrayList<>();
@@ -217,7 +185,7 @@ public class FetchSliceQueueTests extends ESTestCase {
             int segment = 0;
             for (int r = between(1, 4); r > 0; r--) {
                 segment += between(0, 3);
-                runs.add(run(segment, between(0, 10), between(1, 3 * DENSE_SLICE_DOCS), between(1, 50)));
+                runs.add(run(segment, between(0, 10), between(1, 3 * SLICE_DOCS), between(1, 50)));
                 segment++;
             }
             shards.add(shard(slot, runs.toArray(int[][][]::new)));

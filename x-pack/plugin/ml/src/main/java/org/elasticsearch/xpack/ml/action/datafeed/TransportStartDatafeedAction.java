@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
@@ -443,6 +444,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
     }
 
+    /**
+     * ES|QL datafeeds build their extractor factory on the task node, where it runs the single {@code | DESCRIBE}. Creating the
+     * factory here only for validation would run a second one on every start, so the start action skips it.
+     */
+    static boolean skipsFactoryValidation(DatafeedConfig effectiveDatafeed) {
+        return effectiveDatafeed.getEsqlQuery() != null;
+    }
+
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
     private void createDataExtractor(
         Task task,
@@ -458,6 +467,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeed.getCloudInternalCredential() != null
         );
 
+        if (skipsFactoryValidation(effectiveDatafeed)) {
+            persistentTasksService.sendStartRequest(
+                MlTasks.datafeedTaskId(params.getDatafeedId()),
+                MlTasks.DATAFEED_TASK_NAME,
+                params,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                listener
+            );
+            return;
+        }
+
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
             CloudCredentialsExtension.getInstance().credentialManager(),
@@ -467,6 +487,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
+            DatafeedSearchTelemetry.NOOP,
             ActionListener.wrap(
                 unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),

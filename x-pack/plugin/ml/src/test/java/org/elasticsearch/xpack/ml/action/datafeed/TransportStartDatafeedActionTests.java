@@ -442,6 +442,18 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(params.getIndicesOptions(), sameInstance(SearchRequest.DEFAULT_INDICES_OPTIONS));
     }
 
+    public void testStartSkipsFactoryValidationOnlyForEsqlDatafeeds() {
+        // The start action must not build an ES|QL extractor factory (it would run a second | DESCRIBE); the task node does.
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs")).build();
+
+        assertThat(TransportStartDatafeedAction.skipsFactoryValidation(esqlDatafeed), is(true));
+        assertThat(TransportStartDatafeedAction.skipsFactoryValidation(classicDatafeed), is(false));
+    }
+
     public void testStartClassicDatafeedSetsIndicesOptions() {
         DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs"))
             .setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN)

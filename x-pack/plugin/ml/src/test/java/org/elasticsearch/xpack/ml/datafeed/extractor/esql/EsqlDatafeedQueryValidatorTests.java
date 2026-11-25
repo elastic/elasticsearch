@@ -43,6 +43,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -96,6 +97,49 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.getMessage(), containsString("time column [@timestamp] has type [keyword]. It must be date or date_nanos."));
     }
 
+    public void testFixedIntervalTimeColumnShouldPassValidation() {
+        assertValidationSucceeds(harness(row("@timestamp", "date", "90 minutes")), validation());
+    }
+
+    public void testCalendarIntervalTimeColumnShouldFailValidation() {
+        for (String interval : List.of("1 month", "3 months", "1 quarter", "1 year")) {
+            Exception failure = assertValidationFails(harness(row("@timestamp", "date", interval)), validation());
+            assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(failure.getMessage(), containsString("calendar interval [" + interval + "]"));
+        }
+    }
+
+    public void testFixedIntervalMillisShouldParseDescribeIntervals() {
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 millisecond"), equalTo(OptionalLong.of(1L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("500 milliseconds"), equalTo(OptionalLong.of(500L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 second"), equalTo(OptionalLong.of(1_000L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("30 seconds"), equalTo(OptionalLong.of(30_000L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 minute"), equalTo(OptionalLong.of(60_000L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("90 minutes"), equalTo(OptionalLong.of(5_400_000L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 hour"), equalTo(OptionalLong.of(3_600_000L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 day"), equalTo(OptionalLong.of(86_400_000L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("2 days"), equalTo(OptionalLong.of(172_800_000L)));
+        assertThat(EsqlDatafeedQueryValidator.fixedIntervalMillis("1 week"), equalTo(OptionalLong.of(604_800_000L)));
+    }
+
+    public void testFixedIntervalMillisShouldRejectCalendarAndUnknownIntervals() {
+        for (String interval : List.of(
+            "1 month",
+            "6 months",
+            "1 quarter",
+            "1 year",
+            "1 fortnight",
+            "1h",
+            "hour",
+            "x hours",
+            "0 hours",
+            ""
+        )) {
+            assertThat(interval, EsqlDatafeedQueryValidator.fixedIntervalMillis(interval), equalTo(OptionalLong.empty()));
+        }
+    }
+
     public void testMissingTimeColumnShouldFailValidation() {
         Exception failure = assertValidationFails(harness(row("other_field", "keyword")), validation());
 
@@ -119,15 +163,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             validation().summaryCountField(SUMMARY_COUNT_FIELD)
         );
         assertThat(failure.getMessage(), containsString("has type [double]"));
-    }
-
-    public void testOuterLimitShouldWarn() {
-        assertValidationSucceeds(harness(row("@timestamp", "date")), validation().query("FROM logs | LIMIT 10"));
-
-        assertWarnings(
-            "ES|QL datafeed query contains an outer LIMIT clause. It caps every extraction chunk and the delayed data check, "
-                + "so remove it."
-        );
     }
 
     public void testRemoteClusterSourceShouldPassValidation() {
@@ -375,7 +410,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.FORBIDDEN));
     }
 
-    public void testValidationQueryShouldAppendDescribeWithCcsOnlyMetadata() {
+    public void testValidationQueryShouldAppendDescribeWithoutClusterMetadata() {
         ValidatorHarness harness = harness(row("@timestamp", "date"));
 
         assertValidationSucceeds(harness, validation());
@@ -437,7 +472,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             harness.capturedQuery,
             equalTo(
                 "FROM logs | KEEP @timestamp // hourly\n"
-                    + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2"
+                    + "| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2"
             )
         );
     }
@@ -476,7 +511,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| LIMIT 0"));
         assertThat(harness.capturedRouting, equalTo("_alias:_origin"));
     }
 
@@ -494,7 +529,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null
         );
 
-        assertThat(harness.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n| LIMIT 0"));
     }
 
     public void testNoProjectAfterRoutingMessageMatchesServerText() {
@@ -663,6 +698,14 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             e.getMessage(),
             equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_EMITTED_TIME_NULL, "job-1", TIME_FIELD, 100L, 200L, null))
         );
+    }
+
+    public void testNumericEmittedTimeInSourceWindowShouldBeUnsupportedBecauseOnlyDatesAreAccepted() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow("job-1", TIME_FIELD, 150L, 100L, 200L)
+        );
+        assertThat(e.getMessage(), containsString("unsupported type"));
     }
 
     private static void checkColumns(List<ColumnInfo> columns, String timeField, String requiredSummaryCountField, String datafeedId) {
@@ -873,11 +916,15 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.response.hasReferences(), is(false));
     }
 
-    private static final List<String> DESCRIBE_COLUMNS = List.of("name", "type", "role", "field", "origin");
+    private static final List<String> DESCRIBE_COLUMNS = List.of("name", "type", "role", "field", "origin", "interval");
 
     /** A DESCRIBE row: name and type are the columns the validator reads, the rest are reported but ignored. */
     private static List<Object> row(String name, String type) {
-        return Arrays.asList(name, type, null, null, "computed");
+        return row(name, type, null);
+    }
+
+    private static List<Object> row(String name, String type, String interval) {
+        return Arrays.asList(name, type, null, null, "computed", interval);
     }
 
     @SafeVarargs

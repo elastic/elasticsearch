@@ -93,6 +93,19 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private void setUpChunkedSearch() {
+        if (context.hasEsqlQuery() && context.end() - currentStart <= context.singleChunkSpan()) {
+            // The whole window is one chunk: query it directly instead of paying for a summary. If it is truncated, the
+            // existing shrink path splits it.
+            // Realtime costs one query per cycle only in the steady state, where window == frequency == singleChunkSpan. The first
+            // cycle after lookback and late cycles have window > frequency, take the summary path below and cost two queries.
+            // A manual chunking_config.time_span smaller than the frequency is not applied to windows <= singleChunkSpan;
+            // truncation shrinking still caps rows.
+            chunkSpan = context.end() - currentStart;
+            currentEnd = currentStart;
+            esqlSizing.captureInitialChunkSpan(chunkSpan);
+            LOGGER.debug("[{}] Chunked search configured: single chunk of {} ms, no summary", context.jobId(), chunkSpan);
+            return;
+        }
         // Keep a reference so that if getSummary() throws (e.g. because a remote cluster was skipped)
         // we can still recover the cluster states it observed and expose them via getLinkedClusterStates().
         DataExtractor summaryExtractor = dataExtractorFactory.newExtractor(currentStart, context.end());
@@ -225,7 +238,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private boolean handleTruncatedEsqlResult(Result result) throws IOException {
-        if (esqlSizing.isTruncated(result.rowCount()) == false) {
+        if (context.hasEsqlQuery() == false || esqlSizing.isTruncated(result.rowCount()) == false) {
             return false;
         }
         OptionalLong shrunkEnd = esqlSizing.onTruncated(currentStart, currentEnd, isCancelled(), result.searchInterval());

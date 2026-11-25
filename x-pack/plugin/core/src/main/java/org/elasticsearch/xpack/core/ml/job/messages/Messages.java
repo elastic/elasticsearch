@@ -46,9 +46,10 @@ public final class Messages {
     /** Arg {0} of the ES|QL datafeed messages below: the subject without and with the datafeed id. */
     public static final String DATAFEED_ESQL_SUBJECT = "ES|QL datafeed";
     public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
-    public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
-        "{0} query contains an outer LIMIT clause. It caps every extraction chunk and the delayed data check, so remove it.";
     public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
+    public static final String DATAFEED_ESQL_TIME_BUCKET_CALENDAR_INTERVAL =
+        "{0} time column [{1}] is bucketed by the calendar interval [{2}], which has no fixed length. "
+            + "Use a fixed interval such as [1 hour] or [1 day].";
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "
             + "project [{1}] in the final ES|QL output.";
@@ -77,7 +78,7 @@ public final class Messages {
         + "The value has an unsupported type. "
         + DATAFEED_ESQL_EMITTED_TIME_WINDOW
         + " "
-        + "Ensure the emitted time field is a date or numeric timestamp.";
+        + "Ensure the emitted time field is a date.";
     public static final String DATAFEED_ESQL_EMITTED_TIME_BEFORE_WINDOW = DATAFEED_ESQL_EMITTED_TIME_FAILED
         + " "
         + "The value [{4}] is before the source window start. "
@@ -91,7 +92,6 @@ public final class Messages {
         + " "
         + DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT;
     public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";
-    public static final String DATAFEED_ESQL_EXPECTED_NUMERIC_TIMESTAMP = "expected numeric timestamp";
     public static final String DATAFEED_ESQL_QUERY_CANCELLED = "ES|QL query was cancelled";
     public static final String DATAFEED_ESQL_RESPONSE_MISSING_COLUMN = "ESQL query response is missing the required columns: {0}";
     public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =

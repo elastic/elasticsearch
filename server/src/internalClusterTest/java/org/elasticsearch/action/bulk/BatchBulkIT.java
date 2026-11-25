@@ -54,7 +54,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -2676,7 +2675,6 @@ public class BatchBulkIT extends ESIntegTestCase {
      * and what it writes must read back exactly as the same documents indexed one at a time.
      */
     public void testUnmappedSinkBatchMatchesRowPath() {
-        assumeTrue("flattened_unmapped_fields feature flag must be enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         final String batched = "test-unmapped-sink-batched";
         final String sequential = "test-unmapped-sink-sequential";
         createUnmappedSinkIndex(batched);

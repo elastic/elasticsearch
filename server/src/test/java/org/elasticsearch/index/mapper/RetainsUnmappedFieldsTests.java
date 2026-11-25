@@ -17,7 +17,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -190,17 +189,13 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
             b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();
         });
         // Without the sink, as on an index created before it, nothing is read, even when the segments cannot be inspected.
-        IndexVersion beforeSink = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR);
+        IndexVersion beforeSink = IndexVersionUtils.getPreviousVersion(IndexVersions.UNMAPPED_SINK_FEATURE_FLAG_REMOVAL);
         MapperService withoutSink = createMapperService(beforeSink, settings, mapping.get());
         assertFalse(createSearchExecutionContext(withoutSink).unmappedFields().mayExist());
         assertMayHoldUnmappedFields(withoutSink, b -> b.field("field", "value").field("unmapped", "value"), false);
         // With the sink, only the segments can tell whether it absorbed: dynamic: false absorbs nothing, so none has its keyed field.
-        // Without the feature flag no index has the sink, so nothing is read, as before the version gate.
         MapperService withSink = createMapperService(settings, mapping.get());
-        assertThat(
-            createSearchExecutionContext(withSink).unmappedFields().mayExist(),
-            equalTo(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled())
-        );
+        assertTrue(createSearchExecutionContext(withSink).unmappedFields().mayExist());
         assertMayHoldUnmappedFields(withSink, b -> b.field("field", "value").field("unmapped", "value"), false);
     }
 
@@ -209,7 +204,6 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
      * segments: inspecting them collects the name of every field in every segment, on every shard of every ES|QL query.
      */
     public void testStrictColumnarSinkNeverFlattenedSkipsSegments() throws IOException {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.VECTORDB_COLUMNAR).getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), randomFrom("synthetic", "columnar_stored"))
@@ -228,7 +222,6 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarSinkHoldsUnmappedFields() throws IOException {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), randomFrom("synthetic", "columnar_stored"))

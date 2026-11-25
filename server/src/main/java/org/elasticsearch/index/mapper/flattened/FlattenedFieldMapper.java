@@ -53,7 +53,6 @@ import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
@@ -181,11 +180,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
     public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
-
-    /**
-     * Feature flag gating the implicit {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices.
-     */
-    public static final FeatureFlag UNMAPPED_FIELDS_FEATURE_FLAG = new FeatureFlag("flattened_unmapped_fields");
 
     /**
      * Name of the implicit flattened sink that absorbs unmapped fields as full dotted keys. See {@link UnmappedSinkFieldMapper}.

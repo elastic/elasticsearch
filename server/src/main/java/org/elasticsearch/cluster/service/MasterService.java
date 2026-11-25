@@ -482,18 +482,11 @@ public class MasterService extends AbstractLifecycleComponent {
         );
 
         // new cluster state, notify all listeners
-        final DiscoveryNodes.Delta nodesDelta = newClusterState.nodes().delta(previousClusterState.nodes());
-        if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
-            String nodesDeltaSummary = nodesDelta.shortSummary();
-            if (nodesDeltaSummary.length() > 0) {
-                logger.info(
-                    "{}, term: {}, version: {}, delta: {}",
-                    summary,
-                    newClusterState.term(),
-                    newClusterState.version(),
-                    nodesDeltaSummary
-                );
-            }
+        if (logger.isInfoEnabled()
+            && (newClusterState.term() != previousClusterState.term()
+                || Objects.equals(newClusterState.nodes().getMasterNodeId(), previousClusterState.nodes().getMasterNodeId()) == false)) {
+            // NodeJoinExecutor and NodeLeftExecutor log the changes to the set of nodes, so just report the election itself here
+            logger.info("{}, term: {}, version: {}", summary, newClusterState.term(), newClusterState.version());
         }
 
         logger.debug("publishing cluster state version [{}]", newClusterState.version());

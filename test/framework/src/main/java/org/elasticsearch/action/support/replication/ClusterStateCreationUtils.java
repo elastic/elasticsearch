@@ -12,6 +12,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -54,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -1002,5 +1004,14 @@ public class ClusterStateCreationUtils {
         );
         tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, HealthNodeTaskParams.INSTANCE, assignment);
         return metadataBuilder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build());
+    }
+
+    public static ClusterState withNewTerm(ClusterState state) {
+        return ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .coordinationMetadata(CoordinationMetadata.builder().term(state.term() + between(1, 100)).build())
+            )
+            .build();
     }
 }

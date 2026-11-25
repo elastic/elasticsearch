@@ -538,11 +538,40 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private void applyChanges(ClusterState previousClusterState, ClusterState newClusterState, String source, Recorder stopWatch) {
         ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, newClusterState, previousClusterState);
         // new cluster state, notify all listeners
-        final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
-        if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
-            String summary = nodesDelta.shortSummary();
-            if (summary.length() > 0) {
-                logger.info("{}, term: {}, version: {}, reason: {}", summary, newClusterState.term(), newClusterState.version(), source);
+
+        if (logger.isInfoEnabled()) {
+            if (clusterChangedEvent.masterChanged()) {
+                final var message = new StringBuilder("master node changed {previous [");
+                final var previousMaster = previousClusterState.nodes().getMasterNode();
+                if (previousMaster != null) {
+                    previousMaster.appendDescriptionWithoutAttributes(message);
+                }
+                message.append("], current [");
+                final var newMaster = newClusterState.nodes().getMasterNode();
+                if (newMaster != null) {
+                    newMaster.appendDescriptionWithoutAttributes(message);
+                }
+                message.append("]}, term: ")
+                    .append(newClusterState.term())
+                    .append(", version: ")
+                    .append(newClusterState.version())
+                    .append(", reason: ")
+                    .append(source);
+                logger.info(message);
+            }
+
+            final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
+            if (nodesDelta.hasChanges()) {
+                final String summary = nodesDelta.shortSummary();
+                if (summary.isEmpty() == false) {
+                    logger.info(
+                        "{}, term: {}, version: {}, reason: {}",
+                        summary,
+                        newClusterState.term(),
+                        newClusterState.version(),
+                        source
+                    );
+                }
             }
         }
 

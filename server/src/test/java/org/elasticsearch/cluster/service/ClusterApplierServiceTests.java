@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -42,6 +43,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
@@ -118,6 +121,61 @@ public class ClusterApplierServiceTests extends ESTestCase {
         // time is only read/written on applier thread, so no synchronization is needed
         assertThat(Thread.currentThread().getName(), containsString(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME));
         currentTimeMillis += millis;
+    }
+
+    @TestLogging(value = "org.elasticsearch.cluster.service:INFO", reason = "to verify the INFO-level master change logging")
+    public void testNodesChangeLogging() {
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+
+            final Consumer<String> seenPatterns = pattern -> mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(pattern, ClusterApplierService.class.getCanonicalName(), Level.INFO, pattern)
+            );
+
+            final Consumer<UnaryOperator<ClusterState>> changeLoggingAsserter = operator -> {
+                setState(clusterApplierService, operator.apply(clusterApplierService.state()));
+                mockLog.assertAllExpectationsMatched();
+            };
+
+            seenPatterns.accept("master node changed {previous [*node1*], current []}, term: 0, version: *, reason: test setting state");
+            changeLoggingAsserter.accept(
+                state -> ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null)).build()
+            );
+
+            seenPatterns.accept("master node changed {previous [], current [*node1*]}, term: 0, version: *, reason: test setting state");
+            changeLoggingAsserter.accept(
+                state -> ClusterState.builder(state)
+                    .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
+                    .build()
+            );
+
+            seenPatterns.accept("master node changed {previous [*node1*], current [*node2*]}, term: 0, version: *, reason: *");
+            seenPatterns.accept("added {*node2*}, term: 0, version: *, reason: test setting state");
+            final var node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
+            changeLoggingAsserter.accept(
+                state -> ClusterState.builder(state)
+                    .nodes(DiscoveryNodes.builder(state.nodes()).add(node2).masterNodeId(node2.getId()))
+                    .build()
+            );
+
+            seenPatterns.accept("master node changed {previous [*node2*], current [*node2*]}, term: *, version: *, reason: *");
+            changeLoggingAsserter.accept(ClusterStateCreationUtils::withNewTerm);
+
+            final var node3 = DiscoveryNodeUtils.builder("node3").roles(emptySet()).build();
+            seenPatterns.accept("added {*node3*}, term: *");
+            changeLoggingAsserter.accept(
+                state -> ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node3)).build()
+            );
+
+            seenPatterns.accept("removed {*node3*}, term: *");
+            changeLoggingAsserter.accept(
+                state -> ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).remove(node3)).build()
+            );
+
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("*", ClusterApplierService.class.getCanonicalName(), Level.INFO, "*")
+            );
+            changeLoggingAsserter.accept(state -> ClusterState.builder(state).build());
+        }
     }
 
     @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")

@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.withNewTerm;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -173,18 +174,6 @@ public class ClusterChangedEventTests extends ESTestCase {
                 ClusterState.builder(remoteMaster).nodes(DiscoveryNodes.builder(remoteMaster.nodes()).masterNodeId(null).build()).build()
             ).localNodeIsNewMaster()
         );
-    }
-
-    private static ClusterState withNewTerm(ClusterState state) {
-        return ClusterState.builder(state)
-            .metadata(
-                Metadata.builder(state.metadata())
-                    .coordinationMetadata(
-                        CoordinationMetadata.builder(state.coordinationMetadata()).term(state.term() + between(1, 100)).build()
-                    )
-                    .build()
-            )
-            .build();
     }
 
     /// Tests that [ClusterChangedEvent#clusterJustRecovered] detects the removal of the [GatewayService#STATE_NOT_RECOVERED_BLOCK].

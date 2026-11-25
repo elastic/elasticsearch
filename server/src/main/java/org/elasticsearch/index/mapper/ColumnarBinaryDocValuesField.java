@@ -70,8 +70,9 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
     /**
      * The type a field of this kind reports for a document that holds no value, given the type its values are indexed with. It is
      * the doc-values type plus the index options, norms and term vectors of {@code indexed} — the three Lucene keeps in a field's
-     * {@code FieldInfo} and compares across documents. Tokenized so that {@link #invertableType()} can invert it into nothing;
-     * neither that nor {@code stored} reaches {@code FieldInfo}.
+     * {@code FieldInfo} and compares across documents. {@code tokenized} is copied too: {@link #invertableType()} inverts the field into
+     * nothing either way, but a tokenized field makes Lucene ask the index analyzer for gaps under its name, which throws for a name that
+     * has no analyzer, such as a flattened field's keyed name. Neither {@code tokenized} nor {@code stored} reaches {@code FieldInfo}.
      *
      * <p>Meant to be built once per mapper and reused, so documents taking this shape hand Lucene the same frozen type each time.
      */
@@ -86,7 +87,7 @@ public class ColumnarBinaryDocValuesField extends MultiValuedBinaryDocValuesFiel
             type.setStoreTermVectorOffsets(indexed.storeTermVectorOffsets());
             type.setStoreTermVectorPayloads(indexed.storeTermVectorPayloads());
         }
-        type.setTokenized(true);
+        type.setTokenized(indexed.tokenized());
         type.setStored(false);
         type.freeze();
         return type;

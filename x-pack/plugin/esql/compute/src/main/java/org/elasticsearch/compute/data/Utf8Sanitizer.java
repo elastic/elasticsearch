@@ -77,12 +77,14 @@ public final class Utf8Sanitizer {
      * Allocation-free scan reporting whether {@code [off, off+len)} is well-formed UTF-8.
      * <p>
      * Long ASCII runs skip 64-byte blocks (eight {@code long} loads, one mask), then the existing
-     * 8-byte word loop for the tail. Consecutive 2-byte ({@code C2..DF}) and unambiguous 3-byte
-     * ({@code E1..EC}/{@code EE..EF}) sequences are consumed as runs; after a run the scan tries
-     * an 8-byte ASCII word at the current offset and only resumes 64-byte blocks after a clean
-     * word. A one-byte ASCII gap (a space in a Cyrillic phrase) therefore does not pay eight
-     * loads that cannot succeed. {@code E0}/{@code ED}, 4-byte sequences, truncation and junk go
-     * through {@link #sequenceLength}.
+     * 8-byte word loop for the tail. The 64-byte skip is not entered when {@code len < 64}: short
+     * per-value checks (dict, ORC, fallback) must not pay block setup they can never fill.
+     * Consecutive 2-byte ({@code C2..DF}), unambiguous 3-byte ({@code E1..EC}/{@code EE..EF}) and
+     * unambiguous 4-byte ({@code F1..F3}) sequences are consumed as runs; after a run the scan
+     * tries an 8-byte ASCII word at the current offset and only resumes 64-byte blocks after a
+     * clean word. A one-byte ASCII gap (a space in a Cyrillic phrase) therefore does not pay eight
+     * loads that cannot succeed. {@code E0}/{@code ED}/{@code F0}/{@code F4}, truncation and junk
+     * go through {@link #sequenceLength}.
      * <p>
      * A lookup-table DFA stays out: it was never measured against this 2-byte/3-byte run shape,
      * and {@code sequenceLength} remains the oracle for the remaining leads. Revisit only if the
@@ -93,8 +95,13 @@ public final class Utf8Sanitizer {
         int i = off;
         int end = off + len;
         int wordEnd = end - Long.BYTES + 1;
+        // Short inputs never fill a 64-byte block; skipAsciiBlocks would no-op but still costs
+        // outer-loop setup on every per-value sanitize (dict / ORC / fallback).
+        final boolean useBlocks = len >= ASCII_BLOCK_BYTES;
         outer: while (i < end) {
-            i = skipAsciiBlocks(bytes, i, end);
+            if (useBlocks) {
+                i = skipAsciiBlocks(bytes, i, end);
+            }
             while (i < end) {
                 i = skipAsciiWords(bytes, i, wordEnd);
                 if (i >= end) {
@@ -119,7 +126,7 @@ public final class Utf8Sanitizer {
                         }
                         b0 = bytes[i] & 0xFF;
                     } while (b0 >= 0xC2 && b0 < 0xE0);
-                    if (resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
+                    if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
                         continue outer;
                     }
                     continue;
@@ -137,7 +144,28 @@ public final class Utf8Sanitizer {
                         }
                         b0 = bytes[i] & 0xFF;
                     } while (b0 >= 0xE1 && b0 <= 0xEF && b0 != 0xED);
-                    if (resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
+                    if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
+                        continue outer;
+                    }
+                    continue;
+                }
+                if (b0 >= 0xF1 && b0 <= 0xF3) {
+                    // 4-byte run F1..F3 80..BF ×3 (emoji and similar). F0 overlong / F4 >U+10FFFF
+                    // stay in sequenceLength.
+                    do {
+                        if (i + 3 >= end
+                            || isCont(bytes[i + 1]) == false
+                            || isCont(bytes[i + 2]) == false
+                            || isCont(bytes[i + 3]) == false) {
+                            return false;
+                        }
+                        i += 4;
+                        if (i >= end) {
+                            return true;
+                        }
+                        b0 = bytes[i] & 0xFF;
+                    } while (b0 >= 0xF1 && b0 <= 0xF3);
+                    if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
                         continue outer;
                     }
                     continue;
@@ -147,12 +175,33 @@ public final class Utf8Sanitizer {
                     return false;
                 }
                 i += consumed;
-                if (resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
+                if (useBlocks && resumeAsciiBlocksAfterRun(bytes, i, wordEnd)) {
                     continue outer;
                 }
             }
         }
         return true;
+    }
+
+    /**
+     * {@code true} when {@code [off, off+len)} is shorter than a 64-byte block, or the first 64
+     * bytes are all ASCII. The PLAIN page path uses this to avoid a region scan of Cyrillic/CJK
+     * pages, where length prefixes sitting between multi-byte chars are slower than per-value.
+     */
+    public static boolean startsWithAsciiBlock(byte[] bytes, int off, int len) {
+        if (len < ASCII_BLOCK_BYTES) {
+            return true;
+        }
+        // Fail fast on the first dirty word (Cyrillic/CJK pages). The kernel's skipAsciiBlocks
+        // still ORs all eight loads: that shape is for all-ASCII skip, not this reject gate.
+        if ((((long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off)) & ASCII_MASK) != 0) {
+            return false;
+        }
+        long acc = (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 8) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 16)
+            | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 24) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 32)
+            | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 40) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 48)
+            | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, off + 56);
+        return (acc & ASCII_MASK) == 0;
     }
 
     /**

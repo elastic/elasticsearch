@@ -44,6 +44,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -906,6 +907,41 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, 2));
         assertEquals(new BytesRef(shortOk), vals[0]);
         assertEquals(new BytesRef(longOk), vals[1]);
+    }
+
+    public void testTryAcceptPlainUtf8RegionBadValueAfterFirstAsciiBlock() {
+        // Eight 4-byte ASCII values fill exactly 64 bytes (prefix+payload). A 0xFF after that
+        // must still be repaired when isWellFormed runs only on the tail past the ASCII probe.
+        byte[] four = { 'a', 'a', 'a', 'a' };
+        byte[][] payloads = new byte[9][];
+        for (int i = 0; i < 8; i++) {
+            payloads[i] = four;
+        }
+        payloads[8] = new byte[] { (byte) 0xFF };
+        byte[] packed = packPlain(payloads);
+        assertEquals(64 + Integer.BYTES + 1, packed.length);
+        assertTrue(Utf8Sanitizer.startsWithAsciiBlock(packed, 0, packed.length));
+        BytesRef[] vals = unpackPlain(packed, payloads);
+        assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, payloads.length));
+        for (int i = 0; i < 8; i++) {
+            assertEquals(new BytesRef(four), vals[i]);
+        }
+        assertEquals(FFFD, vals[8]);
+    }
+
+    public void testTryAcceptPlainUtf8RegionCyrillicPerValue() {
+        // First 64 bytes of a Cyrillic PLAIN region are not ASCII (prefixes sit between 2-byte
+        // chars). Region scan must not run; per-value sanitize must leave well-formed values.
+        byte[] cyr = "Привет".getBytes(StandardCharsets.UTF_8);
+        byte[][] payloads = new byte[8][];
+        Arrays.fill(payloads, cyr);
+        byte[] packed = packPlain(payloads);
+        assertFalse(Utf8Sanitizer.startsWithAsciiBlock(packed, 0, packed.length));
+        BytesRef[] vals = unpackPlain(packed, payloads);
+        assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, payloads.length));
+        for (int i = 0; i < payloads.length; i++) {
+            assertEquals(new BytesRef(cyr), vals[i]);
+        }
     }
 
     private static byte[] packPlain(byte[][] payloads) {

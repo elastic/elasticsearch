@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
 
 /**
  * Tests for {@link PlainValueDecoder}, focusing on boolean bit-packing correctness
@@ -127,6 +130,100 @@ public class PlainValueDecoderTests extends ESTestCase {
         boolean[] result = new boolean[1];
         decoder.readBooleans(result, 0, 1);
         assertTrue("bit 16 should be true", result[0]);
+    }
+
+    public void testReadBinariesRecordsHeapLayoutAndAsciiPrefixRuns() {
+        byte[] shortOk = new byte[3];
+        Arrays.fill(shortOk, (byte) 'a');
+        byte[] longOk = new byte[128];
+        Arrays.fill(longOk, (byte) 'b');
+        byte[] packed = packPlain(new byte[][] { shortOk, longOk, shortOk });
+
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
+        BytesRef[] vals = new BytesRef[3];
+        decoder.readBinaries(vals, 0, 3);
+
+        PlainValueDecoder.HeapBinaryLayout layout = decoder.binaryLayout();
+        assertTrue(layout.valid);
+        assertSame(packed, layout.backing);
+        assertEquals(3, layout.valueCount);
+        assertEquals(2, layout.runCount);
+        // First run: ASCII-prefix short value including its prefix.
+        assertEquals(0, layout.runFrom[0]);
+        assertEquals(1, layout.runTo[0]);
+        assertEquals(0, layout.runOff[0]);
+        assertEquals(Integer.BYTES + shortOk.length, layout.runEnd[0]);
+        // Second run starts at the 128-byte payload (prefix skipped) and includes the trailing short.
+        assertEquals(1, layout.runFrom[1]);
+        assertEquals(3, layout.runTo[1]);
+        assertEquals(Integer.BYTES + shortOk.length + Integer.BYTES, layout.runOff[1]);
+        assertEquals(packed.length, layout.runEnd[1]);
+
+        PlainValueDecoder.HeapBinaryLayout fromVals = PlainValueDecoder.HeapBinaryLayout.fromValues(vals, 3);
+        assertTrue(fromVals.valid);
+        assertEquals(layout.runCount, fromVals.runCount);
+        for (int r = 0; r < layout.runCount; r++) {
+            assertEquals(layout.runFrom[r], fromVals.runFrom[r]);
+            assertEquals(layout.runTo[r], fromVals.runTo[r]);
+            assertEquals(layout.runOff[r], fromVals.runOff[r]);
+            assertEquals(layout.runEnd[r], fromVals.runEnd[r]);
+        }
+    }
+
+    public void testReadBinariesDirectBufferLeavesLayoutInvalid() {
+        byte[] packed = packPlain(new byte[][] { new byte[] { 'a', 'b' } });
+        ByteBuffer direct = ByteBuffer.allocateDirect(packed.length).order(ByteOrder.LITTLE_ENDIAN);
+        direct.put(packed).flip();
+
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(direct);
+        BytesRef[] vals = new BytesRef[1];
+        decoder.readBinaries(vals, 0, 1);
+        assertFalse(decoder.binaryLayout().valid);
+        assertEquals(new BytesRef(new byte[] { 'a', 'b' }), vals[0]);
+        assertEquals(0, vals[0].offset);
+    }
+
+    public void testReadBinariesNonZeroOffsetSkipsLayout() {
+        byte[] packed = packPlain(new byte[][] { new byte[] { 'x' }, new byte[] { 'y' } });
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
+        BytesRef[] vals = new BytesRef[4];
+        decoder.readBinaries(vals, 1, 2);
+        assertFalse(decoder.binaryLayout().valid);
+        assertEquals(new BytesRef(new byte[] { 'x' }), vals[1]);
+        assertEquals(new BytesRef(new byte[] { 'y' }), vals[2]);
+    }
+
+    public void testInitResetsLayout() {
+        byte[] packed = packPlain(new byte[][] { new byte[] { 'z' } });
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
+        decoder.readBinaries(new BytesRef[1], 0, 1);
+        assertTrue(decoder.binaryLayout().valid);
+        decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
+        assertFalse(decoder.binaryLayout().valid);
+    }
+
+    private static byte[] packPlain(byte[][] payloads) {
+        int len = 0;
+        for (byte[] p : payloads) {
+            len += Integer.BYTES + p.length;
+        }
+        byte[] packed = new byte[len];
+        int pos = 0;
+        for (byte[] p : payloads) {
+            int n = p.length;
+            packed[pos] = (byte) n;
+            packed[pos + 1] = (byte) (n >>> 8);
+            packed[pos + 2] = (byte) (n >>> 16);
+            packed[pos + 3] = (byte) (n >>> 24);
+            pos += Integer.BYTES;
+            System.arraycopy(p, 0, packed, pos, p.length);
+            pos += p.length;
+        }
+        return packed;
     }
 
     private static boolean[] slice(boolean[] arr, int offset, int length) {

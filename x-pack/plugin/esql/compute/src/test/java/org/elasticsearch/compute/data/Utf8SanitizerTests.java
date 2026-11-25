@@ -170,6 +170,41 @@ public class Utf8SanitizerTests extends ESTestCase {
         }
     }
 
+    public void testExhaustiveThreeByteUnambiguousLeads() {
+        // E1..EC / EE / EF are the 3-byte run. E0/ED stay in sequenceLength (tested in special leads).
+        byte[] buf = new byte[5];
+        buf[0] = (byte) 0xFF;
+        buf[4] = (byte) 0xFF;
+        for (int b0 = 0xE1; b0 <= 0xEF; b0++) {
+            if (b0 == 0xED) {
+                continue;
+            }
+            buf[1] = (byte) b0;
+            for (int b1 = 0; b1 < 256; b1++) {
+                buf[2] = (byte) b1;
+                for (int b2 = 0; b2 < 256; b2++) {
+                    buf[3] = (byte) b2;
+                    assertIsWellFormedMatchesOracles(buf, 1, 3);
+                }
+            }
+        }
+    }
+
+    public void testStartsWithAsciiBlock() {
+        assertTrue(Utf8Sanitizer.startsWithAsciiBlock(new byte[0], 0, 0));
+        byte[] shortAscii = new byte[63];
+        Arrays.fill(shortAscii, (byte) 'a');
+        assertTrue(Utf8Sanitizer.startsWithAsciiBlock(shortAscii, 0, 63));
+        byte[] block = new byte[64];
+        Arrays.fill(block, (byte) 'a');
+        assertTrue(Utf8Sanitizer.startsWithAsciiBlock(block, 0, 64));
+        block[0] = (byte) 0xFF;
+        assertFalse(Utf8Sanitizer.startsWithAsciiBlock(block, 0, 64));
+        block[0] = (byte) 'a';
+        block[63] = (byte) 0xFF;
+        assertFalse(Utf8Sanitizer.startsWithAsciiBlock(block, 0, 64));
+    }
+
     public void testAsciiBlockThenTwoByteRunThenAscii() {
         // After the 2-byte run, ASCII skip must resume at that offset, not the next 64-byte
         // boundary. Trailing ASCII is long enough that skipAsciiBlocks actually runs again.
@@ -201,6 +236,27 @@ public class Utf8SanitizerTests extends ESTestCase {
         assertSame(in, Utf8Sanitizer.sanitize(in));
 
         buf[67] = (byte) 0xFF;
+        assertIsWellFormedMatchesOracles(buf, 0, buf.length);
+        assertFalse(Utf8Sanitizer.isWellFormed(buf, 0, buf.length));
+    }
+
+    public void testAsciiBlockThenFourByteRunThenAscii() {
+        // F1..F3 run; F0/F4 stay in sequenceLength. Resume ASCII skip after the run.
+        byte[] buf = new byte[64 + 8 + 64];
+        Arrays.fill(buf, (byte) 'a');
+        buf[64] = (byte) 0xF1;
+        buf[65] = (byte) 0x80;
+        buf[66] = (byte) 0x80;
+        buf[67] = (byte) 0x80;
+        buf[68] = (byte) 0xF2;
+        buf[69] = (byte) 0x80;
+        buf[70] = (byte) 0x80;
+        buf[71] = (byte) 0x80;
+        assertIsWellFormedMatchesOracles(buf, 0, buf.length);
+        BytesRef in = new BytesRef(buf);
+        assertSame(in, Utf8Sanitizer.sanitize(in));
+
+        buf[72] = (byte) 0xFF;
         assertIsWellFormedMatchesOracles(buf, 0, buf.length);
         assertFalse(Utf8Sanitizer.isWellFormed(buf, 0, buf.length));
     }
@@ -283,7 +339,7 @@ public class Utf8SanitizerTests extends ESTestCase {
     }
 
     private byte[] randomBiasedUtf8Payload() {
-        return switch (randomIntBetween(0, 8)) {
+        return switch (randomIntBetween(0, 9)) {
             case 0 -> randomValidTwoByteRun(randomIntBetween(1, 40));
             case 1 -> randomValidThreeByteRun(randomIntBetween(1, 24));
             case 2 -> concat(randomAscii(randomIntBetween(0, 80)), randomValidTwoByteRun(randomIntBetween(1, 16)));
@@ -297,12 +353,14 @@ public class Utf8SanitizerTests extends ESTestCase {
             case 5 -> randomValidFourByteRun(randomIntBetween(1, 8));
             case 6 -> randomValidE0Run(randomIntBetween(1, 8));
             case 7 -> randomValidEdRun(randomIntBetween(1, 8));
-            case 8 -> {
-                byte[] run = switch (randomIntBetween(0, 3)) {
+            case 8 -> randomValidUnambiguousFourByteRun(randomIntBetween(1, 8));
+            case 9 -> {
+                byte[] run = switch (randomIntBetween(0, 4)) {
                     case 0 -> randomValidTwoByteRun(randomIntBetween(1, 8));
                     case 1 -> randomValidThreeByteRun(randomIntBetween(1, 8));
                     case 2 -> randomValidFourByteRun(randomIntBetween(1, 8));
                     case 3 -> randomValidE0Run(randomIntBetween(1, 8));
+                    case 4 -> randomValidUnambiguousFourByteRun(randomIntBetween(1, 8));
                     default -> throw new AssertionError("unexpected junk-run arm");
                 };
                 run[randomInt(run.length - 1)] = (byte) randomInt(255);
@@ -348,6 +406,17 @@ public class Utf8SanitizerTests extends ESTestCase {
             int lo = lead == 0xF0 ? 0x90 : 0x80;
             int hi = lead == 0xF4 ? 0x8F : 0xBF;
             out[i * 4 + 1] = (byte) randomIntBetween(lo, hi);
+            out[i * 4 + 2] = (byte) randomIntBetween(0x80, 0xBF);
+            out[i * 4 + 3] = (byte) randomIntBetween(0x80, 0xBF);
+        }
+        return out;
+    }
+
+    private byte[] randomValidUnambiguousFourByteRun(int chars) {
+        byte[] out = new byte[chars * 4];
+        for (int i = 0; i < chars; i++) {
+            out[i * 4] = (byte) randomIntBetween(0xF1, 0xF3);
+            out[i * 4 + 1] = (byte) randomIntBetween(0x80, 0xBF);
             out[i * 4 + 2] = (byte) randomIntBetween(0x80, 0xBF);
             out[i * 4 + 3] = (byte) randomIntBetween(0x80, 0xBF);
         }

@@ -21,7 +21,6 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -102,13 +101,6 @@ import java.util.function.IntConsumer;
 final class PageColumnReader implements Releasable {
 
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
-
-    /**
-     * A Parquet BINARY length prefix is four ASCII bytes iff no byte has the high bit set.
-     * {@code length < 128} is sufficient but not necessary: 256..383 also qualify, while 128
-     * does not ({@code 0x80} looks like a UTF-8 continuation).
-     */
-    private static final int ASCII_LENGTH_PREFIX_MASK = 0x80808080;
 
     private final PageReader pageReader;
     private final ColumnDescriptor descriptor;
@@ -781,14 +773,18 @@ final class PageColumnReader implements Releasable {
 
     private void readBinariesDispatch(BytesRef[] values, int offset, int count) {
         if (currentEncoding.usesDictionary()) {
+            // Stale layout from a previous PLAIN heap page would be wrong on the reused decompress dest.
+            plainDecoder.invalidateBinaryLayout();
             dictDecoder.readBinaries(values, offset, count, dictionary);
         } else if (useFallbackReader) {
+            plainDecoder.invalidateBinaryLayout();
             for (int i = 0; i < count; i++) {
                 org.apache.parquet.io.api.Binary bin = fallbackReader.readBytes();
                 byte[] bytes = bin.getBytes();
                 values[offset + i] = new BytesRef(bytes, 0, bytes.length);
             }
         } else if (descriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY) {
+            plainDecoder.invalidateBinaryLayout();
             plainDecoder.readFixedBinaries(values, offset, count, descriptor.getPrimitiveType().getTypeLength());
         } else {
             plainDecoder.readBinaries(values, offset, count);
@@ -1420,7 +1416,7 @@ final class PageColumnReader implements Releasable {
             }
             return;
         }
-        if (count > 0 && isPlainLengthPrefixedBinary() && tryAcceptPlainUtf8Region(vals, count)) {
+        if (count > 0 && isPlainLengthPrefixedBinary() && tryAcceptPlainUtf8Region(plainDecoder.binaryLayout(), vals, count)) {
             return;
         }
         for (int i = 0; i < count; i++) {
@@ -1430,58 +1426,42 @@ final class PageColumnReader implements Releasable {
 
     /**
      * PLAIN BINARY pages store {@code [int32 LE length][bytes]…} in one backing array. ASCII
-     * length prefixes can sit inside a single {@link Utf8Sanitizer#isWellFormed} scan; a prefix
-     * with a high bit splits the scan at that value boundary so a long URL does not disqualify
-     * the rest of the page.
+     * length prefixes can sit inside a single {@link Utf8Sanitizer#isWellFormed} scan when the
+     * first 64 bytes of a run are ASCII (short ASCII pages fill a skip block only with prefixes
+     * included). A prefix with a high bit splits the run at that value. If the first 64-byte
+     * block is not ASCII, the page path sanitizes per value so Cyrillic/CJK prefixes do not
+     * break 2-byte/3-byte runs.
      */
     private boolean isPlainLengthPrefixedBinary() {
         return currentEncoding == Encoding.PLAIN
             && descriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY;
     }
 
-    private static boolean isAsciiLengthPrefix(int length) {
-        return (length & ASCII_LENGTH_PREFIX_MASK) == 0;
+    /**
+     * Test helper: reconstruct layout from sliced {@code vals} (one walk). Production uses
+     * {@link #tryAcceptPlainUtf8Region(PlainValueDecoder.HeapBinaryLayout, BytesRef[], int)}
+     * with the decoder-recorded layout.
+     */
+    static boolean tryAcceptPlainUtf8Region(BytesRef[] vals, int count) {
+        return tryAcceptPlainUtf8Region(PlainValueDecoder.HeapBinaryLayout.fromValues(vals, count), vals, count);
     }
 
     /**
      * @return {@code true} when this batch was handled (left untouched or sanitized per run).
      *         {@code false} means the caller must per-value {@code sanitize} everything.
      */
-    static boolean tryAcceptPlainUtf8Region(BytesRef[] vals, int count) {
-        BytesRef first = vals[0];
-        // Direct (non-heap) PLAIN pages copy each value to a fresh byte[] at offset 0, so this
-        // check quietly disables the region path and the caller falls back to per-value sanitize.
-        if (first.offset < Integer.BYTES) {
+    static boolean tryAcceptPlainUtf8Region(PlainValueDecoder.HeapBinaryLayout layout, BytesRef[] vals, int count) {
+        if (layout == null || layout.valid == false || layout.valueCount != count) {
             return false;
         }
-        byte[] backing = first.bytes;
-        int expectedOff = first.offset;
-        for (int i = 0; i < count; i++) {
-            BytesRef v = vals[i];
-            if (v.bytes != backing || v.offset != expectedOff || v.offset < Integer.BYTES) {
-                return false;
-            }
-            if (ByteUtils.readIntLE(backing, v.offset - Integer.BYTES) != v.length) {
-                return false;
-            }
-            expectedOff = v.offset + v.length + Integer.BYTES;
-        }
-        BytesRef last = vals[count - 1];
-        int lastEnd = last.offset + last.length;
-        if (lastEnd < last.offset || lastEnd > backing.length) {
+        // Direct (non-heap) PLAIN pages copy each value to a fresh byte[] at offset 0, so the
+        // decoder leaves the layout invalid and the caller falls back to per-value sanitize.
+        if (vals[0].bytes != layout.backing) {
             return false;
         }
-        int runStart = 0;
-        int regionOff = first.offset - Integer.BYTES;
-        for (int i = 0; i < count; i++) {
-            BytesRef v = vals[i];
-            if (isAsciiLengthPrefix(v.length) == false) {
-                acceptOrSanitizePlainRun(vals, runStart, i, backing, regionOff, v.offset - Integer.BYTES);
-                runStart = i;
-                regionOff = v.offset;
-            }
+        for (int r = 0; r < layout.runCount; r++) {
+            acceptOrSanitizePlainRun(vals, layout.runFrom[r], layout.runTo[r], layout.backing, layout.runOff[r], layout.runEnd[r]);
         }
-        acceptOrSanitizePlainRun(vals, runStart, count, backing, regionOff, lastEnd);
         return true;
     }
 
@@ -1489,8 +1469,19 @@ final class PageColumnReader implements Releasable {
         if (from >= to) {
             return;
         }
-        if (end >= off && end <= backing.length && Utf8Sanitizer.isWellFormed(backing, off, end - off)) {
-            return;
+        int len = end - off;
+        // Short runs keep prefixes in the scan so 4-byte values can fill a 64-byte block.
+        // A successful 64-byte ASCII probe already validated [off, off+64); isWellFormed
+        // only the tail. Cyrillic/CJK fail the first-block gate and go per-value.
+        if (len >= 0 && end <= backing.length) {
+            if (len < 64) {
+                if (Utf8Sanitizer.isWellFormed(backing, off, len)) {
+                    return;
+                }
+            } else if (Utf8Sanitizer.startsWithAsciiBlock(backing, off, len)
+                && (len == 64 || Utf8Sanitizer.isWellFormed(backing, off + 64, len - 64))) {
+                    return;
+                }
         }
         for (int i = from; i < to; i++) {
             vals[i] = Utf8Sanitizer.sanitize(vals[i]);

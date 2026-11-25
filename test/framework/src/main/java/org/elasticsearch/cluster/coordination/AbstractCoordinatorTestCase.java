@@ -2270,12 +2270,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return new SimulatedPersistence(loadedState, loadedState);
             } else if (node.canContainData()) {
                 // writes go to the disk asynchronously, and so some may be lost if the node stops
+                // NB if `disruptStorage` is set then the synchronous in-memory writes can fail, which isn't possible in prod. The
+                // data doesn't make it to disk either way, and we also cover cases where the async write doesn't run before the node shuts
+                // down, so this extra failure possibility is ok.
                 return new SimulatedPersistence(
                     loadedState,
                     MockGatewayMetaState.newAsyncPersistedState(loadedState, asyncWriteExecutor(threadPool))
                 );
             } else {
                 // starts with an empty state whatever was on disk, writing that to disk but never anything more
+                // NB if `disruptStorage` is set then the synchronous in-memory writes can fail, which isn't possible in prod. This is ok.
                 return new SimulatedPersistence(
                     new InMemoryPersistedState(0L, emptyState(node)),
                     new InMemoryPersistedState(0L, emptyState(node)) // NB different instances so in-memory writes don't cross restarts

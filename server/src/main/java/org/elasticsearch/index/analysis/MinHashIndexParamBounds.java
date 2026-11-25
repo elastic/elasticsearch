@@ -11,6 +11,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.minhash.MinHashFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 
@@ -42,6 +43,8 @@ public final class MinHashIndexParamBounds {
     /**
      * Like {@link #violation(int, int, int)}, reading the parameters from a filter's settings and applying the filter's
      * defaults for those that aren't set.
+     *
+     * @throws SettingsException when the filter's settings cannot be parsed
      */
     @Nullable
     public static String violation(Settings filterSettings) {

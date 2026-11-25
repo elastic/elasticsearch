@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.core.Strings;
@@ -320,6 +321,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         if (indexMetadata.getCreationVersion().onOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)) {
             return null;
         }
+
         List<String> violations = new ArrayList<>();
         Map<String, Settings> filters = indexMetadata.getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
         for (Map.Entry<String, Settings> filter : filters.entrySet()) {
@@ -327,20 +329,25 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             if ("min_hash".equals(filterSettings.get("type")) == false) {
                 continue;
             }
+
             String violation;
             try {
                 violation = MinHashIndexParamBounds.violation(filterSettings);
-            } catch (IllegalArgumentException e) {
-                // Not parseable as an int; the index couldn't have been opened with this filter, so there is nothing to report.
+            } catch (SettingsException e) {
+                // The filter's settings cannot be parsed. We should never hit this scenario, as such a filter cannot be added in the first
+                // place. If we somehow do, the index will fail to open downstream.
                 continue;
             }
+
             if (violation != null) {
                 violations.add("[" + filter.getKey() + "]: " + violation);
             }
         }
+
         if (violations.isEmpty()) {
             return null;
         }
+
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "min_hash token filter parameters exceed the limits for new indices",

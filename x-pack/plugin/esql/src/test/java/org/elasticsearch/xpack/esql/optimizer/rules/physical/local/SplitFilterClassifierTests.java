@@ -264,6 +264,20 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(MISS, classify(lessThanOf(f, of(4.0f)), floatFive));
         assertEquals(AMBIGUOUS, classify(notEqualsOf(f, of(5.0f)), floatFive));
         assertEquals(MATCH, classify(notEqualsOf(f, of(4.0f)), floatFive));
+
+        // In.process uses Double.compare, so a hidden NaN matches IN (NaN). Cannot MISS.
+        assertEquals(AMBIGUOUS, classify(in(score, of(Double.NaN), of(9.0)), constFive));
+        assertEquals(MISS, classify(in(score, of(9.0)), constFive));
+
+        // Finite extrema contained in the range would MATCH without NaN; DOUBLE MATCH is withheld.
+        assertEquals(AMBIGUOUS, classify(new MvInRange(Source.EMPTY, score, of(4.0), of(6.0)), constFive));
+        assertEquals(MISS, classify(new MvInRange(Source.EMPTY, score, of(6.0), of(9.0)), constFive));
+
+        // Extrema that are themselves NaN cannot MATCH or MISS (Double.compare orders NaN largest).
+        SplitStats nanBounds = colStats("score", Double.NaN, Double.NaN, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(score, of(5.0)), nanBounds));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(score, of(10.0)), nanBounds));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(0.0)), nanBounds));
     }
 
     public void testStringStats() {

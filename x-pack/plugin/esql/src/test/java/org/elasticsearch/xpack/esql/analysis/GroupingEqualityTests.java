@@ -496,6 +496,7 @@ public class GroupingEqualityTests extends ESTestCase {
             try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(type), blockFactory)) {
                 int[] first = hash.add(new Page(earlier));
                 int[] second = hash.add(new Page(later));
+                assertThat(kind + " " + type, first[0], not(equalTo(first[1])));
                 assertThat(kind + " " + type, second[0], equalTo(first[earlierMatch]));
                 assertThat(kind + " " + type, second[second.length - 1], equalTo(first[laterMatch]));
                 if (fresh >= 0) {
@@ -505,16 +506,22 @@ public class GroupingEqualityTests extends ESTestCase {
             }
             return;
         }
-        BlockHash hash = kind == BlockHashKind.SINGLE
-            ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024, false)
-            : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024);
-        int[][] first = collect(hash, new Page(earlier), false);
-        int[][] second = collect(hash, new Page(later), true);
-        assertThat(kind + " " + type, second[0][0], equalTo(first[earlierMatch][0]));
-        assertThat(kind + " " + type, second[second.length - 1][0], equalTo(first[laterMatch][0]));
-        if (fresh >= 0) {
-            assertThat(second[fresh][0], not(equalTo(first[0][0])));
-            assertThat(second[fresh][0], not(equalTo(first[1][0])));
+        try (
+            BlockHash hash = kind == BlockHashKind.SINGLE
+                ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024, false)
+                : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024)
+        ) {
+            int[][] first = collect(hash, new Page(earlier), false);
+            int[][] second = collect(hash, new Page(later), false);
+            assertOneIdEach(first);
+            assertOneIdEach(second);
+            assertThat(kind + " " + type, first[0][0], not(equalTo(first[1][0])));
+            assertThat(kind + " " + type, second[0][0], equalTo(first[earlierMatch][0]));
+            assertThat(kind + " " + type, second[second.length - 1][0], equalTo(first[laterMatch][0]));
+            if (fresh >= 0) {
+                assertThat(second[fresh][0], not(equalTo(first[0][0])));
+                assertThat(second[fresh][0], not(equalTo(first[1][0])));
+            }
         }
     }
 
@@ -1325,13 +1332,19 @@ public class GroupingEqualityTests extends ESTestCase {
         assertThat(ids[4][0], equalTo(ids[2][0]));
     }
 
+    private static void assertPartition(int[] ids, int... expected) {
+        assertThat(ids.length, equalTo(expected.length));
+        for (int i = 0; i < expected.length; i++) {
+            for (int j = i + 1; j < expected.length; j++) {
+                assertThat("positions " + i + " and " + j, ids[i] == ids[j], equalTo(expected[i] == expected[j]));
+            }
+        }
+    }
+
     private void assertWhole(Block block) {
         try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(block.elementType()), blockFactory)) {
             int[] ids = hash.add(new Page(block));
-            assertThat(ids[5], equalTo(ids[0]));
-            assertThat(ids[0], not(equalTo(ids[1])));
-            assertThat(ids[0], not(equalTo(ids[2])));
-            assertThat(ids[4], not(equalTo(ids[2])));
+            assertPartition(ids, 0, 1, 2, 3, 4, 0);
         }
     }
 

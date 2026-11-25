@@ -539,12 +539,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * <strong>Remote partial results</strong> are from the wire; their top_hits are added via
      * {@link AggregationReduceContext#addTopHitsFromAggregationTree} so the coordinator takes ownership for release.
      * </p>
+     *
+     * @param aggsCount the number of aggregations the three iterators yield together, which
+     *                  {@link InternalAggregations#topLevelReduce(Iterator, int, AggregationReduceContext)} needs to be exact
      */
     private static InternalAggregations aggregate(
         Iterator<QuerySearchResult> toConsume,
         Iterator<DelayableWriteable<InternalAggregations>> localPartialResults,
         Iterator<DelayableWriteable<InternalAggregations>> remotePartialResults,
-        int resultSetSize,
+        int aggsCount,
         AggregationReduceContext reduceContext
     ) {
         try {
@@ -567,7 +570,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 return aggs;
             });
             Iterator<InternalAggregations> combined = Iterators.concat(localMapped, remoteMapped, toConsumeMapped);
-            return InternalAggregations.topLevelReduce(combined, resultSetSize, reduceContext);
+            return InternalAggregations.topLevelReduce(combined, aggsCount, reduceContext);
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
         }
@@ -927,6 +930,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
+    /**
+     * The result of a partial reduce, either built on this node or sent by a data node with the batched query phase.
+     *
+     * @param reducedAggs the partially reduced aggregations. Null when the request has no aggregations, or when no shard result reached
+     *                    the reduce, as on a data node whose shards all failed or were skipped. A later reduce must not count such a
+     *                    result, since it adds no aggregations.
+     */
     record MergeResult(
         List<SearchShard> processedShards,
         @Nullable TopDocs reducedTopDocs,

@@ -285,27 +285,28 @@ public class HashJoin extends Join implements SortPreserving, PostOptimizationPl
     }
 
     /**
-     * Rejects an index search above an ES|QL join. The join runs on the coordinator, and so does everything above it, where there
-     * are no documents to search. A search on a left field in a {@code WHERE} is pushed below the join, but one that also reads
-     * the right side's columns, or sits in the filter of an aggregate function or in a {@code SCORE}, stays above it. A search on
-     * a column the join produces scans the values in the page and runs anywhere.
+     * Rejects a full-text function that searches an index above an ES|QL join. The join runs on the coordinator, and so does
+     * everything above it, where there are no documents to search. A full-text function on a left field in a {@code WHERE} is
+     * pushed below the join, but one in a condition that also reads the right side's columns, in the filter of an aggregate
+     * function or in a {@code SCORE} stays above it. A full-text function on a column the join produces is a runtime search,
+     * which scans the values in the page and runs anywhere.
      */
     @Override
     public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
-        return HashJoin::checkIndexSearchesAbove;
+        return HashJoin::checkFullTextFunctionsAbove;
     }
 
-    private static void checkIndexSearchesAbove(LogicalPlan plan, Failures failures) {
+    private static void checkFullTextFunctionsAbove(LogicalPlan plan, Failures failures) {
         if (plan instanceof InlineJoin inlineJoin) {
             // The aggregation of an INLINE STATS reads its input through a stub, so the join is looked for on the left side.
             HashJoin join = esqlJoinInMainScope(inlineJoin.left());
             if (join != null) {
-                inlineJoin.right().forEachDown(node -> rejectIndexSearches(node, join, failures));
+                inlineJoin.right().forEachDown(node -> rejectFullTextFunctions(node, join, failures));
             }
         } else if (plan instanceof UnaryPlan unary) {
             HashJoin join = esqlJoinInMainScope(unary.child());
             if (join != null) {
-                rejectIndexSearches(unary, join, failures);
+                rejectFullTextFunctions(unary, join, failures);
             }
         }
     }
@@ -327,17 +328,17 @@ public class HashJoin extends Join implements SortPreserving, PostOptimizationPl
         return null;
     }
 
-    private static void rejectIndexSearches(LogicalPlan plan, HashJoin join, Failures failures) {
-        plan.forEachExpression(FullTextFunction.class, search -> {
-            if (search.isRuntimeSearch() == false) {
+    private static void rejectFullTextFunctions(LogicalPlan plan, HashJoin join, Failures failures) {
+        plan.forEachExpression(FullTextFunction.class, function -> {
+            if (function.isRuntimeSearch() == false) {
                 failures.add(
                     fail(
-                        search,
+                        function,
                         "[{}] {} cannot be used after {}{}",
-                        search.functionName(),
-                        search.functionType(),
+                        function.functionName(),
+                        function.functionType(),
                         join.esqlCommand(),
-                        search.supportsRuntimeSearch() ? " when it targets an indexed field" : ""
+                        function.supportsRuntimeSearch() ? " when it targets an indexed field" : ""
                     )
                 );
             }

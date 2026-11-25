@@ -336,9 +336,9 @@ public class LogicalPlanOptimizerSubqueryJoinGoldenTests extends GoldenTestCase 
     }
 
     /**
-     * A search on a left column is pushed below the join, to the data nodes.
+     * A full-text function on a left column is pushed below the join, to the data nodes.
      */
-    public void testIndexSearchOnLeftColumnIsPushedBelowJoin() {
+    public void testFullTextFunctionOnLeftColumnIsPushedBelowJoin() {
         runGoldenTest(JOIN_LANGUAGES + "| WHERE MATCH(first_name, \"Anna\")", STAGES);
     }
 

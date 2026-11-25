@@ -59,10 +59,10 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
     }
 
     /**
-     * An index search runs against the left side's documents, which the join's output no longer carries. A search that the optimizer
-     * can't push below the join, because the same condition reads a subquery column, is rejected.
+     * A full-text function on an index field searches the left side's documents, which the join's output no longer carries. One
+     * that the optimizer can't push below the join, because the same condition reads a subquery column, is rejected.
      */
-    public void testIndexSearchAboveJoinIsRejected() {
+    public void testFullTextFunctionAboveJoinIsRejected() {
         Map<String, String> searches = Map.of("MATCH(first_name, \"Anna\")", "[MATCH] function", "first_name : \"Anna\"", "[:] operator");
         for (Map.Entry<String, String> search : searches.entrySet()) {
             String query = JOIN_LANGUAGES + "| WHERE " + search.getKey() + " OR language_name IS NOT NULL\n";
@@ -78,7 +78,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
      * A filter can also stay above the join because of a command between them, here {@code INLINE STATS}, although it only reads
      * the left side's columns.
      */
-    public void testIndexSearchAboveInlineStatsAfterJoinIsRejected() {
+    public void testFullTextFunctionAboveInlineStatsAfterJoinIsRejected() {
         VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
             | INLINE STATS c = COUNT(*) BY gender
             | WHERE MATCH(first_name, "Anna")
@@ -93,7 +93,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
      * The aggregation of a {@code STATS} after the join runs on the coordinator, so a search in the filter of an aggregate function
      * is rejected too.
      */
-    public void testIndexSearchInAggregateFilterAfterJoinIsRejected() {
+    public void testFullTextFunctionInAggregateFilterAfterJoinIsRejected() {
         VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
             | STATS n = COUNT(*), anna = COUNT(*) WHERE MATCH(first_name, "Anna")
             """));
@@ -107,7 +107,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
      * The aggregation of an {@code INLINE STATS} after the join runs on the coordinator too, although it reads its input through a
      * stub rather than from the join.
      */
-    public void testIndexSearchInInlineStatsAggregateFilterAfterJoinIsRejected() {
+    public void testFullTextFunctionInInlineStatsAggregateFilterAfterJoinIsRejected() {
         VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
             | INLINE STATS anna = COUNT(*) WHERE MATCH(first_name, "Anna")
             """));
@@ -120,7 +120,7 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
     /**
      * {@code SCORE} evaluates its search where it stands, so after the join it would search on the coordinator.
      */
-    public void testIndexSearchInScoreAfterJoinIsRejected() {
+    public void testFullTextFunctionInScoreAfterJoinIsRejected() {
         VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
             | EVAL s = SCORE(MATCH(first_name, "Anna"))
             """));

@@ -197,7 +197,7 @@ Fields
 :   A key must read at least one field. Each field must have doc values and be of a numeric, `date`, `date_nanos`, `boolean`, `keyword`, `ip` or `version` type. It can't be an alias, a runtime field or a field under a `nested` object.
 
 Result
-:   A key must return a `long`, `integer`, `double`, `boolean`, `date` or `date_nanos` value. Documents for which it returns no value or several values sort like documents without a value, see `NULLS FIRST` and `NULLS LAST` in [`index.sort`](#index-sort-expression).
+:   A key must return a `long`, `integer`, `double`, `boolean`, `date` or `date_nanos` value. Documents for which it returns no value or several values sort like documents without a value, see `NULLS FIRST` and `NULLS LAST` in [`index.sort`](#index-sort-expression). Keys aren't rewritten by the ES|QL query optimizer, so on edge cases such as an overflow, a key can differ from the same expression in a query: `-n > 0` has no value when `-n` overflows, while a query rewrites it to `n < 0`, which is `true`.
 
 
 ## Early termination of search request [early-terminate]

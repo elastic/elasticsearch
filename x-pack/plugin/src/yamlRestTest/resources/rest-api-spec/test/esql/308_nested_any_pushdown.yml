@@ -400,7 +400,7 @@ setup:
   - match: { values: [["n1", false]] }
 
 ---
-"a runtime field under a nested path reads the parent document, so the predicate is not pushed":
+"a runtime field under a nested path is a column of the parent document":
   - do:
       indices.create:
         index: na_runtime
@@ -433,21 +433,26 @@ setup:
       esql.query:
         allow_partial_results: false
         body:
-          query: 'FROM na_runtime | WHERE NESTED_ANY(items.calculated == 5) | KEEP id | SORT id | LIMIT 10'
+          query: 'FROM na_runtime | WHERE items.calculated == 5 | KEEP id | SORT id | LIMIT 10'
   - match: { values: [["a"]] }
-  - match: { documents_found: 2 }
   - do:
       esql.query:
         allow_partial_results: false
         body:
-          query: 'FROM na_runtime | EVAL h = NESTED_ANY(items.calculated == 5) | KEEP id, h | SORT id | LIMIT 10'
+          query: 'FROM na_runtime | EVAL h = items.calculated == 5 | KEEP id, h | SORT id | LIMIT 10'
   - match: { values: [["a", true], ["b", false]] }
   - do:
       esql.query:
         allow_partial_results: false
         body:
-          query: 'FROM na_runtime | WHERE NESTED_ANY(items.calculated == 5 AND items.qty + 0 >= 0) | KEEP id | SORT id | LIMIT 10'
+          query: 'FROM na_runtime | WHERE items.calculated == 5 AND NESTED_ANY(items.qty + 0 >= 0) | KEEP id | SORT id | LIMIT 10'
   - match: { values: [["a"]] }
+  - do:
+      catch: /Field \[items\.calculated\] is outside the nested scope/
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_runtime | WHERE NESTED_ANY(items.calculated == 5) | KEEP id | LIMIT 10'
 
 ---
 "a child mapped in one index and a runtime field in another is read per index, not pushed":
@@ -503,7 +508,7 @@ setup:
         allow_partial_results: false
         body:
           query: 'FROM na_runtime_mixed_* | WHERE NESTED_ANY(items.calculated == 5) | KEEP id | SORT id | LIMIT 10'
-  # Whether a node pushes the predicate is decided from the shards it holds, so how many documents are found depends on which
-  # nodes the two indices land on. Only the rows are the same everywhere.
+  # One index owns the name as a nested child and the other as a runtime field. The predicate reads whichever that shard has.
+  # Only the rows are the same everywhere.
   - match: { values: [["a1"], ["b1"]] }
 

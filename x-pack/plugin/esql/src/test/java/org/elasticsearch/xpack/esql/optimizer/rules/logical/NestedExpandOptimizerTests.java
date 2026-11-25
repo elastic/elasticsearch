@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -232,7 +234,11 @@ public class NestedExpandOptimizerTests extends AbstractLogicalPlanOptimizerTest
     }
 
     private LogicalPlan analyze(String query) {
-        return nestedAnalyzer(minimumVersion.supports(NestedExpand.VERSION) ? minimumVersion : NestedExpand.VERSION).query(query);
+        TransportVersion version = minimumVersion.supports(NestedExpand.VERSION) ? minimumVersion : NestedExpand.VERSION;
+        if (version.supports(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD) == false) {
+            version = FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD;
+        }
+        return nestedAnalyzer(version).query(query);
     }
 
     private static List<String> names(List<Attribute> attributes) {

@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -46,6 +47,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -239,6 +241,7 @@ class FieldCapabilitiesFetcher {
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
         boolean includeDimensions = checkIncludeDimensions(filters);
+        boolean excludeNested = Arrays.asList(filters).contains("-nested");
 
         Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
@@ -283,7 +286,8 @@ class FieldCapabilitiesFetcher {
                     reported == null ? null : reported.name(),
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
                     indexLocalAnalyzer,
-                    ft.isStaticallySingleValued()
+                    ft.isStaticallySingleValued(),
+                    ft instanceof AbstractScriptFieldType<?>
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -305,6 +309,10 @@ class FieldCapabilitiesFetcher {
                     if (context.getFieldType(parentField) == null && isUnderSubobjectsFalseMapper(parentField, objectMappers) == false) {
                         // no field type and not under a subobjects:false context, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+                        if (excludeNested && "nested".equals(type)) {
+                            dotIndex = parentField.lastIndexOf('.');
+                            continue;
+                        }
                         // A synthesized object may have no backing ObjectMapper, e.g. for a dotted leaf under a root-level
                         // subobjects:false mapping. It is reported as a plain object nonetheless, so it must carry the
                         // same passthrough status as one, unless prefix properties identify it as an auto-flattened
@@ -326,6 +334,7 @@ class FieldCapabilitiesFetcher {
                             Map.of(),
                             null,
                             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+                            false,
                             false,
                             false
                         );
@@ -464,7 +473,8 @@ class FieldCapabilitiesFetcher {
             Predicate<MappedFieldType> next = switch (filter) {
                 case "+metadata" -> ft -> context.isMetadataField(ft.name());
                 case "-metadata" -> ft -> context.isMetadataField(ft.name()) == false;
-                case "-nested" -> ft -> context.nestedLookup().getNestedParent(ft.name()) == null;
+                case "-nested" -> ft -> ft instanceof AbstractScriptFieldType<?>
+                    || context.nestedLookup().getNestedParent(ft.name()) == null;
                 case "-multifield" -> ft -> context.isMultiField(ft.name()) == false;
                 default -> throw new IllegalArgumentException("Unknown field caps filter [" + filter + "]");
             };

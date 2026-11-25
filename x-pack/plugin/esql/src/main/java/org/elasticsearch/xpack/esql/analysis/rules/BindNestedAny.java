@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -46,8 +47,9 @@ import java.util.Set;
  */
 public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
     /**
-     * Rewrites nested names inside {@code NESTED_ANY} onto the private schema. Leaves every other name unresolved. A column of the
-     * query with the same name replaces the child, as a later definition does everywhere else, so that is an error.
+     * Rewrites nested names inside {@code NESTED_ANY} onto the private schema. Leaves every other name unresolved. A column the
+     * query defines with the same name replaces the child, as a later definition does everywhere else, so that is an error. The
+     * parent column of a runtime field that shares the child's name does not: some indices own the name one way and some the other.
      */
     public static LogicalPlan scope(LogicalPlan plan, List<Attribute> childrenOutput) {
         if (plan instanceof Eval eval) {
@@ -121,7 +123,100 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
         }
         Inputs inputs = inputs(nested, input, reads, schema);
         Expression bound = body.transformUp(Attribute.class, attribute -> inputs.replacement().getOrDefault(attribute.id(), attribute));
-        return new NestedPredicate(nested.source(), reads.path(), bound, inputs.channels(), inputs.relativePaths(), null, configuration);
+        NestedPredicate predicate = new NestedPredicate(
+            nested.source(),
+            reads.path(),
+            bound,
+            inputs.channels(),
+            inputs.relativePaths(),
+            null,
+            configuration
+        );
+        return orRuntimeParents(nested, body, reads, input.output(), predicate);
+    }
+
+    /**
+     * A name that one index defines as a runtime field and another maps as a child has a value on every shard, but only one of
+     * the two. The parent comparison is null where the field is a child, and the nested predicate is false where it is a runtime
+     * field, so their disjunction reads whichever owner the shard has. A body that also reads a child with one owner cannot be
+     * split that way.
+     */
+    private static Expression orRuntimeParents(
+        NestedAny nested,
+        Expression body,
+        Reads reads,
+        List<Attribute> output,
+        NestedPredicate predicate
+    ) {
+        Map<NameId, FieldAttribute> parents = new LinkedHashMap<>();
+        List<String> onlyChildren = new ArrayList<>();
+        for (Attribute child : reads.children().values()) {
+            FieldAttribute parent = runtimeParent(output, child.name());
+            if (parent == null) {
+                onlyChildren.add(child.name());
+                continue;
+            }
+            if (parent.dataType() != child.dataType()) {
+                throw error(
+                    nested,
+                    "NESTED_ANY cannot read ["
+                        + child.name()
+                        + "]: it is a runtime field of type ["
+                        + parent.dataType().typeName()
+                        + "] in some indices and a field of nested ["
+                        + reads.path()
+                        + "] of type ["
+                        + child.dataType().typeName()
+                        + "] in others"
+                );
+            }
+            parents.put(child.id(), parent);
+        }
+        if (parents.isEmpty()) {
+            return predicate;
+        }
+        if (onlyChildren.isEmpty() == false) {
+            String twin = parents.values().iterator().next().name();
+            throw error(
+                nested,
+                "NESTED_ANY cannot read [" + twin + "], a runtime field in some indices, together with [" + onlyChildren.getFirst() + "]"
+            );
+        }
+        Expression onParent = body.transformUp(Attribute.class, attribute -> {
+            FieldAttribute parent = parents.get(attribute.id());
+            return parent == null ? attribute : parent;
+        });
+        return new Or(nested.source(), onParent, predicate);
+    }
+
+    /** The parent column of {@code name}, present when an index defines that nested name as a runtime field. */
+    private static FieldAttribute runtimeParent(List<Attribute> output, String name) {
+        for (Attribute attribute : output) {
+            if (attribute instanceof FieldAttribute field
+                && field.synthetic() == false
+                && field.field() instanceof NestedScopeField == false
+                && field.name().equals(name)) {
+                return field;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether a column the query defined has this name. The runtime-field owner of a nested name is a parent column beside the
+     * child, not a replacement of it.
+     */
+    private static boolean queryColumnReplaces(List<Attribute> output, String name) {
+        for (Attribute column : output) {
+            if (column.synthetic() || column.name().equals(name) == false) {
+                continue;
+            }
+            if (column instanceof FieldAttribute field && field.field() instanceof NestedScopeField == false) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     /** The private nested schema in the plan's output, by name, and the paths of the nested objects it describes. */
@@ -239,7 +334,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             if (candidate instanceof FieldAttribute field
                 && field.name().equals(scopedName)
                 && field.field() instanceof NestedScopeField scope) {
-                if (assigned.contains(attribute.name()) || replacedByColumn(output, attribute.name())) {
+                if (assigned.contains(attribute.name()) || queryColumnReplaces(output, attribute.name())) {
                     throw error(attribute, "NESTED_ANY cannot use [" + attribute.name() + "]: a column of that name replaces it here");
                 }
                 if (scope.leaf() instanceof UnsupportedEsField unsupported) {

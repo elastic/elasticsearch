@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The nested fields of a mapping are read into their private schema only for a query that asked field caps for them. Without that
@@ -145,6 +146,70 @@ public class IndexResolverNestedScopeTests extends ESTestCase {
         assertThat(nested.withWidenedSmallNumeric(), instanceOf(NestedScopeField.class));
         assertThat(nested.withWidenedSmallNumeric().getDataType(), equalTo(DataType.INTEGER));
         assertThat(((NestedScopeField) nested.withWidenedSmallNumeric()).leaf().getDataType(), equalTo(DataType.INTEGER));
+    }
+
+    public void testRuntimeFieldNamedUnderANestedFieldIsAnOrdinaryColumnAndNoChild() {
+        Map<String, EsField> mapping = resolve(true, runtimeIndex("rt"));
+        assertThat(ordinary(mapping, "items", "calc").getDataType(), equalTo(DataType.LONG));
+        assertThat(mapping.get(NestedScopeField.NAMESPACE).getProperties().get("items").getProperties(), aMapWithSize(1));
+        assertThat(nestedLeaf(mapping, "items", "sku").getDataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testNestedChildNamedLikeARuntimeFieldOfAnotherIndexIsAChildAndTheRuntimeFieldTheOrdinaryColumn() {
+        Map<String, EsField> mapping = resolve(true, runtimeIndex("rt"), childIndex("mp"));
+        assertThat(ordinary(mapping, "items", "calc").getDataType(), equalTo(DataType.LONG));
+        assertThat(ordinary(mapping, "items", "calc"), not(instanceOf(TypeConflictedField.class)));
+        assertThat(((NestedScopeField) nestedLeaf(mapping, "items", "calc")).conflict(), nullValue());
+    }
+
+    public void testTheOrdinaryColumnTakesItsTypeFromTheRuntimeIndicesOnly() {
+        Map<String, EsField> mapping = resolve(
+            true,
+            index("rt", field("items", "nested"), field("items.sku", "keyword"), runtimeField("items.calc", "long")),
+            index("mp", field("items", "nested"), field("items.sku", "keyword"), field("items.calc", "keyword"))
+        );
+        assertThat(ordinary(mapping, "items", "calc").getDataType(), equalTo(DataType.LONG));
+        assertThat(nestedLeaf(mapping, "items", "calc").getDataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testTheOwnerOfANameCanDifferInEveryIndex() {
+        Map<String, EsField> mapping = resolve(true, runtimeIndex("a"), childIndex("b"), runtimeIndex("c"));
+        assertThat(ordinary(mapping, "items", "calc").getDataType(), equalTo(DataType.LONG));
+        assertThat(((NestedScopeField) nestedLeaf(mapping, "items", "calc")).conflict(), nullValue());
+    }
+
+    public void testRuntimeFieldFieldCapsKeptWithoutNestedScopeIsAnOrdinaryColumn() {
+        Map<String, EsField> mapping = resolve(false, index("rt", field("id", "keyword"), runtimeField("items.calc", "long")));
+        assertThat(ordinary(mapping, "items", "calc").getDataType(), equalTo(DataType.LONG));
+        assertThat(mapping, not(hasKey(NestedScopeField.NAMESPACE)));
+    }
+
+    public void testFieldFromANodeThatDoesNotReportRuntimeFieldsStaysAChild() {
+        Map<String, EsField> mapping = resolve(true, childIndex("old"));
+        assertThat(mapping, not(hasKey("items")));
+        assertThat(nestedLeaf(mapping, "items", "calc").getDataType(), equalTo(DataType.LONG));
+    }
+
+    private static FieldCapabilitiesIndexResponse runtimeIndex(String name) {
+        return index(
+            name,
+            field("id", "keyword"),
+            field("items", "nested"),
+            field("items.sku", "keyword"),
+            runtimeField("items.calc", "long")
+        );
+    }
+
+    private static FieldCapabilitiesIndexResponse childIndex(String name) {
+        return index(name, field("id", "keyword"), field("items", "nested"), field("items.sku", "keyword"), field("items.calc", "long"));
+    }
+
+    private static IndexFieldCapabilities runtimeField(String name, String type) {
+        return new IndexFieldCapabilitiesBuilder(name, type).isRuntimeField(true).build();
+    }
+
+    private static EsField ordinary(Map<String, EsField> mapping, String object, String name) {
+        return mapping.get(object).getProperties().get(name);
     }
 
     private static EsField nestedLeaf(Map<String, EsField> mapping, String collection, String name) {

@@ -142,16 +142,6 @@ public class SearchLookup implements SourceProvider {
         this.scriptFieldMemoryEstimator = searchLookup.scriptFieldMemoryEstimator;
     }
 
-    private SearchLookup(SearchLookup searchLookup, Function<String, Boolean> onlyMappedAsRuntimeField) {
-        this.fieldChain = searchLookup.fieldChain;
-        this.sourceProvider = searchLookup.sourceProvider;
-        this.fieldTypeLookup = searchLookup.fieldTypeLookup;
-        this.onlyMappedAsRuntimeField = onlyMappedAsRuntimeField;
-        this.fieldDataLookup = searchLookup.fieldDataLookup;
-        this.fieldLookupProvider = searchLookup.fieldLookupProvider;
-        this.scriptFieldMemoryEstimator = searchLookup.scriptFieldMemoryEstimator;
-    }
-
     private SearchLookup(SearchLookup searchLookup, SourceProvider sourceProvider) {
         this.fieldChain = searchLookup.fieldChain;
         this.sourceProvider = sourceProvider;
@@ -201,15 +191,6 @@ public class SearchLookup implements SourceProvider {
      */
     public boolean onlyMappedAsRuntimeField(String fieldName) {
         return onlyMappedAsRuntimeField.apply(fieldName);
-    }
-
-    /**
-     * @return a lookup that looks fields up the same way but reports no field as {@link #onlyMappedAsRuntimeField only mapped as a
-     * runtime field}, so a runtime field that is parsed from {@code _source} loads by running its script rather than by reading the
-     * {@code _ignored_source} that synthetic source keeps. Only ES|QL uses this, to read runtime fields under a nested object.
-     */
-    public SearchLookup withoutOnlyMappedAsRuntimeField() {
-        return new SearchLookup(this, fieldName -> false);
     }
 
     public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {

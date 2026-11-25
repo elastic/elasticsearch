@@ -24,6 +24,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefArrayUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -94,10 +95,11 @@ import java.util.function.IntConsumer;
  * batch is resolved through the dictionary and the remainder is read via the materialized
  * binary path.
  *
- * <p>Required non-UUID PLAIN KEYWORD pages bulk-copy payloads into a {@link BytesRefArray}
- * (offsets, then {@code System.arraycopy}) and validate UTF-8 on that prefix-free dest.
- * Optional, UUID, dictionary, and fallback pages still materialize {@link BytesRef}s and
- * copy before the next {@code ensurePage()} reuses the decompress dest.
+ * <p>Non-UUID PLAIN KEYWORD pages (required and optional) copy payloads into a packed dest,
+ * validate UTF-8 there, then append into a {@link BytesRefArray} via
+ * {@link org.elasticsearch.compute.data.BytesRefArrayUtils}. UUID, dictionary, and fallback
+ * pages still materialize {@link BytesRef}s and copy before the next {@code ensurePage()}
+ * reuses the decompress dest.
  */
 final class PageColumnReader implements Releasable {
 
@@ -150,10 +152,6 @@ final class PageColumnReader implements Releasable {
     private boolean useFallbackReader;
 
     private final DecodeBuffers buffers;
-
-    /** Scratch dest for bulk PLAIN KEYWORD payloads (no length prefixes). */
-    private byte[] plainPackedScratch;
-    private int[] plainExclusiveEnds;
 
     private ByteBuffer currentDefLevelBytes;
     private ByteBuffer currentValueBytes;
@@ -1310,9 +1308,6 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readRequiredBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
-        if (isUuid) {
-            return readRequiredBytesBatchViaValues(maxRows, blockFactory, true);
-        }
         BytesRefArray array = null;
         BytesRef constant = null;
         int produced = 0;
@@ -1320,15 +1315,15 @@ final class PageColumnReader implements Releasable {
         try {
             while (remaining > 0 && ensurePage()) {
                 int fromPage = Math.min(remaining, availableInPage());
-                if (canBulkAppendPlain()) {
+                if (isUuid == false && canBulkAppendPlain()) {
                     if (fromPage > 0) {
                         int hint = plainDecoder.plainPayloadCapacityHint(fromPage);
-                        byte[] packed = ensurePlainPackedScratch(hint);
-                        int[] ends = ensurePlainExclusiveEnds(fromPage);
+                        byte[] packed = UninitializedArrays.newByteArray(Math.max(hint, 1));
+                        int[] ends = new int[fromPage];
                         int packedLen = plainDecoder.copyPlainPayloads(packed, 0, ends, fromPage);
                         if (Utf8Sanitizer.isPackedWellFormed(packed, 0, packedLen, ends, fromPage)) {
                             if (array != null) {
-                                array.appendPacked(packed, 0, packedLen, ends, fromPage);
+                                BytesRefArrayUtils.appendPacked(array, packed, 0, packedLen, ends, fromPage);
                             } else if (constant == null) {
                                 if (packedAllEqual(packed, ends, fromPage)) {
                                     constant = BytesRef.deepCopyOf(new BytesRef(packed, 0, ends[0]));
@@ -1338,12 +1333,12 @@ final class PageColumnReader implements Releasable {
                                         blockFactory.bigArrays(),
                                         extrapolateByteHint(packedLen, fromPage, maxRows)
                                     );
-                                    array.appendPacked(packed, 0, packedLen, ends, fromPage);
+                                    BytesRefArrayUtils.appendPacked(array, packed, 0, packedLen, ends, fromPage);
                                 }
                             } else if (packedEqualsConstant(packed, ends, fromPage, constant) == false) {
                                 array = new BytesRefArray(maxRows, blockFactory.bigArrays(), (long) produced * constant.length + packedLen);
                                 appendConstantCopies(array, constant, produced);
-                                array.appendPacked(packed, 0, packedLen, ends, fromPage);
+                                BytesRefArrayUtils.appendPacked(array, packed, 0, packedLen, ends, fromPage);
                                 constant = null;
                             }
                         } else {
@@ -1363,7 +1358,7 @@ final class PageColumnReader implements Releasable {
                     }
                 } else {
                     BytesRef[] vals = readBinaryValues(fromPage);
-                    materializeBinaries(vals, fromPage, false);
+                    materializeBinaries(vals, fromPage, isUuid);
                     if (array != null) {
                         appendAll(array, vals, fromPage);
                     } else if (fromPage > 0) {
@@ -1406,57 +1401,6 @@ final class PageColumnReader implements Releasable {
         }
     }
 
-    private Block readRequiredBytesBatchViaValues(int maxRows, BlockFactory blockFactory, boolean isUuid) {
-        BytesRefBlock.Builder builder = null;
-        BytesRef constant = null;
-        int produced = 0;
-        int remaining = maxRows;
-        long firstPageBytes = -1L;
-        try {
-            while (remaining > 0 && ensurePage()) {
-                int fromPage = Math.min(remaining, availableInPage());
-                BytesRef[] vals = readBinaryValues(fromPage);
-                materializeBinaries(vals, fromPage, isUuid);
-                if (fromPage > 0 && firstPageBytes < 0) {
-                    firstPageBytes = totalBytes(vals, fromPage);
-                }
-                if (builder != null) {
-                    appendAll(builder, vals, fromPage);
-                } else if (fromPage > 0) {
-                    if (constant == null) {
-                        if (allEqualTo(vals, fromPage, vals[0])) {
-                            constant = BytesRef.deepCopyOf(vals[0]);
-                        } else {
-                            builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
-                            appendAll(builder, vals, fromPage);
-                        }
-                    } else if (allEqualTo(vals, fromPage, constant) == false) {
-                        builder = blockFactory.newBytesRefBlockBuilder(
-                            maxRows,
-                            (long) produced * constant.length + totalBytes(vals, fromPage)
-                        );
-                        appendConstant(builder, constant, produced);
-                        appendAll(builder, vals, fromPage);
-                        constant = null;
-                    }
-                }
-                advancePosition(fromPage);
-                produced += fromPage;
-                remaining -= fromPage;
-            }
-            if (builder != null) {
-                Block result = builder.build();
-                Releasables.closeExpectNoException(builder);
-                builder = null;
-                return result;
-            }
-            return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
-        } catch (Throwable e) {
-            ParquetReadFailures.closePreservingCause(e, builder);
-            throw e;
-        }
-    }
-
     private Block readOptionalBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
         BytesRefBlock.Builder builder = null;
         int produced = 0;
@@ -1467,21 +1411,47 @@ final class PageColumnReader implements Releasable {
                 int fromPage = Math.min(remaining, availableInPage());
                 WordMask pageNulls = buffers.valueSelection(fromPage);
                 int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
-                BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
-                if (vals != null) {
-                    materializeBinaries(vals, nonNull, isUuid);
-                }
-                if (firstPageBytes < 0 && nonNull > 0) {
-                    firstPageBytes = totalBytes(vals, nonNull);
-                }
-                if (builder != null) {
-                    appendNullableBinaries(builder, vals, pageNulls, fromPage);
-                } else if (nonNull > 0) {
-                    builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
-                    for (int i = 0; i < produced; i++) {
-                        builder.appendNull();
+                if (isUuid == false && canBulkAppendPlain()) {
+                    byte[] packed = null;
+                    int[] ends = null;
+                    int packedLen = 0;
+                    boolean wellFormed = true;
+                    if (nonNull > 0) {
+                        int hint = plainDecoder.plainPayloadCapacityHint(nonNull);
+                        packed = UninitializedArrays.newByteArray(Math.max(hint, 1));
+                        ends = new int[nonNull];
+                        packedLen = plainDecoder.copyPlainPayloads(packed, 0, ends, nonNull);
+                        wellFormed = Utf8Sanitizer.isPackedWellFormed(packed, 0, packedLen, ends, nonNull);
+                        if (firstPageBytes < 0) {
+                            firstPageBytes = packedLen;
+                        }
                     }
-                    appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                    if (builder != null) {
+                        appendNullablePacked(builder, packed, packedLen, ends, wellFormed, pageNulls, fromPage, nonNull);
+                    } else if (nonNull > 0) {
+                        builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
+                        for (int i = 0; i < produced; i++) {
+                            builder.appendNull();
+                        }
+                        appendNullablePacked(builder, packed, packedLen, ends, wellFormed, pageNulls, fromPage, nonNull);
+                    }
+                } else {
+                    BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
+                    if (vals != null) {
+                        materializeBinaries(vals, nonNull, isUuid);
+                    }
+                    if (firstPageBytes < 0 && nonNull > 0) {
+                        firstPageBytes = totalBytes(vals, nonNull);
+                    }
+                    if (builder != null) {
+                        appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                    } else if (nonNull > 0) {
+                        builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
+                        for (int i = 0; i < produced; i++) {
+                            builder.appendNull();
+                        }
+                        appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                    }
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
@@ -1523,20 +1493,6 @@ final class PageColumnReader implements Releasable {
         return useFallbackReader == false
             && currentEncoding == Encoding.PLAIN
             && descriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY;
-    }
-
-    private byte[] ensurePlainPackedScratch(int minLen) {
-        if (plainPackedScratch == null || plainPackedScratch.length < minLen) {
-            plainPackedScratch = UninitializedArrays.newByteArray(Math.max(minLen, 64));
-        }
-        return plainPackedScratch;
-    }
-
-    private int[] ensurePlainExclusiveEnds(int count) {
-        if (plainExclusiveEnds == null || plainExclusiveEnds.length < count) {
-            plainExclusiveEnds = new int[count];
-        }
-        return plainExclusiveEnds;
     }
 
     private static boolean packedAllEqual(byte[] packed, int[] exclusiveEnds, int count) {
@@ -1636,10 +1592,39 @@ final class PageColumnReader implements Releasable {
         }
     }
 
-    private static void appendConstant(BytesRefBlock.Builder builder, BytesRef value, int times) {
-        for (int i = 0; i < times; i++) {
-            builder.appendBytesRef(value);
+    private static void appendNullablePacked(
+        BytesRefBlock.Builder builder,
+        byte[] packed,
+        int packedLen,
+        int[] exclusiveEnds,
+        boolean wellFormed,
+        WordMask pageNulls,
+        int fromPage,
+        int nonNull
+    ) {
+        if (nonNull == 0) {
+            for (int i = 0; i < fromPage; i++) {
+                builder.appendNull();
+            }
+            return;
         }
+        BytesRef scratch = new BytesRef();
+        scratch.bytes = packed;
+        int valIdx = 0;
+        int start = 0;
+        for (int i = 0; i < fromPage; i++) {
+            if (pageNulls.get(i)) {
+                builder.appendNull();
+            } else {
+                int end = exclusiveEnds[valIdx];
+                scratch.offset = start;
+                scratch.length = end - start;
+                builder.appendBytesRef(wellFormed ? scratch : Utf8Sanitizer.sanitize(scratch));
+                start = end;
+                valIdx++;
+            }
+        }
+        assert valIdx == nonNull && start == packedLen;
     }
 
     private static void appendNullableBinaries(BytesRefBlock.Builder builder, BytesRef[] vals, WordMask pageNulls, int fromPage) {

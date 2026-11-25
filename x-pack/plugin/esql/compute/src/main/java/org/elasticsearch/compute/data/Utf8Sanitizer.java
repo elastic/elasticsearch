@@ -48,7 +48,7 @@ public final class Utf8Sanitizer {
      * resume at the current offset — including mid-block after a 2-byte/3-byte run.
      */
     private static int skipAsciiBlocks(byte[] bytes, int i, int end) {
-        while (i + ASCII_BLOCK_BYTES <= end) {
+        while (end - i >= ASCII_BLOCK_BYTES) {
             long acc = (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 8)
                 | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 16) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 24)
                 | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 32) | (long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i + 40)
@@ -190,14 +190,14 @@ public final class Utf8Sanitizer {
 
     /**
      * {@code true} when every byte in {@code [off, off+len)} is ASCII (high bit clear). Empty
-     * ranges are ASCII. Used as the fast accept for packed KEYWORD destinations.
+     * ranges are ASCII.
      */
     public static boolean isAllAscii(byte[] bytes, int off, int len) {
         int i = off;
         int end = off + len;
         if (len >= ASCII_BLOCK_BYTES) {
             i = skipAsciiBlocks(bytes, i, end);
-            if (i + ASCII_BLOCK_BYTES <= end) {
+            if (end - i >= ASCII_BLOCK_BYTES) {
                 return false;
             }
         }
@@ -214,17 +214,14 @@ public final class Utf8Sanitizer {
 
     /**
      * Destination-only UTF-8 accept for packed KEYWORD payloads (no length prefixes).
-     * All-ASCII dest is accepted. Otherwise the concatenation must be well-formed UTF-8
-     * and no value may start with a continuation byte ({@code 0x80..0xBF}). Together these
-     * prove every value is well-formed: concatenation of well-formed UTF-8 is well-formed,
-     * and a continuation at a value start is the only way two ill-formed values concatenate
-     * to a well-formed sequence.
+     * The concatenation must be well-formed UTF-8 and no value may start with a continuation
+     * byte ({@code 0x80..0xBF}). Together these prove every value is well-formed:
+     * concatenation of well-formed UTF-8 is well-formed, and a continuation at a value start
+     * is the only way two ill-formed values concatenate to a well-formed sequence.
+     * {@link #isWellFormed} already skips ASCII, so a separate all-ASCII pre-pass is not used.
      */
     public static boolean isPackedWellFormed(byte[] packed, int off, int len, int[] exclusiveEnds, int count) {
         if (len == 0) {
-            return true;
-        }
-        if (isAllAscii(packed, off, len)) {
             return true;
         }
         if (isWellFormed(packed, off, len) == false) {

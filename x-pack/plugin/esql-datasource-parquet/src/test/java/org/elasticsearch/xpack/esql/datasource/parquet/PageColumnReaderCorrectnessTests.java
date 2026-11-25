@@ -41,7 +41,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -929,8 +928,10 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     public void testMixedDictionaryThenPlainSanitizesBadDictEntry() throws IOException {
         byte[] bad = { (byte) 0xFF };
         byte[] ok = "ok".getBytes(StandardCharsets.UTF_8);
+        // Batch 256 with 200 dictionary rows forces one readBatch to span the dict→PLAIN
+        // fallback with a malformed dictionary value in the prefix.
         int dictRows = 200;
-        int plainRows = 800;
+        int plainRows = 100;
         int total = dictRows + plainRows;
         byte[] data = writeMixedDictionaryThenPlainKeywordFile(row -> {
             if (row < dictRows) {
@@ -938,19 +939,19 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             }
             return ("u" + row).getBytes(StandardCharsets.UTF_8);
         }, total, 128);
-        boolean sawOrdinal = false;
         boolean sawPlain = false;
+        boolean sawFallbackBatch = false;
         int row = 0;
-        List<Page> pages = readAll(new ParquetFormatReader(blockFactory), data, List.of("s"), 64);
+        List<Page> pages = readAll(new ParquetFormatReader(blockFactory), data, List.of("s"), 256);
         try {
             BytesRef scratch = new BytesRef();
             for (Page page : pages) {
                 BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
-                OrdinalBytesRefBlock ordinal = block.asOrdinals();
-                if (ordinal != null) {
-                    sawOrdinal = true;
-                } else {
+                if (block.asOrdinals() == null) {
                     sawPlain = true;
+                    if (row < dictRows && row + page.getPositionCount() > dictRows) {
+                        sawFallbackBatch = true;
+                    }
                 }
                 for (int p = 0; p < page.getPositionCount(); p++) {
                     BytesRef expected = row < dictRows ? ((row % 2 == 0) ? new BytesRef(ok) : FFFD) : new BytesRef("u" + row);
@@ -970,7 +971,8 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             fileHasPlain = encodings.contains(Encoding.PLAIN);
         }
         if (fileHasDict && fileHasPlain) {
-            assertTrue("mixed dict+PLAIN file must emit ordinals then a PLAIN fallback", sawOrdinal && sawPlain);
+            assertTrue("mixed dict+PLAIN file must emit a batch that spans dict-to-PLAIN fallback", sawFallbackBatch);
+            assertTrue("mixed dict+PLAIN file must emit a PLAIN remainder", sawPlain);
         }
         assertOptimizedMatchesBaseline(data, List.of("s"));
     }

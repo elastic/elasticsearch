@@ -193,42 +193,6 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     /**
-     * Appends {@code count} packed payloads from a contiguous buffer in one pass: records each
-     * value's offset, then copies the payload bytes with {@link System#arraycopy} (via the paged
-     * byte store). {@code exclusiveEnds[i]} is the exclusive offset of value {@code i} relative
-     * to {@code packedOff}. Callers that need to validate UTF-8 must do so on this prefix-free
-     * destination (or an equivalent packed scratch), not on a length-prefixed PLAIN page.
-     */
-    public void appendPacked(byte[] packed, int packedOff, int packedLen, int[] exclusiveEnds, int count) {
-        if (count == 0) {
-            return;
-        }
-        assert exclusiveEnds[count - 1] == packedLen : exclusiveEnds[count - 1] + " != " + packedLen;
-        final long startSize = size;
-        try {
-            int prev = 0;
-            for (int i = 0; i < count; i++) {
-                int length = exclusiveEnds[i] - prev;
-                final long newOffset = lastOffset + length;
-                appendOffset(newOffset, length);
-                lastOffset = newOffset;
-                ++size;
-                prev = exclusiveEnds[i];
-            }
-            if (packedLen > 0) {
-                bytes.append(packed, packedOff, packedLen);
-            }
-        } catch (CircuitBreakingException e) {
-            if (size != startSize) {
-                truncateTo(startSize);
-            } else {
-                bytes.truncateTo(lastOffset);
-            }
-            throw e;
-        }
-    }
-
-    /**
      * Appends two {@link BytesRef} values as one entry, allowing callers to avoid an intermediate copy.
      */
     public void append(BytesRef v1, BytesRef v2) {

@@ -300,11 +300,22 @@ public class Utf8SanitizerTests extends ESTestCase {
     }
 
     public void testSpecialLeadsMatchOraclesExhaustively() {
-        // E0/ED (overlong/surrogate) and 4-byte leads are the sequenceLength-only paths.
+        // E0/ED (overlong/surrogate) need a three-byte slice so a valid second byte is not
+        // masked by a trailing dummy continuation. 4-byte leads stay a four-byte slice.
         byte[] buf = new byte[6];
         buf[0] = (byte) 0xFF;
         buf[5] = (byte) 0xFF;
-        for (int lead : new int[] { 0xE0, 0xED, 0xF0, 0xF4, 0xF5 }) {
+        for (int lead : new int[] { 0xE0, 0xED }) {
+            buf[1] = (byte) lead;
+            for (int b1 = 0; b1 < 256; b1++) {
+                buf[2] = (byte) b1;
+                for (int b2 = 0; b2 < 256; b2++) {
+                    buf[3] = (byte) b2;
+                    assertIsWellFormedMatchesOracles(buf, 1, 3);
+                }
+            }
+        }
+        for (int lead : new int[] { 0xF0, 0xF4, 0xF5 }) {
             buf[1] = (byte) lead;
             for (int b1 = 0; b1 < 256; b1++) {
                 buf[2] = (byte) b1;

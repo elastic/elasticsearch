@@ -222,39 +222,6 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
-    public void testAppendPackedMatchesPerValueAppend() {
-        int count = randomIntBetween(1, 64);
-        byte[][] payloads = new byte[count][];
-        int packedLen = 0;
-        int[] exclusiveEnds = new int[count];
-        for (int i = 0; i < count; i++) {
-            payloads[i] = randomByteArrayOfLength(between(0, 40));
-            packedLen += payloads[i].length;
-            exclusiveEnds[i] = packedLen;
-        }
-        byte[] packed = new byte[Math.max(packedLen, 1)];
-        int pos = 0;
-        for (byte[] p : payloads) {
-            System.arraycopy(p, 0, packed, pos, p.length);
-            pos += p.length;
-        }
-        try (
-            BytesRefArray bulk = new BytesRefArray(count, mockBigArrays());
-            BytesRefArray perValue = new BytesRefArray(count, mockBigArrays())
-        ) {
-            bulk.appendPacked(packed, 0, packedLen, exclusiveEnds, count);
-            for (byte[] p : payloads) {
-                perValue.append(new BytesRef(p));
-            }
-            assertThat(bulk.size(), equalTo((long) count));
-            BytesRef a = new BytesRef();
-            BytesRef b = new BytesRef();
-            for (int i = 0; i < count; i++) {
-                assertThat(bulk.get(i, a), equalTo(perValue.get(i, b)));
-            }
-        }
-    }
-
     public void testAppendBytesReferenceChunksAndSlices() {
         try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
             List<BytesRef> expected = new ArrayList<>();

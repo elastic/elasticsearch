@@ -444,6 +444,12 @@ public abstract class PaginatedHitSource {
         String getRouting();
 
         /**
+         * Whether {@link #getRouting()} is the slice of the hit, as opposed to a plain routing value. A document of a slice-enabled
+         * index always has a slice, and its write-back must keep it as one.
+         */
+        boolean isRoutingFromSlice();
+
+        /**
          * Release any ref-counted resources held by this hit. Call when the hit is no longer needed.
          * Default is no-op; implementations that wrap ref-counted resources (e.g. {@link SearchHit}) override to release.
          */
@@ -469,6 +475,7 @@ public abstract class PaginatedHitSource {
         private BytesReference source;
         private XContentType xContentType;
         private String routing;
+        private boolean routingFromSlice;
         private long seqNo;
         private long primaryTerm;
         private Object[] sortValues;
@@ -533,6 +540,16 @@ public abstract class PaginatedHitSource {
 
         public BasicHit setRouting(String routing) {
             this.routing = routing;
+            return this;
+        }
+
+        @Override
+        public boolean isRoutingFromSlice() {
+            return routingFromSlice;
+        }
+
+        public BasicHit setRoutingFromSlice(boolean routingFromSlice) {
+            this.routingFromSlice = routingFromSlice;
             return this;
         }
 

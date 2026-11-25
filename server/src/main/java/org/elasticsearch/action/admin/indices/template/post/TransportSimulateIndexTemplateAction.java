@@ -264,12 +264,6 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
 
         ComposableIndexTemplate template = simulatedProject.templatesV2().get(matchingTemplate);
         Settings templateSettings = collectSettings(simulatedProject, dataStream, matchingTemplate, template);
-        // create the index with dummy settings in the cluster state so we can parse and validate the aliases
-        Settings.Builder dummySettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         List<CompressedXContent> mappings = collectMappings(simulatedProject, dataStream, template, indexName, xContentRegistry);
 
@@ -293,7 +287,6 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             );
             Settings result = builder.build();
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
-            dummySettings.put(result);
             additionalSettings.put(result);
             if (provider.overrulesTemplateAndRequestSettings()) {
                 overrulingSettings.addAll(result.keySet());
@@ -310,11 +303,12 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         }
 
         // Apply settings resolved from templates.
-        dummySettings.put(templateSettings);
+        Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
 
+        // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .eventIngestedRange(getEventIngestedRange(indexName, simulatedProject))
-            .settings(dummySettings)
+            .settings(MetadataIndexTemplateService.temporaryIndexSettings(settings))
             .build();
 
         ProjectMetadata tempProjectMetadata = ProjectMetadata.builder(simulatedProject).put(indexMetadata, true).build();
@@ -350,7 +344,6 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             }
         );
 
-        Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
         DataStreamLifecycle.Builder lifecycleBuilder = resolveLifecycle(simulatedProject, matchingTemplate);
         DataStreamLifecycle.Template lifecycle = lifecycleBuilder == null ? null : lifecycleBuilder.buildTemplate();
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {

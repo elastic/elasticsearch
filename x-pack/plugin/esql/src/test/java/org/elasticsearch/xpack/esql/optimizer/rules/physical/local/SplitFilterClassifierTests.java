@@ -292,9 +292,11 @@ public class SplitFilterClassifierTests extends ESTestCase {
 
     /**
      * A withheld text extremum leaves the column with one end, which
-     * {@code esql.external.cache.stats.max_extremum_size} makes routine. Every predicate that reads the
-     * extrema must stay AMBIGUOUS, and each literal below is chosen so that a classifier reading only the
-     * end it has would answer MATCH or MISS instead -- a MISS would drop a split that can match.
+     * {@code esql.external.cache.stats.max_extremum_size} makes routine. The classifier stays AMBIGUOUS on
+     * every predicate that reads the extrema, and that is a deliberate conservatism rather than a safety
+     * requirement: for each literal below the one end present would in fact decide soundly. What the cases
+     * pin is the behaviour the docs promise -- a withheld end costs the short-circuit -- so an optimisation
+     * that started deciding from a single end would have to change this test and say why.
      */
     public void testAOneSidedTextExtremumStaysAmbiguous() {
         ReferenceAttribute note = referenceAttribute("note", DataType.KEYWORD);

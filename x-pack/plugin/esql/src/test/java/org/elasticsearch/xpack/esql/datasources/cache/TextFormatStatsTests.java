@@ -120,10 +120,6 @@ public class TextFormatStatsTests extends ESTestCase {
         assertEquals("an encoded address is under the default", address, SourceStatisticsSerializer.extractColumnMax(published, "ip"));
     }
 
-    /**
-     * The width is {@code esql.external.cache.stats.max_extremum_size}, not a constant. The same value is
-     * published at the default and withheld under a narrower setting, so the setting is what decides.
-     */
     /** The cap reads the stored width, so a setting under 16 withholds an encoded address like any other value. */
     public void testAWidthBelowSixteenWithholdsAnEncodedAddress() {
         BytesRef address = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.1")));
@@ -135,6 +131,10 @@ public class TextFormatStatsTests extends ESTestCase {
         assertEquals("and its counts survive", (Long) 1L, SourceStatisticsSerializer.extractColumnValueCount(published, "ip"));
     }
 
+    /**
+     * The width is {@code esql.external.cache.stats.max_extremum_size}, not a constant. The same value is
+     * published at the default and withheld under a narrower setting, so the setting is what decides.
+     */
     public void testANarrowerWidthWithholdsWhatTheDefaultPublishes() {
         BytesRef value = keyword(64);
 

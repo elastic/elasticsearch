@@ -27,6 +27,7 @@ import java.util.zip.GZIPOutputStream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * That {@code esql.external.cache.stats.max_extremum_size} reaches the read that applies it: five-byte values
@@ -103,28 +104,37 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
     }
 
     /**
-     * The same over uncompressed files with parallelism pinned, which segments through
-     * {@code ParallelParsingCoordinator}. Without the pragma this path is taken only when the runner has
-     * more than one processor, so the width it forwards would go uncovered on a one-processor runner.
+     * The same over a file big enough to segment, which routes the harvest through
+     * {@code ParallelParsingCoordinator}'s per-segment read. Two things make this test discriminate, and both
+     * are easy to get wrong: a file under {@code minimumSegmentSize() * 2} takes the single-segment fallback
+     * and tests nothing the plain case does not, and with more than one file a segmented file that wrongly
+     * published would still be poisoned out by its neighbours' withheld ends, so the scan would prove nothing.
+     * One file over the threshold leaves the published-or-withheld state of that one read visible.
      */
-    public void testTheSettingReachesTheParallelSegmentedRead() throws Exception {
+    public void testTheSettingReachesTheSegmentedReadOfALargeFile() throws Exception {
         assumeTrue("the segmented read is reached by pinning external_parsing_parallelism, a snapshot-only pragma", canUseQueryPragmas());
         Path dir = createTempDir();
-        for (int i = 0; i < FILE_COUNT; i++) {
-            Files.writeString(dir.resolve("part" + i + ".csv"), "id,tag\n" + i + ",tag-" + i + "\n");
+        // Over 2 MiB so computeSegments runs rather than the fileLength < minSegment * 2 fallback. The padding
+        // rides in a column the queries never project, so `tag` stays five bytes against the four-byte setting.
+        StringBuilder csv = new StringBuilder("id,tag,pad\n");
+        String pad = "p".repeat(512);
+        for (int row = 0; csv.length() < 3 * 1024 * 1024; row++) {
+            csv.append(row).append(",tag-").append(row % 10).append(',').append(pad).append('\n');
         }
+        Files.writeString(dir.resolve("big.csv"), csv.toString());
         String dataset = registerLocalFileDataset("narrow_width_segmented", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
 
-        String expectedTagMin = "tag-0";
-        String expectedTagMax = "tag-" + (FILE_COUNT - 1);
-
+        long rowCount;
         try (
             var response = run(
                 syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(id), MAX(id)").pragmas(PARALLEL_PARSE),
                 TimeValue.timeValueMinutes(5)
             )
         ) {
-            assertThat("the harvesting read scans", response.documentsFound(), equalTo((long) FILE_COUNT));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat("the harvesting read scans", response.documentsFound(), greaterThan(0L));
+            rowCount = response.documentsFound();
         }
 
         // The control, for the reason it is the control in the test above.
@@ -145,12 +155,12 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
         ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.size(), equalTo(1));
-            assertThat("the answer is still correct, by scanning", rows.get(0).get(0), equalTo(expectedTagMin));
-            assertThat("the answer is still correct, by scanning", rows.get(0).get(1), equalTo(expectedTagMax));
+            assertThat("the answer is still correct, by scanning", rows.get(0).get(0), equalTo("tag-0"));
+            assertThat("the answer is still correct, by scanning", rows.get(0).get(1), equalTo("tag-9"));
             assertThat(
-                "the segmented read withholds it too, so this scans where the default serves",
+                "the per-segment read withholds it too, so this scans where a published extremum would serve",
                 response.documentsFound(),
-                equalTo((long) FILE_COUNT)
+                equalTo(rowCount)
             );
         }
     }

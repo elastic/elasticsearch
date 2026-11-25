@@ -134,6 +134,56 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed), equalTo(Long.MAX_VALUE));
     }
 
+    public void testResolvePreviewEndTimeRawEsqlDatafeedShouldNotAlignEnd() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        long unalignedEnd = Duration.ofHours(9).plusMinutes(29).plusSeconds(53).toMillis();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, unalignedEnd);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(unalignedEnd));
+    }
+
+    public void testResolvePreviewEndTimeRawEsqlDatafeedBeyondDateNanosMaxShouldCapAtNanosMax() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, nanosMax + 1_000L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(nanosMax));
+    }
+
+    public void testRawEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nanosMax + 2_000L, nanosMax + 5_000L);
+
+        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed);
+
+        assertThat(end, equalTo(nanosMax));
+        assertTrue(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, nanosMax + 2_000L, end));
+    }
+
+    public void testAggregatingEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nanosMax + 2_000L, nanosMax + 5_000L);
+
+        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed);
+
+        assertTrue(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, nanosMax + 2_000L, end));
+    }
+
+    public void testEsqlPreviewWithStartBelowEndShouldNotBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 1_000L, 1_000L));
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 0L, 5_000L));
+    }
+
+    public void testClassicPreviewWithStartAboveEndShouldNotBeEmptyWindow() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
+
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 9_000L, 5_000L));
+    }
+
     public void testResolvePreviewEndTimeClassicDatafeedShouldNotAlignEnd() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 5_123L);
@@ -158,9 +208,9 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     }
 
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
-        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1));
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery(
+            "FROM logs | STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1 hour)"
+        ).setSourceTimeField("@timestamp").setGroupingInterval(TimeValue.timeValueHours(1));
     }
 
     private static ClusterState currentCompatibleClusterState() {

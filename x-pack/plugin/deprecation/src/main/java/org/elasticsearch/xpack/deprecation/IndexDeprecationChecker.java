@@ -12,8 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.core.Strings;
@@ -21,7 +19,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -322,36 +319,15 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             return null;
         }
 
-        List<String> violations = new ArrayList<>();
-        Map<String, Settings> filters = indexMetadata.getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
-        for (Map.Entry<String, Settings> filter : filters.entrySet()) {
-            Settings filterSettings = filter.getValue();
-            if ("min_hash".equals(filterSettings.get("type")) == false) {
-                continue;
-            }
-
-            String violation;
-            try {
-                violation = MinHashIndexParamBounds.violation(filterSettings);
-            } catch (SettingsException e) {
-                // The filter's settings cannot be parsed. We should never hit this scenario, as such a filter cannot be added in the first
-                // place. If we somehow do, the index will fail to open downstream.
-                continue;
-            }
-
-            if (violation != null) {
-                violations.add("[" + filter.getKey() + "]: " + violation);
-            }
-        }
-
+        List<String> violations = MinHashParamBoundsDetection.getViolations(indexMetadata.getSettings());
         if (violations.isEmpty()) {
             return null;
         }
 
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "min_hash token filter parameters exceed the limits for new indices",
-            "https://www.elastic.co/docs/reference/text-analysis/analysis-minhash-tokenfilter",
+            MinHashParamBoundsDetection.DEPRECATION_MESSAGE,
+            MinHashParamBoundsDetection.DEPRECATION_HELP_URL,
             "The following [min_hash] filters on index ["
                 + indexMetadata.getIndex().getName()
                 + "] can't be used on new indices: "

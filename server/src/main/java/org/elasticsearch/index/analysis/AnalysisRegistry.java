@@ -66,6 +66,7 @@ public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_ANALYZER = "index.analysis.analyzer";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
+
     /**
      * Prefix of the name given to analysis components that are defined inline in a request (for example in an
      * {@code _analyze} request) rather than in index settings. Index settings don't reserve this prefix, so factories

@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -33,11 +34,13 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "templates";
     private final List<Function<ComposableIndexTemplate, DeprecationIssue>> indexTemplateChecks = List.of(
-        this::checkLegacyTiersInIndexTemplate
+        this::checkLegacyTiersInIndexTemplate,
+        this::checkMinHashParamBoundsInIndexTemplate
     );
     private final List<Function<ComponentTemplate, DeprecationIssue>> componentTemplateChecks = List.of(
         this::checkSourceModeInComponentTemplates,
-        this::checkLegacyTiersInComponentTemplates
+        this::checkLegacyTiersInComponentTemplates,
+        this::checkMinHashParamBoundsInComponentTemplate
     );
 
     /**
@@ -149,6 +152,38 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
                 + DEPRECATION_COMMON_DETAIL,
             false,
             DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
+        );
+    }
+
+    private DeprecationIssue checkMinHashParamBoundsInIndexTemplate(ComposableIndexTemplate composableIndexTemplate) {
+        Template template = composableIndexTemplate.template();
+        return template == null ? null : minHashParamBoundsIssue(template.settings(), "index template");
+    }
+
+    private DeprecationIssue checkMinHashParamBoundsInComponentTemplate(ComponentTemplate componentTemplate) {
+        return minHashParamBoundsIssue(componentTemplate.template().settings(), "component template");
+    }
+
+    private DeprecationIssue minHashParamBoundsIssue(Settings settings, String templateKind) {
+        List<String> violations = MinHashParamBoundsDetection.getViolations(settings);
+        if (violations.isEmpty()) {
+            return null;
+        }
+
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            MinHashParamBoundsDetection.DEPRECATION_MESSAGE,
+            MinHashParamBoundsDetection.DEPRECATION_HELP_URL,
+            "The following [min_hash] filters in this "
+                + templateKind
+                + " can't be used on new indices: "
+                + String.join(" ", violations)
+                + " Creating an index from this "
+                + templateKind
+                + " fails. Lower hash_count, bucket_count, or hash_set_size in the template; "
+                + "note that this changes the hashes the filter produces.",
+            false,
+            null
         );
     }
 

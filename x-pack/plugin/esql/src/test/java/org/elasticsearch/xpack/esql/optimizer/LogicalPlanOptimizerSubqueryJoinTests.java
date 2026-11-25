@@ -104,6 +104,33 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
     }
 
     /**
+     * The aggregation of an {@code INLINE STATS} after the join runs on the coordinator too, although it reads its input through a
+     * stub rather than from the join.
+     */
+    public void testIndexSearchInInlineStatsAggregateFilterAfterJoinIsRejected() {
+        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
+            | INLINE STATS anna = COUNT(*) WHERE MATCH(first_name, "Anna")
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("line 4:38: [MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+        );
+    }
+
+    /**
+     * {@code SCORE} evaluates its search where it stands, so after the join it would search on the coordinator.
+     */
+    public void testIndexSearchInScoreAfterJoinIsRejected() {
+        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
+            | EVAL s = SCORE(MATCH(first_name, "Anna"))
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("line 4:18: [MATCH] function cannot be used after a JOIN on a subquery when it targets an indexed field")
+        );
+    }
+
+    /**
      * The optimizer replaces the join with a hash join, which is the only join on a subquery the mapper can plan.
      */
     public void testMapperRejectsJoinThatWasNotReplaced() {

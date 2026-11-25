@@ -393,18 +393,13 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Whether a command only runs on the coordinator, like {@code CHANGE_POINT}, an {@code ENRICH} in coordinator mode or a
-     * {@code JOIN} on a subquery, taking what follows it there too. {@code INLINE STATS} is not such a command, the rows it adds
-     * its results to stay on the shards. Its aggregation is left to {@link #readsLuceneDocuments}, that tells it from the one of
-     * a {@code STATS}.
+     * Whether a command only runs on the coordinator, like {@code CHANGE_POINT} or an {@code ENRICH} in coordinator mode, taking
+     * what follows it there too. {@code INLINE STATS} is not such a command, the rows it adds its results to stay on the shards.
+     * Its aggregation is left to {@link #readsLuceneDocuments}, that tells it from the one of a {@code STATS}.
      */
     private static boolean executesOnCoordinator(LogicalPlan lp) {
         if (lp instanceof Aggregate || lp instanceof InlineStats || lp instanceof InlineJoin) {
             return false;
-        }
-        if (lp instanceof SubqueryJoin) {
-            // Once optimized, the join is replaced with a hash join that runs on the coordinator.
-            return true;
         }
         return lp instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR;
     }
@@ -556,9 +551,6 @@ public abstract class FullTextFunction extends Function
                         // TopN is the optimized SORT + LIMIT. Its source is the SORT command, so the first
                         // token would be "SORT", which is misleading: SORT alone is allowed before full-text.
                         errorMessage = "SORT and LIMIT";
-                    } else if (lp instanceof SubqueryJoin) {
-                        // The first token is the join type, such as "LEFT".
-                        errorMessage = "a JOIN on a subquery";
                     } else if (inheritedSourceTexts.contains(sourceText)) {
                         // UnionAll and analyzer-generated nodes around it can inherit the complete multi-source FROM clause. Report that
                         // clause instead of its misleading first token.
@@ -1029,19 +1021,6 @@ public abstract class FullTextFunction extends Function
                                 + "fields after LOOKUP JOIN _coordinator:",
                             functionName(),
                             functionType()
-                        )
-                    );
-                }
-                // A JOIN on a subquery runs on the coordinator too, once the optimizer has replaced it with a hash join. The filter
-                // can stay above it because it reads the subquery's columns, or because a command between them keeps it there.
-                if (isRuntimeSearch() == false && IndependentSubqueryJoin.anyMatchInMainScope(f, SubqueryJoin.class::isInstance)) {
-                    failures.add(
-                        fail(
-                            this,
-                            "[{}] {} cannot be used after a JOIN on a subquery{}",
-                            functionName(),
-                            functionType(),
-                            supportsRuntimeSearch() ? " when it targets an indexed field" : ""
                         )
                     );
                 }

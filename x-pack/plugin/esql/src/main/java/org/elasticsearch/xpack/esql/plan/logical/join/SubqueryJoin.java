@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -15,14 +16,17 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -39,7 +43,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  * The subquery's columns are {@link Join#makeReference references} in the join's output: they come from the subquery's result,
  * not from an index the main query reads, so rules that look fields up in the main query's indices must not see them as fields.
  */
-public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
+public class SubqueryJoin extends Join implements IndependentSubqueryJoin, PostOptimizationPlanVerificationAware {
 
     public SubqueryJoin(Source source, LogicalPlan left, LogicalPlan subquery, JoinConfig config) {
         super(source, left, subquery, config, ExecuteLocation.ANY);
@@ -159,6 +163,45 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
                 );
             }
         }
+    }
+
+    /**
+     * Rejects an index search that stays above the join after optimization. The join runs on the coordinator, and so does
+     * everything above it, where there are no documents to search. A search on a left field in a {@code WHERE} is pushed below
+     * the join, but one that also reads the subquery's columns, or sits in the filter of an aggregate function or in a
+     * {@code SCORE}, stays above it. A search on a column the join produces scans the values in the page and runs anywhere.
+     */
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        return SubqueryJoin::checkIndexSearchesAbove;
+    }
+
+    private static void checkIndexSearchesAbove(LogicalPlan plan, Failures failures) {
+        if (plan instanceof InlineJoin inlineJoin) {
+            // The aggregation of an INLINE STATS reads its input through a stub, so the join is looked for on the left side.
+            if (IndependentSubqueryJoin.anyMatchInMainScope(inlineJoin.left(), SubqueryJoin.class::isInstance)) {
+                inlineJoin.right().forEachDown(node -> rejectIndexSearches(node, failures));
+            }
+        } else if (plan instanceof UnaryPlan unary
+            && IndependentSubqueryJoin.anyMatchInMainScope(unary.child(), SubqueryJoin.class::isInstance)) {
+                rejectIndexSearches(unary, failures);
+            }
+    }
+
+    private static void rejectIndexSearches(LogicalPlan plan, Failures failures) {
+        plan.forEachExpression(FullTextFunction.class, search -> {
+            if (search.isRuntimeSearch() == false) {
+                failures.add(
+                    fail(
+                        search,
+                        "[{}] {} cannot be used after a JOIN on a subquery{}",
+                        search.functionName(),
+                        search.functionType(),
+                        search.supportsRuntimeSearch() ? " when it targets an indexed field" : ""
+                    )
+                );
+            }
+        });
     }
 
     /**

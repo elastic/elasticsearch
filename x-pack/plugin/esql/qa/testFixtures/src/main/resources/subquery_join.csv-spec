@@ -499,3 +499,147 @@ emp_no:integer | language_name:keyword
 10002          | null
 10003          | Parto
 ;
+
+leftOuterJoinSubqueryWithInlineStatsInSubquery
+required_capability: join_on_subquery
+required_capability: inline_stats
+// The INLINE STATS inside the subquery runs before the subquery itself.
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup | INLINE STATS c = COUNT(*) BY language_code) ON language_code
+| KEEP emp_no, language_name, c
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword | c:long
+10001          | French                | 1
+10002          | null                  | null
+;
+
+leftOuterJoinSubqueryWithInSubqueryInSubquery
+required_capability: join_on_subquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no <= 10003
+| EVAL language_code = languages
+| LEFT OUTER JOIN (
+    FROM languages_lookup
+    | WHERE language_code IN (FROM employees | WHERE emp_no == 10001 | KEEP languages)
+  ) ON language_code
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+10003          | null
+;
+
+leftOuterJoinSubqueryAfterInSubquery
+required_capability: join_on_subquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE emp_no <= 10002 | KEEP emp_no)
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+;
+
+leftOuterJoinSubqueryThenLookupJoin
+required_capability: join_on_subquery
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| RENAME language_name AS subquery_name
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, subquery_name, language_name
+| SORT emp_no
+;
+
+emp_no:integer | subquery_name:keyword | language_name:keyword
+10001          | French                | French
+10002          | null                  | null
+;
+
+leftOuterJoinSubqueryThenEnrich
+required_capability: join_on_subquery
+required_capability: enrich_load
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| EVAL a = TO_STRING(language_code)
+| ENRICH languages_policy ON a WITH enriched_name = language_name
+| KEEP emp_no, language_name, enriched_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword | enriched_name:keyword
+10001          | French                | French
+10002          | null                  | null
+;
+
+leftOuterJoinSubqueryInForkBranch
+required_capability: join_on_subquery
+required_capability: fork_v9
+
+FROM employees
+| WHERE emp_no <= 10002
+| FORK (EVAL language_code = languages | LEFT OUTER JOIN (FROM languages_lookup) ON language_code | KEEP emp_no, language_name)
+       (EVAL language_name = "none" | KEEP emp_no, language_name)
+| KEEP _fork, emp_no, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword
+fork1         | 10001          | French
+fork1         | 10002          | null
+fork2         | 10001          | none
+fork2         | 10002          | none
+;
+
+leftOuterJoinSubqueriesInUnionBranches
+required_capability: join_on_subquery
+required_capability: subquery_in_from_command
+
+FROM (
+    FROM employees
+    | WHERE emp_no <= 10005
+    | EVAL language_code = languages
+    | LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+    | STATS c = COUNT(*) BY language_name
+  ), (
+    FROM employees
+    | WHERE emp_no <= 10005
+    | EVAL language_code = languages
+    | LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+    | STATS c = COUNT(*) BY language_name
+  )
+| SORT language_name, c
+;
+
+c:long | language_name:keyword
+1      | English
+1      | English
+1      | French
+1      | French
+1      | German
+1      | German
+2      | null
+2      | null
+;

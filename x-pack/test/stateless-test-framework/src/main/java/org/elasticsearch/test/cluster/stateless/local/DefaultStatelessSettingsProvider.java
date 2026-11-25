@@ -123,9 +123,9 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
     /// Randomized heap-based primary recovery limits matching effective limits for production nodes.
     ///
     /// The master limits concurrent primary recoveries per node based on the node's heap, and production nodes have
-    /// between 1GB and 31GB of heap, far more than test nodes. The production defaults are scaled by the ratio between
-    /// the simulated production heap and the actual test node heap, so that a test node gets the same limit as the
-    /// simulated production node.
+    /// far more heap than test nodes. The production per-GB limit is scaled by the ratio between the simulated production
+    /// heap and the actual test node heap, so that a test node gets a similar range of limits as what we would actually
+    /// see in production. The minimum heap for concurrent primary recoveries is disabled.
     private static Map<String, String> heapBasedPrimaryRecoverySettings(Random random) {
         final long testNodeHeapBytes = ByteSizeValue.parseBytesSizeValue(System.getProperty("tests.heap.size", "512m"), "tests.heap.size")
             .getBytes();
@@ -135,7 +135,7 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
 
         return Map.of(
             "cluster.routing.allocation.min_heap_required_for_concurrent_primary_recoveries",
-            (long) (ByteSizeValue.ofMb(2560).getBytes() / heapRatio) + "b",
+            "0b",
             "cluster.routing.allocation.concurrent_primary_recoveries_per_heap_gb",
             String.valueOf(1.5 * heapRatio)
         );

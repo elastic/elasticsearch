@@ -62,8 +62,9 @@ public class ToLongSurrogate extends EsqlScalarFunction
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToLongSurrogate.class)
         .binary(ToLongSurrogate::new)
-        // Reject doubles at the exactly representable 2^63 boundary instead of saturating to Long.MAX_VALUE.
-        .capabilities("fix_double_to_long_overflow")
+        // fix_double_to_long_overflow: reject doubles at the exactly representable 2^63 boundary instead of saturating to Long.MAX_VALUE.
+        // union_types_with_base: a field with keyword and text types can be converted with a base, instead of failing as ambiguous.
+        .capabilities("fix_double_to_long_overflow", "union_types_with_base")
         .name("to_long");
 
     @FunctionInfo(
@@ -240,7 +241,14 @@ public class ToLongSurrogate extends EsqlScalarFunction
 
     @Override
     public Set<DataType> supportedTypes() {
-        return ToLong.EVALUATORS.keySet();
+        // With a base only strings can be converted, see resolveType.
+        return base == null ? ToLong.EVALUATORS.keySet() : Set.of(DataType.KEYWORD, DataType.TEXT);
+    }
+
+    @Override
+    public boolean isNoop() {
+        // A base is not an input of a conversion from long, it's an error, so dropping it silently is wrong.
+        return base == null && ConvertFunction.super.isNoop();
     }
 
 }

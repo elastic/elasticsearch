@@ -387,6 +387,82 @@ load two indices with single conversion function TO_LONG:
   - match: { values.7.4: "Connected to 10.1.0.1" }
 
 ---
+load two indices and convert keyword and text with a base:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fn_to_long_union_types_with_base, fn_to_integer_union_types_with_base]
+      reason: "Conversions with a base of keyword and text union types were not supported"
+  - do:
+      indices.create:
+        index: base_union_keyword
+        body:
+          mappings:
+            properties:
+              hex:
+                type: keyword
+              base:
+                type: integer
+  - do:
+      indices.create:
+        index: base_union_text
+        body:
+          mappings:
+            properties:
+              hex:
+                type: text
+              base:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "base_union_keyword"}}'
+          - '{"hex": "ff", "base": 16}'
+          - '{"index": {"_index": "base_union_text"}}'
+          - '{"hex": "10", "base": 16}'
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM base_union_* METADATA _index | EVAL l = TO_LONG(hex, 16), i = TO_INTEGER(hex, 8 + 8) | KEEP _index, l, i | SORT _index'
+  - match: { columns.1.type: "long" }
+  - match: { columns.2.type: "integer" }
+  - length: { values: 2 }
+  - match: { values.0: ["base_union_keyword", 255, 255] }
+  - match: { values.1: ["base_union_text", 16, 16] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM base_union_* | STATS m = MAX(TO_LONG(hex, 16)), s = SUM(TO_INTEGER(hex, 16))'
+  - match: { values.0: [255, 271] }
+
+  # The base has to be a constant, as the conversion happens while loading the field
+  - do:
+      catch: '/can.t convert a field with multiple types if its other arguments are not constants/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, base)'
+  - do:
+      catch: '/can.t convert a field with multiple types if its other arguments are not constants/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL i = TO_INTEGER(hex, base + 1)'
+  - do:
+      catch: '/second argument of .* must be \[whole number/'
+      esql.query:
+        body:
+          query: 'FROM base_union_* | EVAL l = TO_LONG(hex, "16")'
+
+---
 load two indices and convert event_duration with a base:
   - requires:
       test_runner_features: [capabilities]
@@ -394,8 +470,9 @@ load two indices and convert event_duration with a base:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_reject_conversions_with_base]
-      reason: "Conversions with a base of union types fail like any other type conflict"
+          capabilities: [fn_to_long_union_types_with_base, fn_to_integer_union_types_with_base]
+      reason: "Conversions with a base of keyword and text union types were not supported"
+  # A base only converts strings, so a field that is also a long is ambiguous, like for any conversion that doesn't support a type
   - do:
       catch: '/Cannot use field \[event_duration\] due to ambiguities/'
       esql.query:
@@ -415,7 +492,7 @@ load two indices and convert event_duration to a string, then with a base:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_reject_conversions_with_base]
+          capabilities: [fn_to_long_union_types_with_base, fn_to_integer_union_types_with_base]
       reason: "The base of a conversion of a union type was dropped in older nodes"
   - do:
       allowed_warnings_regex:

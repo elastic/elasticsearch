@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 167494
-summary: Reject TO_LONG and TO_INTEGER bases on unions
+summary: Support TO_LONG and TO_INTEGER bases on union types
 type: bug

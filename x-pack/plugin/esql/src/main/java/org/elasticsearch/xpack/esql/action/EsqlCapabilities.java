@@ -5105,12 +5105,6 @@ public class EsqlCapabilities {
          */
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
-        /**
-         * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} on a field mapped to different types across indices (a union
-         * type) fail like any other type conflict. Older nodes failed with an internal server error.
-         */
-        UNION_TYPES_REJECT_CONVERSIONS_WITH_BASE,
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -240,6 +240,41 @@ emp_no:integer | _index:keyword        | gender_text:text
 10003          | employees_gender_text | M
 ;
 
+// A base is only for strings, which both legs are, so the union is converted per type keeping the base.
+multiIndexKeywordTextWithBase
+required_capability: fn_to_long_union_types_with_base
+required_capability: fn_to_integer_union_types_with_base
+required_capability: union_types
+required_capability: index_metadata_field
+
+FROM employees, employees_gender_text METADATA _index
+| WHERE emp_no IN (10002, 10006)
+| EVAL as_long = TO_LONG(gender, 16), as_integer = TO_INTEGER(gender, 8 + 8)
+| KEEP emp_no, _index, as_long, as_integer
+| SORT emp_no, _index
+;
+
+emp_no:integer | _index:keyword        | as_long:long | as_integer:integer
+10002          | employees             | 15           | 15
+10002          | employees_gender_text | 15           | 15
+10006          | employees             | 15           | 15
+10006          | employees_gender_text | 15           | 15
+;
+
+multiIndexKeywordTextWithBaseStats
+required_capability: fn_to_long_union_types_with_base
+required_capability: fn_to_integer_union_types_with_base
+required_capability: union_types
+
+FROM employees, employees_gender_text
+| WHERE emp_no IN (10002, 10006, 10007)
+| STATS total = SUM(TO_LONG(gender, 16)), max_integer = MAX(TO_INTEGER(gender, 16)), count = COUNT(*)
+;
+
+total:long | max_integer:integer | count:long
+90         | 15                  | 6
+;
+
 multiIndexKeywordTextToTextAndMatch
 required_capability: fn_to_text
 required_capability: union_types

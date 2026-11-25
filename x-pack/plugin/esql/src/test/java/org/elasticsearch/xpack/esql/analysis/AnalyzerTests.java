@@ -83,8 +83,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
@@ -149,6 +151,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -4025,44 +4028,64 @@ public class AnalyzerTests extends AnalyzerTestCase {
             );
     }
 
-    /**
-     * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} can't be converted per type of a union-typed field, as their base is
-     * another input. A union with a non-string type fails like any other type conflict.
-     */
-    public void testConversionWithBaseOnUnionWithNonStringTypeFails() {
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+    private static FieldCapabilitiesResponse unionOfValueTypes(String fooType, String barType) {
+        return new FieldCapabilitiesResponse(
             List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "keyword")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "long"))
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap(Map.of("value", fooType, "base", "integer"))),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap(Map.of("value", barType, "base", "integer")))
             ),
             List.of()
         );
-        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
-            analyzer().addIndex(mergedResolution("foo,bar", caps))
-                .error(
-                    "FROM foo, bar | EVAL x = " + function + "(value, 16)",
-                    containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
-                );
+    }
+
+    /**
+     * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} on a field that is keyword and text across indices convert it per
+     * type like any other conversion, keeping the constant base in every per-type conversion.
+     */
+    public void testConversionWithBaseOnUnionOfStringTypes() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "text");
+        Map<String, Class<? extends Expression>> conversionClasses = Map.of("TO_LONG", ToLongBase.class, "TO_INTEGER", ToIntegerBase.class);
+        for (Map.Entry<String, Class<? extends Expression>> function : conversionClasses.entrySet()) {
+            for (String base : List.of("16", "8 + 8")) {
+                LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                    .query("FROM foo, bar | EVAL x = " + function.getKey() + "(value, " + base + ")");
+
+                List<UnionTypeEsField> unionFields = new ArrayList<>();
+                plan.forEachDown(EsRelation.class, relation -> {
+                    for (Attribute attribute : relation.output()) {
+                        if (attribute instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
+                            unionFields.add(union);
+                        }
+                    }
+                });
+                assertThat(unionFields, hasSize(1));
+                Collection<Expression> conversions = unionFields.get(0).getConversionExpressions();
+                assertThat(conversions, hasSize(2));
+                for (Expression conversion : conversions) {
+                    assertThat(conversion, instanceOf(function.getValue()));
+                    assertThat(conversion.children(), hasSize(2));
+                    // The only attribute is the loaded field, the base is a constant that can be evaluated while loading.
+                    assertThat(conversion.references(), hasSize(1));
+                    assertTrue(conversion.children().get(1).foldable());
+                }
+            }
         }
     }
 
     /**
-     * Even a union of string types fails with a base, and converting it to a string first works, keeping the base.
+     * A base is only for strings, so a field that is not only keyword and text across indices is a type conflict, like for any
+     * other conversion that doesn't support all of the types. Converting it to a string first works.
      */
-    public void testConversionWithBaseOnUnionOfStringTypesFails() {
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "keyword")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "text"))
-            ),
-            List.of()
-        );
+    public void testConversionWithBaseOnUnionWithNonStringTypeFails() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "long");
         for (String function : List.of("TO_LONG", "TO_INTEGER")) {
             analyzer().addIndex(mergedResolution("foo,bar", caps))
                 .error(
                     "FROM foo, bar | EVAL x = " + function + "(value, 16)",
                     containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
                 );
+            // Without a base the same union is fine, as longs can be converted.
+            analyzer().addIndex(mergedResolution("foo,bar", caps)).query("FROM foo, bar | EVAL x = " + function + "(value)");
 
             LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
                 .query("FROM foo, bar | EVAL x = " + function + "(value::keyword, 16)");
@@ -4072,6 +4095,43 @@ public class AnalyzerTests extends AnalyzerTestCase {
             assertThat(conversions, hasSize(1));
             assertThat(conversions.get(0).children(), hasSize(2));
             assertThat(conversions.get(0).children().get(1).sourceText(), equalTo("16"));
+        }
+    }
+
+    /**
+     * The conversions of a union run while loading the field, where other fields aren't available, so the base has to be a constant.
+     */
+    public void testConversionWithNonConstantBaseOnUnionFails() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "text");
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            for (String base : List.of("base", "base + 1")) {
+                String query = "FROM foo, bar | EVAL x = " + function + "(value, " + base + ")";
+                analyzer().addIndex(mergedResolution("foo,bar", caps))
+                    .error(
+                        query,
+                        containsString(
+                            "["
+                                + function
+                                + "(value, "
+                                + base
+                                + ")] can't convert a field with multiple types if its other arguments are not constants"
+                        )
+                    );
+            }
+        }
+    }
+
+    /**
+     * An invalid base is reported as for a field of a single type, instead of failing while building the per-type conversions.
+     */
+    public void testConversionWithInvalidBaseOnUnionFails() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "text");
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .error(
+                    "FROM foo, bar | EVAL x = " + function + "(value, \"16\")",
+                    containsString("second argument of [" + function + "(value, \"16\")] must be [whole number")
+                );
         }
     }
 

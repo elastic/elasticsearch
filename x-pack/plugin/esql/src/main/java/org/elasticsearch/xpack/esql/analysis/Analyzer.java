@@ -4788,13 +4788,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * that has different types across indices. It doesn't discover or collect type information; that's already done during index
          * resolution.
          *
-         * <p>There are four cases to handle.
+         * <p>There are three cases to handle.
          * <ol>
-         *   <li>If the conversion can't be one of the per-type conversions of a {@link UnionTypeEsField}, like {@code TO_LONG(x, base)}
-         *   (see {@link ConvertFunction#canBeUnionTypeEsFieldConversion()}), leave it unresolved, so the field keeps its type conflict and
-         *   the Verifier reports it.</li>
          *   <li>If the field has unresolved type conflicts ({@link TypeConflictedField}), we try to build a {@link UnionTypeEsField} with
-         *   per-type conversions.</li>
+         *   per-type conversions. The conversions run while loading the field, so besides the field they can only have constant
+         *   arguments, like the base of {@code TO_LONG(x, 16)}; otherwise, or if an argument is invalid for one of the types, we return an
+         *   {@link UnresolvedAttribute} with the reason.</li>
          *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast, or
          *   return an {@link UnresolvedAttribute} if the cast cannot consume one of the field's original mapped types.</li>
          *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
@@ -4808,10 +4807,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AnalyzerContext context
         ) {
             Expression convertExpression = (Expression) convert;
-            if (convert.canBeUnionTypeEsFieldConversion() == false) {
-                // Left unresolved, so the field keeps its type conflict and the Verifier reports it.
-                return convertExpression;
-            }
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                 if (convert instanceof ToText toText && toText.valuesAnalyzer() != null) {
                     // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
@@ -4845,6 +4840,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
+                    for (Expression conversion : typeResolutions.values()) {
+                        String unusable = unusableAsFieldConversion(conversion, convertExpression);
+                        if (unusable != null) {
+                            return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
+                        }
+                    }
                     boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
@@ -4903,11 +4904,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                     return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                    return convertExpression.replaceChildren(
-                        singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
-                    );
+                    // Only the input is replaced, so the other arguments, like the options of TO_IP, are kept and validated later.
+                    List<Expression> children = new ArrayList<>(convertExpression.children());
+                    children.set(0, resolveConvertFunction(subConvert, unionFieldAttributes, context));
+                    return convertExpression.replaceChildren(children);
                 }
             return convertExpression;
+        }
+
+        /**
+         * Why the conversion of one type of a union can't be used to load the field, or {@code null} if it can. The conversion is
+         * evaluated by {@code ValuesSourceReaderOperator}, where the only attribute it can read is the field being loaded.
+         */
+        private static @Nullable String unusableAsFieldConversion(Expression conversion, Expression original) {
+            if (conversion.typeResolved().unresolved()) {
+                // An argument that is invalid for this type, like a non-numeric base. Surrogates are not substituted in this case.
+                return conversion.typeResolved().message();
+            }
+            if (conversion.references().size() != 1) {
+                return "["
+                    + original.sourceText()
+                    + "] can't convert a field with multiple types if its other arguments are not constants, "
+                    + "as the conversion happens when loading the field";
+            }
+            return null;
         }
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(
@@ -5047,6 +5067,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> children = new ArrayList<>(fn.children());
             children.set(0, resolvedAttr);
             Expression e = ((Expression) convert).replaceChildren(children);
+            if (e.typeResolved().unresolved()) {
+                // A surrogate can only be substituted when its arguments are valid. The caller reports the error.
+                return e;
+            }
             /*
              * Resolve surrogates immediately because these type specific conversions are serialized
              * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,

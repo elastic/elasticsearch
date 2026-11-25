@@ -169,7 +169,7 @@ This does, however, mean that a large number of results can be returned if chose
 
 The Rare Terms aggregation is more liable to trip the `search.max_buckets` soft limit than other aggregations due to how it works. The `max_bucket` soft-limit is evaluated on a per-shard basis while the aggregation is collecting results. It is possible for a term to be "rare" on a shard but become "not rare" once all the shard results are merged together. This means that individual shards tend to collect more buckets than are truly rare, because they only have their own local view. This list is ultimately pruned to the correct, smaller list of rare terms on the coordinating node…  but a shard may have already tripped the `max_buckets` soft limit and aborted the request.
 
-If your request reaches the bucket limit, narrow the query by using a shorter time range or filtering by category. You can also lower `max_doc_count` to return fewer rare terms.
+If your request reaches the bucket limit, narrow the query by using a shorter time range or filtering by category. [Use `include` or `exclude`](#_filtering_values) to limit which terms the aggregation considers. If you set `max_doc_count` above its default of `1`, you can also lower it.
 
 {applies_to}`stack: ga` If you can change cluster settings, you can also raise `search.max_buckets`.
 

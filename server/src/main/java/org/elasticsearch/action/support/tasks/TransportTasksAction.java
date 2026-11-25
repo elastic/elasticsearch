@@ -47,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
@@ -102,12 +101,7 @@ public abstract class TransportTasksAction<
     protected void doExecute(Task task, TasksRequest request, ActionListener<TasksResponse> listener) {
         final var discoveryNodes = clusterService.state().nodes();
         final String[] nodeIds = resolveNodes(request, discoveryNodes);
-        final CircuitBreaker breaker = nodeRepliesCanTripCircuitBreaker()
-            ? Objects.requireNonNullElseGet(
-                transportService.getInFlightRequestsBreaker(),
-                () -> new NoopCircuitBreaker(NODE_RESPONSE_BREAKER_LABEL)
-            )
-            : new NoopCircuitBreaker(NODE_RESPONSE_BREAKER_LABEL);
+        final CircuitBreaker breaker = nodeReplyBreaker();
         final RetainedReplyBytes retainedReplyBytes = new RetainedReplyBytes(breaker);
         if (task instanceof CancellableTask cancellableTask) {
             cancellableTask.addListener(retainedReplyBytes::close);
@@ -182,6 +176,11 @@ public abstract class TransportTasksAction<
                 return actionName;
             }
         }.run(task, Iterators.forArray(nodeIds), ActionListener.runAfter(listener, retainedReplyBytes::close));
+    }
+
+    private CircuitBreaker nodeReplyBreaker() {
+        final CircuitBreaker inFlightBreaker = nodeRepliesCanTripCircuitBreaker() ? transportService.getInFlightRequestsBreaker() : null;
+        return inFlightBreaker != null ? inFlightBreaker : new NoopCircuitBreaker(NODE_RESPONSE_BREAKER_LABEL);
     }
 
     private TransportResponseHandler<NodeTasksResponse> newNodeResponseHandler(

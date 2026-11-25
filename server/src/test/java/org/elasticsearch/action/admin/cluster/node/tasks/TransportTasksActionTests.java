@@ -1070,7 +1070,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             ActionListener.wrap(r -> usedWhileDelivering.onResponse(breaker.getUsed()), usedWhileDelivering::onFailure)
         );
 
-        assertThat(safeGet(usedWhileDelivering), greaterThan(usedBefore));
+        assertThat(safeGet(usedWhileDelivering), greaterThanOrEqualTo(usedBefore + 2L * (IN_FLIGHT_LIMIT.getBytes() / 8)));
         assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
 
         checkLatch.countDown();

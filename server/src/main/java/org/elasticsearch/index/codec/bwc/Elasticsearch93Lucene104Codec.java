@@ -85,7 +85,7 @@ public class Elasticsearch93Lucene104Codec extends FilterCodec {
      * worse space-efficiency or vice-versa.
      */
     public Elasticsearch93Lucene104Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch92Lucene103", new Lucene104Codec());
+        super("Elasticsearch93Lucene104", new Lucene104Codec());
         this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();
         this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;

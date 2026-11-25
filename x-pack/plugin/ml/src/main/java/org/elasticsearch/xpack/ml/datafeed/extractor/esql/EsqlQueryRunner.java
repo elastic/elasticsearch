@@ -20,6 +20,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -41,6 +42,7 @@ interface EsqlQueryRunner {
         Map<String, String> headers,
         @Nullable String projectRouting,
         List<EsqlQueryParam> params,
+        ExecutionMetadata executionMetadata,
         ActionListener<EsqlQueryResponse> listener
     );
 
@@ -109,13 +111,11 @@ interface EsqlQueryRunner {
         Map<String, String> headers,
         @Nullable String projectRouting,
         List<EsqlQueryParam> params,
+        ExecutionMetadata executionMetadata,
         ActionListener<EsqlQueryResponse> listener
     ) {
-        EsqlQueryExecutor.executeAsync(
-            client,
-            EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting),
-            headers,
-            listener
-        );
+        var request = EsqlQueryExecutor.newRequest(client, query, filter, params, projectRouting);
+        request.executionMetadata(executionMetadata);
+        EsqlQueryExecutor.executeAsync(client, request, headers, listener);
     }
 }

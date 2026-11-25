@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.junit.After;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +60,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.W
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_END;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.expand;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.expandAsync;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.fieldShapedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.folderRange;
@@ -264,25 +268,45 @@ public class PartitionPruningWalkTests extends ESTestCase {
         List<StorageEntry> tree = fieldShapedTree();
         List<Expression> filters = List.of(window(LAST_DAY, NOW));
         FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
-        ListingWalkHarness provider = new ListingWalkHarness(tree);
-        provider.setFailListChildrenContaining("/month=");
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+
+        ListingWalkHarness sequential = new ListingWalkHarness(tree);
+        sequential.setFailListChildrenContaining("/month=");
+        assertInjectedListingFailureWithoutFlatListing(() -> tryWalk(sequential, hints, pred, () -> false), sequential);
+
+        ListingWalkHarness parallel = new ListingWalkHarness(tree);
+        parallel.setFailListChildrenContaining("/month=");
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            PartitionPruningWalk.WalkResult parallel = tryWalkAsync(
-                provider,
-                listingHints(filters, DAY_SPEC),
-                pred,
-                () -> false,
-                4,
-                threadPool.generic()
+            assertInjectedListingFailureWithoutFlatListing(
+                () -> tryWalkAsync(parallel, hints, pred, () -> false, 4, threadPool.generic()),
+                parallel
             );
-            assertNull("failed sub-listing must fail the walk closed", parallel);
         } finally {
             terminate(threadPool);
         }
+    }
+
+    public void testEmptyPathSegmentWithdrawsWithoutFlatListing() throws Exception {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/logs/year=2026/month=10/day=14/f.parquet"),
+            ListingWalkHarness.entry("s3://bucket/logs/year=2026//ghost.parquet")
+        );
+        List<Expression> filters = List.of(window(LAST_DAY, NOW));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
         ListingWalkHarness sequential = new ListingWalkHarness(tree);
-        sequential.setFailListChildrenContaining("/month=");
-        assertNull(tryWalk(sequential, listingHints(filters, DAY_SPEC), pred, () -> false));
+        assertNull(tryWalk(sequential, hints, pred, () -> false));
+        assertEquals(0, sequential.listObjectPages());
+
+        ListingWalkHarness parallel = new ListingWalkHarness(tree);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            assertNull(tryWalkAsync(parallel, hints, pred, () -> false, 4, threadPool.generic()));
+            assertEquals(0, parallel.listObjectPages());
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     public void testParallelWalkNullChildSkipsUnstarted() throws Exception {
@@ -322,6 +346,62 @@ public class PartitionPruningWalkTests extends ESTestCase {
             PlainActionFuture<FileList> future = new PlainActionFuture<>();
             expandAsync(provider, LOGS_GLOB, listingHints(filters, DAY_SPEC), Integer.MAX_VALUE, pred, 4, threadPool.generic(), future);
             expectThrows(ExternalUnavailableException.class, future::actionGet);
+            assertEquals(0, provider.listObjectPages());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testExpandPropagatesIOExceptionFromWalkWithoutFlatListing() throws Exception {
+        List<Expression> filters = List.of(window(LAST_DAY, NOW));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+
+        ListingWalkHarness sequential = new ListingWalkHarness(fieldShapedTree());
+        sequential.setFailListChildrenContaining("/month=");
+        assertInjectedListingFailureWithoutFlatListing(
+            () -> expand(sequential, LOGS_GLOB, hints, Integer.MAX_VALUE, pred, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS),
+            sequential
+        );
+
+        ListingWalkHarness parallel = new ListingWalkHarness(fieldShapedTree());
+        parallel.setFailListChildrenContaining("/month=");
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            expandAsync(parallel, LOGS_GLOB, hints, Integer.MAX_VALUE, pred, 4, threadPool.generic(), future);
+            assertInjectedListingFailureWithoutFlatListing(future::actionGet, parallel);
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testExpandPropagatesDiscoveredFilesLimitFromWalkWithoutFlatListing() throws Exception {
+        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        String prefixListing = ListingWalkHarness.WIDE_HIVE_PREFIX + "/";
+
+        ListingWalkHarness sequential = new ListingWalkHarness(wideHiveTree());
+        expectThrows(
+            DiscoveredFilesLimitException.class,
+            () -> PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> expand(sequential, WIDE_HIVE_GLOB, hints, 0, pred, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS)
+            )
+        );
+        assertFalse("file cap must not prefix-list the dataset", sequential.listedPrefixes().contains(prefixListing));
+
+        ListingWalkHarness parallel = new ListingWalkHarness(wideHiveTree());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            PartitionPruningWalk.withFinishMode(PartitionPruningWalk.FinishMode.ALWAYS_FINISH, () -> {
+                expandAsync(parallel, WIDE_HIVE_GLOB, hints, 0, pred, 4, threadPool.generic(), future);
+                return null;
+            });
+            expectThrows(DiscoveredFilesLimitException.class, future::actionGet);
+            assertFalse("async file cap must not prefix-list the dataset", parallel.listedPrefixes().contains(prefixListing));
         } finally {
             terminate(threadPool);
         }
@@ -554,10 +634,20 @@ public class PartitionPruningWalkTests extends ESTestCase {
     public void testParallelPeeksInFlightNeverExceedsConcurrency() throws Exception {
         ListingWalkHarness provider = new ListingWalkHarness(wideHiveSevenDayTree());
         provider.setDelayListChildrenContaining("/month=07/day=");
-        provider.setListChildrenDelayNanos(TimeUnit.MILLISECONDS.toNanos(1));
+        CountDownLatch overlapped = new CountDownLatch(2);
+        provider.setListChildrenDelayNanos(() -> {
+            overlapped.countDown();
+            try {
+                overlapped.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return 0L;
+        });
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
         int concurrency = 4;
-        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        int poolSize = concurrency * 2;
+        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
         try {
             PartitionPruningWalk.WalkResult result = PartitionPruningWalk.withFinishMode(
                 PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
@@ -566,6 +656,11 @@ public class PartitionPruningWalkTests extends ESTestCase {
             assertNotNull(result);
             assertEquals(WIDE_HIVE_PREFIXES, julyDayPeekCount(provider));
             assertThat(provider.maxListChildrenInFlight(), lessThanOrEqualTo(concurrency));
+            assertThat(
+                "peek LISTs must overlap when the pool is larger than concurrency",
+                provider.maxListChildrenInFlight(),
+                greaterThan(1)
+            );
             assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES, provider.listChildrenRequests());
             assertEquals(0, provider.listChildrenInFlight());
         } finally {
@@ -643,20 +738,57 @@ public class PartitionPruningWalkTests extends ESTestCase {
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
         ListingWalkHarness sequential = new ListingWalkHarness(wideHiveSevenDayTree());
         sequential.setFailListChildrenContaining("/month=07/day=");
-        assertNull(tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false));
+        assertInjectedListingFailureWithoutFlatListing(() -> tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false), sequential);
         assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, sequential.listChildrenRequests());
         assertEquals(0, julyDayPeekCount(sequential));
-        assertEquals(0, sequential.listObjectPages());
 
         ListingWalkHarness parallel = new ListingWalkHarness(wideHiveSevenDayTree());
         parallel.setFailListChildrenContaining("/month=07/day=");
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            assertNull(tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 4, executor));
+            assertInjectedListingFailureWithoutFlatListing(
+                () -> tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 4, executor),
+                parallel
+            );
             assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, parallel.listChildrenRequests());
             assertEquals(0, julyDayPeekCount(parallel));
-            assertEquals(0, parallel.listObjectPages());
         } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testListChildrenParallelPrefersUnavailableOverNullChild() throws Exception {
+        assertPrefersUnavailableOverNullChild();
+    }
+
+    private void assertPrefersUnavailableOverNullChild() throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(ListingWalkHarness.entry("s3://bucket/a/f.parquet"), ListingWalkHarness.entry("s3://bucket/b/f.parquet"))
+        );
+        provider.setFailListChildrenContaining("/a");
+        provider.setFailListChildrenUnavailable(true);
+        provider.setNullListChildrenContaining("/b");
+        CountDownLatch bothEntered = new CountDownLatch(2);
+        CountDownLatch releaseBoth = new CountDownLatch(1);
+        provider.setDelayListChildrenContaining("/");
+        provider.setListChildrenDelayNanos(() -> {
+            bothEntered.countDown();
+            awaitQuietly(releaseBoth);
+            return 0L;
+        });
+        AtomicInteger issued = new AtomicInteger();
+        List<StoragePath> dirs = List.of(StoragePath.of("s3://bucket/a"), StoragePath.of("s3://bucket/b"));
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            PlainActionFuture<StorageChildren[]> future = new PlainActionFuture<>();
+            PartitionPruningWalk.listChildrenParallel(provider, dirs, 2, executor, issued, () -> false, future);
+            assertTrue(bothEntered.await(30, TimeUnit.SECONDS));
+            assertEquals("both in flight before either result", 2, issued.get());
+            releaseBoth.countDown();
+            expectThrows(ExternalUnavailableException.class, future::actionGet);
+            assertEquals(0, provider.listObjectPages());
+        } finally {
+            releaseBoth.countDown();
             terminate(executor);
         }
     }
@@ -762,12 +894,20 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
+    private static void assertInjectedListingFailureWithoutFlatListing(CheckedRunnable<Exception> walk, ListingWalkHarness provider) {
+        Exception thrown = expectThrows(Exception.class, walk::run);
+        Throwable io = thrown instanceof IOException ? thrown : ExceptionsHelper.unwrap(thrown, IOException.class);
+        assertNotNull("expected IOException, got " + thrown, io);
+        assertEquals("injected listing failure", io.getMessage());
+        assertEquals(0, provider.listObjectPages());
+    }
+
     private static PartitionPruningWalk.WalkResult tryWalk(
         ListingWalkHarness provider,
         List<PartitionFilterHint> hints,
         FolderRangePredicate pred,
         BooleanSupplier cancelled
-    ) {
+    ) throws IOException {
         return tryWalk(provider, LOGS_GLOB, hints, pred, cancelled);
     }
 
@@ -777,7 +917,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
         List<PartitionFilterHint> hints,
         FolderRangePredicate pred,
         BooleanSupplier cancelled
-    ) {
+    ) throws IOException {
         return tryWalk(provider, glob, hints, pred, cancelled, Integer.MAX_VALUE, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS);
     }
 
@@ -789,7 +929,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
         BooleanSupplier cancelled,
         int maxDiscoveredFiles,
         int maxDirectoryListings
-    ) {
+    ) throws IOException {
         StoragePath globPath = StoragePath.of(glob);
         return PartitionPruningWalk.tryWalk(
             provider,

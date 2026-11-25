@@ -434,6 +434,38 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack("STATS c = COUNT(*) BY k | STATS most = MAX(c)", List.of(List.of(1L)));
     }
 
+    /**
+     * The destination passes the coordinator's check and then gets an ingest pipeline, before a data node plans the write. The coordinator
+     * is the one that authorizes the caller, so the data node must not tell the caller what is wrong with the destination. A single shard
+     * means a single data node request, so nothing else plans the write while the destination changes.
+     */
+    public void testDestinationThatChangesBeforeADataNodePlansTheWriteFailsWithoutSayingWhy() {
+        createSource(indexSettings(1, 0), MAPPING);
+        indexRandom(true, client().prepareIndex(SOURCE).setSource("k", "a"));
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                    assertAcked(
+                        indicesAdmin().prepareUpdateSettings(DESTINATION)
+                            .setSettings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "some-pipeline"))
+                    );
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        try {
+            ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> run("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION).close()
+            );
+            assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+            assertThat(e.getMessage(), not(containsString("pipeline")));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+    }
+
     public void testAllowPartialResultsDoesNotBypassRowFailure() {
         ElasticsearchStatusException failed = expectThrows(
             ElasticsearchStatusException.class,

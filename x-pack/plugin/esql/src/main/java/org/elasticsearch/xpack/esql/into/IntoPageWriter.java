@@ -203,31 +203,41 @@ public final class IntoPageWriter {
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
             // The coordinator authorizes the caller's write access to the destination before it calls this (IntoDestinationAuthorizer).
-            if (batchIndexingSupported == false) {
-                throw rejection("INTO [%s] requires batch indexing", target);
-            }
-            if (hasPipeline(project, target)) {
-                throw rejection("INTO [%s] does not support ingest pipelines", target);
-            }
-            if (routesFromSource(project, target)) {
-                throw rejection("INTO [%s] does not support indices that route from _source", target);
-            }
+            requireBatchIndexing(batchIndexingSupported, target);
+            requireEligibleDestination(project, target);
         }
 
         /**
          * The check a node runs when it plans the write, after the coordinator has authorized the caller and checked the destination, so
          * a failure here means the destination changed since. As with a bulk, which resolves templates once and does not derive them
-         * again on a later hop, the node does not say why: the caller was not authorized for what a template would describe.
+         * again on a later hop, the node does not say why: the caller was not authorized for what a template would describe. That does
+         * not hold for batch indexing, which is not about the destination, so its failure stays as it is.
          */
         public static void requireBatchDestinationUnchanged(boolean batchIndexingSupported, ProjectMetadata project, String target) {
+            requireBatchIndexing(batchIndexingSupported, target);
             try {
-                requireBatchDestination(batchIndexingSupported, project, target);
+                requireEligibleDestination(project, target);
             } catch (ElasticsearchStatusException e) {
                 throw new ElasticsearchStatusException(
                     "INTO [{}] can no longer be written as a batch, as its destination changed after the query was planned",
                     RestStatus.CONFLICT,
                     target
                 );
+            }
+        }
+
+        private static void requireBatchIndexing(boolean batchIndexingSupported, String target) {
+            if (batchIndexingSupported == false) {
+                throw rejection("INTO [%s] requires batch indexing", target);
+            }
+        }
+
+        private static void requireEligibleDestination(ProjectMetadata project, String target) {
+            if (hasPipeline(project, target)) {
+                throw rejection("INTO [%s] does not support ingest pipelines", target);
+            }
+            if (routesFromSource(project, target)) {
+                throw rejection("INTO [%s] does not support indices that route from _source", target);
             }
         }
 

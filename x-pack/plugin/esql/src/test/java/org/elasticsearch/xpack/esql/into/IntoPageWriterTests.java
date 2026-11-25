@@ -429,6 +429,16 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(e.getMessage(), not(containsString("pipeline")));
     }
 
+    public void testNodeStillSaysThatBatchIndexingWasDisabled() {
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> IntoPageWriter.Factory.requireBatchDestinationUnchanged(false, project, "dest")
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("requires batch indexing"));
+    }
+
     public void testBatchIndexingDisabledIsRejected() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         ElasticsearchStatusException e = expectThrows(

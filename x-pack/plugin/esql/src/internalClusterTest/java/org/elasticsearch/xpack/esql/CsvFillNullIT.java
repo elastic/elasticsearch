@@ -247,7 +247,8 @@ public class CsvFillNullIT extends CsvIT {
             List<String> unfillable = new ArrayList<>();
             for (int i = 0; i < rawTypes.size(); i++) {
                 String name = loaded.columnNames().get(i);
-                // A column of type unsupported, as when the indices disagree on its type, is left unchanged without a warning.
+                // A column of type unsupported, as when the indices disagree on its type, is left unchanged without a warning, see
+                // https://github.com/elastic/elasticsearch/issues/167575.
                 if (defaultedType(rawTypes.get(i)) == null
                     && leftAloneByAllFields(name) == false
                     && rawTypes.get(i).equals("unsupported") == false) {

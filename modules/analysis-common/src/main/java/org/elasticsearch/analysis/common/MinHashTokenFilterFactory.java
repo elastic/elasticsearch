@@ -86,7 +86,7 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory implem
         deprecationLogger.warn(
             DeprecationCategory.ANALYSIS,
             // Include the index and filter in the key so that the rate limiter doesn't hide the warning for other indices.
-            "min_hash_index_param_bounds_" + indexSettings.getIndex().getName() + "_" + name(),
+            "min_hash_index_param_bounds_" + indexSettings.getIndex().getName() + "_" + indexSettings.getIndex().getUUID() + "_" + name(),
             "[min_hash] filter [{}] on index [{}]: {} This configuration is allowed on this index, but can't be used "
                 + "on new indices. Lower these parameters in the settings of any new index, for example a reindex "
                 + "destination; note that this changes the hashes the filter produces.",

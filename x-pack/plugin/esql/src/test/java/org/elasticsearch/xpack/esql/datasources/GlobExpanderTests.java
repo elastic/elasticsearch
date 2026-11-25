@@ -2106,6 +2106,35 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat(e.getMessage(), not(containsString("max_directory_listings")));
     }
 
+    /**
+     * Last hinted key resolved with a next unlisted batch that would exceed the directory budget.
+     * That batch is not requested, so a later object-cap error must not cite {@code max_directory_listings}.
+     */
+    public void testListedObjectsCapAfterLastHintDoesNotBlameUnusedDirectoryBudget() {
+        TreeStubProvider provider = new TreeStubProvider(templateYearCapTree());
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024, 2025));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/logs/*/*.parquet",
+                provider,
+                hints,
+                TEMPLATE_YEAR,
+                MAX,
+                MAX,
+                1,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE,
+                GlobExpander.NEVER_CANCELLED,
+                null,
+                2
+            )
+        );
+        assertThat(e.getMessage(), containsString("listed too many objects"));
+        assertThat(e.getMessage(), not(containsString("max_directory_listings")));
+    }
+
     private static List<StorageEntry> templateYearCapTree() {
         return List.of(
             entry("s3://bucket/logs/2024/a.parquet", 100),

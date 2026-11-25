@@ -1334,13 +1334,16 @@ final class PartitionPruningWalk {
 
         private WalkDiagnostics snapshot() {
             // listings + dirs.size() is the next-batch budget check, valid only while dirs is still
-            // unlisted. After a batch is listed, dirs still names that batch until applyClassified
-            // replaces it, so the same sum would double-count.
-            boolean nextBatchExceeds = listings.get() + dirs.size() > maxDirectoryListings;
+            // unlisted and pending still needs another walk step. After a batch is listed, dirs still
+            // names that batch until applyClassified replaces it, so the same sum would double-count.
+            // An empty pending set means the walk would not issue that next batch even with more budget.
+            boolean nextBatchExceeds = pending.isEmpty() == false
+                && frontierListed == false
+                && listings.get() + dirs.size() > maxDirectoryListings;
             boolean atCeiling = listings.get() >= maxDirectoryListings
                 || stopReason == WalkDiagnostics.StopReason.CEILING
                 || stopReason == WalkDiagnostics.StopReason.PEEK_BUDGET
-                || (frontierListed == false && nextBatchExceeds);
+                || nextBatchExceeds;
             return new WalkDiagnostics(
                 stopReason,
                 listings.get(),
@@ -1600,7 +1603,9 @@ final class PartitionPruningWalk {
                 return result;
             }
             if (prunedColumns.isEmpty()) {
-                boolean nextBatchExceeds = frontierListed == false && listings.get() + dirs.size() > maxDirectoryListings;
+                boolean nextBatchExceeds = pending.isEmpty() == false
+                    && frontierListed == false
+                    && listings.get() + dirs.size() > maxDirectoryListings;
                 return withdraw(
                     listings.get() >= maxDirectoryListings || nextBatchExceeds
                         ? WalkDiagnostics.StopReason.CEILING

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.WalkLayout;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -1005,7 +1006,10 @@ public final class GlobExpander {
         String retryPattern = rewriteFallbackPattern(pattern, effective, partitionConfig);
         // A bound-only retry never spliced, so it must not claim the partition filter is what changed.
         String retryDetail = rewriteFallbackRetryDetail(rewritten, retryPattern.equals(pattern));
-        logger.debug(() -> "Narrowed listing of [" + pattern + "] yielded no files; " + retryDetail, narrowedFailure);
+        logger.debug(
+            () -> "Narrowed listing of [" + ExternalFailures.redactHttpUrl(pattern) + "] yielded no files; " + retryDetail,
+            narrowedFailure
+        );
         leftover = remainingDirectoryListings(provider, maxDirectoryListings);
         if (provider instanceof DirectoryListingCounter && leftover <= 0) {
             return narrowed != null ? narrowed : FileList.EMPTY;
@@ -1735,9 +1739,9 @@ public final class GlobExpander {
             if (walk == null && (walkDiagnostics == null || walkDiagnostics.stopReason() != WalkDiagnostics.StopReason.FINISHED)) {
                 if (walkDiagnostics != null) {
                     WalkDiagnostics withdrawn = walkDiagnostics;
-                    logger.debug(() -> "Walk of [" + pattern + "] withdrew: " + withdrawn.describe());
+                    logger.debug(() -> "Walk of [" + ExternalFailures.redactHttpUrl(pattern) + "] withdrew: " + withdrawn.describe());
                 } else {
-                    logger.debug("Walk of [{}] withdrew", pattern);
+                    logger.debug("Walk of [{}] withdrew", ExternalFailures.redactHttpUrl(pattern));
                 }
             }
             // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
@@ -1832,12 +1836,15 @@ public final class GlobExpander {
                         }
                         return new GenericFileList(walked, pattern, walkedMetadata, walkNotices, truncated);
                     }
-                    logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
+                    logger.debug(
+                        "Walked listing of [{}] would narrow the type of partition column(s); re-listing flat",
+                        ExternalFailures.redactHttpUrl(pattern)
+                    );
                     suppressValueFilter = true;
                 } else {
                     logger.debug(
                         "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
-                        pattern,
+                        ExternalFailures.redactHttpUrl(pattern),
                         walk.prunedColumns()
                     );
                     suppressValueFilter = true;
@@ -2017,7 +2024,7 @@ public final class GlobExpander {
             if (prunedColumns.isEmpty() == false && valueFilterTrusted(matched, valueExcluded, partitionConfig, prunedColumns) == false) {
                 logger.debug(
                     "Value-filtered listing of [{}] does not prove partition column(s) {}; keeping the filtered-out files",
-                    pattern,
+                    ExternalFailures.redactHttpUrl(pattern),
                     prunedColumns
                 );
                 restoredUntrusted = true;
@@ -2058,7 +2065,7 @@ public final class GlobExpander {
                 } else {
                     logger.debug(
                         "Value-filtered listing of [{}] does not prove partition column(s) {}; keeping the filtered-out files",
-                        pattern,
+                        ExternalFailures.redactHttpUrl(pattern),
                         prunedColumns
                     );
                     restoredUntrusted = true;
@@ -2229,7 +2236,7 @@ public final class GlobExpander {
                 }
                 logger.debug(
                     () -> "Narrowed listing of ["
-                        + pattern
+                        + ExternalFailures.redactHttpUrl(pattern)
                         + "] yielded no files; "
                         + rewriteFallbackRetryDetail(finalRewritten, retryPattern.equals(pattern))
                 );
@@ -2291,7 +2298,9 @@ public final class GlobExpander {
                     return;
                 }
                 logger.debug(
-                    () -> "Narrowed listing of [" + pattern + "] failed; re-listing without the narrowing that produced it",
+                    () -> "Narrowed listing of ["
+                        + ExternalFailures.redactHttpUrl(pattern)
+                        + "] failed; re-listing without the narrowing that produced it",
                     narrowFailure
                 );
                 int retryLeftover = remainingDirectoryListings(provider, maxDirectoryListings);
@@ -2562,7 +2571,11 @@ public final class GlobExpander {
                 slots = buildSlots(provider, prefix, matcher, FAN_OUT_SLOT_BUDGET, sharedListedCount);
             }
         } catch (IOException e) {
-            logger.debug("Prefix fan-out for [{}] could not build slots; falling back to flat listing", pattern, e);
+            logger.debug(
+                "Prefix fan-out for [{}] could not build slots; falling back to flat listing",
+                ExternalFailures.redactHttpUrl(pattern),
+                e
+            );
         }
 
         // buildSlots yields either no folder slots (files only: the slots are the whole listing, so reuse them rather

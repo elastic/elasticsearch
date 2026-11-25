@@ -309,7 +309,7 @@ public class PlannerSettings {
      * as {@code WHERE field IN (v1, v2, ...)}. Above it, a LEFT hash join is used for better performance.
      * <p>
      * The default is {@code 100}. A value of {@code -1} picks by cost, as described on
-     * {@code AbstractInSubqueryJoin#filterPathThreshold}. A value of {@code 0} or more is used as is for every query.
+     * {@code AbstractInSubqueryJoin#filterPathThreshold}. A value of {@code 0} or more is used for every query, capped by a known {@code index.max_terms_count} below 100.
      */
     public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting(
         "esql.in_subquery_hash_join_threshold",

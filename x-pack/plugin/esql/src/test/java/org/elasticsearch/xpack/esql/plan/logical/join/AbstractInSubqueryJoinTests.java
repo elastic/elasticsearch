@@ -1175,6 +1175,26 @@ public class AbstractInSubqueryJoinTests extends ESTestCase {
     }
 
     /**
+     * The cap on a configured threshold follows the same shape rule: it applies only where the IN list is pushed to an index, which is
+     * SEMI over an indexed key.
+     */
+    public void testFilterPathThresholdConfiguredValueIsCappedOnlyForSemiJoin() {
+        FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
+        FieldAttribute rightField = getFieldAttribute("session.id", DataType.KEYWORD);
+        EsRelation relation = relationOf(key);
+        int configured = HASH_JOIN_THRESHOLD;
+        int small = configured / 2;
+
+        AntiJoin anti = new AntiJoin(Source.EMPTY, relation, emptyLocalRelation(List.of(rightField)), List.of(key), List.of(rightField));
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(anti, configured, r -> small), equalTo(configured));
+        assertThat(
+            AbstractInSubqueryJoin.filterPathThreshold(markJoin(key, rightField, relation), configured, r -> small),
+            equalTo(configured)
+        );
+        assertThat(AbstractInSubqueryJoin.filterPathThreshold(semiJoin(key, relation, rightField), configured, r -> small), equalTo(small));
+    }
+
+    /**
      * End to end through {@link AbstractInSubqueryJoin#newMainPlan}: above the default limit, a subquery over an indexed key stays an IN
      * filter on the relation, and the same one over a key with no index behind it becomes a hash join.
      */

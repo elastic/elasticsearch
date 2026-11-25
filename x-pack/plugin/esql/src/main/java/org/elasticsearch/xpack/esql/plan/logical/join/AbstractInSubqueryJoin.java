@@ -511,7 +511,7 @@ public abstract class AbstractInSubqueryJoin extends Join
 
         Attribute leftField = subqueryJoin.config().leftFields().get(0);
         DataType keyType = schema.get(0).dataType();
-        if (dedup.positions() - (rightHadNulls ? 1 : 0) <= hashJoinThreshold) {
+        if (dedup.positions() <= hashJoinThreshold) {
             // Filter path: hand the dedup keys (possibly including a NULL at position 0) straight to {@link #buildFilterPathPlan}. The
             // iteration over positions turns the NULL position into a NULL Literal naturally, so the {@link In} operator's three-valued
             // semantics carry the correct mark/predicate value into the surrounding {@code Filter} or {@code Eval}.

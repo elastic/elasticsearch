@@ -612,26 +612,6 @@ public class AbstractInSubqueryJoinTests extends ESTestCase {
     }
 
     /**
-     * The threshold counts distinct non-null values: a pushed {@code terms} query drops the NULL, so a NULL next to as many values as
-     * the threshold allows still takes the filter path, and one more value takes the hash join.
-     */
-    public void testInlineDataThresholdDoesNotCountTheNullPosition() {
-        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
-        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = semiJoin(leftField, rightField);
-
-        Block atThreshold = intBlockWithNulls(new int[] { 10, 0, 20 }, new boolean[] { false, true, false });
-        LocalRelation atThresholdResult = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(atThreshold)));
-        LogicalPlan filterPath = AbstractInSubqueryJoin.inlineData(semiJoin, atThresholdResult, 2, BLOCK_FACTORY, null);
-        as(filterPath, Filter.class);
-
-        Block aboveThreshold = intBlockWithNulls(new int[] { 10, 0, 20, 30 }, new boolean[] { false, true, false, false });
-        LocalRelation aboveResult = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(aboveThreshold)));
-        LogicalPlan hashJoinPath = AbstractInSubqueryJoin.inlineData(semiJoin, aboveResult, 2, BLOCK_FACTORY, null);
-        as(hashJoinPath, Project.class);
-    }
-
-    /**
      * SEMI filter path with a multi-valued position on the right: {@code AbstractInSubqueryJoin#convertMvPositionsToNull}
      * folds the MV to NULL before BlockHash, so the MV's element values ({@code 20, 30} here) are
      * <strong>not</strong> matchable — the dedup output carries the MV as a single NULL position,

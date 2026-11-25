@@ -2220,12 +2220,16 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.getAnyLeader().submitValue(randomLong());
 
             // Run tasks one at a time until the data node accepts the new state, which is before the asynchronous write of it can run.
+            final var submitValueTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis();
             while (dataNode.persistedState.getLastAcceptedState().version() == versionBefore) {
                 if (cluster.deterministicTaskQueue.hasRunnableTasks()) {
                     cluster.deterministicTaskQueue.runRandomTask();
                 } else {
-                    assertTrue("data node never accepted the new state", cluster.deterministicTaskQueue.hasDeferredTasks());
                     cluster.deterministicTaskQueue.advanceTime();
+                    assertThat(
+                        cluster.deterministicTaskQueue.getCurrentTimeMillis(),
+                        lessThanOrEqualTo(submitValueTimeMillis + DEFAULT_STABILISATION_TIME)
+                    );
                 }
             }
             final long acceptedVersion = dataNode.persistedState.getLastAcceptedState().version();

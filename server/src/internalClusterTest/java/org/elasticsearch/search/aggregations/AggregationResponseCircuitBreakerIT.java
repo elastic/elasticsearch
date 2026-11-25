@@ -14,9 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
@@ -59,7 +57,7 @@ public class AggregationResponseCircuitBreakerIT extends ESIntegTestCase {
         }
         assertNoFailures(bulk.get());
 
-        long breakerBefore = requestBreakerUsed(node);
+        long breakerBefore = getRequestBreakerUsed(node);
         SearchResponse response = client(node).prepareSearch(INDEX)
             .setSearchType(searchType)
             .setSize(0)
@@ -70,16 +68,12 @@ public class AggregationResponseCircuitBreakerIT extends ESIntegTestCase {
             assertNoFailures(response);
             assertThat(
                 "the response must hold the charge for its aggregations after the search completes",
-                requestBreakerUsed(node),
+                getRequestBreakerUsed(node),
                 greaterThanOrEqualTo(breakerBefore + response.getAggregations().estimateHeapBytes())
             );
         } finally {
             response.decRef();
         }
-        assertBusy(() -> assertThat(requestBreakerUsed(node), equalTo(breakerBefore)));
-    }
-
-    private static long requestBreakerUsed(String node) {
-        return internalCluster().getInstance(CircuitBreakerService.class, node).getBreaker(CircuitBreaker.REQUEST).getUsed();
+        assertBusy(() -> assertThat(getRequestBreakerUsed(node), equalTo(breakerBefore)));
     }
 }

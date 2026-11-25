@@ -20,6 +20,7 @@ import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -107,12 +108,19 @@ public class FailedComputeUsageTests extends ComputeTestCase {
             }
         };
 
-        ComputeService.failWithUsage(listener, failure, List.of(first, second), planningBytesRead, false);
+        QueryLoad computeLoad = new QueryLoad();
+        long loadNanos = randomLongBetween(1, 1_000_000);
+        long cpuNanos = randomLongBetween(0, loadNanos);
+        computeLoad.charging((nanos, cpu, finishNanos) -> {}).charge(loadNanos, cpuNanos, System.nanoTime());
+
+        ComputeService.failWithUsage(listener, failure, List.of(first, second), planningBytesRead, computeLoad, false);
 
         assertThat(reportedFailure.get(), sameInstance(failure));
         assertThat(reportedUsage.get().bytesRead(), equalTo(1_100 + planningBytesRead));
         assertThat(reportedUsage.get().readNanos(), equalTo(30L));
         assertThat(reportedUsage.get().readCpuNanos(), equalTo(12L));
+        assertThat(reportedUsage.get().searchLoad().loadNanos(), equalTo(loadNanos));
+        assertThat(reportedUsage.get().searchLoad().cpuNanos(), equalTo(cpuNanos));
     }
 
     public void testPlainListenerGetsAPlainFailure() {
@@ -121,7 +129,7 @@ public class FailedComputeUsageTests extends ComputeTestCase {
         AtomicReference<Exception> reportedFailure = new AtomicReference<>();
         ActionListener<DriverCompletionInfo> listener = ActionListener.wrap(info -> fail("the compute failed"), reportedFailure::set);
 
-        ComputeService.failWithUsage(listener, failure, List.of(driver), 0, false);
+        ComputeService.failWithUsage(listener, failure, List.of(driver), 0, new QueryLoad(), false);
 
         assertThat(reportedFailure.get(), sameInstance(failure));
     }

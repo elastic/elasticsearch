@@ -4116,6 +4116,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // INTO returns one stats row, so the default 1000 cap must not truncate the rows it writes.
                 return logicalPlan;
             }
+            if (logicalPlan instanceof Describe) {
+                // DESCRIBE returns one row per column, so a cap would only drop columns.
+                return logicalPlan;
+            }
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
@@ -4154,6 +4158,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan plan) {
             if (plan instanceof Into) {
                 // INTO writes the rows as produced, so the implicit @timestamp sort must not be injected under it.
+                return plan;
+            }
+            if (plan instanceof Describe) {
+                // DESCRIBE has no implicit limit and its rows are columns.
                 return plan;
             }
             if (plan instanceof Limit limit) {

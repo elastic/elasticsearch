@@ -139,6 +139,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
@@ -1407,6 +1408,17 @@ public class AnalyzerTests extends AnalyzerTestCase {
             var limit = as(plan, Limit.class);
             assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         }
+    }
+
+    public void testNoImplicitLimitOnDescribe() {
+        as(basic().query("from test | describe"), LocalRelation.class);
+    }
+
+    public void testImplicitLimitAfterDescribe() {
+        var limit = as(basic().query("from test | describe | where type == \"keyword\""), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        limit = as(basic().query("from test | describe | limit " + (MAX_LIMIT + 1)), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
     }
 
     public void testImplicitDefaultLimitAfterLimitBy() {

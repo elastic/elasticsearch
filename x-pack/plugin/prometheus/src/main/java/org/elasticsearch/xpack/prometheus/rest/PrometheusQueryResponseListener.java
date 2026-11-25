@@ -10,17 +10,23 @@ package org.elasticsearch.xpack.prometheus.rest;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -35,13 +41,19 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
- * Prometheus JSON format, and sends it as a {@link RestResponse}.
+ * Prometheus JSON format, and streams it as a chunked {@link RestResponse}.
+ * <p>
+ * The body is never built as one in-memory buffer: a contiguous buffer for a large result grows past the 2 GB
+ * array limit and kills the node with an {@link OutOfMemoryError}. Each series is serialized in slices of at most
+ * {@link #SAMPLES_PER_CHUNK} samples, so a chunk stays small even for a single series with many samples.
  * <p>
  * Supports two query modes:
  * <ul>
@@ -89,6 +101,12 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     private static final int VALUE_COL_IDX = 0;
     private static final int DIMENSION_COL_START_IDX = 1;
 
+    /**
+     * The maximum number of samples serialized in one piece of the chunked body, about 20-40 KB of JSON. The REST layer
+     * cuts the body into chunks between pieces, so this bounds how far a chunk can overshoot its size hint.
+     */
+    static final int SAMPLES_PER_CHUNK = 1024;
+
     enum QueryMode {
         RANGE,
         INSTANT
@@ -108,22 +126,24 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
 
     @Override
     public void onResponse(EsqlQueryResponse queryResponse) {
-        // Do not close queryResponse here - the transport framework's respondAndRelease handles decRef.
-        // If we close it manually, it will cause an AssertionError ("invalid decRef call: already closed")
-        // and crash the node. Reading its pages/blocks directly (without incRef/decRef/close) is safe: the
-        // response holds a live reference for the duration of this synchronous callback, same as the
-        // generic EsqlResponse.rows()/ResponseValueUtils path this class used to go through.
+        // Do not close queryResponse here - the transport framework's respondAndRelease handles its own decRef.
+        // The body is serialized lazily from the response's pages after this callback returns, so take an extra
+        // reference and release it once the chunked body has been fully written (or the channel is closed).
+        ChunkedToXContent body;
         try {
-            XContentBuilder builder = convertToPrometheusJson(
-                queryResponse.pages(),
-                queryResponse.columns(),
-                queryResponse.zoneId(),
-                resultType,
-                mode,
-                limit
-            );
-            channel.sendResponse(new RestResponse(RestStatus.OK, builder));
+            body = toChunkedXContent(queryResponse.pages(), queryResponse.columns(), queryResponse.zoneId(), resultType, mode, limit);
         } catch (Exception e) {
+            sendErrorResponse(e);
+            return;
+        }
+        queryResponse.mustIncRef();
+        var release = Releasables.assertOnce(queryResponse::decRef);
+        try {
+            channel.sendResponse(
+                RestResponse.chunked(RestStatus.OK, ChunkedRestResponseBodyPart.fromXContent(body, channel.request(), channel), release)
+            );
+        } catch (Exception e) {
+            release.close();
             sendErrorResponse(e);
         }
     }
@@ -167,6 +187,29 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         QueryMode mode,
         int limit
     ) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        Iterator<? extends ToXContent> chunks = toChunkedXContent(pages, columns, zoneId, resultType, mode, limit).toXContentChunked(
+            ToXContent.EMPTY_PARAMS
+        );
+        while (chunks.hasNext()) {
+            chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        return builder;
+    }
+
+    /**
+     * Same as {@link #convertToPrometheusJson} but as a {@link ChunkedToXContent}, so the body can be streamed to the client
+     * instead of being built as one contiguous buffer. Everything that can reject the response (missing columns, misaligned
+     * step/value counts) is checked eagerly here, before any byte is sent.
+     */
+    static ChunkedToXContent toChunkedXContent(
+        List<Page> pages,
+        List<ColumnInfoImpl> columns,
+        ZoneId zoneId,
+        String resultType,
+        QueryMode mode,
+        int limit
+    ) {
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
         }
@@ -177,31 +220,71 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
         final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        builder.field("status", "success");
-        builder.startObject("data");
-        builder.field("resultType", resultType);
-        boolean truncated;
+        ToXContent header = (b, p) -> b.startObject().field("status", "success").startObject("data").field("resultType", resultType);
         if ("scalar".equals(resultType)) {
-            writeScalarResult(builder, pages, stepColIdx);
-            truncated = false;
-        } else {
-            builder.startArray("result");
-            truncated = writeResultArray(builder, pages, mode, limit, columns, zoneId, stepColIdx, useSeriesCol);
-            builder.endArray(); // result
+            return params -> Iterators.concat(
+                Iterators.single(header),
+                ChunkedToXContentHelper.chunk((b, p) -> writeScalarResult(b, pages, stepColIdx)),
+                ChunkedToXContentHelper.endObject(), // data
+                ChunkedToXContentHelper.endObject() // root
+            );
         }
-        builder.endObject(); // data
-        if (truncated) {
-            builder.startArray("warnings");
-            builder.value("results truncated due to limit");
-            builder.endArray();
+
+        // The first `limit` rows are emitted; empty series count towards the limit.
+        int totalRows = 0;
+        for (Page page : pages) {
+            DoubleBlock valueBlock = (DoubleBlock) page.getBlock(VALUE_COL_IDX);
+            LongBlock stepBlock = (LongBlock) page.getBlock(stepColIdx);
+            for (int position = 0; position < page.getPositionCount(); position++) {
+                if (totalRows < limit) {
+                    sampleCount(valueBlock, stepBlock, position);
+                }
+                totalRows++;
+            }
         }
-        builder.endObject(); // root
-        return builder;
+        final boolean truncated = totalRows > limit;
+        final int emittedRows = truncated ? limit : totalRows;
+
+        return params -> {
+            BytesRef scratch = new BytesRef();
+            StringBuilder valueBuffer = new StringBuilder(24);
+            Iterator<Row> rows = Iterators.limit(
+                Iterators.flatMap(
+                    pages.iterator(),
+                    page -> Iterators.forRange(0, page.getPositionCount(), position -> new Row(page, position))
+                ),
+                emittedRows
+            );
+            Iterator<ToXContent> series = Iterators.flatMap(
+                Iterators.filter(rows, row -> row.sampleCount(stepColIdx) > 0),
+                row -> seriesChunks(row, mode, columns, zoneId, stepColIdx, useSeriesCol, scratch, valueBuffer)
+            );
+            return Iterators.concat(
+                Iterators.single(header),
+                ChunkedToXContentHelper.startArray("result"),
+                series,
+                ChunkedToXContentHelper.endArray(), // result
+                ChunkedToXContentHelper.endObject(), // data
+                truncated
+                    ? ChunkedToXContentHelper.chunk((b, p) -> b.startArray("warnings").value("results truncated due to limit").endArray())
+                    : Collections.emptyIterator(),
+                ChunkedToXContentHelper.endObject() // root
+            );
+        };
     }
 
-    private static void writeScalarResult(XContentBuilder builder, List<Page> pages, int stepColIdx) throws IOException {
+    /** One row (one collapsed series) of the ES|QL response. */
+    private record Row(Page page, int position) {
+        int sampleCount(int stepColIdx) {
+            return PrometheusQueryResponseListener.sampleCount(
+                (DoubleBlock) page.getBlock(VALUE_COL_IDX),
+                (LongBlock) page.getBlock(stepColIdx),
+                position
+            );
+        }
+    }
+
+    private static XContentBuilder writeScalarResult(XContentBuilder builder, List<Page> pages, int stepColIdx) throws IOException {
         for (Page page : pages) {
             DoubleBlock valueBlock = (DoubleBlock) page.getBlock(VALUE_COL_IDX);
             LongBlock stepBlock = (LongBlock) page.getBlock(stepColIdx);
@@ -214,67 +297,72 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 builder.value(parseTimestamp(sample.stepMillis()));
                 builder.value(formatSampleValue(sample.value()));
                 builder.endArray();
-                return;
+                return builder;
             }
         }
         builder.startArray("result");
         builder.endArray();
+        return builder;
     }
 
-    private static boolean writeResultArray(
-        XContentBuilder builder,
-        List<Page> pages,
+    /**
+     * The pieces of the chunked body for one series with samples: its labels, then its samples in slices of at most
+     * {@link #SAMPLES_PER_CHUNK}, so that a series with many samples is spread over many chunks instead of one.
+     */
+    private static Iterator<ToXContent> seriesChunks(
+        Row row,
         QueryMode mode,
-        int limit,
         List<ColumnInfoImpl> columns,
         ZoneId zoneId,
         int stepColIdx,
-        boolean useSeriesCol
-    ) throws IOException {
-        int seriesCount = 0;
-        BytesRef scratch = new BytesRef();
-        StringBuilder valueBuffer = new StringBuilder(24);
+        boolean useSeriesCol,
+        BytesRef scratch,
+        StringBuilder valueBuffer
+    ) {
+        Page page = row.page();
+        int position = row.position();
+        DoubleBlock valueBlock = (DoubleBlock) page.getBlock(VALUE_COL_IDX);
+        LongBlock stepBlock = (LongBlock) page.getBlock(stepColIdx);
+        int count = valueBlock.getValueCount(position);
+        int valueStart = valueBlock.getFirstValueIndex(position);
+        int stepStart = stepBlock.getFirstValueIndex(position);
+        assert timestampsAreAscending(stepBlock, stepStart, count) : "PROMQL response step timestamps must be ascending";
 
-        for (Page page : pages) {
-            DoubleBlock valueBlock = (DoubleBlock) page.getBlock(VALUE_COL_IDX);
-            LongBlock stepBlock = (LongBlock) page.getBlock(stepColIdx);
-            int positionCount = page.getPositionCount();
-
-            for (int position = 0; position < positionCount; position++) {
-                if (seriesCount++ == limit) {
-                    return true;
-                }
-
-                // Both value and step are multi-valued (one entry per step) due to TimeSeriesCollapse.
-                // A single-step series produces a plain scalar instead of a List.
-                if (valueBlock.isNull(position) || stepBlock.isNull(position)) {
-                    continue; // series with no data in range
-                }
-                int count = valueBlock.getValueCount(position);
-                int stepCount = stepBlock.getValueCount(position);
-                if (count != stepCount) {
-                    throw new IllegalStateException(
-                        "PROMQL response has misaligned collapsed step/value columns: step count ["
-                            + stepCount
-                            + "], value count ["
-                            + count
-                            + "]"
-                    );
-                }
-                if (count == 0) {
-                    continue; // series with no data in range
-                }
-                int valueStart = valueBlock.getFirstValueIndex(position);
-                int stepStart = stepBlock.getFirstValueIndex(position);
-                assert timestampsAreAscending(stepBlock, stepStart, count) : "PROMQL response step timestamps must be ascending";
-
+        if (mode == QueryMode.INSTANT) {
+            return ChunkedToXContentHelper.chunk((builder, params) -> {
                 builder.startObject();
                 buildMetricLabels(builder, useSeriesCol, page, position, stepColIdx, columns, zoneId, scratch);
-                buildMetricValues(mode, builder, valueBuffer, valueBlock, stepBlock, valueStart, stepStart, count);
-                builder.endObject(); // result entry
-            }
+                // Instant query: emit the last sample (rows arrive in ascending timestamp order)
+                // This is a temporary approximation for a range query and there may be multiple samples.
+                // The proper implementation will guarantee that there will be just one sample.
+                int last = count - 1;
+                builder.startArray("value");
+                builder.value(parseTimestamp(stepBlock.getLong(stepStart + last)));
+                writeSampleValue(builder, valueBuffer, valueBlock.getDouble(valueStart + last));
+                builder.endArray(); // value
+                return builder.endObject(); // result entry
+            });
         }
-        return false;
+        // values: parallel arrays of (timestamp_seconds, value_string)
+        int slices = (count + SAMPLES_PER_CHUNK - 1) / SAMPLES_PER_CHUNK;
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, params) -> {
+            builder.startObject();
+            buildMetricLabels(builder, useSeriesCol, page, position, stepColIdx, columns, zoneId, scratch);
+            return builder.startArray("values");
+        }), Iterators.forRange(0, slices, slice -> (builder, params) -> {
+            int from = slice * SAMPLES_PER_CHUNK;
+            int to = Math.min(count, from + SAMPLES_PER_CHUNK);
+            for (int i = from; i < to; i++) {
+                builder.startArray();
+                builder.value(parseTimestamp(stepBlock.getLong(stepStart + i)));
+                writeSampleValue(builder, valueBuffer, valueBlock.getDouble(valueStart + i));
+                builder.endArray();
+            }
+            return builder;
+        }),
+            ChunkedToXContentHelper.endArray(), // values
+            ChunkedToXContentHelper.endObject() // result entry
+        );
     }
 
     private static void buildMetricLabels(
@@ -344,42 +432,10 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         }
     }
 
-    private static void buildMetricValues(
-        QueryMode mode,
-        XContentBuilder builder,
-        StringBuilder valueBuffer,
-        DoubleBlock valueBlock,
-        LongBlock stepBlock,
-        int valueStart,
-        int stepStart,
-        int count
-    ) throws IOException {
-        if (mode == QueryMode.RANGE) {
-            // values — parallel arrays of (timestamp_seconds, value_string)
-            builder.startArray("values");
-            for (int i = 0; i < count; i++) {
-                builder.startArray();
-                builder.value(parseTimestamp(stepBlock.getLong(stepStart + i)));
-                writeSampleValue(builder, valueBuffer, valueBlock.getDouble(valueStart + i));
-                builder.endArray();
-            }
-            builder.endArray(); // values
-        } else {
-            // Instant query: emit the last sample (rows arrive in ascending timestamp order)
-            // This is a temporary approximation for a range query and there may be multiple samples.
-            // The proper implementation will guarantee that there will be just one sample.
-            int last = count - 1;
-            builder.startArray("value");
-            builder.value(parseTimestamp(stepBlock.getLong(stepStart + last)));
-            writeSampleValue(builder, valueBuffer, valueBlock.getDouble(valueStart + last));
-            builder.endArray(); // value
-        }
-    }
-
     /**
      * Writes a finite/NaN/Infinite sample value without a per-value {@code String} allocation for the common
      * (finite) case. {@code valueBuffer} must be one instance reused across an entire query's result set (created
-     * once in {@link #writeResultArray}, not per value) — {@link StringBuilder#append(double)} writes digits
+     * once per response, not per value) — {@link StringBuilder#append(double)} writes digits
      * directly into the {@code StringBuilder}'s own backing array on JDK 25+, so reusing one instance means that
      * backing array only ever grows once (to fit the largest possible formatted double), not once per value.
      * {@link XContentBuilder#value(CharSequence)} then writes straight from it with no further copy.
@@ -399,8 +455,23 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
 
     /** Returns the last (value, step) sample for a position's collapsed series, or {@code null} if it has no data. */
     private static Sample readLastSample(DoubleBlock valueBlock, LongBlock stepBlock, int position) {
-        if (valueBlock.isNull(position) || stepBlock.isNull(position)) {
+        int count = sampleCount(valueBlock, stepBlock, position);
+        if (count == 0) {
             return null;
+        }
+        int lastOffset = count - 1;
+        double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(position) + lastOffset);
+        long stepMillis = stepBlock.getLong(stepBlock.getFirstValueIndex(position) + lastOffset);
+        return new Sample(value, stepMillis);
+    }
+
+    /**
+     * Returns the number of (value, step) samples of a position's collapsed series, {@code 0} for a series with no data
+     * in range. Both value and step are multi-valued (one entry per step) due to TimeSeriesCollapse.
+     */
+    private static int sampleCount(DoubleBlock valueBlock, LongBlock stepBlock, int position) {
+        if (valueBlock.isNull(position) || stepBlock.isNull(position)) {
+            return 0;
         }
         int count = valueBlock.getValueCount(position);
         int stepCount = stepBlock.getValueCount(position);
@@ -409,13 +480,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 "PROMQL response has misaligned collapsed step/value columns: step count [" + stepCount + "], value count [" + count + "]"
             );
         }
-        if (count == 0) {
-            return null;
-        }
-        int lastOffset = count - 1;
-        double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(position) + lastOffset);
-        long stepMillis = stepBlock.getLong(stepBlock.getFirstValueIndex(position) + lastOffset);
-        return new Sample(value, stepMillis);
+        return count;
     }
 
     private static boolean timestampsAreAscending(LongBlock stepBlock, int start, int count) {

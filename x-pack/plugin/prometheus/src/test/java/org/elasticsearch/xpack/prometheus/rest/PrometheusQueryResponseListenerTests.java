@@ -8,22 +8,31 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +40,9 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PrometheusQueryResponseListenerTests extends ESTestCase {
@@ -713,8 +724,99 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
     }
 
     // -------------------------------------------------------------------------
+    // REST response
+    // -------------------------------------------------------------------------
+
+    /**
+     * A large result must be streamed, not built as one in-memory body: a single contiguous buffer grows past the 2 GB
+     * array limit and kills the node (#165324). The body is serialized lazily from the response's pages, so the
+     * listener must keep the {@link EsqlQueryResponse} alive until the REST response is released.
+     */
+    public void testOnResponseStreamsChunkedBodyAndReleasesResponse() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("job", "keyword"), col("step", "long"));
+        int seriesCount = between(2, 200);
+        List<List<Object>> rows = new ArrayList<>(seriesCount);
+        for (int i = 0; i < seriesCount; i++) {
+            rows.add(List.of(List.of((double) i, i + 0.5), "job-" + i, List.of(1735689600000L, 1735689660000L)));
+        }
+        EsqlQueryResponse queryResponse = queryResponse(columns, rows);
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(queryResponse);
+        // what ActionListener.respondAndRelease does once onResponse returns
+        queryResponse.decRef();
+
+        RestResponse restResponse = channel.capturedResponse();
+        assertThat(restResponse.status(), equalTo(RestStatus.OK));
+        assertTrue("expected a chunked response", restResponse.isChunked());
+        assertTrue("the response pages must stay alive while the body is written", queryResponse.hasReferences());
+
+        ObjectPath path = toObjectPath(RestResponseUtils.getBodyContent(restResponse));
+        assertSuccessMatrix(path);
+        assertThat(path.evaluate("data.result"), hasSize(seriesCount));
+        int last = seriesCount - 1;
+        assertThat(path.evaluate("data.result." + last + ".metric.job"), equalTo("job-" + last));
+        assertThat(path.evaluate("data.result." + last + ".values.1"), equalTo(List.of(1735689660.0, Double.toString(last + 0.5))));
+
+        restResponse.close();
+        assertFalse("the response must be released with the REST response", queryResponse.hasReferences());
+    }
+
+    /**
+     * One series with many samples is spread over many chunks: chunking per series alone would still encode the whole
+     * series into one buffer, which overflows for a single series with millions of samples.
+     */
+    public void testLongSeriesIsSplitAcrossChunks() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("job", "keyword"), col("step", "long"));
+        int sampleCount = PrometheusQueryResponseListener.SAMPLES_PER_CHUNK * between(3, 5) + between(1, 100);
+        List<Double> values = new ArrayList<>(sampleCount);
+        List<Long> steps = new ArrayList<>(sampleCount);
+        for (int i = 0; i < sampleCount; i++) {
+            values.add(i + 0.25);
+            steps.add(1735689600000L + i);
+        }
+        EsqlQueryResponse queryResponse = queryResponse(columns, List.of(List.of(values, "api", steps)));
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(queryResponse);
+        queryResponse.decRef();
+
+        RestResponse restResponse = channel.capturedResponse();
+        ChunkedRestResponseBodyPart body = restResponse.chunkedContent();
+        int chunks = 0;
+        int maxChunkBytes = 0;
+        BytesReference bytes;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            while (body.isPartComplete() == false) {
+                // a size hint of one byte cuts the body after every piece, so each chunk is one piece
+                try (var chunk = body.encodeChunk(1, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                    chunks++;
+                    maxChunkBytes = Math.max(maxChunkBytes, chunk.length());
+                    chunk.writeTo(out);
+                }
+            }
+            bytes = out.bytes();
+        }
+        restResponse.close();
+
+        assertThat(chunks, greaterThan(sampleCount / PrometheusQueryResponseListener.SAMPLES_PER_CHUNK));
+        assertThat(maxChunkBytes, lessThan(PrometheusQueryResponseListener.SAMPLES_PER_CHUNK * 64));
+        ObjectPath path = toObjectPath(bytes);
+        assertSuccessMatrix(path);
+        assertThat(path.evaluate("data.result.0.metric.job"), equalTo("api"));
+        assertThat(path.evaluate("data.result.0.values"), hasSize(sampleCount));
+        int last = sampleCount - 1;
+        assertThat(
+            path.evaluate("data.result.0.values." + last),
+            equalTo(List.of((1735689600000L + last) / 1000.0, Double.toString(last + 0.25)))
+        );
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private static EsqlQueryResponse queryResponse(List<ColumnInfoImpl> columns, List<List<Object>> rows) {
+        return new EsqlQueryResponse(columns, pagesOf(rows), 0, 0, null, false, false, ZoneOffset.UTC, 0, 0, null);
+    }
 
     private static ColumnInfoImpl col(String name, String type) {
         return new ColumnInfoImpl(name, type, null);
@@ -739,10 +841,11 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
     }
 
     private static ObjectPath toObjectPath(XContentBuilder builder) throws IOException {
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())
-        ) {
+        return toObjectPath(BytesReference.bytes(builder));
+    }
+
+    private static ObjectPath toObjectPath(BytesReference bytes) throws IOException {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())) {
             return new ObjectPath(parser.map());
         }
     }

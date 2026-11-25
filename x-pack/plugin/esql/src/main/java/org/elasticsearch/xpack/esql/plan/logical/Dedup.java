@@ -76,14 +76,12 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
     /**
      * The columns DEDUP compares. Synthetic attributes (e.g. union-type conversions pushed into UnionAll branches)
      * are dropped before the final output, so the user never dedups on them. Unsupported columns are always null,
-     * so they cannot tell rows apart. The query never names the column LOAD_ALL adds, so it is not a key; a
-     * _unmapped_fields the query names is an ordinary one. {@code _doc} is internal and implicitly dropped.
+     * so they cannot tell rows apart. The {@code _unmapped_fields} column that {@code LOAD_ALL} adds is a key like
+     * any other: rows that differ only in unmapped fields are different rows. {@code _doc} is internal and
+     * implicitly dropped.
      */
     private static boolean isDedupKey(Attribute attr) {
-        return attr.dataType() != DataType.DOC_DATA_TYPE
-            && attr instanceof UnsupportedAttribute == false
-            && attr.synthetic() == false
-            && attr instanceof UnmappedFieldsAttribute == false;
+        return attr.dataType() != DataType.DOC_DATA_TYPE && attr instanceof UnsupportedAttribute == false && attr.synthetic() == false;
     }
 
     @Override

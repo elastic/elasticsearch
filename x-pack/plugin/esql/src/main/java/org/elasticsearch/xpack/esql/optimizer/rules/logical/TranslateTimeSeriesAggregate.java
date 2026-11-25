@@ -51,6 +51,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -242,7 +243,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
         List<Attribute> packDimensions = new ArrayList<>();
-        List<Attribute> unpackDimensions = new ArrayList<>();
+        Map<NameId, Attribute> unpackDimensions = new LinkedHashMap<>();
         List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         Holder<Bucket> timeBucketSpecRef = new Holder<>();
@@ -299,7 +300,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             .map(NamedExpression.class::cast)
             .forEach(extractTimeBucket);
         NamedExpression timeBucket = timeBucketRef.get();
-        boolean[] packPositions = new boolean[aggregate.groupings().size()];
         for (int i = 0; i < aggregate.groupings().size(); i++) {
             var group = aggregate.groupings().get(i);
             if (group instanceof Attribute || group instanceof Alias) {
@@ -324,7 +324,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
-                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions, packPositions, i);
+                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions);
                     } else {
                         assert g instanceof Alias : "g must be an Alias at this point";
                         if (unwrapped instanceof Bucket bucket && bucket.field().dataType().isHistogram()) {
@@ -391,16 +391,21 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 secondPassGroupings,
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
-            UnpackDims unpackDims = new UnpackDims(aggregate.source(), secondPhase, packedGrouping.toAttribute(), unpackDimensions);
+            UnpackDims unpackDims = new UnpackDims(
+                aggregate.source(),
+                secondPhase,
+                packedGrouping.toAttribute(),
+                List.copyOf(unpackDimensions.values())
+            );
             List<NamedExpression> projects = new ArrayList<>();
             for (NamedExpression agg : secondPassAggs) {
                 projects.add(Expressions.attribute(agg));
             }
             int groupPos = 0;
-            int dimPos = 0;
-            for (int i = 0; i < aggregate.groupings().size(); i++) {
-                if (packPositions[i]) {
-                    projects.add(unpackDimensions.get(dimPos++));
+            for (Expression group : aggregate.groupings()) {
+                NamedExpression g = (NamedExpression) group;
+                if (Alias.unwrap(g) instanceof Attribute a && unpackDimensions.get(a.id()) instanceof Attribute unpacked) {
+                    projects.add(unpacked.id().equals(g.id()) ? unpacked : new Alias(g.source(), g.name(), unpacked, g.id()));
                 } else {
                     projects.add(Expressions.attribute(secondPassGroupings.get(groupPos++)));
                 }
@@ -519,18 +524,19 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         List<Expression> secondPassGroupings,
         AnalyzerContext context,
         List<Attribute> packDimensions,
-        List<Attribute> unpackDimensions,
-        boolean[] packPositions,
-        int position
+        Map<NameId, Attribute> unpackDimensions
     ) {
+        if (attribute.isDimension() && unpackDimensions.containsKey(attribute.id())) {
+            return;
+        }
         var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
         firstPassAggs.add(valuesAgg);
         if (attribute.isDimension()) {
             packDimensions.add(valuesAgg.toAttribute());
-            unpackDimensions.add(
+            unpackDimensions.put(
+                attribute.id(),
                 new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
             );
-            packPositions[position] = true;
         } else {
             // VALUES turns TEXT into KEYWORD. Keep the original type on the grouping so that the output type does not drift
             // from what parent plans (e.g. a Project created by DROP/KEEP) resolved against before this translation.

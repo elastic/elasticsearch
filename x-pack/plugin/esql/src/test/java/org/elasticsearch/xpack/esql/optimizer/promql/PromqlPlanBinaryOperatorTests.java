@@ -602,31 +602,36 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
     }
 
-    public void testVectorMatchRejectsOpaqueWithoutOperand() {
+    /** Translates as a join of independent pipelines matched on label containers, which takes the container functions. */
+    public void testVectorMatchOpaqueWithoutOperand() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=5m result=(sum without (pod) (network.eth0.tx) "
-                    + "/ on (cluster) sum by (cluster) (network.eth0.rx))"
-            )
-        );
+        String query = "PROMQL index=k8s step=5m result=(sum without (pod) (network.eth0.tx) "
+            + "/ on (cluster) sum by (cluster) (network.eth0.rx))";
+        if (containerFunctions()) {
+            planPromql(query);
+            return;
+        }
+        VerificationException e = assertThrows(VerificationException.class, () -> planPromql(query));
         assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
-    public void testVectorMatchRejectsOpaqueSelectorOperand() {
+    /** Translates as a join of independent pipelines matched on label containers, which takes the container functions. */
+    public void testVectorMatchOpaqueSelectorOperand() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)")
-        );
+        String query = "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)";
+        if (containerFunctions()) {
+            planPromql(query);
+            return;
+        }
+        VerificationException e = assertThrows(VerificationException.class, () -> planPromql(query));
         assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
     public void testVectorMatchComposedWithOpaqueOperandRejected() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // The unmatched + composes over a vector match and therefore translates as another join: it inherits the
-        // concrete-label requirement, which the bare selector operand does not satisfy.
+        // concrete-label requirement, which the bare selector operand does not satisfy, and with the label container
+        // functions pairs an aggregated operand with a raw one.
         VerificationException e = assertThrows(
             VerificationException.class,
             () -> planPromql(
@@ -634,7 +639,14 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                     + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)"
             )
         );
-        assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                containerFunctions()
+                    ? "binary operations between an aggregated and a raw vector are not supported at this time"
+                    : "vector matching requires operands with concrete label sets"
+            )
+        );
     }
 
     public void testGroupLabelMissingFromBuildDoesNotLeakFromProbe() {
@@ -890,17 +902,21 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     /**
      * When {@code __name__} is a dimension, every metric lives in its own series, so an unmatched binary operator between
      * different metrics folded into one shared frame would find one side null on every row and silently return nothing.
-     * Default matching over opaque operands needs match keys derived from runtime-defined labels, so it is rejected.
+     * Default matching over opaque operands needs match keys derived from runtime-defined labels, so it is rejected unless
+     * every node knows the label container functions.
      */
-    public void testDifferentMetricsInSeparateSeriesRejected() {
+    public void testDifferentMetricsInSeparateSeries() {
         for (String promql : List.of(
             "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
-            "node_memory_MemAvailable_bytes > bool node_memory_MemTotal_bytes",
             "rate(node_cpu_seconds_total[5m]) / node_memory_MemTotal_bytes",
             "(node_memory_MemAvailable_bytes + 1) * node_memory_MemTotal_bytes",
-            "sum(node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes",
             "sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"
         )) {
+            if (containerFunctions()) {
+                // the operands join on their label containers without __name__
+                assertNotNull(promql, planPrometheusLayout(promql));
+                continue;
+            }
             VerificationException e = expectThrows(VerificationException.class, () -> planPrometheusLayout(promql));
             assertThat(
                 promql,

@@ -1580,9 +1580,70 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Matching on __name__ is rejected even where the series store it, as here: which series store it is known only from
+     * the data, and one whose metric is a field reads it as absent.
+     */
+    public void testPromqlMatchingOnMetricNameIsRejected() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
+        String index = "promql-matching-on-metric-name-is-rejected";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        refresh(index);
+        for (String q : List.of("tx / on(__name__, host) rx")) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, q)));
+            assertThat(error.getMessage(), containsString("matching on __name__ is not supported at this time"));
+        }
+    }
+
+    /**
+     * group_left copies the one side's labels over the many side's: two many side series left with the same labels fail the
+     * query, as in Prometheus, rather than come back as two series with one label set. Prometheus matches before it compares,
+     * so a comparison no series passes fails too; copying a label the series agree on keeps them apart.
+     */
+    public void testPromqlGroupLeftLabelCollisionFails() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
+        String index = "promql-group-left-collision";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "optional", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "optional", "east", "tx", 3.0);
+        refresh(index);
+
+        for (String expression : List.of(
+            "tx * on(cluster) group_left(host) sum by (cluster) (tx)",
+            "tx > on(cluster) group_left(host) (sum by (cluster) (tx) * 100)"
+        )) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, expression)));
+            assertThat(error.getMessage(), containsString("input must not have duplicates"));
+        }
+        try (
+            EsqlQueryResponse response = run(
+                promqlQuery(index, "tx * on(cluster) group_left(optional) sum by (cluster, optional) (tx)")
+                    + " | KEEP result, optional | SORT result"
+            )
+        ) {
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of(4.0, "east"), List.of(12.0, "east"))));
+        }
+    }
+
     /** Removing the metric name from the output must not merge histogram families before their quantiles. */
     public void testPromqlHistogramMetricNameIsAnInternalGroupingDependency() {
         String index = "promql-histogram-families";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m1", "le", "1", "tx", 2.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m1", "le", "+Inf", "tx", 4.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m2", "le", "1", "tx", 6.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m2", "le", "+Inf", "tx", 8.0);
+        refresh(index);
+        // m1: target count 2 in a bucket of count 2 gives 1. m2: target 4 in a bucket of count 6 gives 2/3.
+        assertRowsAnyOrder(
+            promqlQuery(index, "histogram_quantile(0.5,sum by(le,__name__,cluster)(tx))") + " | KEEP result",
+            List.of(List.of(1.0), List.of(2.0 / 3.0))
+        );
+    }
+
+    private void createOptionalLabelMetricsIndex(String index) {
         assertAcked(
             indicesAdmin().prepareCreate(index)
                 .setSettings(
@@ -1599,37 +1660,49 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     "type=keyword,time_series_dimension=true",
                     "host",
                     "type=keyword,time_series_dimension=true",
+                    "optional",
+                    "type=keyword,time_series_dimension=true",
+                    "region",
+                    "type=keyword,time_series_dimension=true",
                     "__name__",
                     "type=keyword,time_series_dimension=true",
                     "le",
                     "type=keyword,time_series_dimension=true",
+                    "event",
+                    "type=keyword",
                     "tx",
+                    "type=double,time_series_metric=gauge",
+                    "rx",
                     "type=double,time_series_metric=gauge"
                 )
         );
         ensureGreen(index);
-        indexHistogramSample(index, "m1", "1", 2.0);
-        indexHistogramSample(index, "m1", "+Inf", 4.0);
-        indexHistogramSample(index, "m2", "1", 6.0);
-        indexHistogramSample(index, "m2", "+Inf", 8.0);
-        refresh(index);
-        String query = "PROMQL index="
+    }
+
+    private void indexPromqlSample(String index, Object... fields) {
+        Object[] source = new Object[fields.length + 2];
+        source[0] = "@timestamp";
+        source[1] = PROMQL_QUERY_TIME;
+        System.arraycopy(fields, 0, source, 2, fields.length);
+        client().prepareIndex(index).setSource(source).get();
+    }
+
+    private static String promqlQuery(String index, String expression) {
+        return "PROMQL index="
             + index
             + " start=\""
             + PROMQL_QUERY_TIME
             + "\" end=\""
             + PROMQL_QUERY_TIME
-            + "\" step=1m result=(histogram_quantile(0.5,sum by(le,__name__,cluster)(tx))) | KEEP result";
-        // m1: target count 2 in a bucket of count 2 gives 1. m2: target 4 in a bucket of count 6 gives 2/3.
-        try (EsqlQueryResponse response = run(query)) {
-            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(List.of(1.0), List.of(2.0 / 3.0)));
-        }
+            + "\" step=1m result=("
+            + expression
+            + ")";
     }
 
-    private void indexHistogramSample(String index, String name, String le, double tx) {
-        client().prepareIndex(index)
-            .setSource("@timestamp", PROMQL_QUERY_TIME, "cluster", "prod", "host", "a", "__name__", name, "le", le, "tx", tx)
-            .get();
+    private void assertRowsAnyOrder(String query, List<List<Object>> expected) {
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(expected.toArray()));
+        }
     }
 
     private static double round(double value) {

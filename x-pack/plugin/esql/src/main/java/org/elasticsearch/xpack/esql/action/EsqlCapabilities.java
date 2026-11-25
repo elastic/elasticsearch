@@ -5115,6 +5115,12 @@ public class EsqlCapabilities {
          */
         UNION_TYPES_CONVERSION_WITH_BASE,
 
+        /**
+         * The error for a field mapped to different types, and unmapped in some indices, with {@code unmapped_fields="load"}
+         * counts the indices of each type like it does without it. Older nodes listed {@code ...} as an index and undercounted.
+         */
+        PARTIALLY_UNMAPPED_CONFLICT_INDEX_COUNT,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

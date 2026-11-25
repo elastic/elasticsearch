@@ -1060,8 +1060,11 @@ public class IndexResolver {
             case KEYWORD -> new PotentiallyUnmappedKeywordEsField(name);
             default -> {
                 if (field instanceof TypeConflictedField) {
-                    yield useLegacyField
-                        ? InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices))
+                    if (useLegacyField) {
+                        yield InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices));
+                    }
+                    yield field instanceof CompactInvalidMappedField compact
+                        ? compact.asPotentiallyUnmapped()
                         : CompactInvalidMappedField.potentiallyUnmapped(
                             name,
                             partiallyUnmappedTypesByDataType(field, mappedIndices),

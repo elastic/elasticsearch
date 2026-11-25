@@ -45,10 +45,30 @@ public class RuleUtilsFoldableRefsTests extends ESTestCase {
         LogicalPlan build = new Eval(Source.EMPTY, relation(buildKey), List.of(constant));
         List<Attribute> added = List.of(constant.toAttribute());
 
-        LogicalPlan inner = new HashJoin(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), added, false, JoinTypes.INNER);
+        LogicalPlan inner = new HashJoin(
+            Source.EMPTY,
+            probe,
+            build,
+            List.of(probeKey),
+            List.of(buildKey),
+            added,
+            false,
+            JoinTypes.INNER,
+            false
+        );
         assertThat(foldable(inner).get(constant.toAttribute()), notNullValue());
 
-        LogicalPlan left = new HashJoin(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), added, false, JoinTypes.LEFT);
+        LogicalPlan left = new HashJoin(
+            Source.EMPTY,
+            probe,
+            build,
+            List.of(probeKey),
+            List.of(buildKey),
+            added,
+            false,
+            JoinTypes.LEFT,
+            false
+        );
         assertThat(foldable(left).get(constant.toAttribute()), nullValue());
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.EsqlRefCountingListener;
+import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -40,9 +41,12 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -54,6 +58,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,6 +66,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -1074,6 +1080,250 @@ public class ExchangeServiceTests extends ESTestCase {
             assertTrue("sink with no completion listener must be unregistered", exchange1.isEmpty());
             assertNull(exchange1.getSinkHandlerIfOpen(bareId));
         }
+    }
+
+    /**
+     * The coordinator opens the sink on the target before it sends the compute request, and starts fetching from it. When the
+     * query fails before the target registered the compute request, the ban that cancels the query refuses that request, so no
+     * compute on the target removes the sink. The ban also cancels the fetch waiting on the sink, which answers it as finished,
+     * and a finished remote sink sends no close. The cancelled fetch must unregister the sink, or it stays on the target until
+     * the inactive-sinks reaper removes it minutes later. The same holds when only the fetch is cancelled, as
+     * {@code _tasks/_cancel} does with a task it matches, and then the query still runs: a compute request that looks the sink
+     * up afterwards must fail as cancelled rather than complete empty and drop the node's rows.
+     */
+    public void testCancelledFetchUnregistersSinkWithoutCompute() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        try (exchange0; exchange1; node0; node1) {
+            AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+            AtomicInteger closesReceived = new AtomicInteger();
+            node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+                if (((ExchangeRequest) request).sourcesFinished()) {
+                    closesReceived.incrementAndGet();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> opened = new PlainActionFuture<>();
+            ExchangeService.openExchange(
+                node0,
+                connection,
+                exchangeId,
+                randomExchangeBuffer(),
+                threadPool.executor(ESQL_TEST_EXECUTOR),
+                opened
+            );
+            opened.actionGet(10, TimeUnit.SECONDS);
+            assertFalse(exchange1.isEmpty());
+
+            CancellableTask queryTask = registerQueryTask(node0);
+            try {
+                RemoteSink remoteSink = exchange0.newRemoteSink(queryTask, exchangeId, node0, connection);
+                PlainActionFuture<Boolean> fetchedFinished = new PlainActionFuture<>();
+                remoteSink.fetchPageAsync(false, fetchedFinished.map(ExchangeResponse::finished));
+                ExchangeSinkHandler sink = exchange1.getSinkHandler(exchangeId);
+                assertBusy(() -> assertTrue("the fetch must wait on the sink", sink.hasListeners()));
+
+                boolean cancelQuery = randomBoolean();
+                PlainActionFuture<Void> cancelled = new PlainActionFuture<>();
+                if (cancelQuery) {
+                    node0.getTaskManager().cancelTaskAndDescendants(queryTask, "query failed", false, cancelled);
+                } else {
+                    CancellableTask fetchTask = node1.getTaskManager()
+                        .getCancellableTasks()
+                        .values()
+                        .stream()
+                        .filter(t -> t.getAction().equals(ExchangeService.EXCHANGE_ACTION_NAME))
+                        .findFirst()
+                        .orElseThrow();
+                    node1.getTaskManager().cancelTaskAndDescendants(fetchTask, "cancelled by user", false, cancelled);
+                }
+                cancelled.actionGet(10, TimeUnit.SECONDS);
+                assertTrue("the cancelled fetch is answered as finished", fetchedFinished.actionGet(10, TimeUnit.SECONDS));
+                assertThat(queryTask.isCancelled(), equalTo(cancelQuery));
+
+                // A close after the fetch was answered as finished, such as finishRemoteSinkIfNotSent sends, reaches nothing.
+                PlainActionFuture<Void> closed = new PlainActionFuture<>();
+                remoteSink.close(closed);
+                closed.actionGet(10, TimeUnit.SECONDS);
+                assertThat(closesReceived.get(), equalTo(0));
+                assertBusy(() -> assertTrue("the sink must not outlive the cancelled fetch", exchange1.isEmpty()));
+                // A compute request that looks the sink up only now fails as cancelled: not with a missing exchange, which
+                // would replace the query's own error, and not empty, which would drop the node's rows.
+                expectThrows(TaskCancelledException.class, () -> exchange1.getSinkHandlerIfOpen(exchangeId));
+            } finally {
+                node0.getTaskManager().unregister(queryTask);
+            }
+        }
+    }
+
+    /**
+     * A compute request can look the sink up on another thread while a cancelled fetch fails and unregisters it. From the
+     * moment the cancel starts, that lookup must fail as cancelled: claiming the failed sink would keep it for a compute that
+     * may answer empty, and a missing exchange would replace the query's own error. A completion listener stands in for the
+     * lookup, since {@code onFailure} runs it in the middle of the cancel, before or after an owner's listener unregistered
+     * the sink.
+     */
+    public void testCancelledFetchMarksSinkBeforeCompletionListeners() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        try (exchange0; exchange1; node0; node1) {
+            AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> opened = new PlainActionFuture<>();
+            ExchangeService.openExchange(
+                node0,
+                connection,
+                exchangeId,
+                randomExchangeBuffer(),
+                threadPool.executor(ESQL_TEST_EXECUTOR),
+                opened
+            );
+            opened.actionGet(10, TimeUnit.SECONDS);
+            ExchangeSinkHandler sink = exchange1.getSinkHandler(exchangeId);
+            PlainActionFuture<Exception> lookupFromListener = new PlainActionFuture<>();
+            boolean unregisteredFirst = randomBoolean();
+            sink.addCompletionListener(ActionListener.running(() -> {
+                if (unregisteredFirst) {
+                    exchange1.finishSinkHandler(exchangeId, null);
+                }
+                try {
+                    ExchangeSinkHandler found = exchange1.getSinkHandlerIfOpen(exchangeId);
+                    lookupFromListener.onFailure(new IllegalStateException("expected the lookup to fail, got " + found));
+                } catch (Exception e) {
+                    lookupFromListener.onResponse(e);
+                }
+            }));
+
+            CancellableTask queryTask = registerQueryTask(node0);
+            try {
+                RemoteSink remoteSink = exchange0.newRemoteSink(queryTask, exchangeId, node0, connection);
+                PlainActionFuture<Boolean> fetchedFinished = new PlainActionFuture<>();
+                remoteSink.fetchPageAsync(false, fetchedFinished.map(ExchangeResponse::finished));
+                assertBusy(() -> assertTrue("the fetch must wait on the sink", sink.hasListeners()));
+
+                PlainActionFuture<Void> cancelled = new PlainActionFuture<>();
+                node0.getTaskManager().cancelTaskAndDescendants(queryTask, "query failed", false, cancelled);
+                cancelled.actionGet(10, TimeUnit.SECONDS);
+                assertTrue("the cancelled fetch is answered as finished", fetchedFinished.actionGet(10, TimeUnit.SECONDS));
+                assertThat(lookupFromListener.actionGet(10, TimeUnit.SECONDS), instanceOf(TaskCancelledException.class));
+                assertBusy(() -> assertTrue("the lookup must not keep the cancelled sink registered", exchange1.isEmpty()));
+            } finally {
+                node0.getTaskManager().unregister(queryTask);
+            }
+        }
+    }
+
+    /**
+     * A cancelled fetch, and a close that arrives after it, must leave a sink that something on the node owns to its owner:
+     * a batch exchange, which keeps pages that carry batch metadata after its sink is finished and discards them with its
+     * own {@link ExchangeService#finishSinkHandler} on the failed completion, or a compute that took the sink the
+     * coordinator opened.
+     */
+    public void testCancelledFetchLeavesOwnedSinkToItsOwner() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        exchange1.registerTransportHandler(node1);
+        try (exchange0; exchange1; node0; node1) {
+            AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            final boolean batchExchange = randomBoolean();
+            final ExchangeSinkHandler sinkHandler;
+            if (batchExchange) {
+                // As BidirectionalBatchExchangeServer#initialize does.
+                sinkHandler = exchange1.getOrCreateSinkHandler(exchangeId, randomExchangeBuffer());
+            } else {
+                // As a compute request does with the sink the coordinator opened.
+                PlainActionFuture<Void> opened = new PlainActionFuture<>();
+                ExchangeService.openExchange(
+                    node0,
+                    connection,
+                    exchangeId,
+                    randomExchangeBuffer(),
+                    threadPool.executor(ESQL_TEST_EXECUTOR),
+                    opened
+                );
+                opened.actionGet(10, TimeUnit.SECONDS);
+                sinkHandler = exchange1.getSinkHandlerIfOpen(exchangeId);
+            }
+            ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+            CancellableTask queryTask = registerQueryTask(node0);
+            try {
+                PlainActionFuture<Boolean> fetchedFinished = new PlainActionFuture<>();
+                exchange0.newRemoteSink(queryTask, exchangeId, node0, connection)
+                    .fetchPageAsync(false, fetchedFinished.map(ExchangeResponse::finished));
+                assertBusy(() -> assertTrue(sinkHandler.hasListeners()));
+                PlainActionFuture<Void> cancelled = new PlainActionFuture<>();
+                node0.getTaskManager().cancelTaskAndDescendants(queryTask, "query failed", false, cancelled);
+                cancelled.actionGet(10, TimeUnit.SECONDS);
+                assertTrue(fetchedFinished.actionGet(10, TimeUnit.SECONDS));
+                assertFalse("the owner unregisters its sink", exchange1.isEmpty());
+                // A close that was already on its way, such as finishRemoteSinkIfNotSent sends, finds the sink failed.
+                PlainActionFuture<Void> closed = new PlainActionFuture<>();
+                exchange0.newRemoteSink(queryTask, exchangeId, node0, connection).close(closed);
+                closed.actionGet(10, TimeUnit.SECONDS);
+                assertFalse("the close leaves a failed sink to its owner", exchange1.isEmpty());
+
+                if (batchExchange) {
+                    // PageToBatchPageOperator#flushBatch writes without checking needsInput; the finished buffer keeps batch pages.
+                    IntBlock block = blockFactory.newConstantIntBlockWith(1, 1);
+                    sink.addPage(new Page(new BatchMetadata(1, 0, true), block));
+                    assertFalse(block.isReleased());
+                    // As BidirectionalBatchExchangeServer#close does.
+                    sinkHandler.addCompletionListener(
+                        ActionListener.wrap(
+                            v -> exchange1.finishSinkHandler(exchangeId, null),
+                            e -> exchange1.finishSinkHandler(exchangeId, e)
+                        )
+                    );
+                    sink.finish();
+                    assertTrue("batch page written after the cancel must be released by the owner's cleanup", block.isReleased());
+                } else {
+                    // As a compute does once its drivers are done.
+                    sinkHandler.addCompletionListener(ActionListener.running(() -> exchange1.finishSinkHandler(exchangeId, null)));
+                    sink.finish();
+                }
+                assertTrue(exchange1.isEmpty());
+            } finally {
+                node0.getTaskManager().unregister(queryTask);
+            }
+        }
+    }
+
+    /** The task of a query on the coordinator, which a failing query cancels together with its children. */
+    private static CancellableTask registerQueryTask(TransportService transportService) {
+        return (CancellableTask) transportService.getTaskManager().register("transport", "esql_query", new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new CancellableTask(id, type, action, "", parentTaskId, headers);
+            }
+        });
     }
 
     private MockTransportService newTransportService() {

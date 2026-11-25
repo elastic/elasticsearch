@@ -41,6 +41,8 @@ public final class ExchangeSinkHandler {
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
     private volatile Consumer<Page> onPageDiscarded = page -> {};
+    /** Set once something on this node, such as a compute or a batch exchange, took the sink to write into. */
+    private volatile boolean owned;
 
     public ExchangeSinkHandler(int maxBufferSize, LongSupplier nowInMillis) {
         this.buffer = new ExchangeBuffer(maxBufferSize, page -> onPageDiscarded.accept(page));
@@ -127,6 +129,20 @@ public final class ExchangeSinkHandler {
      */
     public boolean isFinished() {
         return completionFuture.isDone();
+    }
+
+    /**
+     * Marks that something on this node, such as a compute or a batch exchange, took the sink to write into. Ownership only
+     * changes what a cancelled fetch does: {@link ExchangeService} leaves an owned sink registered, because the owner may
+     * still write pages afterwards, and those are discarded only while the sink is registered, by the owner unregistering it
+     * with a failure or by a later close. A successful close and the inactive-sinks reaper unregister an owned sink too.
+     */
+    void markOwned() {
+        owned = true;
+    }
+
+    boolean isOwned() {
+        return owned;
     }
 
     /**

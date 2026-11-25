@@ -582,11 +582,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
-- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testSourcesFinishedUnregistersSink
-  issue: https://github.com/elastic/elasticsearch/issues/165591
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:transform:yamlRestTest
@@ -715,16 +710,6 @@ tests:
   - :server:test
   method: testDimsDerivedConfigFollowsFieldDimension
   issue: https://github.com/elastic/elasticsearch/issues/166795
-- class: org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testTripFailsQueryWithoutPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/166894
-- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testTripFailsQueryWithPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/166909
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   tasks:
   - :x-pack:plugin:esql:compute:test
@@ -745,16 +730,6 @@ tests:
   - :server:test
   method: testQuantizeForQuery
   issue: https://github.com/elastic/elasticsearch/issues/167018
-- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testTripFailsQueryWithoutPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/167009
-- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testTripDropsClusterWithPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/167022
 - class: org.elasticsearch.compute.operator.DriverTests
   tasks:
   - :x-pack:plugin:esql:compute:test

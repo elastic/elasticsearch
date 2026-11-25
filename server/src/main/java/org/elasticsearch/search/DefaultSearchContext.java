@@ -858,6 +858,10 @@ final class DefaultSearchContext extends SearchContext {
         if (indexService.getIndexSettings().getIndexSortConfig().containsDescendingTimestampSort() == false) {
             return;
         }
+        // Only the data stream timestamp mapper makes sure that every document has exactly one @timestamp value
+        if (indexService.mapperService().mappingLookup().isDataStreamTimestampFieldEnabled() == false) {
+            return;
+        }
         SortAndFormats sort = sort();
         if (sort == null) {
             return;

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -78,13 +79,7 @@ public final class SubqueryJoinLowering {
         Source source = join.source();
         List<Attribute> leftFields = join.config().leftFields();
         List<Attribute> rightFields = join.config().rightFields();
-        LogicalPlan subquery = join.right();
-        Set<String> subqueryColumns = new HashSet<>();
-        for (Attribute output : subquery.output()) {
-            if (rightFields.contains(output) == false) {
-                subqueryColumns.add(output.name());
-            }
-        }
+        Set<String> subqueryColumns = new HashSet<>(Expressions.names(join.rightOutputFields()));
         List<Alias> leftColumns = new ArrayList<>();
         List<Alias> rightCasts = new ArrayList<>();
         List<Attribute> leftKeys = new ArrayList<>(leftFields.size());
@@ -98,6 +93,7 @@ public final class SubqueryJoinLowering {
         }
 
         LogicalPlan left = leftColumns.isEmpty() ? join.left() : new Eval(source, join.left(), leftColumns);
+        LogicalPlan subquery = join.right();
         if (rightCasts.isEmpty() == false) {
             // Drop the subquery's own keys: the join's output doesn't have them, and they would shadow the left columns of the
             // same name.

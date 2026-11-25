@@ -416,6 +416,42 @@ emp_no:integer | language_name:keyword
 10002          | null
 ;
 
+leftOuterJoinSubqueryThenSearchOnLeftField
+required_capability: join_on_subquery
+required_capability: match_function
+// A search on a left field is pushed below the join, to the data nodes.
+
+FROM employees
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| WHERE MATCH(first_name, "Georgi")
+| KEEP emp_no, first_name, language_name
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+10001          | Georgi             | French
+;
+
+leftOuterJoinSubqueryThenSearchOnSubqueryColumn
+required_capability: join_on_subquery
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+// A search on a subquery column runs after the join, over the values in the page.
+
+FROM employees
+| WHERE emp_no <= 10010
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| WHERE MATCH(language_name, "French")
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10008          | French
+;
+
 leftOuterJoinSubqueryThenInlineStats
 required_capability: join_on_subquery
 required_capability: inline_stats

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,6 +24,8 @@ import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
@@ -30,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -477,6 +481,31 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     public void testFieldNameWithUnicodeEscape() throws IOException {
         assertSameOutputAllSourceShapes("""
             {"\\u0041lpha":1,"beta":2}""");
+    }
+
+    /**
+     * Unpaired surrogate escapes in string values: the direct walker must produce the Jackson output itself, so a fallback
+     * to Jackson (which would make the outputs match trivially) fails the test.
+     */
+    @TestLogging(value = "org.elasticsearch.escf.EscfEncoder:DEBUG", reason = "asserts that the direct walker does not fall back")
+    public void testUnpairedSurrogatesHandledByDirectWalker() {
+        MockLog.assertThatLogger(() -> {
+            try {
+                assertSameOutputAllSourceShapes("""
+                    {"v":"\\uD800","w":"a\\uDC00b","x":"\\uD800\\uD83D\\uDE00","arr":["\\uDFFF","ok"]}""", """
+                    {"o":{"v":"\\uDBFF\\u0041"},"objs":[{"v":"\\uD800"}]}""");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        },
+            EscfEncoder.class,
+            new MockLog.UnseenEventExpectation(
+                "direct walk fallback",
+                EscfEncoder.class.getCanonicalName(),
+                Level.DEBUG,
+                "Direct walk failed*"
+            )
+        );
     }
 
     // -----------------------------------------------------------------------

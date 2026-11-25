@@ -10,7 +10,6 @@
 package org.elasticsearch.benchmark.xcontent;
 
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
-import org.elasticsearch.simdjson.JsonDocumentHandler;
 import org.elasticsearch.simdjson.JsonDocumentParser;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -26,7 +25,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Random;
@@ -86,7 +84,7 @@ public class StringFieldParsingBenchmark {
 
     private byte[][] docs;
     private JsonDocumentParser docParser;
-    private final CountingHandler handler = new CountingHandler();
+    private final NoOpHandler handler = new NoOpHandler();
 
     @Setup
     public void setUp() throws IOException {
@@ -164,95 +162,4 @@ public class StringFieldParsingBenchmark {
         return sb.toString();
     }
 
-    /**
-     * Records just enough to prevent dead-code elimination of the walk; every method is otherwise
-     * as cheap as possible so the benchmark measures {@code walkObject}/{@code StringParser}, not
-     * a handler implementation.
-     */
-    private static final class CountingHandler implements JsonDocumentHandler {
-        long checksum;
-
-        @Override
-        public void startObject(String fieldName) {}
-
-        @Override
-        public void endObject() {}
-
-        @Override
-        public void emptyObject(String fieldName) {}
-
-        @Override
-        public void stringField(String fieldName, byte[] buf, int off, int len) {
-            checksum ^= len;
-        }
-
-        @Override
-        public void longField(String fieldName, long value, boolean fitsInt, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= value;
-        }
-
-        @Override
-        public void bigIntegerField(String fieldName, BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= value.longValue();
-        }
-
-        @Override
-        public void doubleField(String fieldName, double value, boolean fitsFloat, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= Double.doubleToRawLongBits(value);
-        }
-
-        @Override
-        public void booleanField(String fieldName, boolean value, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= value ? 1 : 0;
-        }
-
-        @Override
-        public void nullField(String fieldName) {}
-
-        @Override
-        public void startArray(String fieldName) {}
-
-        @Override
-        public void endArray() {}
-
-        @Override
-        public void arrayElemString(byte[] buf, int off, int len) {
-            checksum ^= len;
-        }
-
-        @Override
-        public void arrayElemLong(long value, boolean fitsInt) {
-            checksum ^= value;
-        }
-
-        @Override
-        public void arrayElemBigInteger(BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
-            checksum ^= value.longValue();
-        }
-
-        @Override
-        public void arrayElemDouble(double value, boolean fitsFloat) {
-            checksum ^= Double.doubleToRawLongBits(value);
-        }
-
-        @Override
-        public void arrayElemBoolean(boolean value) {
-            checksum ^= value ? 1 : 0;
-        }
-
-        @Override
-        public void arrayElemNull() {}
-
-        @Override
-        public void arrayElemStartObject() {}
-
-        @Override
-        public void arrayElemEndObject() {}
-
-        @Override
-        public void arrayElemStartArray() {}
-
-        @Override
-        public void arrayElemEndArray() {}
-    }
 }

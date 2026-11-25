@@ -46,6 +46,6 @@ public final class UsageComponents {
         ThreadPool threadPool,
         Clock clock
     ) {
-        return NoopUsageReporter.INSTANCE;
+        return new ScheduledUsageReporter(settings, accumulator, builder, store, publisher, identity, threadPool, clock);
     }
 }

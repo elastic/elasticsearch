@@ -69,4 +69,17 @@ public final class LeafExecutionScope {
         bytes.addAndGet(charged);
         return true;
     }
+
+    /**
+     * Gives up ownership of up to {@code refunded} charged to {@code from}, capped at what this scope still owns.
+     *
+     * @return the bytes given up, which the caller releases from {@code from}
+     */
+    long refund(LeafExecutionAccounting from, long refunded) {
+        if (refunded <= 0L || accounting != from) {
+            return 0L;
+        }
+        final long heldBefore = bytes.getAndUpdate(current -> Math.max(0L, current - refunded));
+        return Math.min(heldBefore, refunded);
+    }
 }

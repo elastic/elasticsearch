@@ -11,10 +11,12 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.function.LongConsumer;
 
 /**
  * Tracks execution RAM charged to a single request's circuit breaker. One instance is owned by a single
@@ -43,21 +45,56 @@ final class LeafExecutionAccounting implements Releasable {
      * the reservation trips the breaker.
      */
     void charge(LeafReaderContext ctx, long bytes, String label) {
-        if (bytes <= 0L) {
-            return;
+        if (bytes > 0L) {
+            attribute(ctx, bytes, label);
         }
+    }
+
+    /**
+     * Like {@link #charge}, for a caller that learns later how much of the reservation it keeps.
+     *
+     * @return settles the reservation: given the bytes actually retained, releases what was charged beyond them from the scope
+     *         or leaf the charge was attributed to. Never raises the charge, and releases nothing already released. Call at most once.
+     *         {@code null} when nothing was charged.
+     */
+    @Nullable
+    LongConsumer reserve(LeafReaderContext ctx, long bytes, String label) {
+        if (bytes <= 0L) {
+            return null;
+        }
+        final LeafExecutionScope scope = attribute(ctx, bytes, label);
+        if (scope != null) {
+            return retainedBytes -> releaseScoped(scope.refund(this, excess(bytes, retainedBytes)));
+        }
+        final int ord = ctx.ord;
+        return retainedBytes -> releaseFromLeaf(ord, excess(bytes, retainedBytes));
+    }
+
+    /** Charges {@code bytes} and records them, returning the scope that owns them, or {@code null} when {@code ctx}'s leaf does. */
+    @Nullable
+    private LeafExecutionScope attribute(LeafReaderContext ctx, long bytes, String label) {
         breaker.addEstimateBytesAndMaybeBreak(bytes, label);
-        LeafExecutionScope scope = LeafExecutionScope.current();
+        final LeafExecutionScope scope = LeafExecutionScope.current();
         if (scope != null && scope.add(this, bytes)) {
             scopedBytes.addAndGet(bytes);
-        } else {
-            perLeafBytes.addAndGet(ctx.ord, bytes);
+            return scope;
         }
+        perLeafBytes.addAndGet(ctx.ord, bytes);
+        return null;
+    }
+
+    /** What was charged beyond {@code retainedBytes}, between {@code 0} and {@code charged}. */
+    private static long excess(long charged, long retainedBytes) {
+        assert retainedBytes >= 0L : "retained bytes must not be negative: " + retainedBytes;
+        return Math.max(0L, charged - retainedBytes);
     }
 
     /** Releases {@code bytes} held by a {@link LeafExecutionScope}, capped at what scopes still hold. */
     void releaseScoped(long bytes) {
-        final long held = scopedBytes.getAndUpdate(current -> current - Math.min(current, bytes));
+        if (bytes <= 0L) {
+            return;
+        }
+        final long held = scopedBytes.getAndUpdate(current -> Math.max(0L, current - bytes));
         final long released = Math.min(held, bytes);
         if (released > 0L) {
             breaker.addWithoutBreaking(-released);
@@ -78,6 +115,18 @@ final class LeafExecutionAccounting implements Releasable {
         final long charged = perLeafBytes.getAndSet(ord, 0L);
         if (charged > 0L) {
             breaker.addWithoutBreaking(-charged);
+        }
+    }
+
+    /** Releases {@code bytes} charged to the leaf {@code ord}, capped at what the leaf still holds. */
+    private void releaseFromLeaf(int ord, long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        final long held = perLeafBytes.getAndUpdate(ord, current -> Math.max(0L, current - bytes));
+        final long released = Math.min(held, bytes);
+        if (released > 0L) {
+            breaker.addWithoutBreaking(-released);
         }
     }
 

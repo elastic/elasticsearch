@@ -53,6 +53,7 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -398,6 +399,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     public void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
         executionAccounting.charge(ctx, bytes, label);
+    }
+
+    /**
+     * Like {@link #chargeLeaf}, for a caller that learns later how much of the reservation it keeps.
+     *
+     * @return settles the reservation once the caller knows what it keeps: given the bytes actually retained, releases what was
+     *         charged beyond them. Never raises the charge. Call at most once. {@code null} when nothing was charged.
+     */
+    @Nullable
+    LongConsumer reserveLeaf(LeafReaderContext ctx, long bytes, String label) {
+        return executionAccounting.reserve(ctx, bytes, label);
     }
 
     /** Test-only */

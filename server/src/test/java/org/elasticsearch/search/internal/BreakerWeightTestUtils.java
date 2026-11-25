@@ -44,9 +44,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 final class BreakerWeightTestUtils {
 
-    /** The class of the doc id range iterator behind {@link DocIdSetIterator#all}, private to Lucene. */
-    private static final Class<? extends DocIdSetIterator> DOC_ID_RANGE_CLASS = DocIdSetIterator.all(1).getClass();
-
     private BreakerWeightTestUtils() {}
 
     static ContextIndexSearcher newContextIndexSearcher(IndexReader reader) throws IOException {
@@ -79,8 +76,8 @@ final class BreakerWeightTestUtils {
     }
 
     /**
-     * Checks that what {@link ExecutionCharge#forQuery} charges for {@code query} on each leaf of {@code searcher} is at least the
-     * heap of the doc id set the leaf's scorer keeps.
+     * Checks that what {@link ExecutionCharge#forQuery} charges for {@code query} on each leaf of {@code searcher}, both the
+     * reservation and what {@link ExecutionBreakerWeight} settles it to, is at least the heap of the doc id set the leaf's scorer keeps.
      */
     static void assertChargeIsCeilingOnRetainedSet(IndexSearcher searcher, Query query) throws IOException {
         LeafExecutionEstimator estimator = ExecutionCharge.forQuery(query).estimator();
@@ -96,18 +93,24 @@ final class BreakerWeightTestUtils {
             long retained = RamUsageTester.ramUsed(iterator);
             // An intersection that matches nothing keeps an empty array, and a match-all path iterates a doc id range: neither is charged.
             if (matchesNothing == false && isDocIdRange(iterator) == false) {
-                assertThat(
-                    String.format(Locale.ROOT, "%s [maxDoc=%d, charged=%d, retained=%d]", query, ctx.reader().maxDoc(), charged, retained),
+                long settled = Math.min(charged, ExecutionBreakerWeight.retainedBytes(iterator, ctx.reader().maxDoc()));
+                String message = String.format(
+                    Locale.ROOT,
+                    "%s [maxDoc=%d, charged=%d, settled=%d, retained=%d]",
+                    query,
+                    ctx.reader().maxDoc(),
                     charged,
-                    greaterThanOrEqualTo(retained)
+                    settled,
+                    retained
                 );
+                assertThat(message, settled, greaterThanOrEqualTo(retained));
             }
         }
     }
 
     /** Whether {@code iterator} iterates a doc id range, as from {@link DocIdSetIterator#all}, which keeps no doc id set. */
     static boolean isDocIdRange(DocIdSetIterator iterator) {
-        return iterator.getClass() == DOC_ID_RANGE_CLASS;
+        return iterator.getClass() == ExecutionBreakerWeight.DOC_ID_RANGE_CLASS;
     }
 
     /** Request breaker that keeps track of what is in use, the peak, and every accepted reservation. A negative limit never trips. */

@@ -56,6 +56,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -75,6 +76,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.CopyState;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeFailure;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.SentCopy;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.ShardCopy;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.Untried;
 import org.junit.After;
@@ -103,6 +105,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.stream.Collectors.toMap;
@@ -112,6 +115,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROL
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeRequest;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -119,6 +123,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -785,24 +790,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     /**
-     * Only the open is refused by a node that stopped admitting exchanges. A {@link NodeClosedException} that fails the data node
-     * request came from further down, a lookup for example, and must not exclude the data node.
-     */
-    public void testDataRequestFailureIsNeverARefusal() {
-        assertThat(
-            DataNodeRequestSender.classifyDataRequestFailure(
-                new RemoteTransportException("remote", new RemoteTransportException("lookup", new NodeClosedException(node2)))
-            ),
-            equalTo(NodeFailure.OTHER)
-        );
-        assertThat(DataNodeRequestSender.classifyDataRequestFailure(refusal(node1)), equalTo(NodeFailure.OTHER));
-        assertThat(
-            DataNodeRequestSender.classifyDataRequestFailure(new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME)),
-            equalTo(NodeFailure.UNREACHABLE)
-        );
-    }
-
-    /**
      * A refusal leaves the node out for every shard that is resolved again. A lost connection only does so for the shards of the
      * request that lost it: another shard that is resolved onto that node later still tries it, since the loss may have been transient.
      * <p>
@@ -1291,6 +1278,225 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertNotNull(e.toString(), failure);
         assertThat(failure.getMessage(), equalTo("shard2 failed for good"));
         assertThat(recorded.routingWaits(), equalTo(0L));
+    }
+
+    /**
+     * What a resolution lists for a shard, in the order a retry tries the copies: active ones, relocation targets, and then
+     * initializing copies, which only tell "none yet" from "gone". A shard, an index or a project that the state does not have
+     * is a case and not an exception: the resolution also runs on the cluster applier thread.
+     */
+    public void testResolve() {
+        Copy moving = relocating(node1, "allocation-1", node2);
+        DiscoveryNode departed = DiscoveryNodeUtils.builder("departed").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+        ClusterState state = routingState(
+            ProjectId.DEFAULT,
+            Map.of(
+                shard1.shardId(),
+                List.of(moving),
+                shard2.shardId(),
+                List.of(started(node3, "allocation-2"), initializing(node4, "allocation-3"), started(departed, "allocation-4"))
+            )
+        );
+        Set<ShardId> shardIds = Set.of(shard1.shardId(), shard2.shardId(), shard3.shardId());
+
+        Map<ShardId, List<ShardCopy>> resolved = DataNodeRequestSender.resolve(state, ProjectId.DEFAULT, shardIds);
+        assertThat(
+            resolved.get(shard1.shardId()),
+            contains(
+                new ShardCopy(node1, "allocation-1", CopyState.ACTIVE),
+                new ShardCopy(node2, moving.targetAllocationId(), CopyState.RELOCATION_TARGET)
+            )
+        );
+        assertThat(
+            "a copy on a node the state does not list is left out",
+            resolved.get(shard2.shardId()),
+            contains(new ShardCopy(node3, "allocation-2", CopyState.ACTIVE), new ShardCopy(node4, "allocation-3", CopyState.INITIALIZING))
+        );
+        assertThat("the index has no such shard", resolved, not(hasKey(shard3.shardId())));
+        assertThat(DataNodeRequestSender.untriedCopies(resolved.get(shard3.shardId()), Map.of(), Set.of()).kind(), equalTo(Untried.GONE));
+
+        Map<ShardId, List<ShardCopy>> withoutIndex = DataNodeRequestSender.resolve(
+            routingState(ProjectId.DEFAULT, Map.of()),
+            ProjectId.DEFAULT,
+            shardIds
+        );
+        assertThat(withoutIndex, anEmptyMap());
+        assertThat(
+            DataNodeRequestSender.untriedCopies(withoutIndex.get(shard1.shardId()), Map.of(), Set.of()).kind(),
+            equalTo(Untried.GONE)
+        );
+
+        Map<ShardId, List<ShardCopy>> withoutProject = DataNodeRequestSender.resolve(state, ProjectId.fromId("deleted"), shardIds);
+        assertThat(withoutProject, anEmptyMap());
+        assertThat(
+            DataNodeRequestSender.untriedCopies(withoutProject.get(shard1.shardId()), Map.of(), Set.of()).kind(),
+            equalTo(Untried.GONE)
+        );
+    }
+
+    /**
+     * The copy a request goes to is read from the applied state when the request is sent: an active copy, an initializing one or
+     * the target of a relocation. A node on which the state shows no copy of the shard gives nothing to record.
+     */
+    public void testSentCopy() {
+        Copy moving = relocating(node1, "allocation-1", node2);
+        ClusterState state = routingState(
+            ProjectId.DEFAULT,
+            Map.of(
+                shard1.shardId(),
+                List.of(moving),
+                shard2.shardId(),
+                List.of(started(node3, "allocation-2"), initializing(node4, "allocation-3"))
+            )
+        );
+        Sender unused = (node, shardIds, aliasFilters, listener) -> { throw new AssertionError("no request is expected here"); };
+        DataNodeRequestSender sender = setup(List.of(), unused).build();
+
+        assertThat(sender.sentCopy(state, shard1.shardId(), node1), equalTo(new SentCopy("allocation-1", true)));
+        assertThat(sender.sentCopy(state, shard1.shardId(), node2), equalTo(new SentCopy(moving.targetAllocationId(), false)));
+        assertThat(sender.sentCopy(state, shard2.shardId(), node3), equalTo(new SentCopy("allocation-2", true)));
+        assertThat(sender.sentCopy(state, shard2.shardId(), node4), equalTo(new SentCopy("allocation-3", false)));
+        assertNull("no copy on the node", sender.sentCopy(state, shard2.shardId(), node1));
+        assertNull("no such shard", sender.sentCopy(state, shard3.shardId(), node1));
+        assertNull("no such index", sender.sentCopy(routingState(ProjectId.DEFAULT, Map.of()), shard1.shardId(), node1));
+
+        ProjectId deleted = ProjectId.fromId("deleted");
+        DataNodeRequestSender senderOfDeletedProject = withProjectHeader(
+            deleted,
+            () -> setup(List.of(), unused).projectResolver(TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())).build()
+        );
+        assertNull("no such project", senderOfDeletedProject.sentCopy(state, shard1.shardId(), node1));
+    }
+
+    /**
+     * A re-resolution under routing that shows the shard relocating goes on to the relocation target, without a wait.
+     */
+    public void testReResolutionTriesRelocationTarget() {
+        RecordedMetrics recorded = new RecordedMetrics();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        publish(Map.of(shard1.shardId(), List.of(relocating(node1, "allocation-1", node2))));
+        ComputeResponse response = safeGet(setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shards));
+            runWithDelay(() -> listener.onResponse(node.equals(node1) ? shardNotFound(shard1) : ok()));
+        }).allowPartialResults(randomBoolean()).metrics(recorded).start());
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+        assertThat(recorded.routingWaits(), equalTo(0L));
+    }
+
+    /**
+     * Both the relocating copy and its target answer "not available": the hand-off is under way. The target was tried while the
+     * routing showed it initializing, so it counts as untried again once a state shows it started, under the same allocation id.
+     */
+    public void testCopyTriedWhileInitializingIsRetriedOnceStarted() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        AtomicInteger requestsToTarget = new AtomicInteger();
+        Copy moving = relocating(node1, "allocation-1", node2);
+        publish(Map.of(shard1.shardId(), List.of(moving)));
+        var future = setup(List.of(targetShard(shard1, node1, node2)), (node, shards, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shards));
+            boolean available = node.equals(node2) && requestsToTarget.incrementAndGet() == 2;
+            runWithDelay(() -> listener.onResponse(available ? ok() : shardNotFound(shard1)));
+        }).metrics(recorded).start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        assertFalse(future.isDone());
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+        publish(Map.of(shard1.shardId(), List.of(started(node2, moving.targetAllocationId()))));
+
+        ComputeResponse response = safeGet(future);
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1), nodeRequest(node2, shard1)));
+    }
+
+    /**
+     * As {@link #testCopyTriedWhileInitializingIsRetriedOnceStarted}, with the state that shows the target started applied before
+     * its failure is handled. What counts is how the routing showed the copy when the request was sent, which is recorded then:
+     * read at the failure, the copy would look tried while active, and the shard would wait for routing that is already there.
+     */
+    public void testStartedStateAppliedBeforeFailureIsHandled() {
+        RecordedMetrics recorded = new RecordedMetrics();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        AtomicInteger requestsToTarget = new AtomicInteger();
+        Copy moving = relocating(node1, "allocation-1", node2);
+        publish(Map.of(shard1.shardId(), List.of(moving)));
+        ComputeResponse response = safeGet(setup(List.of(targetShard(shard1, node1, node2)), (node, shards, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shards));
+            if (node.equals(node1)) {
+                runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
+            } else if (requestsToTarget.incrementAndGet() == 1) {
+                runWithDelay(() -> {
+                    publish(Map.of(shard1.shardId(), List.of(started(node2, moving.targetAllocationId()))));
+                    listener.onResponse(shardNotFound(shard1));
+                });
+            } else {
+                runWithDelay(() -> listener.onResponse(ok()));
+            }
+        }).metrics(recorded).start());
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1), nodeRequest(node2, shard1)));
+        assertThat(recorded.routingWaits(), equalTo(0L));
+    }
+
+    /**
+     * Only the open is refused by a node that stopped admitting exchanges. A {@link NodeClosedException} that fails the data node
+     * request came from further down, a lookup for example, and is not read as a refusal. Passed to the sender classified so, the
+     * failure does not make the shard resolve again, and does not leave the node out for another shard that is resolved onto it
+     * later.
+     */
+    public void testDataRequestFailureIsNeverARefusal() {
+        Exception lookupFailure = new RemoteTransportException(
+            "remote",
+            new RemoteTransportException("lookup", new NodeClosedException(node3))
+        );
+        assertThat(DataNodeRequestSender.classifyDataRequestFailure(lookupFailure), equalTo(NodeFailure.OTHER));
+        assertThat(DataNodeRequestSender.classifyDataRequestFailure(refusal(node1)), equalTo(NodeFailure.OTHER));
+        assertThat(
+            DataNodeRequestSender.classifyDataRequestFailure(new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME)),
+            equalTo(NodeFailure.UNREACHABLE)
+        );
+
+        var resolved = ConcurrentCollections.<Set<ShardId>>newQueue();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        // shard2 is only resolved again once the failure of shard1 has been handled
+        var shard1Failed = new SubscribableListener<Void>();
+        var response = safeGet(
+            setup(List.of(targetShard(shard1, node1), targetShard(shard2, node2)), (node, shards, aliasFilters, listener) -> {
+                sent.add(nodeRequest(node, shards));
+                if (node.equals(node1) && shards.contains(shard1)) {
+                    runWithDelay(() -> {
+                        listener.onFailure(lookupFailure, false, DataNodeRequestSender.classifyDataRequestFailure(lookupFailure));
+                        shard1Failed.onResponse(null);
+                    });
+                } else if (node.equals(node2)) {
+                    shard1Failed.addListener(ActionListener.running(() -> runWithDelay(() -> listener.onResponse(shardNotFound(shard2)))));
+                } else {
+                    runWithDelay(() -> listener.onResponse(ok()));
+                }
+            }).allowPartialResults(true).resolver(shardIds -> {
+                resolved.add(Set.copyOf(shardIds));
+                return Map.of(shard2.shardId(), List.of(node1));
+            }).start()
+        );
+        assertThat("shard1 is not resolved again", resolved, contains(Set.of(shard2.shardId())));
+        assertThat(response.totalShards, equalTo(2));
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(response.failures.get(0).shard().getShardId(), equalTo(shard1.shardId()));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat("node1 still serves shard2", sent, hasItem(nodeRequest(node1, shard2)));
+    }
+
+    /** Runs the action on this thread with the request header that names the project, as a request for that project arrives. */
+    private <T> T withProjectHeader(ProjectId projectId, Supplier<T> action) {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
+            return action.get();
+        }
     }
 
     private static DataNodeComputeResponse ok() {

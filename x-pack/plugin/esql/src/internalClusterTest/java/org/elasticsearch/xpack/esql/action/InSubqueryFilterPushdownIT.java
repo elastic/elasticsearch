@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -106,11 +107,15 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
     public void testDefaultThresholdUsesHashJoinAboveLimit() {
         updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
         createEvents("events", null, "type=keyword,index=false");
+        int limit = AbstractInSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
 
-        QueryResult result = query("events", MANY_VALUES, getPragmas());
+        QueryResult atLimit = query("events", limit, getPragmas());
+        assertThat(atLimit.matches(), equalTo((long) limit));
+        assertThat("the IN list is kept at the limit", atLimit.rowsRead(), lessThan((long) DOCS));
 
-        assertThat(result.matches(), equalTo((long) MANY_VALUES));
-        assertThat("a hash join reads every row", result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
+        QueryResult aboveLimit = query("events", limit + 1, getPragmas());
+        assertThat(aboveLimit.matches(), equalTo((long) limit + 1));
+        assertThat("a hash join reads every row", aboveLimit.rowsRead(), greaterThanOrEqualTo((long) DOCS));
     }
 
     public void testManyValuesOnIndexedFieldArePushedToLucene() {

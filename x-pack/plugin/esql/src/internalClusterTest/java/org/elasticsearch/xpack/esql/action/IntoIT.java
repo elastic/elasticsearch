@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
@@ -454,9 +455,15 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 });
         }
         try {
-            var response = client().execute(
+            // The query is expected to fail. A response, if one ever comes, is closed as soon as it does, so that it never leaks.
+            PlainActionFuture<Exception> outcome = new PlainActionFuture<>();
+            client().execute(
                 EsqlQueryAction.INSTANCE,
-                syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION).pragmas(getPragmas())
+                syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION).pragmas(getPragmas()),
+                ActionListener.wrap(response -> {
+                    response.close();
+                    outcome.onResponse(null);
+                }, outcome::onResponse)
             );
             try {
                 safeAwait(requestArrived);
@@ -467,10 +474,9 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             } finally {
                 destinationChanged.countDown();
             }
-            ElasticsearchStatusException e = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> response.actionGet(DEFAULT_REQUEST_TIMEOUT).close()
-            );
+            Exception failure = safeGet(outcome);
+            assertNotNull("the query was expected to fail", failure);
+            ElasticsearchStatusException e = (ElasticsearchStatusException) ExceptionsHelper.unwrapCause(failure);
             assertThat(e.status(), equalTo(RestStatus.CONFLICT));
             assertThat(e.getMessage(), not(containsString("pipeline")));
         } finally {

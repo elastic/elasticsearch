@@ -4788,8 +4788,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * that has different types across indices. It doesn't discover or collect type information; that's already done during index
          * resolution.
          *
-         * <p>There are three cases to handle.
+         * <p>There are four cases to handle.
          * <ol>
+         *   <li>If the conversion can't be one of the per-type conversions of a {@link UnionTypeEsField}, like {@code TO_LONG(x, base)}
+         *   (see {@link ConvertFunction#canBeUnionTypeEsFieldConversion()}), leave it unresolved, so the field keeps its type conflict and
+         *   the Verifier reports it.</li>
          *   <li>If the field has unresolved type conflicts ({@link TypeConflictedField}), we try to build a {@link UnionTypeEsField} with
          *   per-type conversions.</li>
          *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast, or

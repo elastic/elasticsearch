@@ -546,6 +546,40 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
         );
     }
 
+    /**
+     * Dotted sub-field names such as {@code zero.count} are not part of the exponential histogram format
+     * and must be rejected, regardless of whether the surrounding object has subobjects enabled.
+     */
+    public void testDottedSubFieldNameRejectedWithSubobjectsEnabled() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse source = source(b -> b.startObject("field").field("scale", 15).field("zero.count", 42).endObject());
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("unknown parameter [zero.count]"));
+    }
+
+    /**
+     * Counterpart of {@link #testDottedSubFieldNameRejectedWithSubobjectsEnabled()} with the field nested
+     * in an object with {@code subobjects: false}.
+     */
+    public void testDottedSubFieldNameRejectedWithSubobjectsDisabled() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            b.field("type", "object");
+            b.field("subobjects", false);
+            b.startObject("properties");
+            b.startObject("field");
+            minimalMapping(b);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        SourceToParse source = source(
+            b -> b.startObject("metrics").startObject("field").field("scale", 15).field("zero.count", 42).endObject().endObject()
+        );
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("unknown parameter [zero.count]"));
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new SyntheticSourceSupport() {

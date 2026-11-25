@@ -532,6 +532,17 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
+        final boolean isWithinLeaf = context.path().isWithinLeafObject();
+        try {
+            // make sure that we don't expand dots in field names while parsing
+            context.path().setWithinLeafObject(true);
+            doParse(context);
+        } finally {
+            context.path().setWithinLeafObject(isWithinLeaf);
+        }
+    }
+
+    private void doParse(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
 
         boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -14,8 +15,10 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -34,7 +37,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests that graceful shutdown of a data node waits for the ES|QL tasks it runs on behalf of a coordinator on another node.
@@ -283,7 +288,9 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
             assertThat(dataAnsweredOnDataNode.get(), equalTo(0));
             assertThat(dataAnsweredOnReplacement.get(), equalTo(1));
         } else {
-            expectThrows(Exception.class, () -> query.actionGet(30, TimeUnit.SECONDS));
+            Exception failure = expectThrows(Exception.class, () -> query.actionGet(30, TimeUnit.SECONDS));
+            Throwable cause = ExceptionsHelper.unwrapCause(failure);
+            assertThat(cause, anyOf(instanceOf(TaskCancelledException.class), instanceOf(ConnectTransportException.class)));
         }
         // within the assertBusy timeout, far less than the inactive-sink interval
         assertBusy(() -> assertTrue(dataNodeExchanges.isEmpty()));

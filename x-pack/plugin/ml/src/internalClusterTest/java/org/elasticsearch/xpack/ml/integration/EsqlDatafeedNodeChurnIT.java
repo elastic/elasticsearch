@@ -98,6 +98,8 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
             // in nodePlugins(); this setting only disables federation at runtime, it does not
             // remove the need for that plugin to be present.
             .put("esql.federation.enabled", false)
+            // This test exercises the datafeed's immediate retry after an ES|QL node failure, not ES|QL's routing wait.
+            .put(EsqlPlugin.SHARD_ROUTING_WAIT_TIMEOUT.getKey(), TimeValue.ZERO)
             .build();
     }
 

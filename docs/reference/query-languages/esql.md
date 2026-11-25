@@ -58,3 +58,8 @@ You can interact with {{esql}} in two ways:
 
 The relevant circuit breaker settings can be found in the [Circuit Breakers page](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql).
 
+## ES|QL shard routing settings [esql-shard-routing-settings]
+
+`esql.query.shard_routing_wait_timeout`
+: (Dynamic, time value) How long an {{esql}} query waits for newer shard routing after all known eligible copies of a shard fail as unavailable. The default is `30s`. Set this to `0` to disable the wait and immediately retry active copies under the current routing. On {{serverless-full}}, only the operator can change this setting.
+

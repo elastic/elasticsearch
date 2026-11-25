@@ -190,54 +190,62 @@ public class EsqlStaleRoutingIT extends AbstractEsqlIntegTestCase {
                 openHeld.countDown();
             });
 
-        ActionFuture<EsqlQueryResponse> query = client(coordinator).execute(
-            EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest(QUERY).allowPartialResults(allowPartialResults)
-        );
-        safeAwait(openHeld);
-
-        BlockClusterStateProcessing blocked = new BlockClusterStateProcessing(coordinator, random());
-        internalCluster().setDisruptionScheme(blocked);
-        blocked.startDisrupting();
-        ParkedQuery parked = new ParkedQuery(
-            coordinator,
-            query,
-            docs,
-            docs * (docs - 1) / 2,
-            dataRequestsOnOldNode,
-            dataRequestsOnNewNode,
-            blocked
-        );
-        try (var mockLog = MockLog.capture(SENDER_LOGGER)) {
-            // the coordinator cannot acknowledge, so the update is not waited for; the state of the master is
-            client(master).admin()
-                .indices()
-                .prepareUpdateSettings(INDEX)
-                .setSettings(Settings.builder().put("index.routing.allocation.include._name", newNode))
-                .setTimeout(TimeValue.ZERO)
-                .get();
-            String newNodeId = getNodeId(newNode);
-            awaitClusterState(master, state -> {
-                ShardRouting primary = state.routingTable(ProjectId.DEFAULT).shardRoutingTable(INDEX, 0).primaryShard();
-                return primary.started() && newNodeId.equals(primary.currentNodeId());
-            });
-            IndicesService oldNodeIndices = internalCluster().getInstance(IndicesService.class, oldNode);
-            assertBusy(() -> assertNull("the old node has dropped its copy", oldNodeIndices.indexService(index)));
-
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "routing wait on the coordinator",
-                    SENDER_LOGGER,
-                    Level.DEBUG,
-                    "waiting for newer shard routing for [1] shards for up to [*] from cluster state version [*]"
-                )
+        ParkedQuery parked = null;
+        try {
+            ActionFuture<EsqlQueryResponse> query = client(coordinator).execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest(QUERY).allowPartialResults(allowPartialResults)
             );
-            releaseOpen.onResponse(null);
-            mockLog.awaitAllExpectationsMatched();
-            assertFalse("the query waits for the routing", query.isDone());
-            return parked;
+            safeAwait(openHeld);
+
+            BlockClusterStateProcessing blocked = new BlockClusterStateProcessing(coordinator, random());
+            parked = new ParkedQuery(
+                coordinator,
+                query,
+                docs,
+                docs * (docs - 1) / 2,
+                dataRequestsOnOldNode,
+                dataRequestsOnNewNode,
+                blocked
+            );
+            internalCluster().setDisruptionScheme(blocked);
+            blocked.startDisrupting();
+            try (var mockLog = MockLog.capture(SENDER_LOGGER)) {
+                // the coordinator cannot acknowledge, so the update is not waited for; the state of the master is
+                client(master).admin()
+                    .indices()
+                    .prepareUpdateSettings(INDEX)
+                    .setSettings(Settings.builder().put("index.routing.allocation.include._name", newNode))
+                    .setTimeout(TimeValue.ZERO)
+                    .get();
+                String newNodeId = getNodeId(newNode);
+                awaitClusterState(master, state -> {
+                    ShardRouting primary = state.routingTable(ProjectId.DEFAULT).shardRoutingTable(INDEX, 0).primaryShard();
+                    return primary.started() && newNodeId.equals(primary.currentNodeId());
+                });
+                IndicesService oldNodeIndices = internalCluster().getInstance(IndicesService.class, oldNode);
+                assertBusy(() -> assertNull("the old node has dropped its copy", oldNodeIndices.indexService(index)));
+
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "routing wait on the coordinator",
+                        SENDER_LOGGER,
+                        Level.DEBUG,
+                        "waiting for newer shard routing for [1] shards for up to [*] from cluster state version [*]"
+                    )
+                );
+                releaseOpen.onResponse(null);
+                mockLog.awaitAllExpectationsMatched();
+                assertFalse("the query waits for the routing", query.isDone());
+                return parked;
+            }
         } catch (Exception | AssertionError e) {
-            parked.unblockCoordinator();
+            if (releaseOpen.isDone() == false) {
+                releaseOpen.onResponse(null);
+            }
+            if (parked != null) {
+                parked.unblockCoordinator();
+            }
             throw e;
         }
     }

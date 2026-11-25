@@ -708,10 +708,8 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testRetryUnassignedShardWithoutPartialResults() {
         var attempt = new AtomicInteger(0);
-        var future = sendRequests(false, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
-            attempt.incrementAndGet();
-            return Map.of(shard1.shardId(), List.of());
-        },
+        var future = setup(
+            List.of(targetShard(shard1, node1), targetShard(shard2, node2)),
             (node, shardIds, aliasFilters, listener) -> runWithDelay(
                 () -> listener.onResponse(
                     Objects.equals(shardIds, List.of(shard2))
@@ -722,34 +720,39 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                         )
                 )
             )
-
-        );
+        ).resolver(shardIds -> {
+            attempt.incrementAndGet();
+            return Map.of(shard1.shardId(), List.of());
+        }).routingWaitTimeout(TimeValue.timeValueMillis(100)).start();
         expectThrows(NoShardAvailableActionException.class, containsString("no such shard"), future::actionGet);
-        assertThat(attempt.get(), equalTo(1));
+        assertThat(attempt.get(), equalTo(2));
     }
 
     public void testRetryUnassignedShardWithPartialResults() {
         var attempt = new AtomicInteger(0);
-        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
-            attempt.incrementAndGet();
-            return Map.of(shard1.shardId(), List.of());
-        },
-            (node, shardIds, aliasFilters, listener) -> runWithDelay(
-                () -> listener.onResponse(
-                    Objects.equals(shardIds, List.of(shard2))
-                        ? new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())
-                        : new DataNodeComputeResponse(
-                            DriverCompletionInfo.EMPTY,
-                            Map.of(shard1.shardId(), new ShardNotFoundException(shard1.shardId()))
-                        )
+        var response = safeGet(
+            setup(
+                List.of(targetShard(shard1, node1), targetShard(shard2, node2)),
+                (node, shardIds, aliasFilters, listener) -> runWithDelay(
+                    () -> listener.onResponse(
+                        Objects.equals(shardIds, List.of(shard2))
+                            ? new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())
+                            : new DataNodeComputeResponse(
+                                DriverCompletionInfo.EMPTY,
+                                Map.of(shard1.shardId(), new ShardNotFoundException(shard1.shardId()))
+                            )
+                    )
                 )
-            )
-        ));
+            ).allowPartialResults(true).resolver(shardIds -> {
+                attempt.incrementAndGet();
+                return Map.of(shard1.shardId(), List.of());
+            }).routingWaitTimeout(TimeValue.timeValueMillis(100)).start()
+        );
         assertThat(response.totalShards, equalTo(2));
         assertThat(response.successfulShards, equalTo(1));
         assertThat(response.skippedShards, equalTo(0));
         assertThat(response.failedShards, equalTo(1));
-        assertThat(attempt.get(), equalTo(1));
+        assertThat(attempt.get(), equalTo(2));
     }
 
     public void testNodeFailureClassification() {
@@ -793,8 +796,8 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     /**
-     * A refusal leaves the node out for every shard that is resolved again. A lost connection only does so for the shards of the
-     * request that lost it: another shard that is resolved onto that node later still tries it, since the loss may have been transient.
+     * A refusal leaves the node out for every shard, including one that already has it queued as a candidate. A lost connection only
+     * does so for the shards of the request that lost it: another shard still tries that node, since the loss may have been transient.
      * <p>
      * After the refusal shard2 has no copy off the refuser. It waits for newer routing, here for a short timeout, and then fails:
      * the last try resolves it once more and still finds the refuser only.
@@ -805,46 +808,60 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var resolved = ConcurrentCollections.<Set<ShardId>>newQueue();
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var node1Attempts = new AtomicInteger();
-        // shard2 is only resolved again once shard1 has been retried, so node1 has failed by then
+        // shard2 only moves past node2 once shard1 has been retried, so node1 has failed by then
         var shard1Retried = new SubscribableListener<Void>();
-        var future = setup(List.of(targetShard(shard1, node1), targetShard(shard2, node2)), (node, shardIds, aliasFilters, listener) -> {
-            sent.add(nodeRequest(node, shardIds));
-            if (node.equals(node1)) {
-                if (node1Attempts.incrementAndGet() == 1) {
-                    runWithDelay(() -> listener.onFailure(unavailable, false));
-                } else {
-                    runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
-                }
-            } else if (node.equals(node2)) {
-                shard1Retried.addListener(
-                    ActionListener.running(
-                        () -> runWithDelay(
-                            () -> listener.onResponse(
-                                new DataNodeComputeResponse(
-                                    DriverCompletionInfo.EMPTY,
-                                    Map.of(shard2.shardId(), new ShardNotFoundException(shard2.shardId()))
+        var shard2Resolved = new SubscribableListener<Void>();
+        var future = setup(
+            List.of(targetShard(shard1, node1), targetShard(shard2, node2, node1)),
+            (node, shardIds, aliasFilters, listener) -> {
+                sent.add(nodeRequest(node, shardIds));
+                if (node.equals(node1)) {
+                    if (node1Attempts.incrementAndGet() == 1) {
+                        runWithDelay(() -> listener.onFailure(unavailable, false));
+                    } else {
+                        runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+                    }
+                } else if (node.equals(node2)) {
+                    shard1Retried.addListener(
+                        ActionListener.running(
+                            () -> runWithDelay(
+                                () -> listener.onResponse(
+                                    new DataNodeComputeResponse(
+                                        DriverCompletionInfo.EMPTY,
+                                        Map.of(shard2.shardId(), new ShardNotFoundException(shard2.shardId()))
+                                    )
                                 )
                             )
                         )
-                    )
-                );
-            } else {
-                shard1Retried.onResponse(null);
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+                    );
+                } else {
+                    shard1Retried.onResponse(null);
+                    Runnable respond = () -> runWithDelay(
+                        () -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()))
+                    );
+                    if (refused) {
+                        // Nothing else completes until removing shard2's queued refuser causes a new resolution pass.
+                        shard2Resolved.addListener(ActionListener.running(respond));
+                    } else {
+                        respond.run();
+                    }
+                }
             }
-        }).allowPartialResults(true).resolver(shardIds -> {
+        ).allowPartialResults(true).resolver(shardIds -> {
             resolved.add(Set.copyOf(shardIds));
             // the routing places both shards on node1, alone for shard2
-            return shardIds.contains(shard1.shardId())
-                ? Map.of(shard1.shardId(), List.of(node1, node3))
-                : Map.of(shard2.shardId(), List.of(node1));
+            if (shardIds.contains(shard1.shardId())) {
+                return Map.of(shard1.shardId(), List.of(node1, node3));
+            }
+            shard2Resolved.onResponse(null);
+            return Map.of(shard2.shardId(), List.of(node1));
         }).routingWaitTimeout(TimeValue.timeValueMillis(100)).start();
         var response = safeGet(future);
         if (refused) {
             // once when its copy failed, and once more for the last try when the wait timed out
             assertThat(resolved, contains(Set.of(shard1.shardId()), Set.of(shard2.shardId()), Set.of(shard2.shardId())));
         } else {
-            assertThat(resolved, contains(Set.of(shard1.shardId()), Set.of(shard2.shardId())));
+            assertThat(resolved, contains(Set.of(shard1.shardId())));
         }
         assertThat("shard1 never goes back to the node that failed it", sent, hasItem(nodeRequest(node3, shard1)));
         assertThat(response.totalShards, equalTo(2));
@@ -1075,7 +1092,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         answer = DataNodeRequestSender.untriedCopies(List.of(active), Map.of(), Set.of(node1));
         assertThat(answer.kind(), equalTo(Untried.NONE_YET));
 
-        assertThat(DataNodeRequestSender.untriedCopies(List.of(), Map.of(), Set.of()).kind(), equalTo(Untried.GONE));
+        assertThat(DataNodeRequestSender.untriedCopies(List.of(), Map.of(), Set.of()).kind(), equalTo(Untried.NONE_YET));
         assertThat(DataNodeRequestSender.untriedCopies(null, Map.of(), Set.of()).kind(), equalTo(Untried.GONE));
     }
 
@@ -1236,6 +1253,24 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
         TaskCancelledException failure = expectThrows(TaskCancelledException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(failure.getMessage(), containsString("test cancellation"));
+        assertThat(recorded.routingWaits(), equalTo(0L));
+    }
+
+    /**
+     * Disabling the routing wait restores the previous retry path. In particular, when a shard failure cancels the query before the
+     * sender handles it, the sender still reports that failure rather than replacing it with the resulting cancellation.
+     */
+    public void testZeroWaitPreservesFailureThatCancelledQuery() {
+        RecordedMetrics recorded = new RecordedMetrics();
+        AtomicReference<CancellableTask> task = new AtomicReference<>();
+        SenderSetup setup = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> runWithDelay(() -> {
+            TaskCancelHelper.cancel(task.get(), "cancelled on failure");
+            listener.onFailure(new NodeNotConnectedException(node, "not connected"), false);
+        })).routingWaitTimeout(TimeValue.ZERO).resolver(shardIds -> Map.of(shard1.shardId(), List.of())).metrics(recorded);
+        task.set(setup.task());
+        PlainActionFuture<ComputeResponse> future = setup.start();
+
+        expectThrows(NodeNotConnectedException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(recorded.routingWaits(), equalTo(0L));
     }
 

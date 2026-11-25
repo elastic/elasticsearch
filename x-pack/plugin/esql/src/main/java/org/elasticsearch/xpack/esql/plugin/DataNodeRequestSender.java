@@ -298,7 +298,8 @@ abstract class DataNodeRequestSender {
                         boolean counted = false;
                         final boolean cancelled = rootTask.isCancelled();
                         final boolean finished = cancelled == false && isQueryFinished();
-                        if (cancelled || finished) {
+                        // Zero restores the old routing retry, which preserves the shard failure that may have cancelled the query.
+                        if ((cancelled || finished) && routingWaitTimeout.millis() != 0) {
                             // Apply the reading only to the retry candidates. Shards still holding a node go to sendRequest
                             // and are handled via onSkip, as on main; a fatal failure recorded elsewhere is not turned into a
                             // skip here.
@@ -805,7 +806,7 @@ abstract class DataNodeRequestSender {
         COPY,
         /** The shard is there, and every copy that could be tried has been: newer routing may bring one, so the shard can wait. */
         NONE_YET,
-        /** The routing has no copy of the shard at all, or not the shard: nothing to wait for. */
+        /** The routing has no shard table: nothing to wait for. */
         GONE
     }
 
@@ -824,7 +825,7 @@ abstract class DataNodeRequestSender {
      * @param refused the nodes that refused a request; none of their copies is tried again
      */
     static RoutingAnswer untriedCopies(@Nullable List<ShardCopy> copies, Map<String, Boolean> tried, Set<DiscoveryNode> refused) {
-        if (copies == null || copies.isEmpty()) {
+        if (copies == null) {
             return new RoutingAnswer(Untried.GONE, List.of());
         }
         List<DiscoveryNode> nodes = new ArrayList<>();
@@ -871,6 +872,12 @@ abstract class DataNodeRequestSender {
             Iterator<DiscoveryNode> nodesIt = shard.remainingNodes.iterator();
             while (nodesIt.hasNext()) {
                 DiscoveryNode node = nodesIt.next();
+                if (refusedNodes.contains(node)) {
+                    nodesIt.remove();
+                    // This shard was not a retry candidate at the start of the pass, while this node was still queued.
+                    changed.set(true);
+                    continue;
+                }
                 List<DataNodeRequest.Shard> pendingRequest = nodeToShardMetadata.get(node);
                 if (pendingRequest != null) {
                     pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.splitShardCountSummary));
@@ -1160,8 +1167,9 @@ abstract class DataNodeRequestSender {
                     OBSERVER_LOGGER,
                     threadPool.getThreadContext()
                 );
-                observer.waitForNextChange(callback, state -> {
-                    RoutingWait wait = callback.wait.get();
+                ObserverCallback observerCallback = callback;
+                observer.waitForNextChange(observerCallback, state -> {
+                    RoutingWait wait = observerCallback.wait.get();
                     return wait == null || wait.showsUntriedCopyOrGone(state);
                 });
             } catch (Exception e) {

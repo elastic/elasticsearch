@@ -15,6 +15,10 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
  */
 final class ShardResolutionMetrics {
 
+    static final String ROUTING_WAITS = "es.esql.shard_resolution.routing_waits.total";
+    static final String ROUTING_WAIT_TIMEOUTS = "es.esql.shard_resolution.routing_wait_timeouts.total";
+    static final String ATTEMPTS_EXHAUSTED = "es.esql.shard_resolution.attempts_exhausted.total";
+
     static final ShardResolutionMetrics NOOP = new ShardResolutionMetrics(MeterRegistry.NOOP);
 
     private final LongCounter routingWaits;
@@ -22,18 +26,10 @@ final class ShardResolutionMetrics {
     private final LongCounter attemptsExhausted;
 
     ShardResolutionMetrics(MeterRegistry meterRegistry) {
-        routingWaits = meterRegistry.registerLongCounter(
-            "es.esql.shard_resolution.routing_waits.total",
-            "ESQL shard routing waits",
-            "unit"
-        );
-        routingWaitTimeouts = meterRegistry.registerLongCounter(
-            "es.esql.shard_resolution.routing_wait_timeouts.total",
-            "ESQL shard routing wait timeouts",
-            "unit"
-        );
+        routingWaits = meterRegistry.registerLongCounter(ROUTING_WAITS, "ESQL shard routing waits", "unit");
+        routingWaitTimeouts = meterRegistry.registerLongCounter(ROUTING_WAIT_TIMEOUTS, "ESQL shard routing wait timeouts", "unit");
         attemptsExhausted = meterRegistry.registerLongCounter(
-            "es.esql.shard_resolution.attempts_exhausted.total",
+            ATTEMPTS_EXHAUSTED,
             "ESQL data-node request senders that exhausted their shard resolution attempts",
             "unit"
         );

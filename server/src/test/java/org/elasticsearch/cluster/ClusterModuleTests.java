@@ -9,11 +9,21 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.ShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -46,6 +56,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.injection.guice.ModuleTestCase;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -60,14 +72,17 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.contains;
 
 public class ClusterModuleTests extends ModuleTestCase {
@@ -192,6 +207,47 @@ public class ClusterModuleTests extends ModuleTestCase {
             TelemetryProvider.NOOP
         );
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
+    }
+
+    public void testPluginShardMovementListenersAreNotified() {
+        final var failedShards = new ArrayList<ShardRouting>();
+        final var module = new ClusterModule(Settings.EMPTY, clusterService, Collections.singletonList(new ClusterPlugin() {
+            @Override
+            public Collection<ShardMovementListener> getShardMovementListeners() {
+                return List.of(new ShardMovementListener() {
+                    @Override
+                    public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
+                        failedShards.add(failedShard);
+                    }
+                });
+            }
+        }),
+            clusterInfoService,
+            ESAllocationTestCase.SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES, // the allocation service reads shard sizes from it
+            threadPool,
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.alwaysThrow(),
+            WriteLoadForecaster.DEFAULT,
+            TelemetryProvider.NOOP
+        );
+
+        final var allocationId = randomUUID();
+        final var indexMetadata = IndexMetadata.builder(randomIdentifier())
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putInSyncAllocationIds(0, Set.of(allocationId))
+            .build();
+        final var shard = shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.STARTED)
+            .withAllocationId(AllocationId.newInitializing(allocationId))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node-2"))) // node-1 left the cluster
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shard)))
+            .build();
+
+        module.getAllocationService().disassociateDeadNodes(clusterState, false, "node-1 left cluster");
+
+        assertThat(failedShards, contains(shard));
     }
 
     private ClusterModule newClusterModuleWithShardsAllocator(Settings settings, String name, Supplier<ShardsAllocator> supplier) {

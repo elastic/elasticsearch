@@ -34,16 +34,22 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DirectBytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
@@ -62,6 +68,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -69,6 +76,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
@@ -1061,6 +1069,277 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             }
         }
         return out.toByteArray();
+    }
+
+    // --- Flat (DirectBytesRefVector) KEYWORD path ---
+
+    private static final int FLAT_ROWS = 2000;
+
+    /** One required PLAIN page read as one batch lands, uncopied, in a {@link DirectBytesRefVector}. */
+    public void testFlatRequiredSinglePageIsDirectVector() throws IOException {
+        int rows = 20;
+        byte[] data = writePlainKeywordFile(false, PageColumnReaderCorrectnessTests::distinctKeyword, rows);
+        assertEquals("fixture must be a single page", 1, pageCount(data));
+        assertFlatRead(data, rows, rows, DEFAULT_CAP, row -> new BytesRef(distinctKeyword(row)), BlockKind.DIRECT);
+    }
+
+    /**
+     * A batch spanning several pages grows the flat bytes once per page and must still come out in order. A random
+     * batch size also puts page boundaries at arbitrary points of a batch; a batch that starts with a one-value
+     * chunk enters the constant state and leaves it on the next chunk.
+     */
+    public void testFlatRequiredBatchSpanningPages() throws IOException {
+        byte[] data = writePlainKeywordFile(false, PageColumnReaderCorrectnessTests::distinctKeyword, FLAT_ROWS);
+        assertThat("fixture must span pages", pageCount(data), greaterThan(1));
+        IntFunction<BytesRef> expected = row -> new BytesRef(distinctKeyword(row));
+        assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, DEFAULT_CAP, expected, BlockKind.DIRECT);
+        assertFlatRead(data, FLAT_ROWS, randomIntBetween(2, FLAT_ROWS - 1), DEFAULT_CAP, expected, BlockKind.DIRECT);
+    }
+
+    /**
+     * Equal values across every page are a constant block, also when the batch is larger than the cap: while a
+     * batch is constant the flat tail is only scratch, so the cap must not push it to the slow path.
+     */
+    public void testFlatRequiredConstantBatchIsConstantBlock() throws IOException {
+        byte[] value = "same-value".getBytes(StandardCharsets.UTF_8);
+        byte[] data = writePlainKeywordFile(false, row -> value, FLAT_ROWS);
+        assertThat("fixture must span pages", pageCount(data), greaterThan(1));
+        for (long cap : new long[] { DEFAULT_CAP, 64 }) {
+            assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, cap, row -> new BytesRef(value), BlockKind.CONSTANT);
+        }
+    }
+
+    /**
+     * A constant run covering whole pages, then a change: the run is materialized in front of the changing
+     * chunk. Under the default cap that lands in the flat vector; under a small cap on the slow path.
+     */
+    public void testFlatRequiredConstantRunThenChange() throws IOException {
+        int runLength = 1500;
+        byte[] same = "same".getBytes(StandardCharsets.UTF_8);
+        IntFunction<byte[]> valueFor = row -> row < runLength ? same : distinctKeyword(row);
+        byte[] data = writePlainKeywordFile(false, valueFor, FLAT_ROWS);
+        assertThat("the run must cover at least one whole page", firstPageRows(data), lessThan((long) runLength));
+        IntFunction<BytesRef> expected = row -> new BytesRef(valueFor.apply(row));
+        assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, DEFAULT_CAP, expected, BlockKind.DIRECT);
+        assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, offsetsBytes(FLAT_ROWS) + 1024, expected, BlockKind.SLOW);
+    }
+
+    /**
+     * Malformed UTF-8 moves the batch to the slow path, with the values already in the flat arrays copied over
+     * first, and sanitizes the bad chunk as before: U+FFFD per maximal ill-formed subsequence.
+     */
+    public void testFlatRequiredMalformedFallsBackAndSanitizes() throws IOException {
+        byte[] bad = { (byte) 0xFF };
+        byte[] truncated = { 'a', (byte) 0xE3 };
+        for (int badRow : new int[] { 0, FLAT_ROWS / 2, FLAT_ROWS - 1 }) {
+            boolean useTruncated = randomBoolean();
+            IntFunction<byte[]> valueFor = row -> row == badRow ? (useTruncated ? truncated : bad) : distinctKeyword(row);
+            byte[] data = writePlainKeywordFile(false, valueFor, FLAT_ROWS);
+            BytesRef sanitized = useTruncated ? concat(new BytesRef("a"), FFFD) : FFFD;
+            IntFunction<BytesRef> expected = row -> row == badRow ? sanitized : new BytesRef(distinctKeyword(row));
+            assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, DEFAULT_CAP, expected, BlockKind.SLOW);
+            assertOptimizedMatchesBaseline(data, List.of("s"));
+        }
+    }
+
+    /**
+     * A batch whose bytes plus offsets outgrow {@link BlockFactory#maxPrimitiveArrayBytes()} moves to the slow
+     * path: after a few pages (a cap that fits the first page), or at once (a cap below the offsets alone).
+     */
+    public void testFlatRequiredOverCapFallsBack() throws IOException {
+        byte[] data = writePlainKeywordFile(false, PageColumnReaderCorrectnessTests::distinctKeyword, FLAT_ROWS);
+        assertThat("fixture must span pages", pageCount(data), greaterThan(2));
+        IntFunction<BytesRef> expected = row -> new BytesRef(distinctKeyword(row));
+        for (long cap : new long[] { offsetsBytes(FLAT_ROWS) + 6 * 1024, 16 }) {
+            assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, cap, expected, BlockKind.SLOW);
+        }
+    }
+
+    /** An optional column with no nulls takes the flat path too. */
+    public void testFlatOptionalNullFreeIsDirectVector() throws IOException {
+        byte[] data = writePlainKeywordFile(true, PageColumnReaderCorrectnessTests::distinctKeyword, FLAT_ROWS);
+        assertThat("fixture must span pages", pageCount(data), greaterThan(1));
+        assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, DEFAULT_CAP, row -> new BytesRef(distinctKeyword(row)), BlockKind.DIRECT);
+    }
+
+    /**
+     * Optional batches that leave the flat path: nulls after flat values (copied into the builder first), leading
+     * nulls (never flat), malformed UTF-8 in a null-free batch, and a batch over the cap.
+     */
+    public void testFlatOptionalFallsBackToBuilder() throws IOException {
+        IntFunction<byte[]> trailingNulls = row -> row >= 1500 && row % 7 == 0 ? null : distinctKeyword(row);
+        IntFunction<byte[]> leadingNulls = row -> row < 10 ? null : distinctKeyword(row);
+        assertOptionalFallsBack(trailingNulls, row -> asBytesRef(trailingNulls.apply(row)), DEFAULT_CAP);
+        assertOptionalFallsBack(leadingNulls, row -> asBytesRef(leadingNulls.apply(row)), DEFAULT_CAP);
+
+        int badRow = randomIntBetween(0, FLAT_ROWS - 1);
+        IntFunction<byte[]> malformed = row -> row == badRow ? new byte[] { (byte) 0xFF } : distinctKeyword(row);
+        assertOptionalFallsBack(malformed, row -> row == badRow ? FFFD : new BytesRef(distinctKeyword(row)), DEFAULT_CAP);
+
+        IntFunction<byte[]> nullFree = PageColumnReaderCorrectnessTests::distinctKeyword;
+        assertOptionalFallsBack(nullFree, row -> new BytesRef(distinctKeyword(row)), offsetsBytes(FLAT_ROWS) + 6 * 1024);
+    }
+
+    /** UUID columns keep the per-value formatting path and never take the flat one. */
+    public void testFlatUuidStaysOnSlowPath() throws IOException {
+        int rows = 50;
+        UUID[] uuids = new UUID[rows];
+        for (int i = 0; i < rows; i++) {
+            uuids[i] = new UUID(randomLong(), randomLong());
+        }
+        MessageType schema = Types.buildMessage()
+            .required(FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .named("s")
+            .named("uuid_flat");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(codecFactory)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                // PLAIN, so the batch reaches the PLAIN branch that UUID must still bypass.
+                .withDictionaryEncoding(false)
+                .build()
+        ) {
+            for (UUID uuid : uuids) {
+                ByteBuffer bytes = ByteBuffer.allocate(16).putLong(uuid.getMostSignificantBits()).putLong(uuid.getLeastSignificantBits());
+                writer.write(factory.newGroup().append("s", Binary.fromConstantByteArray(bytes.array())));
+            }
+        }
+        assertFlatRead(out.toByteArray(), rows, rows, DEFAULT_CAP, row -> new BytesRef(uuids[row].toString()), BlockKind.SLOW);
+    }
+
+    private void assertOptionalFallsBack(IntFunction<byte[]> valueFor, IntFunction<BytesRef> expected, long cap) throws IOException {
+        byte[] data = writePlainKeywordFile(true, valueFor, FLAT_ROWS);
+        assertFlatRead(data, FLAT_ROWS, FLAT_ROWS, cap, expected, BlockKind.SLOW);
+        assertFlatRead(data, FLAT_ROWS, randomIntBetween(2, FLAT_ROWS - 1), cap, expected, null);
+        assertOptimizedMatchesBaseline(data, List.of("s"));
+    }
+
+    private static final long DEFAULT_CAP = BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes();
+
+    /** How a batch came out: the flat path's {@link DirectBytesRefVector}, a constant, or the slow path's array or builder. */
+    private enum BlockKind {
+        DIRECT,
+        CONSTANT,
+        SLOW
+    }
+
+    /**
+     * Reads column {@code s} in batches of {@code batchSize} through a factory whose breaker counts every byte and
+     * whose plain-array cap is {@code maxPrimitiveArrayBytes}, checks every value, checks that each multi-row batch
+     * is of kind {@code kind} (unless {@code null}), and that closing the blocks returns the breaker to zero.
+     */
+    private void assertFlatRead(
+        byte[] data,
+        int rows,
+        int batchSize,
+        long maxPrimitiveArrayBytes,
+        IntFunction<BytesRef> expected,
+        @Nullable BlockKind kind
+    ) throws IOException {
+        CountingBreaker breaker = new CountingBreaker();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
+        BlockFactory factory = BlockFactory.builder(bigArrays).breaker(breaker).maxPrimitiveArraySize(maxPrimitiveArrayBytes).build();
+        List<BytesRefBlock> blocks = readKeywordBatches(data, batchSize, factory);
+        try {
+            BytesRef scratch = new BytesRef();
+            int row = 0;
+            for (BytesRefBlock block : blocks) {
+                if (kind != null && block.getPositionCount() > 1) {
+                    assertEquals("batch at row " + row, kind, kindOf(block));
+                }
+                for (int p = 0; p < block.getPositionCount(); p++, row++) {
+                    BytesRef exp = expected.apply(row);
+                    if (exp == null) {
+                        assertTrue("null at row " + row, block.isNull(p));
+                    } else {
+                        assertFalse("non-null at row " + row, block.isNull(p));
+                        assertEquals("row " + row, exp, block.getBytesRef(p, scratch));
+                    }
+                }
+            }
+            assertEquals(rows, row);
+        } finally {
+            Releasables.close(blocks);
+        }
+        assertEquals("every byte the batches reserved must be released", 0L, breaker.used());
+    }
+
+    private static BlockKind kindOf(BytesRefBlock block) {
+        BytesRefVector vector = block.asVector();
+        if (vector != null && vector.isConstant()) {
+            return BlockKind.CONSTANT;
+        }
+        return vector instanceof DirectBytesRefVector ? BlockKind.DIRECT : BlockKind.SLOW;
+    }
+
+    private List<BytesRefBlock> readKeywordBatches(byte[] data, int batchSize, BlockFactory factory) throws IOException {
+        List<BytesRefBlock> blocks = new ArrayList<>();
+        boolean success = false;
+        try (ParquetFileReader reader = openReader(data)) {
+            int rgRows = Math.toIntExact(reader.getRowGroups().getFirst().getRowCount());
+            ColumnDescriptor desc = reader.getFileMetaData().getSchema().getColumnDescription(new String[] { "s" });
+            ColumnInfo info = new ColumnInfo(
+                desc,
+                desc.getPrimitiveType().getPrimitiveTypeName(),
+                DataType.KEYWORD,
+                desc.getMaxDefinitionLevel(),
+                desc.getMaxRepetitionLevel(),
+                desc.getPrimitiveType().getLogicalTypeAnnotation()
+            );
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(rgRows))) {
+                int read = 0;
+                while (read < rgRows) {
+                    Block block = pcr.readBatch(Math.min(batchSize, rgRows - read), factory);
+                    blocks.add((BytesRefBlock) block);
+                    assertThat("a batch must make progress", block.getPositionCount(), greaterThan(0));
+                    read += block.getPositionCount();
+                }
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(blocks);
+            }
+        }
+        return blocks;
+    }
+
+    private int pageCount(byte[] data) throws IOException {
+        try (ParquetFileReader reader = openReader(data)) {
+            OffsetIndex oi = reader.readOffsetIndex(reader.getRowGroups().getFirst().getColumns().getFirst());
+            assertNotNull("column must have an offset index", oi);
+            return oi.getPageCount();
+        }
+    }
+
+    private long firstPageRows(byte[] data) throws IOException {
+        try (ParquetFileReader reader = openReader(data)) {
+            OffsetIndex oi = reader.readOffsetIndex(reader.getRowGroups().getFirst().getColumns().getFirst());
+            assertNotNull("column must have an offset index", oi);
+            assertThat(oi.getPageCount(), greaterThan(1));
+            return oi.getFirstRowIndex(1);
+        }
+    }
+
+    /** What the flat offsets array alone costs for a batch of {@code rows}. */
+    private static long offsetsBytes(int rows) {
+        return (rows + 1L) * Integer.BYTES;
+    }
+
+    private static byte[] distinctKeyword(int row) {
+        return String.format(Locale.ROOT, "value-%05d", row).getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static BytesRef asBytesRef(byte[] bytes) {
+        return bytes == null ? null : new BytesRef(bytes);
     }
 
     // --- Column spec for randomized tests ---

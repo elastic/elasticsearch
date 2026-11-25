@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.UninitializedArrays;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -97,13 +98,39 @@ final class PlainValueDecoder {
     }
 
     /**
-     * Upper bound on packed payload bytes for the next {@code count} PLAIN BINARY values
-     * (remaining buffer minus one 4-byte length prefix per value).
+     * Exact number of payload bytes (length prefixes excluded) that {@link #copyPlainPayloads} writes
+     * for the next {@code count} PLAIN BINARY values. Callers size the per-batch destination from this
+     * rather than from {@link ByteBuffer#remaining()}: a batch is a small slice of a page, so a
+     * page-remainder bound makes each batch allocate close to a whole page, which is quadratic per page.
+     * <p>
+     * Walks the {@code [int32 LE length][bytes]} prefixes with absolute reads, so the buffer position
+     * is left unchanged. A truncated length prefix, or a payload running past the buffer limit, throws
+     * {@link BufferUnderflowException} as the relative reads in {@link #copyPlainPayloads} do. A negative
+     * length, which only a corrupt page holds, counts as an empty value exactly as in
+     * {@link #copyPlainPayloads}: it contributes no payload bytes and only its 4-byte prefix is consumed,
+     * so the two methods always agree. Bounds are checked as {@code length > limit - pos}, so neither
+     * the position nor the total can overflow: the total never exceeds the buffer limit.
      */
-    int plainPayloadCapacityHint(int count) {
-        int rem = buffer.remaining();
-        int prefixes = count * Integer.BYTES;
-        return rem > prefixes ? rem - prefixes : 0;
+    int plainPayloadBytes(int count) {
+        int pos = buffer.position();
+        int limit = buffer.limit();
+        int total = 0;
+        for (int i = 0; i < count; i++) {
+            if (limit - pos < Integer.BYTES) {
+                throw new BufferUnderflowException();
+            }
+            int length = buffer.getInt(pos);
+            pos += Integer.BYTES;
+            if (length <= 0) {
+                continue;
+            }
+            if (length > limit - pos) {
+                throw new BufferUnderflowException();
+            }
+            pos += length;
+            total += length;
+        }
+        return total;
     }
 
     /**

@@ -95,11 +95,14 @@ import java.util.function.IntConsumer;
  * batch is resolved through the dictionary and the remainder is read via the materialized
  * binary path.
  *
- * <p>Non-UUID PLAIN KEYWORD pages (required and optional) copy payloads into a packed dest,
- * validate UTF-8 there, then append into a {@link BytesRefArray} via
- * {@link org.elasticsearch.compute.data.BytesRefArrayUtils}. UUID, dictionary, and fallback
- * pages still materialize {@link BytesRef}s and copy before the next {@code ensurePage()}
- * reuses the decompress dest.
+ * <p>Non-UUID PLAIN KEYWORD pages (required and optional) copy payloads into a packed dest and
+ * validate UTF-8 there. While a batch is null-free, well-formed and within
+ * {@link BlockFactory#maxPrimitiveArrayBytes()}, that dest is a {@link FlatBytesRefAccumulator}
+ * whose arrays become the batch's {@code DirectBytesRefVector} without another copy; otherwise the
+ * payloads are appended into a {@link BytesRefArray} via
+ * {@link org.elasticsearch.compute.data.BytesRefArrayUtils} or a block builder. UUID, dictionary,
+ * and fallback pages still materialize {@link BytesRef}s and copy before the next
+ * {@code ensurePage()} reuses the decompress dest.
  */
 final class PageColumnReader implements Releasable {
 
@@ -1307,7 +1310,23 @@ final class PageColumnReader implements Releasable {
         return readOptionalBytesBatch(maxRows, blockFactory, isUuid);
     }
 
+    /**
+     * Reads a batch of a required BINARY column. A batch is in one of three states:
+     * <ul>
+     *   <li><b>constant</b>: every value so far equals {@code constant}; nothing is stored per value, and a
+     *       batch that ends here becomes a constant block.</li>
+     *   <li><b>flat</b>: the values sit in {@code flat}, whose arrays become a {@code DirectBytesRefVector}
+     *       without another copy. Well-formed PLAIN chunks are decoded straight into it.</li>
+     *   <li><b>slow</b>: the values sit in a {@link BytesRefArray}. A batch moves here, once and for good, when a
+     *       chunk is not PLAIN (UUID, delta encodings, the fallback reader), when it holds malformed UTF-8 that
+     *       has to be sanitized, or when the flat arrays would grow past
+     *       {@link BlockFactory#maxPrimitiveArrayBytes()}.</li>
+     * </ul>
+     * While a batch is still empty or constant, the flat tail is a scratch buffer for the next PLAIN chunk, as the
+     * per-chunk packed buffer was before, so a constant batch stays constant however large it is.
+     */
     private Block readRequiredBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
+        FlatBytesRefAccumulator flat = new FlatBytesRefAccumulator(maxRows, blockFactory.maxPrimitiveArrayBytes());
         BytesRefArray array = null;
         BytesRef constant = null;
         int produced = 0;
@@ -1317,48 +1336,59 @@ final class PageColumnReader implements Releasable {
                 int fromPage = Math.min(remaining, availableInPage());
                 if (isUuid == false && canBulkAppendPlain()) {
                     if (fromPage > 0) {
-                        int hint = plainDecoder.plainPayloadCapacityHint(fromPage);
-                        byte[] packed = UninitializedArrays.newByteArray(Math.max(hint, 1));
+                        int chunkBytes = plainDecoder.plainPayloadBytes(fromPage);
                         int[] ends = new int[fromPage];
-                        int packedLen = plainDecoder.copyPlainPayloads(packed, 0, ends, fromPage);
-                        if (Utf8Sanitizer.isPackedWellFormed(packed, 0, packedLen, ends, fromPage)) {
-                            if (array != null) {
-                                BytesRefArrayUtils.appendPacked(array, packed, 0, packedLen, ends, fromPage);
-                            } else if (constant == null) {
-                                if (packedAllEqual(packed, ends, fromPage)) {
-                                    constant = BytesRef.deepCopyOf(new BytesRef(packed, 0, ends[0]));
+                        if (array == null && (flat.isEmpty() || flat.fits(chunkBytes))) {
+                            assert flat.isEmpty() || (constant == null && flat.count() == produced);
+                            int off = flat.reserve(chunkBytes);
+                            byte[] bytes = flat.bytes();
+                            plainDecoder.copyPlainPayloads(bytes, off, ends, fromPage);
+                            if (Utf8Sanitizer.isPackedWellFormed(bytes, off, chunkBytes, ends, fromPage) == false) {
+                                long hint = Math.max(chunkBytes, fromPage * 3L);
+                                array = startSlowBytesBatch(flat, constant, produced, hint, fromPage, maxRows, blockFactory);
+                                constant = null;
+                                appendSanitizedPacked(array, bytes, off, ends, fromPage);
+                            } else if (flat.isEmpty() == false) {
+                                flat.commit(ends, fromPage);
+                            } else if (constant == null && packedAllEqual(bytes, off, ends, fromPage)) {
+                                assert produced == 0;
+                                constant = BytesRef.deepCopyOf(new BytesRef(bytes, off, ends[0]));
+                            } else if (constant != null && packedEqualsConstant(bytes, off, ends, fromPage, constant)) {
+                                // Still constant: the chunk was decoded into scratch and is dropped.
+                            } else {
+                                long runBytes = constant == null ? 0 : (long) produced * constant.length;
+                                if (flat.fits(runBytes + chunkBytes)) {
+                                    if (constant == null) {
+                                        flat.commit(ends, fromPage);
+                                    } else {
+                                        flat.commitAfterConstantRun(constant, produced, ends, fromPage);
+                                    }
                                 } else {
-                                    array = new BytesRefArray(
-                                        maxRows,
-                                        blockFactory.bigArrays(),
-                                        extrapolateByteHint(packedLen, fromPage, maxRows)
-                                    );
-                                    BytesRefArrayUtils.appendPacked(array, packed, 0, packedLen, ends, fromPage);
+                                    array = startSlowBytesBatch(flat, constant, produced, chunkBytes, fromPage, maxRows, blockFactory);
+                                    BytesRefArrayUtils.appendPacked(array, bytes, off, chunkBytes, ends, fromPage);
                                 }
-                            } else if (packedEqualsConstant(packed, ends, fromPage, constant) == false) {
-                                array = new BytesRefArray(maxRows, blockFactory.bigArrays(), (long) produced * constant.length + packedLen);
-                                appendConstantCopies(array, constant, produced);
-                                BytesRefArrayUtils.appendPacked(array, packed, 0, packedLen, ends, fromPage);
                                 constant = null;
                             }
                         } else {
                             if (array == null) {
-                                array = new BytesRefArray(
-                                    maxRows,
-                                    blockFactory.bigArrays(),
-                                    extrapolateByteHint(Math.max(packedLen, fromPage * 3L), fromPage, maxRows)
-                                );
-                                if (constant != null) {
-                                    appendConstantCopies(array, constant, produced);
-                                    constant = null;
-                                }
+                                array = startSlowBytesBatch(flat, constant, produced, chunkBytes, fromPage, maxRows, blockFactory);
+                                constant = null;
                             }
-                            appendSanitizedPacked(array, packed, ends, fromPage);
+                            byte[] packed = UninitializedArrays.newByteArray(chunkBytes);
+                            int packedLen = plainDecoder.copyPlainPayloads(packed, 0, ends, fromPage);
+                            if (Utf8Sanitizer.isPackedWellFormed(packed, 0, packedLen, ends, fromPage)) {
+                                BytesRefArrayUtils.appendPacked(array, packed, 0, packedLen, ends, fromPage);
+                            } else {
+                                appendSanitizedPacked(array, packed, 0, ends, fromPage);
+                            }
                         }
                     }
                 } else {
                     BytesRef[] vals = readBinaryValues(fromPage);
                     materializeBinaries(vals, fromPage, isUuid);
+                    if (array == null && flat.isEmpty() == false) {
+                        array = startSlowBytesBatch(flat, null, produced, totalBytes(vals, fromPage), fromPage, maxRows, blockFactory);
+                    }
                     if (array != null) {
                         appendAll(array, vals, fromPage);
                     } else if (fromPage > 0) {
@@ -1394,6 +1424,10 @@ final class PageColumnReader implements Releasable {
                 array = null;
                 return result;
             }
+            if (flat.isEmpty() == false) {
+                assert constant == null && flat.count() == produced : flat.count() + " != " + produced;
+                return flat.build(blockFactory).asBlock();
+            }
             return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
         } catch (Throwable e) {
             ParquetReadFailures.closePreservingCause(e, array);
@@ -1401,7 +1435,46 @@ final class PageColumnReader implements Releasable {
         }
     }
 
+    /**
+     * Moves a required batch to the slow {@link BytesRefArray} path: the values held so far, either {@code produced}
+     * copies of {@code constant} or the committed values of {@code flat}, are appended one at a time. The batch
+     * stays on the array until it ends. {@code nextChunkBytes} only sizes the array.
+     */
+    private static BytesRefArray startSlowBytesBatch(
+        FlatBytesRefAccumulator flat,
+        @Nullable BytesRef constant,
+        int produced,
+        long nextChunkBytes,
+        int nextChunkValues,
+        int maxRows,
+        BlockFactory blockFactory
+    ) {
+        assert constant == null || flat.isEmpty() : "a constant batch holds no flat values";
+        long seenBytes = constant == null ? flat.length() : (long) produced * constant.length;
+        long hint = extrapolateByteHint(seenBytes + nextChunkBytes, produced + nextChunkValues, maxRows);
+        BytesRefArray array = new BytesRefArray(maxRows, blockFactory.bigArrays(), hint);
+        try {
+            if (constant != null) {
+                appendConstantCopies(array, constant, produced);
+            } else {
+                flat.appendTo(array);
+            }
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, array);
+            throw e;
+        }
+        return array;
+    }
+
+    /**
+     * Reads a batch of an optional BINARY column. While every chunk so far is PLAIN, well-formed and null-free, the
+     * values go to {@code flat} as in {@link #readRequiredBytesBatch} and the batch becomes a
+     * {@code DirectBytesRefVector}. The first chunk that is not, or that would grow {@code flat} past
+     * {@link BlockFactory#maxPrimitiveArrayBytes()}, moves the batch to a {@link BytesRefBlock.Builder} for good.
+     * Unlike the required path there is no constant detection here, as before.
+     */
     private Block readOptionalBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
+        FlatBytesRefAccumulator flat = new FlatBytesRefAccumulator(maxRows, blockFactory.maxPrimitiveArrayBytes());
         BytesRefBlock.Builder builder = null;
         int produced = 0;
         int remaining = maxRows;
@@ -1416,17 +1489,38 @@ final class PageColumnReader implements Releasable {
                     int[] ends = null;
                     int packedLen = 0;
                     boolean wellFormed = true;
+                    boolean committedToFlat = false;
                     if (nonNull > 0) {
-                        int hint = plainDecoder.plainPayloadCapacityHint(nonNull);
-                        packed = UninitializedArrays.newByteArray(Math.max(hint, 1));
+                        int chunkBytes = plainDecoder.plainPayloadBytes(nonNull);
                         ends = new int[nonNull];
-                        packedLen = plainDecoder.copyPlainPayloads(packed, 0, ends, nonNull);
-                        wellFormed = Utf8Sanitizer.isPackedWellFormed(packed, 0, packedLen, ends, nonNull);
+                        // flat holds every value so far only while no null has been seen: then its count is produced.
+                        boolean intoFlat = builder == null && nonNull == fromPage && flat.count() == produced && flat.fits(chunkBytes);
+                        int packedOff = 0;
+                        if (intoFlat) {
+                            packedOff = flat.reserve(chunkBytes);
+                            packed = flat.bytes();
+                        } else {
+                            packed = UninitializedArrays.newByteArray(chunkBytes);
+                        }
+                        packedLen = plainDecoder.copyPlainPayloads(packed, packedOff, ends, nonNull);
+                        wellFormed = Utf8Sanitizer.isPackedWellFormed(packed, packedOff, packedLen, ends, nonNull);
                         if (firstPageBytes < 0) {
                             firstPageBytes = packedLen;
                         }
+                        if (intoFlat && wellFormed) {
+                            flat.commit(ends, nonNull);
+                            committedToFlat = true;
+                        } else if (intoFlat) {
+                            // Rare: hand the malformed chunk to the builder path below, which reads it from offset 0.
+                            packed = Arrays.copyOfRange(packed, packedOff, packedOff + packedLen);
+                        }
                     }
-                    if (builder != null) {
+                    if (committedToFlat) {
+                        // Nothing else to do: the chunk's values are in flat.
+                    } else if (builder == null && flat.isEmpty() == false) {
+                        builder = startSlowOptionalBytesBatch(flat, produced, maxRows, blockFactory);
+                        appendNullablePacked(builder, packed, packedLen, ends, wellFormed, pageNulls, fromPage, nonNull);
+                    } else if (builder != null) {
                         appendNullablePacked(builder, packed, packedLen, ends, wellFormed, pageNulls, fromPage, nonNull);
                     } else if (nonNull > 0) {
                         builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
@@ -1443,6 +1537,9 @@ final class PageColumnReader implements Releasable {
                     if (firstPageBytes < 0 && nonNull > 0) {
                         firstPageBytes = totalBytes(vals, nonNull);
                     }
+                    if (builder == null && flat.isEmpty() == false) {
+                        builder = startSlowOptionalBytesBatch(flat, produced, maxRows, blockFactory);
+                    }
                     if (builder != null) {
                         appendNullableBinaries(builder, vals, pageNulls, fromPage);
                     } else if (nonNull > 0) {
@@ -1456,6 +1553,10 @@ final class PageColumnReader implements Releasable {
                 advancePosition(fromPage);
                 produced += fromPage;
                 remaining -= fromPage;
+            }
+            if (builder == null && flat.isEmpty() == false) {
+                assert flat.count() == produced : flat.count() + " != " + produced;
+                return flat.build(blockFactory).asBlock();
             }
             if (builder == null && produced > 0) {
                 return blockFactory.newConstantNullBlock(produced);
@@ -1474,6 +1575,30 @@ final class PageColumnReader implements Releasable {
             ParquetReadFailures.closePreservingCause(e, builder);
             throw e;
         }
+    }
+
+    /**
+     * Moves an optional batch whose values so far are all in {@code flat} (no nulls yet) to a
+     * {@link BytesRefBlock.Builder}, which takes every later chunk.
+     */
+    private static BytesRefBlock.Builder startSlowOptionalBytesBatch(
+        FlatBytesRefAccumulator flat,
+        int produced,
+        int maxRows,
+        BlockFactory blockFactory
+    ) {
+        assert flat.count() == produced : flat.count() + " != " + produced;
+        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(
+            maxRows,
+            extrapolateByteHint(flat.length(), flat.count(), maxRows)
+        );
+        try {
+            flat.appendTo(builder);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, builder);
+            throw e;
+        }
+        return builder;
     }
 
     private void materializeBinaries(BytesRef[] vals, int count, boolean isUuid) {
@@ -1495,28 +1620,29 @@ final class PageColumnReader implements Releasable {
             && descriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY;
     }
 
-    private static boolean packedAllEqual(byte[] packed, int[] exclusiveEnds, int count) {
+    /** {@code exclusiveEnds} are relative to {@code packedOff} in all three packed helpers below. */
+    private static boolean packedAllEqual(byte[] packed, int packedOff, int[] exclusiveEnds, int count) {
         if (count <= 1) {
             return true;
         }
         int firstLen = exclusiveEnds[0];
         for (int i = 1; i < count; i++) {
-            int start = exclusiveEnds[i - 1];
-            int len = exclusiveEnds[i] - start;
+            int start = packedOff + exclusiveEnds[i - 1];
+            int len = packedOff + exclusiveEnds[i] - start;
             if (len != firstLen) {
                 return false;
             }
-            if (firstLen > 0 && Arrays.equals(packed, 0, firstLen, packed, start, start + len) == false) {
+            if (firstLen > 0 && Arrays.equals(packed, packedOff, packedOff + firstLen, packed, start, start + len) == false) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean packedEqualsConstant(byte[] packed, int[] exclusiveEnds, int count, BytesRef constant) {
-        int start = 0;
+    private static boolean packedEqualsConstant(byte[] packed, int packedOff, int[] exclusiveEnds, int count, BytesRef constant) {
+        int start = packedOff;
         for (int i = 0; i < count; i++) {
-            int end = exclusiveEnds[i];
+            int end = packedOff + exclusiveEnds[i];
             int len = end - start;
             if (len != constant.length) {
                 return false;
@@ -1529,11 +1655,11 @@ final class PageColumnReader implements Releasable {
         return true;
     }
 
-    private static void appendSanitizedPacked(BytesRefArray array, byte[] packed, int[] exclusiveEnds, int count) {
+    private static void appendSanitizedPacked(BytesRefArray array, byte[] packed, int packedOff, int[] exclusiveEnds, int count) {
         BytesRef scratch = new BytesRef();
-        int start = 0;
+        int start = packedOff;
         for (int i = 0; i < count; i++) {
-            int end = exclusiveEnds[i];
+            int end = packedOff + exclusiveEnds[i];
             scratch.bytes = packed;
             scratch.offset = start;
             scratch.length = end - start;

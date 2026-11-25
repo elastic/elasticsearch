@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -142,7 +143,7 @@ public class PlainValueDecoderTests extends ESTestCase {
 
         PlainValueDecoder decoder = new PlainValueDecoder();
         decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
-        byte[] dest = new byte[decoder.plainPayloadCapacityHint(3)];
+        byte[] dest = new byte[decoder.plainPayloadBytes(3)];
         int[] ends = new int[3];
         int destLen = decoder.copyPlainPayloads(dest, 0, ends, 3);
         assertEquals(shortOk.length + longOk.length + shortOk.length, destLen);
@@ -162,7 +163,7 @@ public class PlainValueDecoderTests extends ESTestCase {
 
         PlainValueDecoder decoder = new PlainValueDecoder();
         decoder.init(direct);
-        byte[] dest = new byte[decoder.plainPayloadCapacityHint(1)];
+        byte[] dest = new byte[decoder.plainPayloadBytes(1)];
         int[] ends = new int[1];
         int destLen = decoder.copyPlainPayloads(dest, 0, ends, 1);
         assertEquals(2, destLen);
@@ -188,7 +189,7 @@ public class PlainValueDecoderTests extends ESTestCase {
         byte[] packed = packPlain(payloads);
         PlainValueDecoder decoder = new PlainValueDecoder();
         decoder.init(ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN));
-        byte[] dest = new byte[Math.max(decoder.plainPayloadCapacityHint(n), 1)];
+        byte[] dest = new byte[decoder.plainPayloadBytes(n)];
         int[] ends = new int[n];
         int destLen = decoder.copyPlainPayloads(dest, 0, ends, n);
         assertEquals(expectedLen, destLen);
@@ -198,6 +199,94 @@ public class PlainValueDecoderTests extends ESTestCase {
             assertArrayEquals(payloads[i], Arrays.copyOfRange(dest, start, ends[i]));
             start = ends[i];
         }
+    }
+
+    /**
+     * {@code plainPayloadBytes(k)} is the exact payload sum of the next {@code k} values, not the page
+     * remainder, and it leaves the position alone: a following {@code copyPlainPayloads} still starts at
+     * the first value and writes exactly that many bytes, and the next call counts from where the copy stopped.
+     */
+    public void testPlainPayloadBytesIsExactSumAndKeepsPosition() {
+        int n = randomIntBetween(2, 32);
+        byte[][] payloads = new byte[n][];
+        for (int i = 0; i < n; i++) {
+            payloads[i] = randomByteArrayOfLength(randomFrom(0, randomIntBetween(1, 300)));
+        }
+        int first = randomIntBetween(1, n - 1);
+        int firstBytes = 0;
+        for (int i = 0; i < first; i++) {
+            firstBytes += payloads[i].length;
+        }
+        int restBytes = 0;
+        for (int i = first; i < n; i++) {
+            restBytes += payloads[i].length;
+        }
+
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(randomPlainBuffer(packPlain(payloads)));
+        assertEquals(0, decoder.plainPayloadBytes(0));
+        assertEquals(firstBytes, decoder.plainPayloadBytes(first));
+        assertEquals("repeat call must see the same position", firstBytes, decoder.plainPayloadBytes(first));
+
+        byte[] dest = new byte[firstBytes];
+        int[] ends = new int[first];
+        assertEquals(firstBytes, decoder.copyPlainPayloads(dest, 0, ends, first));
+        assertArrayEquals(payloads[0], Arrays.copyOf(dest, ends[0]));
+
+        assertEquals(restBytes, decoder.plainPayloadBytes(n - first));
+    }
+
+    /** A length prefix cut short fails with the {@link BufferUnderflowException} {@code copyPlainPayloads} throws. */
+    public void testPlainPayloadBytesTruncatedPrefix() {
+        byte[] full = packPlain(new byte[][] { new byte[] { 'a' }, new byte[] { 'b' } });
+        byte[] truncated = Arrays.copyOf(full, full.length - 1 - randomIntBetween(1, Integer.BYTES - 1));
+
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(randomPlainBuffer(truncated));
+        expectThrows(BufferUnderflowException.class, () -> decoder.plainPayloadBytes(2));
+        expectThrows(BufferUnderflowException.class, () -> decoder.copyPlainPayloads(new byte[2], 0, new int[2], 2));
+    }
+
+    /**
+     * A payload running past the buffer limit fails with {@link BufferUnderflowException}, as
+     * {@code copyPlainPayloads} does over a direct buffer.
+     */
+    public void testPlainPayloadBytesTruncatedPayload() {
+        byte[] full = packPlain(new byte[][] { new byte[] { 'a' }, new byte[] { 'b', 'c', 'd' } });
+        byte[] truncated = Arrays.copyOf(full, full.length - randomIntBetween(1, 3));
+
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(directBuffer(truncated));
+        expectThrows(BufferUnderflowException.class, () -> decoder.plainPayloadBytes(2));
+        expectThrows(BufferUnderflowException.class, () -> decoder.copyPlainPayloads(new byte[4], 0, new int[2], 2));
+
+        decoder.init(ByteBuffer.wrap(truncated));
+        expectThrows(BufferUnderflowException.class, () -> decoder.plainPayloadBytes(2));
+    }
+
+    /**
+     * A negative length can only come from a corrupt page; both methods count it as an empty value that consumes
+     * just its 4-byte prefix, so they agree on the size and the values after it decode unchanged.
+     */
+    public void testPlainPayloadBytesNegativeLengthCountsAsEmpty() {
+        byte[] packed = packPlain(new byte[][] { new byte[] { 'a' }, new byte[0], new byte[] { 'c', 'd' } });
+        int secondPrefix = Integer.BYTES + 1;
+        ByteBuffer.wrap(packed).order(ByteOrder.LITTLE_ENDIAN).putInt(secondPrefix, -randomIntBetween(1, Integer.MAX_VALUE));
+
+        PlainValueDecoder decoder = new PlainValueDecoder();
+        decoder.init(randomPlainBuffer(packed));
+        assertEquals(1, decoder.plainPayloadBytes(1));
+        assertEquals("the negative length adds no payload bytes", 1, decoder.plainPayloadBytes(2));
+        int expected = decoder.plainPayloadBytes(3);
+        assertEquals(3, expected);
+
+        byte[] dest = new byte[expected];
+        int[] ends = new int[3];
+        assertEquals("copyPlainPayloads must agree with plainPayloadBytes", expected, decoder.copyPlainPayloads(dest, 0, ends, 3));
+        assertArrayEquals("the negative length is an empty value", new int[] { 1, 1, 3 }, ends);
+        assertArrayEquals("the value after it decodes unchanged", new byte[] { 'a', 'c', 'd' }, dest);
+        // Every value, and nothing more, was consumed: the buffer is exhausted.
+        expectThrows(BufferUnderflowException.class, () -> decoder.plainPayloadBytes(1));
     }
 
     public void testReadBinariesNonZeroOffset() {
@@ -228,6 +317,16 @@ public class PlainValueDecoderTests extends ESTestCase {
             pos += p.length;
         }
         return packed;
+    }
+
+    private static ByteBuffer randomPlainBuffer(byte[] packed) {
+        return randomBoolean() ? ByteBuffer.wrap(packed) : directBuffer(packed);
+    }
+
+    private static ByteBuffer directBuffer(byte[] packed) {
+        ByteBuffer direct = ByteBuffer.allocateDirect(packed.length);
+        direct.put(packed).flip();
+        return direct;
     }
 
     private static boolean[] slice(boolean[] arr, int offset, int length) {

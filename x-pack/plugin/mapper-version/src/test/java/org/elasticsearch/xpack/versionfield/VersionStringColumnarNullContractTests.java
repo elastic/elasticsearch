@@ -24,15 +24,24 @@ public class VersionStringColumnarNullContractTests extends AbstractColumnarNull
 
     private static Scenario version() {
         return scenario("version", () -> randomIntBetween(0, 9) + "." + randomIntBetween(0, 9) + "." + randomIntBetween(0, 9))
-            .withoutIndex();
+            .withoutIndex()
+            .batchedGroups((configuration, shape) -> true);
     }
 
     public void testVersionExistsRegular() throws IOException {
         assertExistsMatchesOnlyDocumentsWithValue(version(), Path.REGULAR);
     }
 
+    public void testVersionExistsBatch() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(version(), Path.BATCH);
+    }
+
     public void testVersionSourceRegular() throws IOException {
         assertSourceDropsNullElements(version(), Path.REGULAR);
+    }
+
+    public void testVersionSourceBatch() throws IOException {
+        assertSourceDropsNullElements(version(), Path.BATCH);
     }
 
 }

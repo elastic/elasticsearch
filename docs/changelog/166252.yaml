@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 166252
-summary: Fix inverted page-split check in Block#lookup
-type: bug

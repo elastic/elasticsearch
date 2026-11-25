@@ -261,3 +261,48 @@ network.total_cost     | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu
 network.total_cost     | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
 network.total_cost     | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
 ;
+
+tsInfoValuesDimensionFieldsByMetric
+required_capability: ts_info_command
+TS k8s | TS_INFO | WHERE metric_type == "counter" | STATS dims = VALUES(dimension_fields) BY metric_name, metric_type | SORT metric_name;
+
+dims:keyword           | metric_name:keyword    | metric_type:keyword
+[cluster, pod, region] | network.total_bytes_in | counter
+[cluster, pod, region] | network.total_cost     | counter
+;
+
+tsInfoMinDimensionFieldsByMetric
+required_capability: ts_info_command
+TS k8s | TS_INFO | WHERE metric_type == "counter" | STATS dim = MIN(dimension_fields) BY metric_name, metric_type | SORT metric_name;
+
+dim:keyword | metric_name:keyword    | metric_type:keyword
+cluster     | network.total_bytes_in | counter
+cluster     | network.total_cost     | counter
+;
+
+tsInfoMaxDimensionFieldsByMetric
+required_capability: ts_info_command
+TS k8s | TS_INFO | WHERE metric_type == "counter" | STATS dim = MAX(dimension_fields) BY metric_name, metric_type | SORT metric_name;
+
+dim:keyword | metric_name:keyword    | metric_type:keyword
+region      | network.total_bytes_in | counter
+region      | network.total_cost     | counter
+;
+
+tsInfoCountDistinctDimensionFieldsByMetric
+required_capability: ts_info_command
+TS k8s | TS_INFO | WHERE metric_type == "counter" | STATS dims = COUNT_DISTINCT(dimension_fields) BY metric_name, metric_type | SORT metric_name;
+
+dims:long | metric_name:keyword    | metric_type:keyword
+3         | network.total_bytes_in | counter
+3         | network.total_cost     | counter
+;
+
+tsInfoValuesDimensionFieldsByMetricStackedFilters
+required_capability: ts_info_command
+TS k8s | TS_INFO | WHERE metric_name LIKE "network.*" | WHERE metric_type == "gauge" | STATS dims = VALUES(dimension_fields) BY metric_name | SORT metric_name;
+
+dims:keyword           | metric_name:keyword
+[cluster, pod, region] | network.eth0.rx
+[cluster, pod, region] | network.eth0.tx
+;

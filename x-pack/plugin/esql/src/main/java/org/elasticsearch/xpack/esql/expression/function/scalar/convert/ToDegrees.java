@@ -41,7 +41,11 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         "ToDegrees",
         ToDegrees::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDegrees.class).unary(ToDegrees::new).name("to_degrees");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDegrees.class)
+        .unary(ToDegrees::new)
+        // Fix the optimizer dropping the conversion of a double field as a no-op.
+        .capabilities("fix_double_field")
+        .name("to_degrees");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .unaryValueTransformation(ToDegrees::new)
         .description("Converts input values from radians to degrees for all elements in the input vector.")

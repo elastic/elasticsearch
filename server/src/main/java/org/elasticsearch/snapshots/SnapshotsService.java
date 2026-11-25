@@ -701,7 +701,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
                 SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
-                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                final boolean newMaster = event.localNodeIsNewMaster();
                 externalChangesBatcher.processExternalChanges(
                     newMaster || SnapshotsServiceUtils.removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     snapshotsInProgress.nodeIdsForRemovalChanged(SnapshotsInProgress.get(event.previousState()))
@@ -2560,8 +2560,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private void startExecutableClones(List<SnapshotsInProgress.Entry> entries) {
         for (SnapshotsInProgress.Entry entry : entries) {
-            if (entry.isClone() && entry.state() == SnapshotsInProgress.State.STARTED) {
-                // this is a clone, see if new work is ready
+            if (entry.isClone()
+                && (entry.state() == SnapshotsInProgress.State.STARTED || entry.state() == SnapshotsInProgress.State.ABORTED)) {
+                // this is a clone, see if new work is ready; an ABORTED clone may still have ABORTED shards whose clone was running
+                // on a previous master, and nothing else will mark them as FAILED
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> clone : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                     if (clone.getValue().state() == ShardState.INIT) {
                         runReadyClone(
@@ -2571,18 +2573,21 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             clone.getKey(),
                             repositoriesService.repository(entry.projectId(), entry.repository())
                         );
-                    } else if (clone.getValue().state() == ShardState.ABORTED) {
+                    } else if (clone.getValue().state() == ShardState.ABORTED && currentlyCloning.add(clone.getKey())) {
                         createAndSubmitRequestToUpdateSnapshotState(
                             entry.snapshot(),
                             null,
                             clone.getKey(),
                             new ShardSnapshotStatus(
-                                clone.getValue().nodeId(),
+                                clusterService.localNode().getId(),
                                 ShardState.FAILED,
                                 clone.getValue().generation(),
                                 clone.getValue().reason()
                             ),
-                            failedCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey())
+                            ActionListener.runBefore(
+                                failedCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey()),
+                                () -> currentlyCloning.remove(clone.getKey())
+                            )
                         );
                     }
                 }

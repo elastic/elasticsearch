@@ -255,7 +255,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private IndexType indexType() {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
-                return IndexType.archivedPoints();
+                return IndexType.archivedPoints(docValuesParameters.get().enabled());
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {

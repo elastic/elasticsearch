@@ -66,7 +66,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         @FixForMultiProject
         ProjectMetadata currentMetadata = event.state().metadata().getProject();
         ProjectMetadata previousMetadata = event.previousState().metadata().getProject();
-        final boolean localNodeNewlyElectedMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        final boolean localNodeNewlyElectedMaster = event.localNodeIsNewMaster();
         if (event.localNodeMaster()
             && (localNodeNewlyElectedMaster
                 || currentMetadata.indices() != previousMetadata.indices()

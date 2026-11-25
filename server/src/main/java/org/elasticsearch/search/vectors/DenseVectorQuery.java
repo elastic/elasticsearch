@@ -175,17 +175,28 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-            VectorScorer vectorScorer = query.vectorScorer(context);
+            if (context.reader().getFieldInfos().fieldInfo(field) == null) {
+                // no vectors in this leaf: skip setting up the filter
+                return null;
+            }
+            // checked before the vectors, so a leaf the filter rules out opens no vector input
+            ScorerSupplier filterSupplier = null;
+            if (filterWeight != null) {
+                filterSupplier = filterWeight.scorerSupplier(context);
+                if (filterSupplier == null) {
+                    return null;
+                }
+            }
+            // Scorers advance in doc order, so they read the vectors in order, in a conjunction too.
+            // TODO: a very selective filter skips most vectors and wastes the readahead; the cost of
+            // the filter or the lead cost could pick the random input instead.
+            VectorScorer vectorScorer = query.vectorScorer(context, DataAccessHint.SEQUENTIAL);
             if (vectorScorer == null) {
                 return null;
             }
             final DocIdSetIterator filterIterator;
             final long cost;
-            if (filterWeight != null) {
-                ScorerSupplier filterSupplier = filterWeight.scorerSupplier(context);
-                if (filterSupplier == null) {
-                    return null;
-                }
+            if (filterSupplier != null) {
                 filterIterator = filterSupplier.get(Long.MAX_VALUE).iterator();
                 cost = Math.min(vectorScorer.iterator().cost(), filterIterator.cost());
             } else {
@@ -200,9 +211,7 @@ public abstract class DenseVectorQuery extends Query {
 
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
-                    // scores every vector of the leaf, so reads them in order
-                    VectorScorer sequentialScorer = query.vectorScorer(context, DataAccessHint.SEQUENTIAL);
-                    return new DenseVectorBulkScorer(new DenseVectorScorer(sequentialScorer, filterIterator, boost), cost);
+                    return new DenseVectorBulkScorer(new DenseVectorScorer(vectorScorer, filterIterator, boost), cost);
                 }
 
                 @Override

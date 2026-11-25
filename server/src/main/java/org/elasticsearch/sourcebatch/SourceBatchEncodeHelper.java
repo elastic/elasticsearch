@@ -37,7 +37,42 @@ public final class SourceBatchEncodeHelper {
      * array bytes. Returns a {@link PackedArray} describing the wire type and packed bytes.
      */
     public static PackedArray packArray(XContentParser parser) throws IOException {
-        return parseArray(parser, false); // false never rejects, so the array is always packed
+        return parseArray(parser, new ArrayScratch(), false, false); // rejectOversizedNumbers false never rejects
+    }
+
+    /**
+     * Like {@link #packArray(XContentParser)}, accumulating the elements in {@code scratch}, which an encoder reuses across arrays
+     * so that each array does not grow fresh buffers. With {@code floatElements}, every number element is parsed straight to a
+     * {@link SourceValueType#FLOAT}, as the row path parses the elements of a {@code float} vector, instead of being typed by
+     * {@link XContentParser#numberType}: this rounds the value once, to the float the row path indexes, and parses it once,
+     * where typing it first and reading it as a double would parse it twice. Non-number elements are packed as without it.
+     */
+    public static PackedArray packArray(XContentParser parser, ArrayScratch scratch, boolean floatElements) throws IOException {
+        return parseArray(parser, scratch, floatElements, false);
+    }
+
+    /**
+     * Reusable element buffers for {@link #packArray(XContentParser, ArrayScratch, boolean)}. Not thread-safe; nested arrays use
+     * their own buffers, so one scratch serves one top-level array at a time.
+     */
+    public static final class ArrayScratch {
+        private static final int INITIAL_CAPACITY = 16;
+
+        private byte[] types = new byte[INITIAL_CAPACITY];
+        private long[] numerics = new long[INITIAL_CAPACITY];
+        private Object[] vars = new Object[INITIAL_CAPACITY];
+
+        private void grow() {
+            int newCap = types.length * 2;
+            types = Arrays.copyOf(types, newCap);
+            numerics = Arrays.copyOf(numerics, newCap);
+            vars = Arrays.copyOf(vars, newCap);
+        }
+
+        /** Drops the references to the variable-length elements of the last array, so the scratch does not retain them. */
+        private void clear(int count) {
+            Arrays.fill(vars, 0, count, null);
+        }
     }
 
     /**
@@ -161,57 +196,91 @@ public final class SourceBatchEncodeHelper {
     }
 
     @Nullable
-    private static PackedArray parseArray(XContentParser parser, boolean rejectOversizedNumbers) throws IOException {
-        byte[] elemTypes = new byte[16];
-        long[] elemNumeric = new long[16];
-        Object[] elemVar = new Object[16];
+    private static PackedArray parseArray(
+        XContentParser parser,
+        ArrayScratch scratch,
+        boolean floatElements,
+        boolean rejectOversizedNumbers
+    ) throws IOException {
         int count = 0;
-        boolean forceUnion = false;
-
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (count >= elemTypes.length) {
-                int newCap = elemTypes.length * 2;
-                elemTypes = Arrays.copyOf(elemTypes, newCap);
-                elemNumeric = Arrays.copyOf(elemNumeric, newCap);
-                elemVar = Arrays.copyOf(elemVar, newCap);
-            }
-            switch (token) {
-                case START_OBJECT -> {
-                    byte[] nested = serializeKeyValue(parser, rejectOversizedNumbers);
-                    if (nested == null) {
-                        return null;
-                    }
-                    elemTypes[count] = SourceValueType.KEY_VALUE;
-                    elemVar[count] = nested;
+        try {
+            boolean forceUnion = false;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (count >= scratch.types.length) {
+                    scratch.grow();
+                }
+                if (parseElement(
+                    parser,
+                    token,
+                    scratch.types,
+                    scratch.numerics,
+                    scratch.vars,
+                    count,
+                    floatElements,
+                    rejectOversizedNumbers
+                ) == false) {
+                    return null;
+                }
+                if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
                     forceUnion = true;
                 }
-                case START_ARRAY -> {
-                    PackedArray nested = parseArray(parser, rejectOversizedNumbers);
-                    if (nested == null) {
-                        return null;
-                    }
-                    elemTypes[count] = nested.arrayType();
-                    elemVar[count] = nested.packed();
-                    forceUnion = true;
-                }
-                case VALUE_STRING -> {
-                    elemTypes[count] = SourceValueType.STRING;
-                    elemVar[count] = parser.optimizedText().bytes();
-                }
-                case VALUE_NUMBER -> {
-                    if (readNumber(parser, elemTypes, elemNumeric, elemVar, count, rejectOversizedNumbers) == false) {
-                        return null;
-                    }
-                }
-                case VALUE_BOOLEAN -> elemTypes[count] = parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
-                case VALUE_NULL -> elemTypes[count] = SourceValueType.NULL;
-                default -> throw new IllegalStateException("Unexpected token in array: " + token);
+                count++;
             }
-            count++;
+            return packAccumulatedElements(scratch.types, scratch.numerics, scratch.vars, count, forceUnion);
+        } finally {
+            scratch.clear(count);
         }
+    }
 
-        return packAccumulatedElements(elemTypes, elemNumeric, elemVar, count, forceUnion);
+    /**
+     * Parses the array element at {@code token} into slot {@code i} of the element buffers. Returns {@code false} when
+     * {@code rejectOversizedNumbers} rejects it (see {@link #serializeKeyValue(XContentParser, boolean)}).
+     */
+    private static boolean parseElement(
+        XContentParser parser,
+        XContentParser.Token token,
+        byte[] elemTypes,
+        long[] elemNumeric,
+        Object[] elemVar,
+        int i,
+        boolean floatElements,
+        boolean rejectOversizedNumbers
+    ) throws IOException {
+        switch (token) {
+            case START_OBJECT -> {
+                byte[] nested = serializeKeyValue(parser, rejectOversizedNumbers);
+                if (nested == null) {
+                    return false;
+                }
+                elemTypes[i] = SourceValueType.KEY_VALUE;
+                elemVar[i] = nested;
+            }
+            case START_ARRAY -> {
+                PackedArray nested = parseArray(parser, new ArrayScratch(), false, rejectOversizedNumbers);
+                if (nested == null) {
+                    return false;
+                }
+                elemTypes[i] = nested.arrayType();
+                elemVar[i] = nested.packed();
+            }
+            case VALUE_STRING -> {
+                elemTypes[i] = SourceValueType.STRING;
+                elemVar[i] = parser.optimizedText().bytes();
+            }
+            case VALUE_NUMBER -> {
+                if (floatElements) {
+                    elemTypes[i] = SourceValueType.FLOAT;
+                    elemNumeric[i] = Float.floatToRawIntBits(parser.floatValue());
+                } else {
+                    return readNumber(parser, elemTypes, elemNumeric, elemVar, i, rejectOversizedNumbers);
+                }
+            }
+            case VALUE_BOOLEAN -> elemTypes[i] = parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
+            case VALUE_NULL -> elemTypes[i] = SourceValueType.NULL;
+            default -> throw new IllegalStateException("Unexpected token in array: " + token);
+        }
+        return true;
     }
 
     private static boolean writeElementValue(
@@ -260,7 +329,7 @@ public final class SourceBatchEncodeHelper {
                 writer.endObjectField();
             }
             case START_ARRAY -> {
-                PackedArray array = parseArray(parser, rejectOversizedNumbers);
+                PackedArray array = parseArray(parser, new ArrayScratch(), false, rejectOversizedNumbers);
                 if (array == null) {
                     return false;
                 }

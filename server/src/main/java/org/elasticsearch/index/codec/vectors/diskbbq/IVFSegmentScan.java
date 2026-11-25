@@ -189,7 +189,8 @@ public final class IVFSegmentScan {
         if (plan.acceptBits() == null) {
             return;
         }
-        // Filters and deletes skip docs, so keep going until about as many docs were scored as an unfiltered search scores.
+        // Filters and deletes skip docs, so keep going until enough docs were scored: twice the filter's share of the posting
+        // list entries visited so far, and at most half of them.
         // TODO Adjust the value here when using centroid filtering
         float unfilteredRatioVisited = (float) budgetUsed / plan.numVectors();
         int filteredVectors = (int) Math.ceil(plan.numVectors() * plan.percentFiltered());
@@ -231,7 +232,7 @@ public final class IVFSegmentScan {
      * parent docs for nested fields. The other parts are done with their collectors by now: each recorded its last posting
      * list after it last used its collector.
      */
-    private synchronized void gatherHitsInto(KnnCollector collector) throws IOException {
+    private synchronized void gatherHitsInto(KnnCollector collector) {
         for (KnnCollector other : collectors) {
             if (other != collector) {
                 TopDocs hits = other instanceof BulkKnnCollector bulk ? bulk.unsortedTopK() : other.topDocs();

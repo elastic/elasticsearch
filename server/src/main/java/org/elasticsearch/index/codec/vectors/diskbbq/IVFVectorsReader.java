@@ -469,11 +469,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (scan == null) {
             // A search on its own: nothing of the budget is used yet, and no doc is scored.
             IVFSegmentScan.Plan plan = planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, values);
-            if (plan != null) {
-                PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, plan.acceptBits(), esAcceptDocs);
-                IVFSegmentScan.searchFrom(plan, visitor, knnCollector, 0, 0);
+            if (plan == null) {
+                return; // no vectors in this segment / slice
             }
-            return; // no plan: no vectors in this segment / slice
+            PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, plan.acceptBits(), esAcceptDocs);
+            IVFSegmentScan.searchFrom(plan, visitor, knnCollector, 0, 0);
+            return;
         }
         try {
             // The scan's plan gets vector values of its own: whichever part lists the budget or goes on past it advances the
@@ -491,7 +492,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             visitor.shareQuantizedQueries(scan.quantizedQueries());
             scan.search(visitor, knnCollector);
         } catch (Throwable t) {
-            scan.fail(); // the query has failed, so the other parts searching this segment stop
+            scan.fail(); // the query has failed, so the other parts take no more posting lists within the budget
             throw t;
         }
     }

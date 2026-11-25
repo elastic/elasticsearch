@@ -113,14 +113,17 @@ public class IVFKnnByteSlicedVectorQuery extends IVFKnnByteVectorQuery {
     @Override
     PartSearch partSearch(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
         final byte[] leafQuery = segmentQuery(ctx, usePrecondition);
-        return collector -> IVFSlicedSearchHelper.searchOnlySlice(
-            ctx,
-            filterWeight,
-            collector,
-            field,
-            sliceField,
-            sliceKeys,
-            (context, f, c, acceptDocs) -> context.reader().searchNearestVectors(f, leafQuery, c, acceptDocs)
+        return new PartSearch(
+            leafQuery == query,
+            collector -> IVFSlicedSearchHelper.searchOnlySlice(
+                ctx,
+                filterWeight,
+                collector,
+                field,
+                sliceField,
+                sliceKeys,
+                (context, f, c, acceptDocs) -> context.reader().searchNearestVectors(f, leafQuery, c, acceptDocs)
+            )
         );
     }
 

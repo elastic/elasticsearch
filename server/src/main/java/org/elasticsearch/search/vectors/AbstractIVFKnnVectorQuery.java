@@ -35,6 +35,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -372,11 +373,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return false;
     }
 
-    /** Searches one part of a leaf: the codec search with the part's own collector, through the leaf's shared scan. */
-    @FunctionalInterface
-    interface PartSearch {
-        void search(KnnCollector collector) throws IOException;
-    }
+    /**
+     * The search of a leaf's parts. {@code search} searches one part: the codec search with the part's own collector, through
+     * the leaf's shared scan. {@code searchesQueryVector} is whether the leaf is searched with the query's own vector: only
+     * then are its parts handed the query's transform cache, as for {@link IVFCollectorManager#newSearchStrategy}.
+     */
+    record PartSearch(boolean searchesQueryVector, IOConsumer<KnnCollector> search) {}
 
     /**
      * Prepares the search of {@code ctx}'s parts once, e.g. its preconditioned query vector. Each part's search builds its

@@ -172,12 +172,12 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
     @Override
     PartSearch partSearch(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
         byte[] leafQuery = segmentQuery(ctx, usePrecondition);
-        return collector -> {
+        return new PartSearch(leafQuery == query, collector -> {
             AcceptDocs acceptDocs = leafAcceptDocs(ctx, filterWeight);
             if (acceptDocs != null) {
                 ctx.reader().searchNearestVectors(field, leafQuery, collector, acceptDocs);
             }
-        };
+        });
     }
 
     @Override

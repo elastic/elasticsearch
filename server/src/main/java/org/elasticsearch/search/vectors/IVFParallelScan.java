@@ -244,17 +244,15 @@ final class IVFParallelScan {
         }
         // No ThreadConfinedArena, unlike the whole-leaf search: the threads of other parts read what this part allocates.
         LeafInput input = leaf.input;
-        // Without a preconditioner the leaf is searched with the query's own vector, so its parts share the query's
-        // transformations, as the leaf's search would.
-        boolean searchesQueryVector = input.usePrecondition() == false;
+        AbstractIVFKnnVectorQuery.PartSearch partSearch = leaf.partSearch(query, filterWeight);
         IVFKnnSearchStrategy strategy = input.collectorManager()
-            .newPartSearchStrategy(visitRatio, query.numCands, query.k, searchesQueryVector, leaf.scan);
+            .newPartSearchStrategy(visitRatio, query.numCands, query.k, partSearch.searchesQueryVector(), leaf.scan);
         AbstractMaxScoreKnnCollector collector = input.collectorManager().newCollector(Integer.MAX_VALUE, strategy, input.ctx());
         if (collector == null) {
             return; // nothing to collect in this leaf, e.g. a nested field's leaf without parent docs
         }
         strategy.setCollector(collector);
-        leaf.partSearch(query, filterWeight).search(collector);
+        partSearch.search().accept(collector);
     }
 
     /** One leaf's state while the query runs. */

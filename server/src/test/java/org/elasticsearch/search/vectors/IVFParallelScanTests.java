@@ -373,8 +373,12 @@ public class IVFParallelScanTests extends ESTestCase {
                         }
 
                         @Override
-                        protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
-                            RecordingCollectorManager leaf = new RecordingCollectorManager(k, sharedScore);
+                        protected IVFCollectorManager getKnnCollectorManager(
+                            int k,
+                            SharedMinCompetitiveScore sharedScore,
+                            QueryTransformCache queryTransformCache
+                        ) {
+                            RecordingCollectorManager leaf = new RecordingCollectorManager(k, sharedScore, queryTransformCache);
                             leaves.add(leaf);
                             return leaf;
                         }
@@ -383,6 +387,62 @@ public class IVFParallelScanTests extends ESTestCase {
                     assertEquals(2, leaves.size());
                     int sharingAScan = leaves.get(0).sharingAScan.get() + leaves.get(1).sharingAScan.get();
                     assertEquals("opts in: " + optsIn, optsIn, sharingAScan > 0);
+                }
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /**
+     * The parts of a split leaf are handed the query transform cache their leaf's own search would be: the query's cache when
+     * the leaf is searched with the query's own vector, and {@link QueryTransformCache#NONE} when it is searched with another
+     * vector, such as one preconditioned for its segment, whose transformations are not those of the query's vector.
+     */
+    public void testPartsGetTheTransformCacheOfTheirLeaf() throws IOException {
+        int dims = randomIntBetween(8, 32);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try (Directory dir = newDirectory()) {
+            indexLeaves(dir, dims, 20_000, 300);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (boolean copiesQuery : new boolean[] { false, true }) {
+                    List<RecordingCollectorManager> leaves = new ArrayList<>();
+                    List<QueryTransformCache> cachesOfTheQuery = new ArrayList<>();
+                    float[] vector = VectorTestUtils.randomNormalizedFloatVector(dims);
+                    Query query = new IVFKnnFloatVectorQuery("v", vector, 10, 10, null, 0.5f, resolver()) {
+                        @Override
+                        boolean canSplitLeaves() {
+                            return true;
+                        }
+
+                        @Override
+                        protected float[] segmentQuery(LeafReaderContext context, boolean usePrecondition) throws IOException {
+                            float[] segmentQuery = super.segmentQuery(context, usePrecondition);
+                            return copiesQuery ? segmentQuery.clone() : segmentQuery;
+                        }
+
+                        @Override
+                        protected IVFCollectorManager getKnnCollectorManager(
+                            int k,
+                            SharedMinCompetitiveScore sharedScore,
+                            QueryTransformCache queryTransformCache
+                        ) {
+                            cachesOfTheQuery.add(queryTransformCache);
+                            RecordingCollectorManager leaf = new RecordingCollectorManager(k, sharedScore, queryTransformCache);
+                            leaves.add(leaf);
+                            return leaf;
+                        }
+                    };
+                    assertEquals(10, searchWith(reader, executor, true, query, 10).scoreDocs.length);
+                    assertEquals(2, leaves.size());
+                    assertNotSame("a query has a cache of its own", QueryTransformCache.NONE, cachesOfTheQuery.get(0));
+                    assertSame("the leaves of a query share one cache", cachesOfTheQuery.get(0), cachesOfTheQuery.get(1));
+                    List<QueryTransformCache> cachesOfParts = leaves.get(0).transformCachesOfParts;
+                    assertFalse("the big leaf is split", cachesOfParts.isEmpty());
+                    QueryTransformCache expected = copiesQuery ? QueryTransformCache.NONE : cachesOfTheQuery.get(0);
+                    for (QueryTransformCache cacheOfAPart : cachesOfParts) {
+                        assertSame("searches with a copy of the query vector: " + copiesQuery, expected, cacheOfAPart);
+                    }
                 }
             }
         } finally {
@@ -410,8 +470,12 @@ public class IVFParallelScanTests extends ESTestCase {
                         }
 
                         @Override
-                        protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
-                            return new IVFCollectorManager(k, sharedScore) {
+                        protected IVFCollectorManager getKnnCollectorManager(
+                            int k,
+                            SharedMinCompetitiveScore sharedScore,
+                            QueryTransformCache queryTransformCache
+                        ) {
+                            return new IVFCollectorManager(k, sharedScore, queryTransformCache) {
                                 @Override
                                 public AbstractMaxScoreKnnCollector newCollector(
                                     int limit,
@@ -450,7 +514,7 @@ public class IVFParallelScanTests extends ESTestCase {
                 List<RecordingCollectorManager> leaves = new ArrayList<>();
                 List<AbstractIVFKnnVectorQuery.LeafInput> inputs = new ArrayList<>();
                 for (LeafReaderContext leaf : reader.leaves()) {
-                    leaves.add(new RecordingCollectorManager(k, cutoff));
+                    leaves.add(new RecordingCollectorManager(k, cutoff, QueryTransformCache.NONE));
                     inputs.add(new AbstractIVFKnnVectorQuery.LeafInput(leaf, leaves.get(leaf.ord), false));
                 }
                 float[] vector = VectorTestUtils.randomNormalizedFloatVector(dims);
@@ -591,7 +655,9 @@ public class IVFParallelScanTests extends ESTestCase {
                 // a search of slice 0 with a big budget does split the first leaf: this test is about such searches
                 List<AbstractIVFKnnVectorQuery.LeafInput> leaves = new ArrayList<>();
                 for (LeafReaderContext leaf : reader.leaves()) {
-                    leaves.add(new AbstractIVFKnnVectorQuery.LeafInput(leaf, new IVFCollectorManager(10, null), false));
+                    leaves.add(
+                        new AbstractIVFKnnVectorQuery.LeafInput(leaf, new IVFCollectorManager(10, null, QueryTransformCache.NONE), false)
+                    );
                 }
                 AbstractIVFKnnVectorQuery bigSearch = queries.next(10, null, 0.5f, new BytesRef("slice0")).get();
                 assertTrue(new IVFParallelScan(bigSearch, null, 0.5f, leaves, 4).splitsALeaf());
@@ -664,7 +730,9 @@ public class IVFParallelScanTests extends ESTestCase {
                     var query = new IVFKnnFloatSlicedVectorQuery("v", vector, 10, 10, null, 0.5f, resolver(), SLICE, id);
                     int searched = query.searchedVectors(leaf, leafVectors);
                     assertTrue(searched + " for slice " + slice, Math.abs(searched - vectorsPerSlice[slice]) <= skipperInterval);
-                    var inputs = List.of(new AbstractIVFKnnVectorQuery.LeafInput(leaf, new IVFCollectorManager(10, null), false));
+                    var inputs = List.of(
+                        new AbstractIVFKnnVectorQuery.LeafInput(leaf, new IVFCollectorManager(10, null, QueryTransformCache.NONE), false)
+                    );
                     boolean twoPartsWorth = vectorsPerSlice[slice] - skipperInterval >= 2 * IVFParallelScan.MIN_PART_WORK;
                     assertEquals("slice " + slice, twoPartsWorth, new IVFParallelScan(query, null, 0.5f, inputs, 4).splitsALeaf());
                 }
@@ -693,7 +761,9 @@ public class IVFParallelScanTests extends ESTestCase {
                 };
                 List<AbstractIVFKnnVectorQuery.LeafInput> leaves = new ArrayList<>();
                 for (LeafReaderContext leaf : reader.leaves()) {
-                    leaves.add(new AbstractIVFKnnVectorQuery.LeafInput(leaf, new IVFCollectorManager(10, null), false));
+                    leaves.add(
+                        new AbstractIVFKnnVectorQuery.LeafInput(leaf, new IVFCollectorManager(10, null, QueryTransformCache.NONE), false)
+                    );
                 }
                 assertTrue(new IVFParallelScan(query, null, 0.5f, leaves, 4).splitsALeaf());
                 assertEquals(List.of(0), asked);
@@ -881,18 +951,22 @@ public class IVFParallelScanTests extends ESTestCase {
         return new Hits(query.totalVectorOps(), docs, scores);
     }
 
-    /** Records the collectors a leaf's search creates, and counts them by whether their search shares a scan with other parts. */
+    /**
+     * Records the collectors a leaf's search creates, and counts them by whether their search shares a scan with other parts.
+     * For those that do, it also records the query transform cache their search strategy was given.
+     */
     private static final class RecordingCollectorManager extends IVFCollectorManager {
         final AtomicInteger sharingAScan = new AtomicInteger();
         final AtomicInteger onTheirOwn = new AtomicInteger();
         final List<AbstractMaxScoreKnnCollector> collectors = new CopyOnWriteArrayList<>();
+        final List<QueryTransformCache> transformCachesOfParts = new CopyOnWriteArrayList<>();
 
         RecordingCollectorManager(int k) {
-            this(k, null);
+            this(k, null, QueryTransformCache.NONE);
         }
 
-        RecordingCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
-            super(k, sharedScore);
+        RecordingCollectorManager(int k, SharedMinCompetitiveScore sharedScore, QueryTransformCache queryTransformCache) {
+            super(k, sharedScore, queryTransformCache);
         }
 
         @Override
@@ -900,6 +974,9 @@ public class IVFParallelScanTests extends ESTestCase {
             throws IOException {
             boolean sharesAScan = strategy instanceof IVFKnnSearchStrategy ivfStrategy && ivfStrategy.getSegmentScan() != null;
             (sharesAScan ? sharingAScan : onTheirOwn).incrementAndGet();
+            if (sharesAScan) {
+                transformCachesOfParts.add(((IVFKnnSearchStrategy) strategy).getQueryTransformCache());
+            }
             AbstractMaxScoreKnnCollector collector = super.newCollector(visitedLimit, strategy, ctx);
             collectors.add(collector);
             return collector;

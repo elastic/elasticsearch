@@ -62,10 +62,12 @@ public class EsqlDatafeedQueryValidator {
     private static final String DESCRIBE = "\n| DESCRIBE";
     /**
      * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. The param names are not
-     * bound by extraction, so a user query that references them fails the probe, as it would without these params.
+     * bound by extraction, so a user query that references them fails the probe, as it would without these params. The filter uses
+     * {@code ==} rather than {@code IN}: ES|QL evaluates a keyword {@code IN} through a comparison that loads the version field
+     * plugin classes, which a node may not have.
      */
     private static final String DESCRIBE_REQUIRED_COLUMNS = DESCRIBE
-        + "\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2";
+        + "\n| WHERE name == ?describeTimeColumn OR name == ?describeCountColumn\n| LIMIT 2";
 
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207

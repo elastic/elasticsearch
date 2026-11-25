@@ -243,7 +243,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(validateAtStart(harness), equalTo(List.of("east:logs-*", "west:*")));
         assertThat(
             harness.capturedQuery,
-            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2")
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name == ?describeTimeColumn OR name == ?describeCountColumn\n| LIMIT 2")
         );
         assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
     }
@@ -370,7 +370,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertThat(
             harness.capturedQuery,
-            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2")
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name == ?describeTimeColumn OR name == ?describeCountColumn\n| LIMIT 2")
         );
         assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
         assertThat(harness.capturedParams, equalTo(describeParams("@timestamp", "@timestamp")));
@@ -383,7 +383,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertThat(
             harness.capturedQuery,
-            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2")
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name == ?describeTimeColumn OR name == ?describeCountColumn\n| LIMIT 2")
         );
         assertThat(harness.capturedParams, equalTo(describeParams("@timestamp", "doc_count")));
     }
@@ -396,7 +396,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertThat(
             harness.capturedQuery,
-            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2")
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name == ?describeTimeColumn OR name == ?describeCountColumn\n| LIMIT 2")
         );
         assertThat(harness.capturedParams, equalTo(describeParams(timeField, timeField)));
     }
@@ -425,7 +425,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             harness.capturedQuery,
             equalTo(
                 "FROM logs | KEEP @timestamp // hourly\n"
-                    + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2"
+                    + "\n| DESCRIBE\n| WHERE name == ?describeTimeColumn OR name == ?describeCountColumn\n| LIMIT 2"
             )
         );
     }

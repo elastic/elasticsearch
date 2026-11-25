@@ -269,6 +269,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -4959,9 +4960,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean isSnapshot = Build.current().isSnapshot();
             return types.stream()
                 .allMatch(
-                    type -> type != DataType.UNSUPPORTED
-                        && DataType.isRepresentableInOutput(type)
-                        && type.supportedVersion().supportedOn(context.minimumVersion(), isSnapshot)
+                    // An unsupported type is any type some node can't read, or ES|QL doesn't have: its leg is null, without reading it.
+                    type -> type == DataType.UNSUPPORTED
+                        || (DataType.isRepresentableInOutput(type)
+                            && type.supportedVersion().supportedOn(context.minimumVersion(), isSnapshot))
                 );
         }
 
@@ -4976,25 +4978,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<DataType> supportedTypes,
             AnalyzerContext context
         ) {
+            // The types that ES|QL doesn't support are named as the indices have them, like rank_feature, instead of as unsupported.
+            Map<String, Set<String>> unconverted = new TreeMap<>();
             tcf.getTypesToIndices().forEach((typeName, indices) -> {
                 DataType type = DataType.fromTypeName(typeName);
-                if (supportedTypes.contains(type.widenSmallNumeric()) == false) {
-                    // A truncated list ends with a "..." sentinel, which stays last.
-                    List<String> names = new ArrayList<>(indices.stream().filter(i -> i.equals("...") == false).sorted().toList());
-                    if (names.size() < indices.size()) {
-                        names.add("...");
-                    }
-                    context.deferredHeaderWarnings()
-                        .add(
-                            Strings.format(
-                                "Field [%s] of type [%s] in [%s] cannot be converted to [%s] and will be null in those indices.",
-                                fa.fieldName().string(),
-                                type.typeName(),
-                                String.join(", ", names),
-                                convert.dataType().nameUpper()
-                            )
-                        );
+                if (type == DataType.UNSUPPORTED) {
+                    unconverted.putAll(tcf.unsupportedOriginalTypesToIndices());
+                } else if (supportedTypes.contains(type.widenSmallNumeric()) == false) {
+                    unconverted.put(type.typeName(), indices);
                 }
+            });
+            unconverted.forEach((typeName, indices) -> {
+                // A truncated list ends with a "..." sentinel, which stays last.
+                List<String> names = new ArrayList<>(indices.stream().filter(i -> i.equals("...") == false).sorted().toList());
+                if (names.size() < indices.size()) {
+                    names.add("...");
+                }
+                context.deferredHeaderWarnings()
+                    .add(
+                        Strings.format(
+                            "Field [%s] of type [%s] in [%s] cannot be converted to [%s] and will be null in those indices.",
+                            fa.fieldName().string(),
+                            typeName,
+                            String.join(", ", names),
+                            convert.dataType().nameUpper()
+                        )
+                    );
             });
         }
 
@@ -5311,7 +5320,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static EsField asTransportable(EsField field) {
             if (field instanceof TypeConflictedField tcf) {
-                return new UnsupportedEsField(tcf.getName(), tcf.getTypesToIndices().keySet().stream().toList());
+                return new UnsupportedEsField(tcf.getName(), tcf.originalTypes());
             }
             if (field instanceof InvalidMappedTsField imtf) {
                 return new UnsupportedEsField(imtf.getName(), List.of());

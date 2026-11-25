@@ -30,6 +30,7 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     private record TruncatedIndices(Set<String> kept, int dropped) {}
 
     private final Map<DataType, TruncatedIndices> typesToIndices;
+    private final Map<String, TruncatedIndices> unsupportedOriginalTypes;
     private final boolean isPotentiallyUnmapped;
 
     public static CompactInvalidMappedField mappedEverywhere(
@@ -38,7 +39,27 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         Map<Set<String>, Set<String>> indexDedupCache,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
-        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), false, timeSeriesFieldType);
+        return mappedEverywhere(name, typesToIndices, Map.of(), indexDedupCache, timeSeriesFieldType);
+    }
+
+    /**
+     * @param unsupportedOriginalTypes the types ES|QL doesn't support that are in {@code typesToIndices} as {@link DataType#UNSUPPORTED},
+     *                                 each with its indices: see {@link #unsupportedOriginalTypesToIndices()}
+     */
+    public static CompactInvalidMappedField mappedEverywhere(
+        String name,
+        Map<DataType, Set<String>> typesToIndices,
+        Map<String, Set<String>> unsupportedOriginalTypes,
+        Map<Set<String>, Set<String>> indexDedupCache,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        return new CompactInvalidMappedField(
+            name,
+            truncatedAndDedup(typesToIndices, indexDedupCache),
+            truncatedAndDedup(unsupportedOriginalTypes, indexDedupCache),
+            false,
+            timeSeriesFieldType
+        );
     }
 
     public static CompactInvalidMappedField potentiallyUnmapped(
@@ -46,7 +67,13 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         Map<DataType, Set<String>> typesToIndices,
         Map<Set<String>, Set<String>> indexDedupCache
     ) {
-        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true, TimeSeriesFieldType.UNKNOWN);
+        return new CompactInvalidMappedField(
+            name,
+            truncatedAndDedup(typesToIndices, indexDedupCache),
+            Map.of(),
+            true,
+            TimeSeriesFieldType.UNKNOWN
+        );
     }
 
     /**
@@ -54,7 +81,7 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
      * {@link #getTypesToIndices()} would lose: those are already truncated, with a {@code "..."} in place of the dropped indices.
      */
     public CompactInvalidMappedField asPotentiallyUnmapped() {
-        return new CompactInvalidMappedField(getName(), typesToIndices, true, TimeSeriesFieldType.UNKNOWN);
+        return new CompactInvalidMappedField(getName(), typesToIndices, unsupportedOriginalTypes, true, TimeSeriesFieldType.UNKNOWN);
     }
 
     private static Set<String> truncate(Set<String> indices) {
@@ -66,11 +93,13 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     private CompactInvalidMappedField(
         String name,
         Map<DataType, TruncatedIndices> typesToIndices,
+        Map<String, TruncatedIndices> unsupportedOriginalTypes,
         boolean isPotentiallyUnmapped,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
         super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, timeSeriesFieldType);
         this.typesToIndices = typesToIndices;
+        this.unsupportedOriginalTypes = unsupportedOriginalTypes;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }
 
@@ -87,10 +116,19 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     @Override
     Map<String, Sample> samples() {
         Map<String, Sample> samples = new TreeMap<>();
-        typesToIndices.forEach(
-            (type, indices) -> samples.put(type.typeName(), new Sample(indices.kept(), indices.kept().size() + indices.dropped()))
-        );
+        typesToIndices.forEach((type, indices) -> {
+            if (type == DataType.UNSUPPORTED && unsupportedOriginalTypes.isEmpty() == false) {
+                // The messages name the types that are unsupported, not the fact that they are.
+                unsupportedOriginalTypes.forEach((original, originalIndices) -> samples.put(original, sample(originalIndices)));
+            } else {
+                samples.put(type.typeName(), sample(indices));
+            }
+        });
         return samples;
+    }
+
+    private static Sample sample(TruncatedIndices indices) {
+        return new Sample(indices.kept(), indices.kept().size() + indices.dropped());
     }
 
     private volatile Map<String, Set<String>> lazyTypesToIndices;
@@ -102,16 +140,27 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
             // Fill a local and publish it once: this field is shared by every thread that holds the plan.
             result = new TreeMap<>();
             for (Map.Entry<DataType, TruncatedIndices> entry : typesToIndices.entrySet()) {
-                TruncatedIndices indices = entry.getValue();
-                Set<String> names = indices.dropped == 0 ? indices.kept : new LinkedHashSet<>(indices.kept);
-                if (names != indices.kept) {
-                    names.add("...");
-                }
-                result.put(entry.getKey().typeName(), names);
+                result.put(entry.getKey().typeName(), withDroppedSentinel(entry.getValue()));
             }
             lazyTypesToIndices = result;
         }
         return result;
+    }
+
+    @Override
+    public Map<String, Set<String>> unsupportedOriginalTypesToIndices() {
+        Map<String, Set<String>> result = new TreeMap<>();
+        unsupportedOriginalTypes.forEach((original, indices) -> result.put(original, withDroppedSentinel(indices)));
+        return result;
+    }
+
+    private static Set<String> withDroppedSentinel(TruncatedIndices indices) {
+        if (indices.dropped == 0) {
+            return indices.kept;
+        }
+        Set<String> names = new LinkedHashSet<>(indices.kept);
+        names.add("...");
+        return names;
     }
 
     @Override
@@ -126,7 +175,7 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), typesToIndices, isPotentiallyUnmapped);
+        return Objects.hash(super.hashCode(), typesToIndices, unsupportedOriginalTypes, isPotentiallyUnmapped);
     }
 
     @Override
@@ -135,11 +184,13 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
             return false;
         }
         CompactInvalidMappedField other = (CompactInvalidMappedField) obj;
-        return isPotentiallyUnmapped == other.isPotentiallyUnmapped && Objects.equals(typesToIndices, other.typesToIndices);
+        return isPotentiallyUnmapped == other.isPotentiallyUnmapped
+            && Objects.equals(typesToIndices, other.typesToIndices)
+            && Objects.equals(unsupportedOriginalTypes, other.unsupportedOriginalTypes);
     }
 
-    private static Map<DataType, TruncatedIndices> truncatedAndDedup(
-        Map<DataType, Set<String>> typesToIndices,
+    private static <K> Map<K, TruncatedIndices> truncatedAndDedup(
+        Map<K, Set<String>> typesToIndices,
         Map<Set<String>, Set<String>> indexDedupCache
     ) {
         return Maps.transformValues(typesToIndices, indices -> {

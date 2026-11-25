@@ -419,6 +419,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
+            if (shardContext.readsFromSource(fieldName) == false) {
+                // The shard maps the field as a type the union has no conversion for, like one that a node knows and the coordinator
+                // doesn't. The conversion of the values of the unmapped indices doesn't apply: they're not read from _source.
+                return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            }
             fieldName = getFieldName((Attribute) convert.field());
             conversion = potentiallyUnmapped;
         }

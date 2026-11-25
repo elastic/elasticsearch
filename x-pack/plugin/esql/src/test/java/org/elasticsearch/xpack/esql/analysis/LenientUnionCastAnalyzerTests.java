@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -22,7 +24,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,7 +53,63 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
             ),
             List.of()
         );
-        return analyzer().addIndex(mergedResolution("foo,bar", caps)).stripErrorPrefix(true);
+        // The fields are resolved as the nodes of the version would, which keep the types they don't support only from some version.
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo,bar",
+            false,
+            new IndexResolver.FieldsInfo(caps, minimumVersion, false, false, false, false, true, true, true, null, true),
+            false,
+            IndexResolver.DO_NOT_GROUP
+        );
+        return analyzer().addIndex(resolution).stripErrorPrefix(true);
+    }
+
+    /**
+     * A type ES|QL doesn't support is a type of the union that the cast doesn't convert: the field is null for it, and the warning
+     * names the type as the index has it. Below {@link ConvertFunction#LENIENT_CAST} the field is unsupported, as ever.
+     */
+    public void testUnsupportedTypeOfTheUnion() {
+        TestAnalyzer analyzer = analyzerWithUnion("long", "rank_feature");
+        String query = "FROM foo, bar | EVAL x = value::keyword | KEEP x | LIMIT 1";
+        if (lenient() == false) {
+            analyzer.error(query, containsString("Cannot use field [value] with unsupported type [rank_feature]"));
+            return;
+        }
+        LogicalPlan plan = analyzer.query(query);
+        assertTrue(plan.resolved());
+        assertThat(plan.output().getLast().dataType(), equalTo(DataType.KEYWORD));
+        assertWarnings(warning("rank_feature", "bar", "KEYWORD"));
+    }
+
+    /**
+     * A field with an unsupported type is as unsupported as it was when it wasn't kept, with the same message, if it isn't cast.
+     */
+    public void testUnsupportedTypeOfTheUnionWithoutCast() {
+        analyzerWithUnion("long", "rank_feature").error(
+            "FROM foo, bar | EVAL x = value + 1 | LIMIT 1",
+            containsString("Cannot use field [value] with unsupported type [rank_feature]")
+        );
+        analyzerWithUnion("rank_feature", "long").error(
+            "FROM foo, bar | KEEP value | EVAL x = value + 1 | LIMIT 1",
+            containsString("Cannot use field [value] with unsupported type [rank_feature]")
+        );
+    }
+
+    /**
+     * An unsupported type is not one of the types of the field that {@code TO_GAUGE} leaves alone.
+     */
+    public void testUnsupportedTypeOfTheUnionToGaugeStaysStrict() {
+        analyzerWithUnion("long", "rank_feature").error(
+            "FROM foo, bar | EVAL x = TO_GAUGE(value) | LIMIT 1",
+            containsString("Cannot use field [value] with unsupported type [rank_feature]")
+        );
+    }
+
+    public void testEveryTypeUnsupported() {
+        analyzerWithUnion("rank_feature", "rank_feature").error(
+            "FROM foo, bar | EVAL x = value::keyword | LIMIT 1",
+            containsString("Cannot use field [value] with unsupported type [rank_feature]")
+        );
     }
 
     private static Matcher<String> ambiguous() {

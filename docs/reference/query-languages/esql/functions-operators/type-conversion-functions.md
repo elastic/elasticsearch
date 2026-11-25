@@ -43,4 +43,4 @@ These functions don't have a `null` result of the right type for an input they c
 * [`TO_DATEPERIOD`](type-conversion-functions/to_dateperiod.md) and [`TO_TIMEDURATION`](type-conversion-functions/to_timeduration.md): they need a constant.
 * [`TO_LONG`](type-conversion-functions/to_long.md) and [`TO_INTEGER`](type-conversion-functions/to_integer.md) with a `base`: they only parse strings.
 
-Fields mapped to more than one type, and fields of an unsupported type, are not converted to `null` either: they fail the query, as they always did.
+Fields of an unsupported type are not converted to `null` either: they fail the query, as they always did. For fields mapped to more than one type, see [Types that can't be converted](../esql-multi-index.md#esql-multi-index-union-unconvertible).

@@ -1734,7 +1734,8 @@ public final class GlobExpander {
             }
             if (walk == null && (walkDiagnostics == null || walkDiagnostics.stopReason() != WalkDiagnostics.StopReason.FINISHED)) {
                 if (walkDiagnostics != null) {
-                    logger.debug("Walk of [{}] withdrew: {}", pattern, walkDiagnostics.describe());
+                    WalkDiagnostics withdrawn = walkDiagnostics;
+                    logger.debug(() -> "Walk of [" + pattern + "] withdrew: " + withdrawn.describe());
                 } else {
                     logger.debug("Walk of [{}] withdrew", pattern);
                 }
@@ -1842,6 +1843,9 @@ public final class GlobExpander {
                     suppressValueFilter = true;
                 }
             }
+        }
+        if (suppressValueFilter && walkDiagnostics != null) {
+            walkDiagnostics = walkDiagnostics.withoutPrunedClaim();
         }
 
         // Value-filter before the discovery cap. A brace used to hide non-matching folders from this loop; without
@@ -1959,7 +1963,8 @@ public final class GlobExpander {
             maxDiscoveredFiles,
             fileOrder,
             memory,
-            cancelled
+            cancelled,
+            walkDiagnostics
         );
     }
 
@@ -1989,7 +1994,8 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         FileOrderConfig fileOrder,
         PlanningMemory memory,
-        BooleanSupplier cancelled
+        BooleanSupplier cancelled,
+        @Nullable WalkDiagnostics walk
     ) {
         // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
         // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
@@ -2016,7 +2022,7 @@ public final class GlobExpander {
                 );
                 restoredUntrusted = true;
                 for (StorageEntry excluded : valueExcluded) {
-                    fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                    fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles, walk);
                 }
             }
         } else if (matched.isEmpty()
@@ -2033,7 +2039,7 @@ public final class GlobExpander {
                     List<StorageEntry> kept = new ArrayList<>(1);
                     StorageEntry stash = null;
                     for (StorageEntry candidate : valueExcluded) {
-                        stash = addOrStashAnchor(candidate, fileHints, kept, stash, maxDiscoveredFiles);
+                        stash = addOrStashAnchor(candidate, fileHints, kept, stash, maxDiscoveredFiles, walk);
                         if (kept.isEmpty() == false) {
                             break;
                         }
@@ -2056,7 +2062,7 @@ public final class GlobExpander {
                     );
                     restoredUntrusted = true;
                     for (StorageEntry excluded : valueExcluded) {
-                        fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                        fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles, walk);
                     }
                 }
             }
@@ -3070,7 +3076,8 @@ public final class GlobExpander {
                         maxDiscoveredFiles,
                         fileOrder,
                         memory,
-                        isCancelled
+                        isCancelled,
+                        null
                     )
                 );
             } catch (Exception finishFailure) {

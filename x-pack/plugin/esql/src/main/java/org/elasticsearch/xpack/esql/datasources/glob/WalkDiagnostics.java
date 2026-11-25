@@ -59,9 +59,9 @@ record WalkDiagnostics(
             clauses.add("[" + join(unprunedHintedKeys) + "] matched every folder");
         }
         if (pendingKeys.isEmpty() == false && stopReason != StopReason.FINISHED) {
-            clauses.add("Filter on [" + join(pendingKeys) + "] did not bind to a folder");
+            clauses.add("The folder walk did not reach [" + join(pendingKeys) + "]");
         }
-        if (prunedColumns.isEmpty() == false && stopReason == StopReason.FINISHED) {
+        if (prunedColumns.isEmpty() == false) {
             clauses.add("pruned [" + join(prunedColumns) + "]");
         }
         if (clauses.isEmpty()) {
@@ -78,6 +78,27 @@ record WalkDiagnostics(
         return message + " " + extra;
     }
 
+    /**
+     * Drop the pruning claim when the walk result was rejected and the failing listing did not use it.
+     */
+    WalkDiagnostics withoutPrunedClaim() {
+        if (prunedColumns.isEmpty()) {
+            return this;
+        }
+        return new WalkDiagnostics(
+            stopReason,
+            listingsIssued,
+            maxDirectoryListings,
+            atDirectoryCeiling,
+            walkLevel,
+            stoppedAtKey,
+            pendingKeys,
+            unfilteredKeys,
+            unprunedHintedKeys,
+            List.of()
+        );
+    }
+
     private String stopClause() {
         String at = stoppedAtKey == null ? "" : " at [" + stoppedAtKey + "]";
         String listings = listingsIssued > 0 ? " after " + listingsIssued + " directory listings" : "";
@@ -87,7 +108,7 @@ record WalkDiagnostics(
             if (listingsIssued <= 0) {
                 return "";
             }
-            return "The folder walk issued " + listingsIssued + " directory listings" + at;
+            return "The folder walk issued " + listingsIssued + " directory listings" + at + ceiling;
         }
         switch (reason) {
             case CEILING, PEEK_BUDGET -> {
@@ -105,14 +126,24 @@ record WalkDiagnostics(
             case STRAY -> {
                 return "The folder walk stopped because a folder did not match the expected layout";
             }
-            case NOTHING_PRUNED, ALWAYS_FLAT, CHEAPER_TO_FINISH -> {
+            case NOTHING_PRUNED -> {
                 return "The folder walk stopped" + listings + at + ceiling + "; nothing was pruned";
+            }
+            case ALWAYS_FLAT -> {
+                return "The folder walk stopped" + listings + at + ceiling + "; a flat listing of the prefix was used";
+            }
+            case CHEAPER_TO_FINISH -> {
+                return "The folder walk found a narrower set"
+                    + listings
+                    + at
+                    + ceiling
+                    + " but estimated that listing the full prefix would be cheaper";
             }
             case FINISHED -> {
                 if (listingsIssued <= 0) {
                     return "";
                 }
-                return "The folder walk issued " + listingsIssued + " directory listings" + at;
+                return "The folder walk issued " + listingsIssued + " directory listings" + at + ceiling;
             }
             default -> throw new AssertionError("unexpected walk stop reason [" + reason + "]");
         }

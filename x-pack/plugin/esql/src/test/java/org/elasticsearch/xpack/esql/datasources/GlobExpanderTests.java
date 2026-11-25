@@ -1936,6 +1936,14 @@ public class GlobExpanderTests extends ESTestCase {
      * When that listing then hits {@code max_listed_objects}, the error names the unfiltered key.
      */
     public void testListedObjectsCapAfterWalkWithdrawNamesUnfilteredKeys() {
+        assertListedObjectsCapAfterWalkWithdraw(false);
+    }
+
+    public void testListedObjectsCapAfterWalkWithdrawNamesUnfilteredKeysAsync() throws Exception {
+        assertListedObjectsCapAfterWalkWithdraw(true);
+    }
+
+    private void assertListedObjectsCapAfterWalkWithdraw(boolean async) {
         TreeStubProvider provider = new TreeStubProvider(
             List.of(
                 entry("s3://bucket/logs/account=a1/year=2024/a.parquet", 100),
@@ -1944,15 +1952,19 @@ public class GlobExpanderTests extends ESTestCase {
         );
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> GlobExpander.expand("s3://bucket/logs/**", provider, hints, HIVE_ON, MAX, MAX, 1)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            if (async) {
+                expandSync("s3://bucket/logs/**", provider, hints, HIVE_ON, MAX, MAX, 1, Integer.MAX_VALUE, 4, () -> false);
+            } else {
+                GlobExpander.expand("s3://bucket/logs/**", provider, hints, HIVE_ON, MAX, MAX, 1);
+            }
+        });
         assertThat(e.getMessage(), containsString("listed too many objects"));
         assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
         assertThat(e.getMessage(), containsString("No filter on [account]"));
-        assertThat(e.getMessage(), containsString("Filter on [year] did not bind to a folder"));
+        assertThat(e.getMessage(), containsString("The folder walk did not reach [year]"));
         assertThat(e.getMessage(), containsString("folder walk"));
+        assertThat(e.getMessage(), not(containsString("did not bind to a folder")));
     }
 
     /**
@@ -2010,6 +2022,89 @@ public class GlobExpanderTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("listed too many objects"));
         assertThat(e.getMessage(), containsString("[year] matched every folder"));
+    }
+
+    /**
+     * A temporal folder-range is already a filter. The cap error must not tell the user to add one on
+     * a key the range bound, and a broad IN plus a narrower range must not say the IN matched every folder.
+     */
+    public void testDiscoveredFilesCapDoesNotCallRangeBoundKeyUnfiltered() {
+        TreeStubProvider provider = new TreeStubProvider(templateYearCapTree());
+        FolderRangePredicate yearRange = yearEquals("2024");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/logs/*/*.parquet",
+                provider,
+                null,
+                TEMPLATE_YEAR,
+                1,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE,
+                GlobExpander.NEVER_CANCELLED,
+                yearRange
+            )
+        );
+        assertThat(e.getMessage(), containsString("folder walk"));
+        assertThat(e.getMessage(), containsString("pruned [year]"));
+        assertThat(e.getMessage(), not(containsString("No filter on [year]")));
+        assertThat(e.getMessage(), not(containsString("matched every folder")));
+    }
+
+    public void testDiscoveredFilesCapDoesNotClaimRangePrunedKeyMatchedEveryFolder() {
+        TreeStubProvider provider = new TreeStubProvider(templateYearCapTree());
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024, 2025));
+        FolderRangePredicate yearRange = yearEquals("2024");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/logs/*/*.parquet",
+                provider,
+                hints,
+                TEMPLATE_YEAR,
+                1,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE,
+                GlobExpander.NEVER_CANCELLED,
+                yearRange
+            )
+        );
+        assertThat(e.getMessage(), containsString("pruned [year]"));
+        assertThat(e.getMessage(), not(containsString("[year] matched every folder")));
+    }
+
+    private static List<StorageEntry> templateYearCapTree() {
+        return List.of(
+            entry("s3://bucket/logs/2024/a.parquet", 100),
+            entry("s3://bucket/logs/2024/b.parquet", 100),
+            entry("s3://bucket/logs/2025/c.parquet", 100)
+        );
+    }
+
+    private static FolderRangePredicate yearEquals(String year) {
+        return new FolderRangePredicate() {
+            @Override
+            public boolean mayContain(Map<String, String> boundKeyValues) {
+                String value = boundKeyValues.get("year");
+                return value == null || year.equals(value);
+            }
+
+            @Override
+            public String identity() {
+                return "year=" + year;
+            }
+
+            @Override
+            public List<String> bindKeys() {
+                return List.of("year");
+            }
+        };
     }
 
     @TestLogging(

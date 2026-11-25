@@ -627,11 +627,12 @@ final class PartitionPruningWalk {
      * Lists the direct children of each pruned dir in {@code peeks}, adding any {@code key=value} directory
      * entries to {@code seenValues} as shadow values for type-divergence detection. Each LIST is consumed as
      * it returns so the walk retains folder values, not the full {@link StorageChildren} payload. Returns
-     * {@code false} when a peek could not complete (budget exhausted or directory too wide to buffer) — the
+     * a stop reason when a peek could not complete (budget exhausted or directory too wide to buffer) — the
      * caller should return {@code null} (fall back to flat listing) in that case. Issues at most the remaining
      * listing budget, matching the sequential walk's greedy ceiling.
      */
-    private static boolean processPendingPeeks(
+    @Nullable
+    private static WalkDiagnostics.StopReason processPendingPeeks(
         StorageProvider provider,
         List<StoragePath> peeks,
         Map<String, List<String>> seenValues,
@@ -646,7 +647,7 @@ final class PartitionPruningWalk {
         }
         List<StoragePath> toPeek = peeksToIssue(peeks, listings.get(), maxDirectoryListings);
         if (toPeek == null) {
-            return false;
+            return WalkDiagnostics.StopReason.PEEK_BUDGET;
         }
         for (StoragePath dir : toPeek) {
             if (cancelled.getAsBoolean()) {
@@ -658,11 +659,11 @@ final class PartitionPruningWalk {
                 throw new TaskCancelledException("listing cancelled");
             }
             if (children == null) {
-                return false;
+                return WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED;
             }
             applyPeekChildren(children, seenValues, templateLayout, walkLevel);
         }
-        return toPeek.size() == peeks.size();
+        return toPeek.size() == peeks.size() ? null : WalkDiagnostics.StopReason.PEEK_BUDGET;
     }
 
     /**
@@ -1216,7 +1217,7 @@ final class PartitionPruningWalk {
                 fileKeep,
                 maxListedObjects,
                 folderRange,
-                this::snapshot
+                this::publishSnapshot
             );
             WalkLayout layout = pathTemplate == null ? null : TemplatePartitionDetector.walkLayout(prefix, glob, pathTemplate);
             this.declineWalk = pathTemplate != null && layout == null;
@@ -1267,8 +1268,9 @@ final class PartitionPruningWalk {
                     return withdraw(WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                 }
                 ClassifiedLevel level = classifyListed(listed);
-                if (applyPeeksIfNeeded(level) == false) {
-                    return withdraw(WalkDiagnostics.StopReason.PEEK_BUDGET);
+                WalkDiagnostics.StopReason peekFail = applyPeeksIfNeeded(level);
+                if (peekFail != null) {
+                    return withdraw(peekFail);
                 }
                 WalkResult done = applyClassified(level);
                 if (done != null || level.continueWalk == false) {
@@ -1306,9 +1308,19 @@ final class PartitionPruningWalk {
             if (reason != null) {
                 this.stopReason = reason;
             }
+            publishSnapshot();
+        }
+
+        /**
+         * Writes the current walk state to {@code diagnosticsOut} and returns it. The collector
+         * calls this at a listing cap so a bounded fallback still sees the cap-time snapshot.
+         */
+        private WalkDiagnostics publishSnapshot() {
+            WalkDiagnostics snap = snapshot();
             if (diagnosticsOut != null) {
-                diagnosticsOut.set(snapshot());
+                diagnosticsOut.set(snap);
             }
+            return snap;
         }
 
         private WalkDiagnostics snapshot() {
@@ -1378,14 +1390,14 @@ final class PartitionPruningWalk {
                         }
                         applyPeeksIfNeededAsync(level, concurrency, executor, new ActionListener<>() {
                             @Override
-                            public void onResponse(Boolean peekOk) {
+                            public void onResponse(WalkDiagnostics.StopReason peekFail) {
                                 Exception cancelledNow = cancellationFailure(cancelled);
                                 if (cancelledNow != null) {
                                     listener.onFailure(cancelledNow);
                                     return;
                                 }
-                                if (peekOk == false) {
-                                    withdrawAsync(listener, WalkDiagnostics.StopReason.PEEK_BUDGET);
+                                if (peekFail != null) {
+                                    withdrawAsync(listener, peekFail);
                                     return;
                                 }
                                 WalkResult done;
@@ -1429,9 +1441,10 @@ final class PartitionPruningWalk {
          * lists peeks in order; {@link #applyPeeksIfNeededAsync} uses the same budget slice on
          * {@link #listChildrenParallel} so issued counts still match when the ceiling cuts a peek batch.
          */
-        private boolean applyPeeksIfNeeded(ClassifiedLevel level) throws IOException {
+        @Nullable
+        private WalkDiagnostics.StopReason applyPeeksIfNeeded(ClassifiedLevel level) throws IOException {
             if (level.newKeyLevel && pendingPeeks.isEmpty() == false) {
-                if (processPendingPeeks(
+                WalkDiagnostics.StopReason fail = processPendingPeeks(
                     provider,
                     pendingPeeks,
                     seenValues,
@@ -1440,22 +1453,28 @@ final class PartitionPruningWalk {
                     cancelled,
                     templateLayout,
                     walkLevel
-                ) == false) {
-                    return false;
+                );
+                if (fail != null) {
+                    return fail;
                 }
                 pendingPeeks = List.of();
             }
-            return true;
+            return null;
         }
 
         /**
          * Async counterpart of {@link #applyPeeksIfNeeded}. Completes {@code listener} on every path:
-         * {@code true} when peeks finished or were not needed, {@code false} to fail the walk closed.
+         * {@code null} when peeks finished or were not needed, otherwise the stop reason to fail closed.
          * Does not block; peek LIST calls go through {@link #listChildrenParallel}.
          */
-        private void applyPeeksIfNeededAsync(ClassifiedLevel level, int concurrency, Executor executor, ActionListener<Boolean> listener) {
+        private void applyPeeksIfNeededAsync(
+            ClassifiedLevel level,
+            int concurrency,
+            Executor executor,
+            ActionListener<WalkDiagnostics.StopReason> listener
+        ) {
             if (level.newKeyLevel == false || pendingPeeks.isEmpty()) {
-                listener.onResponse(true);
+                listener.onResponse(null);
                 return;
             }
             Exception cancelledNow = cancellationFailure(cancelled);
@@ -1465,7 +1484,7 @@ final class PartitionPruningWalk {
             }
             List<StoragePath> toPeek = peeksToIssue(pendingPeeks, listings.get(), maxDirectoryListings);
             if (toPeek == null) {
-                listener.onResponse(false);
+                listener.onResponse(WalkDiagnostics.StopReason.PEEK_BUDGET);
                 return;
             }
             boolean truncated = toPeek.size() < pendingPeeks.size();
@@ -1482,14 +1501,15 @@ final class PartitionPruningWalk {
                         return;
                     }
                     if (listed == null) {
-                        listener.onResponse(false);
+                        listener.onResponse(WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED);
                         return;
                     }
-                    boolean ok = truncated == false;
-                    if (ok) {
-                        pendingPeeks = List.of();
+                    if (truncated) {
+                        listener.onResponse(WalkDiagnostics.StopReason.PEEK_BUDGET);
+                        return;
                     }
-                    listener.onResponse(ok);
+                    pendingPeeks = List.of();
+                    listener.onResponse(null);
                 }
 
                 @Override
@@ -1516,9 +1536,10 @@ final class PartitionPruningWalk {
          * a pruned subtree are skipped — that layout is already untrusted for walking. Callers skip this
          * when {@link #laterPlaceholder()} is false so a trailing literal does not list unused peeks.
          */
-        private boolean advancePendingPeeks(WalkLayout.Level role) throws IOException {
+        @Nullable
+        private WalkDiagnostics.StopReason advancePendingPeeks(WalkLayout.Level role) throws IOException {
             if (pendingPeeks.isEmpty()) {
-                return true;
+                return null;
             }
             List<StoragePath> next = new ArrayList<>(pendingPeeks.size());
             for (StoragePath pruned : pendingPeeks) {
@@ -1527,12 +1548,12 @@ final class PartitionPruningWalk {
                 }
                 int issued = listings.get();
                 if (issued >= maxDirectoryListings) {
-                    return false;
+                    return WalkDiagnostics.StopReason.PEEK_BUDGET;
                 }
                 listings.set(issued + 1);
                 StorageChildren children = provider.listChildren(pruned, MAX_LISTED_CHILDREN);
                 if (children == null) {
-                    return false;
+                    return WalkDiagnostics.StopReason.LIST_CHILDREN_UNSUPPORTED;
                 }
                 for (StoragePath sub : children.directories()) {
                     if (role.isLiteral() == false || role.literal().equals(sub.objectName())) {
@@ -1541,11 +1562,10 @@ final class PartitionPruningWalk {
                 }
             }
             pendingPeeks = next;
-            return true;
+            return null;
         }
 
         private WalkResult finishSurvivors() throws IOException {
-            publish(WalkDiagnostics.StopReason.FINISHED);
             WalkResult result = PartitionPruningWalk.finishSurvivors(
                 collector,
                 provider,
@@ -1558,6 +1578,7 @@ final class PartitionPruningWalk {
                 templateLayout != null
             );
             if (result != null) {
+                publish(WalkDiagnostics.StopReason.FINISHED);
                 return result;
             }
             if (prunedColumns.isEmpty()) {
@@ -1694,7 +1715,9 @@ final class PartitionPruningWalk {
                 pending.remove(key);
                 List<PartitionFilterHint> keyHints = PartitionValueMatcher.hintsFor(key, hints);
                 if (keyHints.isEmpty()) {
-                    unhintedSeenKeys.add(key);
+                    if (folderRange == null || folderRange.bindKeys().contains(key) == false) {
+                        unhintedSeenKeys.add(key);
+                    }
                     continue;
                 }
                 hintedLevel = true;
@@ -1723,6 +1746,7 @@ final class PartitionPruningWalk {
                     if (folderRange.mayContain(bindings) == false) {
                         keep[i] = false;
                         prunedColumns.add(shapedKeys.get(i));
+                        unprunedHintedKeys.remove(shapedKeys.get(i));
                     }
                 }
             }
@@ -1767,9 +1791,12 @@ final class PartitionPruningWalk {
                 }
             }
             if (level.identityLevel) {
-                if (laterPlaceholder() && advancePendingPeeks(templateLayout.level(walkLevel)) == false) {
-                    level.continueWalk = false;
-                    return withdraw(WalkDiagnostics.StopReason.PEEK_BUDGET);
+                if (laterPlaceholder()) {
+                    WalkDiagnostics.StopReason peekFail = advancePendingPeeks(templateLayout.level(walkLevel));
+                    if (peekFail != null) {
+                        level.continueWalk = false;
+                        return withdraw(peekFail);
+                    }
                 }
                 for (StorageEntry file : level.levelFiles) {
                     collector.add(file);

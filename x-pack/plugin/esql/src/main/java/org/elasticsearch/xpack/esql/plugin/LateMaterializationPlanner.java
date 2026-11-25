@@ -81,12 +81,12 @@ import java.util.function.Function;
 *  Project [_doc, foo]
 *  └── EsQuery [index with some TopN pushdown]
 *  </pre>
-*  Neither plan projects {@code x}: it is a field of the main relation, so the node-reduce driver can read it from {@code _doc}.
+*  Neither plan projects {@code x}: nothing above the TopN reads it.
 *
-*  <p>{@link #expectedDataOutput} decides which attributes cross the exchange. An attribute the node-reduce driver can load from
-*  {@code _doc} (see {@link #attributesReloadableFromDoc}) is dropped. The rest crosses: the sort and grouping keys of the pipeline
-*  breaker, {@code _score}, {@code EVAL} results, {@code LOOKUP JOIN} right-hand fields. The top-level {@link Project} alone cannot
-*  make that decision: without a narrowing {@code KEEP}, as in every {@code FORK} branch, it lists the whole relation.
+*  <p>{@link #expectedDataOutput} decides which attributes cross the exchange: {@code _doc}, the sort and grouping keys of the
+*  pipeline breaker, and the attributes that the top-level {@link Project} outputs and {@link #attributesReloadableFromDoc} does
+*  not list, such as {@code _score}, {@code EVAL} results and {@code LOOKUP JOIN} right-hand fields. The top-level {@link Project}
+*  alone cannot make that decision: it lists a field whether or not the node-reduce driver can load it.
 */
 class LateMaterializationPlanner {
     public static Optional<ReductionPlan> planReduceDriverTopN(
@@ -245,34 +245,35 @@ class LateMaterializationPlanner {
     }
 
     /**
-     * The subset of {@code ctx.physicalPlanOutput} that crosses the exchange from the data drivers to the node-reduce driver.
-     * It leaves out what the node-reduce driver can load from the index itself (see {@link #attributesReloadableFromDoc}), so the
-     * data drivers do not load it for every row and every slice.
+     * The subset of {@code ctx.physicalPlanOutput} that crosses the exchange from the data drivers to the node-reduce driver:
+     * {@code _doc}, {@code mustCrossExchange}, and the attributes the top-level {@link Project} outputs that the node-reduce driver
+     * cannot load from the index itself (see {@link #attributesReloadableFromDoc}).
      *
-     * @param mustCrossExchange the attributes the reduce-side pipeline breaker reads: its sort and grouping keys. The reduce-side
-     *                          field extraction sits above the pipeline breaker, so it cannot provide them.
+     * <p>A reloadable attribute does not cross even when a command under the pipeline breaker reads it. The data node plans its
+     * fragment with the real {@link SearchStats} and can replace that read: {@code PushExpressionsToFieldLoad} turns
+     * {@code EVAL s = V_COSINE(vector, ...)} into a load of the function result, and the data drivers then never load
+     * {@code vector}. A projection of {@code vector} in the data-side fragment makes each of them load it for the rows its own
+     * pipeline breaker keeps. When the data node does load the attribute for such a command, the node-reduce driver loads it a
+     * second time, for the rows that survive.
+     *
+     * @param mustCrossExchange the attributes the reduce-side pipeline breaker reads: its sort and grouping keys. The data
+     *                          drivers hold them already. Without them in the exchange the node-reduce driver loads the field
+     *                          keys under its pipeline breaker, for every row it receives, and has no way to compute the others.
      */
     private static List<Attribute> expectedDataOutput(SetupContext ctx, AttributeSet mustCrossExchange) {
         AttributeSet reloadable = attributesReloadableFromDoc(ctx.pipelineBreaker);
-        // The result is the projection of a Project over ctx.withAddedDocToRelation, so it can only name attributes that logical
-        // plan outputs. physicalPlanOutput has more: for a TSDB index ReplaceSourceAttributes creates a FieldAttribute per
-        // EsQueryExec.TIME_SERIES_SOURCE_FIELDS in the EsQueryExec. No EsRelation outputs them, and the data node creates its own
-        // pair, with other name ids, when it maps the fragment.
-        AttributeSet producibleByFragment = ctx.withAddedDocToRelation.outputSet();
-        assert producibleByFragment.containsAll(mustCrossExchange)
-            : "pipeline breaker keys are not producible by the data-side fragment: " + mustCrossExchange.subtract(producibleByFragment);
         AttributeSet projected = ctx.topLevelProject.outputSet();
+        // The result is the projection of a Project over ctx.withAddedDocToRelation, so it can only name attributes that plan outputs.
+        AttributeSet producibleByFragment = ctx.withAddedDocToRelation.outputSet();
         // Keep the order of physicalPlanOutput: it is the exchange layout on both sides.
         List<Attribute> expectedDataOutput = new ArrayList<>(ctx.physicalPlanOutput.size());
         for (Attribute a : ctx.physicalPlanOutput) {
-            if (producibleByFragment.contains(a) == false) {
-                continue;
-            }
             // The top-level Project is the only consumer above the pipeline breaker. An attribute it does not output and the
             // pipeline breaker does not read has no consumer on the reduce side.
             if (EsQueryExec.isDocAttribute(a)
                 || mustCrossExchange.contains(a)
                 || (projected.contains(a) && reloadable.contains(a) == false)) {
+                assert producibleByFragment.contains(a) : "the data-side fragment does not output [" + a + "]";
                 expectedDataOutput.add(a);
             }
         }
@@ -280,14 +281,15 @@ class LateMaterializationPlanner {
     }
 
     /**
-     * The attributes the node-reduce driver can load from the index, given the {@code _doc} of a row. The data drivers would load
-     * them for every row that reaches their own pipeline breaker, once per slice. The node-reduce driver loads them only for the
-     * rows that survive.
+     * The attributes the node-reduce driver can load from the index, given the {@code _doc} of a row. Each data driver loads what
+     * it projects for the rows its own pipeline breaker keeps. The node-reduce driver loads once, for the rows that survive on the
+     * node.
      *
-     * <p>An attribute qualifies when a main {@link EsRelation} under the pipeline breaker outputs it and {@link Fetchability}
-     * accepts it. A {@code LOOKUP JOIN} right-hand side outputs {@link FieldAttribute}s of the lookup index, which the
-     * {@code _doc} of the main index cannot load, so relations in {@link IndexMode#LOOKUP} do not count. {@code EVAL} results,
-     * expression sort keys and {@code MV_EXPAND} targets are not the output of a relation at all.
+     * <p>An attribute qualifies when a main {@link EsRelation} under the pipeline breaker outputs it, {@link Fetchability}
+     * accepts it and its type is not {@code NULL}. A {@code LOOKUP JOIN} right-hand side outputs {@link FieldAttribute}s of the
+     * lookup index, which the {@code _doc} of the main index cannot load, so relations in {@link IndexMode#LOOKUP} do not count.
+     * {@code EVAL} results, expression sort keys and the expanded column of {@code MV_EXPAND} are not the output of a relation at
+     * all.
      */
     private static AttributeSet attributesReloadableFromDoc(LogicalPlan pipelineBreaker) {
         AttributeSet.Builder reloadable = AttributeSet.builder();
@@ -296,8 +298,8 @@ class LateMaterializationPlanner {
                 return;
             }
             for (Attribute a : relation.output()) {
-                // toMappedDataPlan replaces a NULL-typed field with a constant under the pipeline breaker, where the exchange source
-                // goes, so its value has to cross the exchange.
+                // A coordinator without the esql_missing_es_field transport version sends a nullified field as a NULL-typed EsField,
+                // which Fetchability accepts. No index stores that field, so it crosses the exchange.
                 if (Fetchability.isFetchable(a) && a.dataType() != DataType.NULL) {
                     reloadable.add(a);
                 }

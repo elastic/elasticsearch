@@ -21,7 +21,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -32,14 +31,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Verifies that the {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}} is optimized into the reduce driver instead
@@ -164,9 +162,9 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
     }
 
     /**
-     * No narrowing {@code KEEP}, so the top-level {@code Project} that {@code ProjectAwayColumns} inserts covers the whole relation
-     * and cannot say what has to cross the exchange. {@code filtered} is only read by the {@code WHERE}, so the data drivers must
-     * not ship it: they only need to emit the sort key.
+     * No narrowing {@code KEEP}, so the top-level {@code Project} that {@code ProjectAwayColumns} inserts covers the whole relation.
+     * The {@code WHERE} reads {@code filtered} and the query returns it. The filter is pushed to Lucene, so a data driver that
+     * loads {@code filtered} does it only to ship it. The data drivers must load the sort key alone.
      */
     public void testNoKeepFilterOnProjected() throws Exception {
         setupIndex();
@@ -211,33 +209,59 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
     }
 
     /**
-     * {@code _id}, {@code _index} and {@code some_more} are read by the {@code EVAL} under the TopN and returned by the query, so
-     * the data drivers load them for every row, and the node-reduce driver loads them again for the rows that survive.
+     * The data drivers cannot push {@code filtered % 7 >= 0} to Lucene, so they load {@code filtered} for every row. It still does
+     * not cross the exchange: the node-reduce driver loads it again for the rows that survive. The data drivers have one reader
+     * for the filter and one for the sort key, so only the node-reduce driver is checked.
+     */
+    public void testNoKeepNonPushableFilter() throws Exception {
+        setupIndex();
+        try (var result = sendQuery("from test | where filtered % 7 >= 0 | sort sorted desc | limit 3")) {
+            assertThat(result.isRunning(), equalTo(false));
+            assertThat(result.isPartial(), equalTo(false));
+            assertSingleKeyFieldExtracted(result, "node_reduce", Set.of("read", "filtered", "more", "some_more"));
+            assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L)));
+            assertThat(column(result, "filtered"), equalTo(List.of(3069L, 3066L, 3063L)));
+        }
+    }
+
+    /**
+     * The {@code EVAL} under the TopN reads {@code _id} and {@code _index}, and the query returns them. The data drivers load
+     * them for the {@code EVAL}, and the node-reduce driver loads them again for the rows that survive. The data drivers have one
+     * reader for the {@code EVAL} and one for the sort key, so only the node-reduce driver is checked.
      */
     public void testMetadataReadBelowTopNIsReloaded() throws Exception {
         setupIndex();
-        String query = "from test metadata _id, _index | eval e = concat(_index, \"/\", _id) | where some_more > 0 | sort sorted desc | limit 3";
+        String query = """
+            from test metadata _id, _index
+            | eval e = concat(_index, "/", _id)
+            | where some_more > 0
+            | sort sorted desc
+            | limit 3
+            """;
         try (var result = sendQuery(query)) {
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));
+            Set<String> nodeReduceReaders = result.profile()
+                .drivers()
+                .stream()
+                .filter(d -> d.description().equals("node_reduce"))
+                .flatMap(d -> d.operators().stream())
+                .filter(o -> o.operator().startsWith("ValuesSourceReaderOperator"))
+                .flatMap(o -> ((ValuesSourceReaderOperatorStatus) o.status()).readersBuilt().keySet().stream())
+                .collect(Collectors.toSet());
+            for (String name : List.of("_id", "_index")) {
+                assertTrue(
+                    "node_reduce does not load [" + name + "]: " + nodeReduceReaders,
+                    nodeReduceReaders.stream().anyMatch(r -> r.contains(name))
+                );
+            }
             List<Object> ids = column(result, "_id");
-            assertThat(ids.size(), equalTo(3));
+            assertThat(ids, equalTo(List.of("1023", "1022", "1021")));
             assertThat(column(result, "_index"), equalTo(List.of("test", "test", "test")));
             assertThat(column(result, "e"), equalTo(ids.stream().<Object>map(id -> "test/" + id).toList()));
             assertThat(column(result, "sorted"), equalTo(List.of(2046L, 2044L, 2042L)));
             assertThat(column(result, "read"), equalTo(List.of(1023L, 1022L, 1021L)));
         }
-    }
-
-    /**
-     * The values of column {@code name}, in row order. Used to check that the columns the node-reduce driver reloads from
-     * {@code _doc} line up with the rows its pipeline breaker emitted.
-     */
-    private static List<Object> column(EsqlQueryResponse response, String name) {
-        List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-        int index = names.indexOf(name);
-        assertThat("no column [" + name + "] in " + names, index, greaterThanOrEqualTo(0));
-        return getValuesList(response).stream().map(row -> row.get(index)).toList();
     }
 
     private void testLateMaterializationAfterReduceTopN(

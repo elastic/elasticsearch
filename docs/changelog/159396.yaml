@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 159310
+pr: 159396
+summary: Load fields that a command before `SORT ... | LIMIT` or `LIMIT BY` reads and the query returns on the node-reduce driver
+type: enhancement

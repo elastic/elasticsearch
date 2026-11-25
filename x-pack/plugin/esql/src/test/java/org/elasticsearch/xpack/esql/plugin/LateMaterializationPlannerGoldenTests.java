@@ -69,8 +69,8 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
 
     /**
      * No narrowing {@code KEEP}, so the top-level {@code Project} that {@code ProjectAwayColumns} adds lists the whole relation.
-     * Every {@code FORK} branch has this shape. The test has no {@code FORK} because {@code GoldenTestCase} cannot plan its
-     * multiple {@code ExchangeExec}s. The data driver must output only {@code [_doc, hire_date]}.
+     * A {@code FORK} branch without a {@code KEEP} has this shape. The test has no {@code FORK} because {@code GoldenTestCase}
+     * cannot plan its multiple {@code ExchangeExec}s. The data driver must output only {@code [_doc, hire_date]}.
      */
     public void testNoKeepWithFilter() {
         String query = """
@@ -113,16 +113,41 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * For a TSDB index {@code ReplaceSourceAttributes} synthesizes a fresh {@code FieldAttribute} per
-     * {@code EsQueryExec#TIME_SERIES_SOURCE_FIELDS}, so {@code _ts_slice_index} and {@code _ts_future_max_timestamp} appear in the
-     * pipeline breaker's physical output without being the output of any {@code EsRelation}. They must not reach the data-side
-     * {@code Project}: its child is the logical fragment, which does not output them, and the data node creates its own pair when
-     * it maps the fragment. Otherwise the data node fails with
-     * {@code missing references [_ts_slice_index, _ts_future_max_timestamp]}.
+     * For a TSDB index {@code ReplaceSourceAttributes} adds a {@code FieldAttribute} per
+     * {@code EsQueryExec#TIME_SERIES_SOURCE_FIELDS} to the {@code EsQueryExec}. No {@code EsRelation} outputs
+     * {@code _ts_slice_index} and {@code _ts_future_max_timestamp}, so the data-side {@code Project} must not name them. The
+     * top-level {@code Project} does not output them, which keeps them out.
      */
     public void testTimeSeriesSourceAttributesMustNotBeProjected() {
         String query = """
             TS k8s METADATA _tsid
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code LIMIT BY} without a narrowing {@code KEEP}: only {@code _doc} and the grouping key cross the exchange.
+     */
+    public void testLimitByNoKeepWithFilter() {
+        String query = """
+            FROM employees
+            | WHERE salary > 10000
+            | LIMIT 5 BY languages
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * The sort key is a field of the lookup index and crosses the exchange as a key. {@code language_code} is an {@code EVAL}
+     * result and crosses too. The node-reduce driver loads every field of {@code employees}.
+     */
+    public void testLookupJoinSortOnLookupField() {
+        String query = """
+            FROM employees
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT language_name
+            | LIMIT 5
             """;
         runGoldenTest(query, STAGES, unindexedStats());
     }

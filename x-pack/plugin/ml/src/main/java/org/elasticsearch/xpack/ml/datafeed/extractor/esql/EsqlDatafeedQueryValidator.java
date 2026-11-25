@@ -61,10 +61,11 @@ public class EsqlDatafeedQueryValidator {
     private static final String LIMIT_ZERO = " | LIMIT 0";
     private static final String DESCRIBE = "\n| DESCRIBE";
     /**
-     * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. A datafeed query has no
-     * params of its own, so the column names can be bound as params.
+     * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. The param names are not
+     * bound by extraction, so a user query that references them fails the probe, as it would without these params.
      */
-    private static final String DESCRIBE_REQUIRED_COLUMNS = DESCRIBE + "\n| WHERE name IN (?timeField, ?countField)\n| LIMIT 2";
+    private static final String DESCRIBE_REQUIRED_COLUMNS = DESCRIBE
+        + "\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2";
 
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
@@ -239,23 +240,28 @@ public class EsqlDatafeedQueryValidator {
     /** Without a summary count column, the time column fills both names of {@link #DESCRIBE_REQUIRED_COLUMNS}. */
     private static List<EsqlQueryParam> describeParams(String timeField, @Nullable String summaryCountField) {
         return List.of(
-            new EsqlQueryParam("timeField", timeField, VALUE),
-            new EsqlQueryParam("countField", Objects.requireNonNullElse(summaryCountField, timeField), VALUE)
+            new EsqlQueryParam("describeTimeColumn", timeField, VALUE),
+            new EsqlQueryParam("describeCountColumn", Objects.requireNonNullElse(summaryCountField, timeField), VALUE)
         );
     }
 
     /**
      * With {@code skip_unavailable=true}, ES|QL skips an unreachable remote or one that matches no index instead of failing. When
      * every source is on such a remote, the response has no DESCRIBE rows, and may lack the DESCRIBE columns too. Returns the skipped
-     * or failed clusters, or an empty list when the response has DESCRIBE rows.
+     * or failed clusters, or an empty list when the response has DESCRIBE rows or a cluster that ran the query.
      */
     private static List<String> unavailableClustersWithoutDescription(EsqlQueryResponse response) {
         if (response.response().rows().iterator().hasNext()) {
             return List.of();
         }
-        return response.response()
-            .clusters()
-            .stream()
+        List<EsqlClusterInfo> clusters = response.response().clusters();
+        // A cluster that ran the query described it, so empty rows then mean the required columns are missing, not that a source is down.
+        boolean anyClusterDescribed = clusters.stream()
+            .anyMatch(c -> c.status() == EsqlClusterInfo.Status.SUCCESSFUL || c.status() == EsqlClusterInfo.Status.PARTIAL);
+        if (anyClusterDescribed) {
+            return List.of();
+        }
+        return clusters.stream()
             .filter(c -> c.status() == EsqlClusterInfo.Status.SKIPPED || c.status() == EsqlClusterInfo.Status.FAILED)
             .map(EsqlClusterInfo::clusterAlias)
             .toList();

@@ -19,10 +19,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -761,12 +759,6 @@ public class ChunkedFetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                     "type=keyword"
                 )
         );
-    }
-
-    private long getRequestBreakerUsed(String node) {
-        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        return breaker.getUsed();
     }
 
     private void populateSimpleIndex(String indexName, int nDocs) throws IOException {

@@ -44,7 +44,7 @@ serverless: ga
 
 The filter reads all of its input before it outputs any tokens, and can keep up to `hash_count` × `bucket_count` × `hash_set_size` hashes in memory while doing so. To bound this memory, the parameters are limited:
 
-* For a filter defined in index settings: `hash_count` × `bucket_count` must not exceed `10000`, and `hash_count` × `bucket_count` × `hash_set_size` must not exceed `100000`. Indices created before these limits were introduced keep working, but report a deprecation warning if their filter exceeds them. Lower the parameters before you reindex such an index.
+* For a filter defined in index settings: `hash_count` × `bucket_count` must not exceed `10000`, and `hash_count` × `bucket_count` × `hash_set_size` must not exceed `100000`. Indices created before these limits were introduced keep working, but report a deprecation warning if their filter exceeds them. Lower the parameters before you reindex using such an index.
 * For a filter defined inline in an [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request: each parameter must not exceed `10000`, and `hash_count` × `bucket_count` × `hash_set_size` must not exceed [`index.analyze.max_token_count`](/reference/elasticsearch/index-settings/index-modules.md#dynamic-index-settings).
 
 

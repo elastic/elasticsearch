@@ -364,21 +364,18 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (indexingOperationsMemoryMetricsEnabled == false) {
             return 0;
         }
-        final long now = relativeTimeInNanos();
-        // This is the legacy mechanism of indexing nodes computing the heap locally and then sending it to the master
-        // This will be removed in a follow-up PR to (#166669)
-        final long heapSizeComputedLocally = readHeapSizeComputedLocallyOnOtherIndexingNodes(now);
-        // This is the new mechanism of indexing nodes computing the largest operation size on each node and then sending
-        // this to the master, so that the master can compute the heap size required
-        final Long operationSize = largestOperationSize(now);
-        // We're on an old node during a rolling upgrade so default to the legacy behaviour
-        if (operationSize == null) {
-            return heapSizeComputedLocally;
+        return readHeapSizeComputedLocallyOnOtherIndexingNodes(relativeTimeInNanos());
+    }
+
+    /**
+     * Largest raw indexing operation size still inside its validity window, or {@code 0} when none is stored or it has expired.
+     */
+    public long largestRecentIndexingOpSize() {
+        if (indexingOperationsMemoryMetricsEnabled == false) {
+            return 0;
         }
-        // This node is both a master, and a new node during a rolling upgrade. We compute the new heap requirement here,
-        // but just as a sanity check use Math.max as we do not want a mixed version cluster scaling down just because one of the
-        // two calculations is smaller.
-        return Math.max(heapSizeComputedLocally, heapRequiredForOperation(clusterService.getSettings(), operationSize));
+        final Long operationSize = largestOperationSize(relativeTimeInNanos());
+        return operationSize == null ? 0L : operationSize;
     }
 
     /**

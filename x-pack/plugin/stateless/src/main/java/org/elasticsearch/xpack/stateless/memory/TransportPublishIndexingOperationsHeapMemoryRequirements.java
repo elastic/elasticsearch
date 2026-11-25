@@ -71,6 +71,7 @@ public class TransportPublishIndexingOperationsHeapMemoryRequirements extends Tr
         throws Exception {
         ActionListener.completeWith(listener, () -> {
             memoryMetricsService.updateIndexingOperationsHeapMemoryRequirements(request.getMinimumRequiredHeapInBytes());
+            memoryMetricsService.updateLargestIndexingOperationSize(request.getLargestOperationSizeInBytes());
             return ActionResponse.Empty.INSTANCE;
         });
     }

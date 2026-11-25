@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -16,11 +15,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
@@ -28,7 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.function.Predicate.not;
 import static java.util.stream.Stream.concat;
@@ -41,7 +37,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  * The {@link Kind} says which command the join runs, and with it the join type and how the build side's keys match.
  * {@link JoinTypes#INNER} drops unmatched probe rows; {@link JoinTypes#LEFT} keeps them.
  */
-public class HashJoin extends Join implements SortPreserving, PostOptimizationPlanVerificationAware {
+public class HashJoin extends Join implements SortPreserving {
 
     /**
      * The command a hash join runs.
@@ -148,13 +144,6 @@ public class HashJoin extends Join implements SortPreserving, PostOptimizationPl
             case ESQL_LEFT_OUTER_JOIN -> "LEFT OUTER JOIN";
             case ESQL_INNER_JOIN -> "INNER JOIN";
         };
-    }
-
-    /**
-     * Whether {@code plan} is a hash join that runs an ES|QL command.
-     */
-    public static boolean isEsqlJoin(LogicalPlan plan) {
-        return plan instanceof HashJoin hashJoin && hashJoin.esqlCommand() != null;
     }
 
     @Override
@@ -282,67 +271,6 @@ public class HashJoin extends Join implements SortPreserving, PostOptimizationPl
                 TIME_DURATION, GEO_POINT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX, TSID_DATA_TYPE,
                 TIME_SERIES_METADATA_DATA_TYPE, HISTOGRAM, DENSE_VECTOR, FLATTENED -> true;
         };
-    }
-
-    /**
-     * Rejects a full-text function that searches an index above an ES|QL join. The join runs on the coordinator, and so does
-     * everything above it, where there are no documents to search. A full-text function on a left field in a {@code WHERE} is
-     * pushed below the join, but one in a condition that also reads the right side's columns, in the filter of an aggregate
-     * function or in a {@code SCORE} stays above it. A full-text function on a column the join produces is a runtime search,
-     * which scans the values in the page and runs anywhere.
-     */
-    @Override
-    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
-        return HashJoin::checkFullTextFunctionsAbove;
-    }
-
-    private static void checkFullTextFunctionsAbove(LogicalPlan plan, Failures failures) {
-        if (plan instanceof InlineJoin inlineJoin) {
-            // The aggregation of an INLINE STATS reads its input through a stub, so the join is looked for on the left side.
-            HashJoin join = esqlJoinInMainScope(inlineJoin.left());
-            if (join != null) {
-                inlineJoin.right().forEachDown(node -> rejectFullTextFunctions(node, join, failures));
-            }
-        } else if (plan instanceof UnaryPlan unary) {
-            HashJoin join = esqlJoinInMainScope(unary.child());
-            if (join != null) {
-                rejectFullTextFunctions(unary, join, failures);
-            }
-        }
-    }
-
-    /**
-     * The first ES|QL join at or below {@code plan}, leaving out the right side of any {@link IndependentSubqueryJoin}, or
-     * {@code null}.
-     */
-    private static HashJoin esqlJoinInMainScope(LogicalPlan plan) {
-        if (isEsqlJoin(plan)) {
-            return (HashJoin) plan;
-        }
-        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
-            HashJoin join = esqlJoinInMainScope(child);
-            if (join != null) {
-                return join;
-            }
-        }
-        return null;
-    }
-
-    private static void rejectFullTextFunctions(LogicalPlan plan, HashJoin join, Failures failures) {
-        plan.forEachExpression(FullTextFunction.class, function -> {
-            if (function.isRuntimeSearch() == false) {
-                failures.add(
-                    fail(
-                        function,
-                        "[{}] {} cannot be used after {}{}",
-                        function.functionName(),
-                        function.functionType(),
-                        join.esqlCommand(),
-                        function.supportsRuntimeSearch() ? " when it targets an indexed field" : ""
-                    )
-                );
-            }
-        });
     }
 
     /**

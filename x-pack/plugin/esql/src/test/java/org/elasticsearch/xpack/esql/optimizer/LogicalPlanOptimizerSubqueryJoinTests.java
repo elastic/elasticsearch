@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.Before;
 
-import java.util.Map;
-
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
 
@@ -55,78 +53,6 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
         assertThat(
             e.getMessage(),
             containsString("LEFT OUTER JOIN cannot return column [m] of type [AGGREGATE_METRIC_DOUBLE]; remove it with KEEP or DROP")
-        );
-    }
-
-    /**
-     * A full-text function on an index field searches the left side's documents, which the join's output no longer carries. One
-     * that the optimizer can't push below the join, because the same condition reads a subquery column, is rejected.
-     */
-    public void testFullTextFunctionAboveJoinIsRejected() {
-        Map<String, String> searches = Map.of("MATCH(first_name, \"Anna\")", "[MATCH] function", "first_name : \"Anna\"", "[:] operator");
-        for (Map.Entry<String, String> search : searches.entrySet()) {
-            String query = JOIN_LANGUAGES + "| WHERE " + search.getKey() + " OR language_name IS NOT NULL\n";
-            VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(query));
-            assertThat(
-                e.getMessage(),
-                containsString(search.getValue() + " cannot be used after LEFT OUTER JOIN when it targets an indexed field")
-            );
-        }
-    }
-
-    /**
-     * A filter can also stay above the join because of a command between them, here {@code INLINE STATS}, although it only reads
-     * the left side's columns.
-     */
-    public void testFullTextFunctionAboveInlineStatsAfterJoinIsRejected() {
-        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
-            | INLINE STATS c = COUNT(*) BY gender
-            | WHERE MATCH(first_name, "Anna")
-            """));
-        assertThat(
-            e.getMessage(),
-            containsString("line 5:9: [MATCH] function cannot be used after LEFT OUTER JOIN when it targets an indexed field")
-        );
-    }
-
-    /**
-     * The aggregation of a {@code STATS} after the join runs on the coordinator, so a search in the filter of an aggregate function
-     * is rejected too.
-     */
-    public void testFullTextFunctionInAggregateFilterAfterJoinIsRejected() {
-        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
-            | STATS n = COUNT(*), anna = COUNT(*) WHERE MATCH(first_name, "Anna")
-            """));
-        assertThat(
-            e.getMessage(),
-            containsString("[MATCH] function cannot be used after LEFT OUTER JOIN when it targets an indexed field")
-        );
-    }
-
-    /**
-     * The aggregation of an {@code INLINE STATS} after the join runs on the coordinator too, although it reads its input through a
-     * stub rather than from the join.
-     */
-    public void testFullTextFunctionInInlineStatsAggregateFilterAfterJoinIsRejected() {
-        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
-            | INLINE STATS anna = COUNT(*) WHERE MATCH(first_name, "Anna")
-            """));
-        assertThat(
-            e.getMessage(),
-            containsString("line 4:38: [MATCH] function cannot be used after LEFT OUTER JOIN when it targets an indexed field")
-        );
-    }
-
-    /**
-     * {@code SCORE} evaluates its search where it stands, so after the join it would search on the coordinator.
-     */
-    public void testFullTextFunctionInScoreAfterJoinIsRejected() {
-        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
-            | EVAL s = SCORE(MATCH(first_name, "Anna"))
-            """));
-        assertThat(
-            e.getMessage(),
-            containsString("line 4:18: [MATCH] function cannot be used after LEFT OUTER JOIN when it targets an indexed field")
         );
     }
 

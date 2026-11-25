@@ -163,7 +163,13 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
                     "big-index",
                     ComposableIndexTemplate.builder().template(big).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
                     "small-index",
-                    ComposableIndexTemplate.builder().template(small).indexPatterns(List.of(randomAlphaOfLength(10))).build()
+                    ComposableIndexTemplate.builder().template(small).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
+                    "inherits-index",
+                    ComposableIndexTemplate.builder()
+                        .template(small)
+                        .componentTemplates(List.of("big-component"))
+                        .indexPatterns(List.of(randomAlphaOfLength(10)))
+                        .build()
                 )
             )
             .build();
@@ -189,6 +195,8 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
         assertThat(issues.get("big-index"), contains(expectedIssue.apply("index template")));
         assertThat(issues.containsKey("small-component"), is(false));
         assertThat(issues.containsKey("small-index"), is(false));
+        // The index template's own settings are within the bounds, but it inherits the violation from its component template.
+        assertThat(issues.get("inherits-index"), contains(expectedIssue.apply("index template")));
     }
 
     public void testComponentAndComposableTemplateWithSameName() {

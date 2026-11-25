@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
@@ -34,8 +36,8 @@ import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATI
 public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "templates";
-    private final List<Function<ComposableIndexTemplate, DeprecationIssue>> indexTemplateChecks = List.of(
-        this::checkLegacyTiersInIndexTemplate,
+    private final List<BiFunction<ComposableIndexTemplate, ProjectMetadata, DeprecationIssue>> indexTemplateChecks = List.of(
+        (template, project) -> checkLegacyTiersInIndexTemplate(template),
         this::checkMinHashParamBoundsInIndexTemplate
     );
     private final List<Function<ComponentTemplate, DeprecationIssue>> componentTemplateChecks = List.of(
@@ -75,7 +77,7 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
             ComposableIndexTemplate template = entry.getValue();
 
             List<DeprecationIssue> issuesForSingleIndexTemplate = indexTemplateChecks.stream()
-                .map(c -> c.apply(template))
+                .map(c -> c.apply(template, project))
                 .filter(Objects::nonNull)
                 .toList();
             if (issuesForSingleIndexTemplate.isEmpty() == false) {
@@ -156,9 +158,10 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
         );
     }
 
-    private DeprecationIssue checkMinHashParamBoundsInIndexTemplate(ComposableIndexTemplate composableIndexTemplate) {
-        Template template = composableIndexTemplate.template();
-        return template == null ? null : minHashParamBoundsIssue(template.settings(), "index template");
+    private DeprecationIssue checkMinHashParamBoundsInIndexTemplate(ComposableIndexTemplate template, ProjectMetadata project) {
+        // Resolved settings, because an index template is a combination of itself plus the component templates it references
+        Settings settings = MetadataIndexTemplateService.resolveSettings(template, project.componentTemplates());
+        return minHashParamBoundsIssue(settings, "index template");
     }
 
     private DeprecationIssue checkMinHashParamBoundsInComponentTemplate(ComponentTemplate componentTemplate) {

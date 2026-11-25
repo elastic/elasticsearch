@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.function.Supplier;
 
+import static org.apache.lucene.util.VectorUtil.l2normalize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -41,7 +42,11 @@ public class VectorSimilarityQueryTests extends ESTestCase {
         try (Directory d = newDirectory()) {
             try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
                 Document document = new Document();
-                KnnFloatVectorField vectorField = new KnnFloatVectorField("float_vector", new float[] { 1, 1, 1 });
+                KnnFloatVectorField vectorField = new KnnFloatVectorField(
+                    "float_vector",
+                    new float[] { 1, 1, 1 },
+                    VectorSimilarityFunction.EUCLIDEAN
+                );
                 document.add(vectorField);
                 w.addDocument(document);
                 vectorField.setVectorValue(new float[] { 2, 1, 1 });
@@ -109,24 +114,24 @@ public class VectorSimilarityQueryTests extends ESTestCase {
         }
     }
 
-    public void testSimpleCosine() throws IOException {
+    public void testSimpleDotProduct() throws IOException {
         try (Directory d = newDirectory()) {
             try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
                 Document document = new Document();
                 KnnFloatVectorField vectorField = new KnnFloatVectorField(
                     "float_vector",
-                    new float[] { 1, 1, 1 },
-                    VectorSimilarityFunction.COSINE
+                    l2normalize(new float[] { 1, 1, 1 }),
+                    VectorSimilarityFunction.DOT_PRODUCT
                 );
                 document.add(vectorField);
                 w.addDocument(document);
-                vectorField.setVectorValue(new float[] { 2, 1, 1 });
+                vectorField.setVectorValue(l2normalize(new float[] { 2, 1, 1 }));
                 w.addDocument(document);
-                vectorField.setVectorValue(new float[] { 1, 2, 1 });
+                vectorField.setVectorValue(l2normalize(new float[] { 1, 2, 1 }));
                 w.addDocument(document);
-                vectorField.setVectorValue(new float[] { 1, 1, 2 });
+                vectorField.setVectorValue(l2normalize(new float[] { 1, 1, 2 }));
                 w.addDocument(document);
-                vectorField.setVectorValue(new float[] { 2, 0, 2 });
+                vectorField.setVectorValue(l2normalize(new float[] { 2, 0, 2 }));
                 w.addDocument(document);
 
                 w.commit();
@@ -135,14 +140,14 @@ public class VectorSimilarityQueryTests extends ESTestCase {
                 IndexSearcher searcher = LuceneTests.newSearcher(reader);
                 // Should match all actually worse distance is
                 TopDocs docs = searcher.search(
-                    new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), .8f, .9f),
+                    new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", l2normalize(new float[] { 1, 1, 1 }), 5), .8f, .9f),
                     5
                 );
                 assertThat(docs.totalHits.value(), equalTo(5L));
 
                 // Should match only 4
                 docs = searcher.search(
-                    new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), .9f, 0.95f),
+                    new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", l2normalize(new float[] { 1, 1, 1 }), 5), .9f, 0.95f),
                     5
                 );
                 assertThat(docs.totalHits.value(), equalTo(4L));
@@ -150,7 +155,8 @@ public class VectorSimilarityQueryTests extends ESTestCase {
         }
     }
 
-    public void testCosineInvariant() throws Exception {
+    public void testCosineNormalized() throws Exception {
+        // ES normalized COSINE vectors to use DOT_PRODUCT
         int dim = 4;
         int L = 1;
         int n = 100;

@@ -17,26 +17,80 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
-        assertEquals(25_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings));
+        assertEquals(
+            ExternalSourceSettings.defaultMaxDiscoveredFiles(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
+            (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings)
+        );
+        assertEquals(3_000, (int) ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(settings));
         // The in-flight-read permit bound defaults to the heap- and CPU-scaled formula, not a fixed literal.
         assertEquals(
             ExternalSourceSettings.defaultBlobStoreConcurrency(settings),
             (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings)
         );
         assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.blobStoreConcurrency(settings));
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(settings));
+    }
+
+    public void testDefaultMaxDiscoveredFilesMatrix() {
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(0L));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(-1L));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(128).getBytes()));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(187).getBytes()));
+        assertEquals(25_059, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(188).getBytes()));
+        assertEquals(68_246, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(512).getBytes()));
+        assertEquals(136_492, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(1).getBytes()));
+        assertEquals(272_985, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(2).getBytes()));
+        assertEquals(545_970, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(4).getBytes()));
+        assertEquals(955_448, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(7).getBytes()));
+        assertEquals(1_091_940, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(8).getBytes()));
+        assertEquals(4_367_763, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(32).getBytes()));
+        assertEquals(10_000_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(128).getBytes()));
+    }
+
+    public void testMaxDiscoveredFilesOverrideBeatsHeapDefault() {
+        Settings pinned = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 42).build();
+        assertEquals(42, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(pinned));
+        Settings atMax = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10_000_000).build();
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(atMax));
+    }
+
+    public void testMaxListedObjectsBounds() {
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(Settings.EMPTY));
+        Settings atMax = Settings.builder().put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 100_000_000).build();
+        assertEquals(100_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(atMax));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_LISTED_OBJECTS.get(
+                Settings.builder().put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 100_000_001).build()
+            )
+        );
+    }
+
+    public void testPlanningBytesPerDiscoveredFileMatchesBreakerCharges() {
+        assertEquals(
+            FileList.LISTING_BYTES_PER_ENTRY + ExternalSourceResolver.SCHEMA_MAP_BYTES_PER_FILE + Phase2Reservation.SHELL_BYTES,
+            ExternalSourceSettings.PLANNING_BYTES_PER_DISCOVERED_FILE
+        );
+        int files = ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(1).getBytes());
+        long billed = files * ExternalSourceSettings.PLANNING_BYTES_PER_DISCOVERED_FILE;
+        long request = ByteSizeValue.ofGb(1).getBytes() * 60 / 100;
+        assertThat(billed, lessThan(request));
     }
 
     public void testMaxConcurrentRequestsDefaultTracksFormula() {
@@ -101,6 +155,19 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testZeroOverrideSkipsMemoryCap() {
         assertEquals(0, ExternalSourceSettings.blobStoreConcurrency(0, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
+    }
+
+    public void testSdkConnectionPoolSizeAddsOneExceptUnlimited() {
+        assertEquals(8, ExternalSourceSettings.sdkConnectionPoolSize(0, 8));
+        assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(1, 8));
+        assertEquals(5, ExternalSourceSettings.sdkConnectionPoolSize(4, 8));
+        Settings unlimited = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
+        assertEquals(
+            ExternalSourceSettings.defaultBlobStoreConcurrency(unlimited),
+            ExternalSourceSettings.sdkConnectionPoolSize(unlimited)
+        );
+        Settings one = Settings.builder().put("esql.external.max_concurrent_requests", 1).build();
+        assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(one));
     }
 
     public void testPositiveOverrideHonorsParseFloorOnTinyHeap() {
@@ -317,13 +384,15 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(21, ExternalSourceSettings.settings().size());
+        assertEquals(22, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.WORKER_READY_TIMEOUT));
         assertEquals(TimeValue.timeValueSeconds(10), ExternalSourceSettings.WORKER_READY_TIMEOUT.get(Settings.EMPTY));
         assertTrue(ExternalSourceSettings.WORKER_READY_TIMEOUT.isDynamic());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS));
+        assertTrue(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.isDynamic());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_MAX_FIELDS));
@@ -332,6 +401,50 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertTrue(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.isDynamic());
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
+    }
+
+    public void testMaxDirectoryListingsBounds() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 0).build()
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 1_000_001).build()
+            )
+        );
+        assertEquals(
+            1,
+            (int) ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 1).build()
+            )
+        );
+        assertEquals(
+            1_000_000,
+            (int) ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 1_000_000).build()
+            )
+        );
+        assertEquals(
+            2_000,
+            (int) ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 2_000).build()
+            )
+        );
+    }
+
+    public void testMaxDirectoryListingsFollowsClusterSettings() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS));
+        AtomicInteger observed = new AtomicInteger();
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, observed::set);
+        assertEquals(3_000, observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.getKey(), 512).build());
+        assertEquals(512, observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.getKey(), 4_000).build());
+        assertEquals(4_000, observed.get());
     }
 
     public void testAdmissionRescueEnabledFollowsClusterSettings() {

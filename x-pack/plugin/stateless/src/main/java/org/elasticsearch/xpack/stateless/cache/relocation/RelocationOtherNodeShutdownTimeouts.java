@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutCont
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 
 /// The warming timeouts of search shards that relocate from a source node that is not shutting down while other nodes are, so that
-/// [SearchRecoveryTimeoutCalculationService] reads as a choice of the timeout context.
+/// [org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService] reads as a choice of the timeout context.
 public class RelocationOtherNodeShutdownTimeouts {
 
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;

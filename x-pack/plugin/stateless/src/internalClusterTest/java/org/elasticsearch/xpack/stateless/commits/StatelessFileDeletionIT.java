@@ -932,7 +932,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 Sets.intersection(
                     bccBlobsUsedForScroll.stream()
                         .map(name -> name.substring(name.lastIndexOf('/') + 1))
-                        .map(BatchedCompoundCommit::parseGenerationFromBlobName)
+                        .map(BccBlob::parseGenerationFromBlobName)
                         .collect(Collectors.toUnmodifiableSet()),
                     termAndGensInUse.get().stream().map(PrimaryTermAndGeneration::generation).collect(Collectors.toUnmodifiableSet())
                 ),
@@ -1767,12 +1767,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         if (searchNodeUsesBothBCCs) {
             // If the search node opened a scroll, we should not remove any of the BCCs
             expectedBlobsAfterProcessingNewCommitNotifications = uploadedBCCGenerations.stream()
-                .map(uploadedBCC -> BatchedCompoundCommit.blobNameFromGeneration(uploadedBCC.generation()))
+                .map(uploadedBCC -> BccBlob.blobNameFromGeneration(uploadedBCC.generation()))
                 .collect(Collectors.toSet());
         } else {
-            expectedBlobsAfterProcessingNewCommitNotifications = Set.of(
-                BatchedCompoundCommit.blobNameFromGeneration(maxUploadedBCCGeneration)
-            );
+            expectedBlobsAfterProcessingNewCommitNotifications = Set.of(BccBlob.blobNameFromGeneration(maxUploadedBCCGeneration));
         }
 
         assertBusy(
@@ -1789,7 +1787,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         assertBusy(
             () -> assertThat(
                 listBccBlobNames(shardCommitsContainer),
-                is(equalTo(Set.of(BatchedCompoundCommit.blobNameFromGeneration(maxUploadedBCCGeneration))))
+                is(equalTo(Set.of(BccBlob.blobNameFromGeneration(maxUploadedBCCGeneration))))
             )
         );
 
@@ -1940,7 +1938,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
         assertThat(latestUploadedBcc, is(notNullValue()));
-        var latestUploadedBlob = BatchedCompoundCommit.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
+        var latestUploadedBlob = BccBlob.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
 
         PITRetentionTestScenarios testScenario = randomFrom(PITRetentionTestScenarios.values());
         logger.info("Using PITRetentionTestScenario: " + testScenario);

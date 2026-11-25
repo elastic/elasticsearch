@@ -40,6 +40,7 @@ public class PlanTelemetry {
     private Integer linkedProjectsCount = null;
     private final Set<String> externalStorageTypes = new TreeSet<>();
     private final Set<String> externalFormats = new TreeSet<>();
+    private QuerySourceCommand sourceCommand = QuerySourceCommand.UNKNOWN;
 
     public PlanTelemetry(EsqlFunctionRegistry functionRegistry, List<QuerySettingDef<?>> applicableSettings) {
         this.functionRegistry = functionRegistry;
@@ -92,6 +93,17 @@ public class PlanTelemetry {
             return null;
         }
         return values.size() == 1 ? values.iterator().next() : ExternalSourceMetrics.MIXED;
+    }
+
+    public void sourceCommand(QuerySourceCommand sourceCommand) {
+        this.sourceCommand = sourceCommand;
+    }
+
+    /**
+     * What the query reads, or {@link QuerySourceCommand#UNKNOWN} if it failed before its sources were known.
+     */
+    public QuerySourceCommand sourceCommand() {
+        return sourceCommand;
     }
 
     public void command(TelemetryAware command) {

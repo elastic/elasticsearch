@@ -22,6 +22,62 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class CoordinatedInferenceIngestIT extends InferenceBaseRestTest {
 
+    public void testIngestWithEmbeddingEndpoint() throws IOException {
+        assertIngestWithEmbeddingEndpoint(TaskType.EMBEDDING, "embeddings");
+    }
+
+    public void testIngestWithTextEmbeddingEndpoint() throws IOException {
+        assertIngestWithEmbeddingEndpoint(TaskType.TEXT_EMBEDDING, "text_embedding");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertIngestWithEmbeddingEndpoint(TaskType taskType, String resultField) throws IOException {
+        var modelId = "ingest_" + taskType;
+        var putModel = new Request("PUT", "_inference/" + taskType + "/" + modelId);
+        putModel.setJsonEntity("""
+            {
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model_id": "test_model",
+                "api_key": "test_key",
+                "dimensions": 4
+              }
+            }
+            """);
+        client().performRequest(putModel);
+
+        var inference = new Request("POST", "_inference/" + taskType + "/" + modelId);
+        inference.setJsonEntity("""
+            { "input": ["first input", "second input"] }
+            """);
+        var inferenceResults = (List<Map<String, Object>>) entityAsMap(client().performRequest(inference)).get(resultField);
+        assertThat(inferenceResults, hasSize(2));
+
+        var response = simulatePipeline(Strings.format("""
+            {
+              "processors": [{
+                "inference": {
+                  "model_id": "%s",
+                  "input_output": [{ "input_field": "text", "output_field": "vector" }]
+                }
+              }]
+            }
+            """, modelId), """
+            [
+              { "_source": { "text": "first input" } },
+              { "_source": { "text": "second input" } }
+            ]
+            """);
+        var docs = (List<Map<String, Object>>) response.get("docs");
+        assertThat(docs, hasSize(2));
+        for (int i = 0; i < docs.size(); i++) {
+            assertNull(docs.get(i).get("error"));
+            var expectedEmbedding = (List<?>) inferenceResults.get(i).get("embedding");
+            assertThat(expectedEmbedding, hasSize(4));
+            assertEquals(expectedEmbedding, MapHelper.dig("doc._source.vector", docs.get(i)));
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void testIngestWithMultipleModelTypes() throws IOException {
         // Create an inference service model, dfa model and pytorch model

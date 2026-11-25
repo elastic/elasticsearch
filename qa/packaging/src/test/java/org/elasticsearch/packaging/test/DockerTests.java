@@ -921,7 +921,8 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that identical jars share an inode in the final image. The hard links are created in the builder stage, so this guards
      * against them being lost by the {@code COPY --from=builder} that produces the final image. The Cloud ESS image is built on top of the
-     * Wolfi image without touching the distribution, so it is expected to inherit the links.
+     * Wolfi image without touching the distribution, so it is expected to inherit the links. Jars with the same content but a different
+     * mode are deliberately not linked, so that every jar keeps the mode the distribution ships it with.
      */
     public void test102IdenticalJarsAreHardLinked() {
         assumeTrue(
@@ -933,14 +934,15 @@ public class DockerTests extends PackagingTestCase {
 
         final String jars = "find lib modules plugins -type f -name '*.jar'";
 
-        // Print every checksum that is shared by jars with different inodes, which means a duplicate was stored as an independent copy.
+        // Print every checksum and mode that is shared by jars with different inodes, which means a duplicate was stored as an
+        // independent copy.
         final var unlinkedChecksums = DockerShell.executeCommand(
             "bash",
             "-c",
             "set -o pipefail; cd /usr/share/elasticsearch && "
                 + jars
                 + " -exec sha256sum {} + | while read -r sum path; do "
-                + "echo \"$sum $(stat -c %i \"$path\")\"; done | sort -u | cut -d' ' -f1 | uniq -d"
+                + "echo \"$sum $(stat -c '%a %i' \"$path\")\"; done | sort -u | cut -d' ' -f1,2 | uniq -d"
         );
         assertThat("Failed to inspect the jars: " + unlinkedChecksums.stderr(), unlinkedChecksums.isSuccess(), is(true));
         assertThat("Found identical jars that do not share an inode", unlinkedChecksums.stdout(), is(emptyString()));

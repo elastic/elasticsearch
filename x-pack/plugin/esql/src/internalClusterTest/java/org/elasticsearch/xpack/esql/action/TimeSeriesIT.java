@@ -1628,47 +1628,17 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     /** Removing the metric name from the output must not merge histogram families before their quantiles. */
     public void testPromqlHistogramMetricNameIsAnInternalGroupingDependency() {
         String index = "promql-histogram-families";
-        assertAcked(
-            indicesAdmin().prepareCreate(index)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.mode", "time_series")
-                        .putList("index.routing_path", "cluster", "host")
-                        .put("index.time_series.start_time", "2024-05-10T00:00:00Z")
-                        .put("index.time_series.end_time", "2024-05-10T01:00:00Z")
-                )
-                .setMapping(
-                    "@timestamp",
-                    "type=date",
-                    "cluster",
-                    "type=keyword,time_series_dimension=true",
-                    "host",
-                    "type=keyword,time_series_dimension=true",
-                    "__name__",
-                    "type=keyword,time_series_dimension=true",
-                    "le",
-                    "type=keyword,time_series_dimension=true",
-                    "tx",
-                    "type=double,time_series_metric=gauge"
-                )
-        );
-        ensureGreen(index);
-        indexHistogramSample(index, "m1", "1", 2.0);
-        indexHistogramSample(index, "m1", "+Inf", 4.0);
-        indexHistogramSample(index, "m2", "1", 6.0);
-        indexHistogramSample(index, "m2", "+Inf", 8.0);
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m1", "le", "1", "tx", 2.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m1", "le", "+Inf", "tx", 4.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m2", "le", "1", "tx", 6.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "m2", "le", "+Inf", "tx", 8.0);
         refresh(index);
-        String query = "PROMQL index="
-            + index
-            + " start=\""
-            + PROMQL_QUERY_TIME
-            + "\" end=\""
-            + PROMQL_QUERY_TIME
-            + "\" step=1m result=(histogram_quantile(0.5,sum by(le,__name__,cluster)(tx))) | KEEP result";
         // m1: target count 2 in a bucket of count 2 gives 1. m2: target 4 in a bucket of count 6 gives 2/3.
-        try (EsqlQueryResponse response = run(query)) {
-            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(List.of(1.0), List.of(2.0 / 3.0)));
-        }
+        assertRowsAnyOrder(
+            promqlQuery(index, "histogram_quantile(0.5,sum by(le,__name__,cluster)(tx))") + " | KEEP result",
+            List.of(List.of(1.0), List.of(2.0 / 3.0))
+        );
     }
 
     private void createOptionalLabelMetricsIndex(String index) {
@@ -1727,10 +1697,10 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             + ")";
     }
 
-    private void indexHistogramSample(String index, String name, String le, double tx) {
-        client().prepareIndex(index)
-            .setSource("@timestamp", PROMQL_QUERY_TIME, "cluster", "prod", "host", "a", "__name__", name, "le", le, "tx", tx)
-            .get();
+    private void assertRowsAnyOrder(String query, List<List<Object>> expected) {
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(expected.toArray()));
+        }
     }
 
     private static double round(double value) {

@@ -182,6 +182,10 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
     /** Fuzz repro: {@code label_replace} over opaque {@code group_left} keeps includes and derives dst. */
     public void testLabelReplaceOverOpaqueGroupLeft() throws IOException {
         assumeTrue(
+            "PromQL label container functions are required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.capabilityName()))
+        );
+        assumeTrue(
             "PromQL label functions required",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.capabilityName()))
         );

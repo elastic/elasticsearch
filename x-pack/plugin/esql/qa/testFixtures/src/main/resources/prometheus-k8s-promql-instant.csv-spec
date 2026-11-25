@@ -397,6 +397,7 @@ required_capability: promql_instant_query
 required_capability: promql_sort
 required_capability: promql_label_functions_anywhere
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 
 PROMQL index=prometheus-k8s time="2024-05-10T00:03:00.000Z" bytes=(sort(label_replace(avg by (cluster) (last_over_time(network.bytes_in[1m])), "cluster", "c-$1", "cluster", "(.*)")));
 

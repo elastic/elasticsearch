@@ -1183,8 +1183,31 @@ abstract class DataNodeRequestSender {
         }
 
         /**
-         * A rejected hand-off fails this sender's compute-listener slot. The existing compute service then either fails the
-         * request, or records that failure in a partial local-cluster result when partial results are allowed.
+         * Ends the wait, once, and hands its outcome to the sending loop on the search pool. Called from any thread: the cluster
+         * applier, the timer, the thread that cancels the task or the one that finishes the exchange source.
+         * <p>
+         * The hand-off is forced onto the queue, so only a search pool that is shutting down rejects it, and then the coordinator
+         * itself is closing. The loop will not run again for the shards of this wait, so the wait fails its own reference to the
+         * compute listener of the sender: with the failure one of its shards had before it waited, or with the rejection if none
+         * is left. What follows was traced through the callers of the local cluster, {@code ComputeService#executePlan}:
+         * <ol>
+         * <li>The failed reference first runs the cancel-on-failure hook of the sender's {@link ComputeListener}, which is
+         * {@code ComputeService#cancelQueryOnFailure} for the task of the query. That task is cancelled, on this thread, before
+         * the failure goes any further.</li>
+         * <li>Nothing else holds the compute listener for the shards of this wait, so the listener of the sender completes, and
+         * with a failure, never with a {@link ComputeResponse}. A cancellation collected next to another failure is dropped, so
+         * the failure is the shard's.</li>
+         * <li>Without partial results {@code ComputeService} passes that failure on, and the request fails with it.</li>
+         * <li>With partial results {@code ComputeService} accepts the failure ({@code EsqlCCSUtils#canAllowPartial}), marks the
+         * local cluster {@code PARTIAL} with the failure recorded and lets the rest of the compute go on. That does not become a
+         * response, because step 1 has cancelled the task: either a driver of the coordinator fails on the cancellation, or the
+         * compute completes and {@code TransportEsqlQueryAction#failIfCancelled} turns its result into a failure. The request
+         * fails with a {@link TaskCancelledException} that says "cancelled on failure", and not with the shard's failure.</li>
+         * </ol>
+         * So the client gets a failure in both modes: no success without the failure, and no partial result either.
+         * <p>
+         * The completion of the coordinator's own driver is handed to the search pool as well ({@code DriverTaskRunner}). A pool
+         * that rejects this hand-off rejects that one too, and the transport layer then completes it on the rejecting thread.
          */
         private void end(WaitOutcome outcome) {
             if (ended.compareAndSet(false, true) == false) {

@@ -79,6 +79,8 @@ import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.SentCopy;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.ShardCopy;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.Untried;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
+import org.elasticsearch.xpack.esql.session.Result;
 import org.junit.After;
 import org.junit.Before;
 
@@ -2464,6 +2466,106 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(recorded.attemptsExhausted(), equalTo(0L));
     }
 
+    /**
+     * The search pool rejects the hand-off of an ended wait, as it does once it is shutting down. The loop will not run again for
+     * the parked shard, so the wait fails the compute listener itself: the listener of the sender fails with the failure the shard
+     * had before it waited, in both partial modes, and never completes with a response. The failed slot also runs the hook that
+     * cancels the query.
+     * <p>
+     * This is the boundary of the sender. What the client gets is traced in the Javadoc of {@code RoutingWait#end}, see
+     * {@link #testRejectedHandOffAtTheQueryBoundary}.
+     */
+    public void testRejectedHandOffFailsTheSenderListener() throws Exception {
+        for (boolean allowPartialResults : List.of(false, true)) {
+            RecordedMetrics recorded = new RecordedMetrics();
+            GatedExecutor handOff = new GatedExecutor(executor);
+            AtomicInteger requests = new AtomicInteger();
+            AtomicReference<CancellableTask> task = new AtomicReference<>();
+            publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+            SenderSetup setup = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+                requests.incrementAndGet();
+                runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
+            }).allowPartialResults(allowPartialResults)
+                .metrics(recorded)
+                .handOffExecutor(handOff)
+                // what ComputeService#cancelQueryOnFailure does to the task of the query
+                .runOnTaskFailure(() -> TaskCancelHelper.cancel(task.get(), "cancelled on failure"));
+            task.set(setup.task());
+            PlainActionFuture<ComputeResponse> future = setup.start();
+
+            assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+            assertFalse(future.isDone());
+            handOff.reject();
+            publish(Map.of(shard1.shardId(), List.of(started(node2, "allocation-2"))));
+
+            expectThrows(
+                NoShardAvailableActionException.class,
+                containsString("no such shard"),
+                () -> future.actionGet(10, TimeUnit.SECONDS)
+            );
+            assertThat(handOff.submitted(), equalTo(1));
+            assertTrue("the failed slot cancels the query", setup.task().isCancelled());
+            assertThat("the new copy is not asked: the loop did not run", requests.get(), equalTo(1));
+        }
+    }
+
+    /**
+     * What the client gets after a rejected hand-off, in both partial modes: a failure, never a success and never a partial result.
+     * <p>
+     * This is not driven through a {@code ComputeService}, which is what the plan of this change asked for. A real one needs a
+     * real search pool, and the only way to make that reject a forced task is to shut it down. With assertions enabled the
+     * transport layer then trips on the rejected completion of the coordinator's driver ({@code ForkingResponseHandlerRunnable}),
+     * and the request never completes. So the sender runs here with the rejecting executor of this class, and the test applies
+     * above it the steps that {@code ComputeService#executePlan} and {@code TransportEsqlQueryAction} apply to the failure of
+     * the data node compute, with their own code where that is reachable:
+     * <ol>
+     * <li>the failed slot cancels the task of the query, as {@code ComputeService#cancelQueryOnFailure} does;</li>
+     * <li>with partial results, a failure that {@link EsqlCCSUtils#canAllowPartial} accepts is recorded and the compute goes
+     * on; otherwise the failure is the outcome;</li>
+     * <li>a compute that went on ends in {@link TransportEsqlQueryAction#failIfCancelled}.</li>
+     * </ol>
+     * The steps are copied from the callers, so this pins what was traced. It does not notice a change of the wiring itself.
+     */
+    public void testRejectedHandOffAtTheQueryBoundary() throws Exception {
+        for (boolean allowPartialResults : List.of(false, true)) {
+            RecordedMetrics recorded = new RecordedMetrics();
+            GatedExecutor handOff = new GatedExecutor(executor);
+            AtomicReference<CancellableTask> task = new AtomicReference<>();
+            publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+            SenderSetup setup = setup(
+                List.of(targetShard(shard1, node1)),
+                (node, shards, aliasFilters, listener) -> runWithDelay(() -> listener.onResponse(shardNotFound(shard1)))
+            ).allowPartialResults(allowPartialResults)
+                .metrics(recorded)
+                .handOffExecutor(handOff)
+                .runOnTaskFailure(() -> TaskCancelHelper.cancel(task.get(), "cancelled on failure"));
+            task.set(setup.task());
+            PlainActionFuture<ComputeResponse> dataNodeCompute = setup.start();
+
+            assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+            handOff.reject();
+            publish(Map.of(shard1.shardId(), List.of(started(node2, "allocation-2"))));
+
+            Exception shardFailure = expectThrows(Exception.class, () -> dataNodeCompute.actionGet(10, TimeUnit.SECONDS));
+            assertThat(shardFailure, instanceOf(NoShardAvailableActionException.class));
+            assertTrue(setup.task().isCancelled());
+
+            if (allowPartialResults) {
+                assertTrue("the failure is one a partial result may record", EsqlCCSUtils.canAllowPartial(shardFailure));
+                // the compute goes on and completes, and its result is turned down because the task was cancelled
+                Result result = new Result(List.of(), List.of(), Map.of(), null, DriverCompletionInfo.EMPTY, null, null);
+                TaskCancelledException cancelled = expectThrows(
+                    TaskCancelledException.class,
+                    () -> TransportEsqlQueryAction.failIfCancelled(setup.task(), result)
+                );
+                assertThat(cancelled.getMessage(), containsString("cancelled on failure"));
+            } else {
+                // the failure of the data node compute is the failure of the request
+                assertThat(shardFailure.getMessage(), containsString("no such shard"));
+            }
+        }
+    }
+
     private static DataNodeComputeResponse ok() {
         return new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of());
     }
@@ -2764,6 +2866,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         private ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
         private Executor handOffExecutor = executor;
         private Consumer<DriverCompletionInfo> onFailureUsage = usage -> {};
+        private Runnable runOnTaskFailure = () -> {};
         private final AtomicInteger queryFinishedListeners = new AtomicInteger();
 
         private SenderSetup(List<DataNodeRequestSender.TargetShard> shards, Sender sender) {
@@ -2846,6 +2949,12 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             return this;
         }
 
+        /** Runs when a slot of the sender's compute listener fails; in production it cancels the query. */
+        SenderSetup runOnTaskFailure(Runnable runOnTaskFailure) {
+            this.runOnTaskFailure = runOnTaskFailure;
+            return this;
+        }
+
         CancellableTask task() {
             return task;
         }
@@ -2857,7 +2966,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
         PlainActionFuture<ComputeResponse> start() {
             PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
-            build().startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, onFailureUsage, future);
+            build().startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), runOnTaskFailure, onFailureUsage, future);
             return future;
         }
 

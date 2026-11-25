@@ -42,7 +42,10 @@ import java.util.concurrent.Callable;
 final class IVFParallelScan {
 
     /** The least work a part may have, in posting list entries: in benchmarks, parts with less made a query no faster. */
-    static final long MIN_PART_WORK = 4_000;
+    static final long MIN_PART_WORK = 10_000;
+
+    /** A leaf with fewer vectors is never split: its scan is too short for a split to pay. Not final, so tests can lower it. */
+    static int minVectorsToSplit = 1_000_000;
 
     private final AbstractIVFKnnVectorQuery query;
     private final Weight filterWeight;
@@ -63,8 +66,9 @@ final class IVFParallelScan {
         boolean[] splittable = new boolean[work.length];
         for (int i = 0; i < work.length; i++) {
             LeafReaderContext ctx = leafInputs.get(i).ctx();
-            work[i] = estimatedWork(ctx);
-            splittable[i] = work[i] > 0 && scansPostingLists(ctx.reader());
+            int vectors = searchedVectors(ctx);
+            work[i] = visitBudget(vectors); // what the parts of a leaf can share
+            splittable[i] = vectors >= minVectorsToSplit && scansPostingLists(ctx.reader());
         }
         int[] parts = partsPerLeaf(work, splittable, maxParallelTasks);
         this.leaves = new Leaf[work.length];
@@ -172,8 +176,8 @@ final class IVFParallelScan {
         return parts;
     }
 
-    /** A leaf's work is its visit budget, which is what its parts can share. 0 if the leaf has no vectors for the field. */
-    private long estimatedWork(LeafReaderContext ctx) throws IOException {
+    /** How many of the leaf's vectors the query searches: all of the field's, unless it searches a data slice. */
+    private int searchedVectors(LeafReaderContext ctx) throws IOException {
         LeafReader reader = ctx.reader();
         FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(query.field);
         if (fieldInfo == null) {
@@ -183,13 +187,8 @@ final class IVFParallelScan {
             ? reader.getByteVectorValues(query.field)
             : reader.getFloatVectorValues(query.field);
         int numVectors = values == null ? 0 : values.size();
-        long work = visitBudget(numVectors);
-        if (work < 2 * MIN_PART_WORK) {
-            // too small to split anyway, so not worth the lookup of how much of it a data slice query searches
-            return work;
-        }
-        int searched = query.searchedVectors(ctx, numVectors);
-        return searched == numVectors ? work : visitBudget(searched);
+        // a leaf too small to split is not worth the lookup of how much of it a data slice query searches
+        return numVectors < minVectorsToSplit ? numVectors : query.searchedVectors(ctx, numVectors);
     }
 
     private long visitBudget(int numVectors) {

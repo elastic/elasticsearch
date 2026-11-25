@@ -285,7 +285,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /** Lets a DiskBBQ (IVF) kNN query split a segment holding a large share of a shard's work into parts searched in parallel. */
     public static final Setting<Boolean> IVF_PARALLEL_SCAN_ENABLED = Setting.boolSetting(
         "search.vectors.ivf.parallel_scan.enabled",
-        true,
+        false,
         Property.NodeScope,
         Property.Dynamic
     );

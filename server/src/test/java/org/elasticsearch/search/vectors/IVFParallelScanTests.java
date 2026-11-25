@@ -67,16 +67,38 @@ public class IVFParallelScanTests extends ESTestCase {
     private static final BitSetProducer PARENTS = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
 
     private static ExecutorService executor;
+    private static int minVectorsToSplit;
 
     @BeforeClass
     public static void startThreads() {
         executor = Executors.newFixedThreadPool(4);
+        minVectorsToSplit = IVFParallelScan.minVectorsToSplit;
+        IVFParallelScan.minVectorsToSplit = 1; // so that the small leaves of these tests can split
     }
 
     @AfterClass
     public static void stopThreads() {
         terminate(executor);
         executor = null;
+        IVFParallelScan.minVectorsToSplit = minVectorsToSplit;
+    }
+
+    public void testALeafUnderAMillionVectorsIsNotSplit() throws IOException {
+        int dims = randomIntBetween(8, 32);
+        try (Directory dir = newDirectory()) {
+            indexLeaves(dir, dims, 20_000);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IVFKnnFloatVectorQuery query = query(randomVector(dims), 10, null, 0.5f);
+                assertTrue(splitsALeaf(reader, query));
+                assertEquals(1_000_000, minVectorsToSplit);
+                IVFParallelScan.minVectorsToSplit = minVectorsToSplit;
+                try {
+                    assertFalse(splitsALeaf(reader, query));
+                } finally {
+                    IVFParallelScan.minVectorsToSplit = 1;
+                }
+            }
+        }
     }
 
     /** Cases are (work per leaf, tasks) -> parts per leaf. Work is in multiples of the least work a part may have. */

@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
@@ -374,6 +375,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);
         } else if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
+        }
+        if (attr instanceof FieldAttribute missing && missing.field() instanceof MissingEsField) {
+            // A field no index has, like the ones of a cast of an unsupported field: it's null, whatever a shard maps under its name.
+            // Normally the optimizer replaces it with a null, but it doesn't in every plan.
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         UnionTypeEsField unionTypes = findUnionTypes(attr);

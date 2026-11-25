@@ -109,11 +109,20 @@ public class LenientUnionCastAnalyzerTests extends AnalyzerTestCase {
         );
     }
 
+    /**
+     * The same unsupported type in every index is not a union: it's a field of an unsupported type, which a cast makes null (see
+     * {@link LenientUnsupportedCastAnalyzerTests}) when every node supports it, and which fails as it always did otherwise.
+     */
     public void testEveryTypeUnsupported() {
-        analyzerWithUnion("rank_feature", "rank_feature").error(
-            "FROM foo, bar | EVAL x = value::keyword | LIMIT 1",
-            containsString("Cannot use field [value] with unsupported type [rank_feature]")
-        );
+        TestAnalyzer analyzer = analyzerWithUnion("rank_feature", "rank_feature");
+        String query = "FROM foo, bar | EVAL x = value::keyword | LIMIT 1";
+        if (lenient() == false) {
+            analyzer.error(query, containsString("Cannot use field [value] with unsupported type [rank_feature]"));
+            return;
+        }
+        LogicalPlan plan = analyzer.query(query);
+        assertTrue(plan.resolved());
+        assertWarnings("[value] of type [rank_feature] cannot be converted to [KEYWORD] and will be null.");
     }
 
     /**

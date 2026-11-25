@@ -10,16 +10,9 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
-import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.hamcrest.Matcher;
-
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -192,22 +185,6 @@ public class LenientCastAnalyzerTests extends AnalyzerTestCase {
         analyzer.query("ROW x = null::ip | LIMIT 1");
         analyzer.query("FROM test | EVAL x = first_name::ip | KEEP x | LIMIT 1");
         analyzer.query("FROM test | EVAL x = salary::long | KEEP x | LIMIT 1");
-    }
-
-    /**
-     * Fields of an unsupported type are not an input type the cast can be lenient about. Fields mapped to several types are covered by
-     * {@link LenientUnionCastAnalyzerTests}.
-     */
-    public void testUnsupportedFieldsStayStrict() {
-        EsField unsupported = new UnsupportedEsField("unsupported", List.of("flattened"));
-        TestAnalyzer analyzer = analyzer().addIndex(
-            "test*",
-            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("unsupported", unsupported)))
-        ).stripErrorPrefix(true);
-        analyzer.error(
-            "FROM test* | EVAL x = unsupported::long | LIMIT 1",
-            containsString("Cannot use field [unsupported] with unsupported type [flattened]")
-        );
     }
 
     /**

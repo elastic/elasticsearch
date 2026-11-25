@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -86,8 +87,13 @@ public class LuceneDirectoryBytesReadOperatorTests extends ComputeTestCase {
             assertThat(operatorBytes, greaterThan(0L));
 
             long planningBytes = 12_345L;
-            DriverCompletionInfo withPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), planningBytes, false);
-            DriverCompletionInfo withoutPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
+            DriverCompletionInfo withPlanning = DriverCompletionInfo.excludingProfiles(
+                List.of(driver),
+                planningBytes,
+                new QueryLoad(),
+                false
+            );
+            DriverCompletionInfo withoutPlanning = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, new QueryLoad(), false);
 
             assertThat(withPlanning.bytesRead(), equalTo(planningBytes + operatorBytes));
             assertThat(withoutPlanning.bytesRead(), equalTo(operatorBytes));

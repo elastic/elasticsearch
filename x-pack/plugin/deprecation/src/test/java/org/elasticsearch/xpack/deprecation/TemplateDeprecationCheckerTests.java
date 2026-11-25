@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
@@ -125,6 +127,68 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
         assertThat(issuesByComponentTemplate.get("my-template-1"), hasItem(expected));
         assertThat(issuesByComponentTemplate.get("my-template-2"), hasItem(expected));
         assertThat(issuesByComponentTemplate.containsKey("my-template-3"), is(false));
+    }
+
+    public void testCheckMinHashParamBounds() {
+        // Template settings are stored with the "index." prefix.
+        Template big = Template.builder()
+            .settings(
+                Settings.builder()
+                    .put("index.analysis.filter.big.type", "min_hash")
+                    .put("index.analysis.filter.big.hash_count", 1)
+                    .put("index.analysis.filter.big.bucket_count", 512)
+                    .put("index.analysis.filter.big.hash_set_size", 200)
+                    .put("index.analysis.filter.small.type", "min_hash")
+                    .put("index.analysis.filter.small.hash_set_size", 20)
+                    .put("index.analysis.filter.other.type", "lowercase")
+            )
+            .build();
+        Template small = Template.builder()
+            .settings(
+                Settings.builder().put("index.analysis.filter.small.type", "min_hash").put("index.analysis.filter.small.hash_set_size", 20)
+            )
+            .build();
+
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .componentTemplates(
+                Map.of(
+                    "big-component",
+                    new ComponentTemplate(big, 1L, new HashMap<>()),
+                    "small-component",
+                    new ComponentTemplate(small, 1L, new HashMap<>())
+                )
+            )
+            .indexTemplates(
+                Map.of(
+                    "big-index",
+                    ComposableIndexTemplate.builder().template(big).indexPatterns(List.of(randomAlphaOfLength(10))).build(),
+                    "small-index",
+                    ComposableIndexTemplate.builder().template(small).indexPatterns(List.of(randomAlphaOfLength(10))).build()
+                )
+            )
+            .build();
+
+        Function<String, DeprecationIssue> expectedIssue = templateKind -> new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "min_hash token filter parameters exceed the limits for new indices",
+            "https://www.elastic.co/docs/reference/text-analysis/analysis-minhash-tokenfilter",
+            "The following [min_hash] filters in this "
+                + templateKind
+                + " can't be used on new indices: [big]: The product of hash_count [1], bucket_count [512], and hash_set_size [200] "
+                + "is [102400], which exceeds the limit [100000]. Creating an index from this "
+                + templateKind
+                + " fails. Lower hash_count, bucket_count, or hash_set_size in the template; "
+                + "note that this changes the hashes the filter produces.",
+            false,
+            null
+        );
+
+        // Only the filter that exceeds the bounds is reported, not one within them or a filter of another type.
+        Map<String, List<DeprecationIssue>> issues = checker.check(project);
+        assertThat(issues.get("big-component"), contains(expectedIssue.apply("component template")));
+        assertThat(issues.get("big-index"), contains(expectedIssue.apply("index template")));
+        assertThat(issues.containsKey("small-component"), is(false));
+        assertThat(issues.containsKey("small-index"), is(false));
     }
 
     public void testComponentAndComposableTemplateWithSameName() {

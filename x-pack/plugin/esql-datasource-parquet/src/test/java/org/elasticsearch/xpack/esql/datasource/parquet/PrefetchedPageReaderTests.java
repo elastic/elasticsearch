@@ -31,6 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -63,6 +64,66 @@ public class PrefetchedPageReaderTests extends ESTestCase {
 
     public void testReadsV1PageGzip() throws IOException {
         assertV1RoundTripDecompresses(CompressionCodecName.GZIP);
+    }
+
+    public void testReadsMultipleGzipV1PagesOnOneReader() throws IOException {
+        int pages = between(2, 5);
+        BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.GZIP);
+        byte[][] payloads = new byte[pages][];
+        ArrayList<PrefetchedPageReader.CompressedPage> compressedPages = new ArrayList<>(pages);
+        int totalValues = 0;
+        for (int i = 0; i < pages; i++) {
+            payloads[i] = randomBytesOfLength(between(64, 4096));
+            BytesInput compressed = compressor.compress(BytesInput.from(payloads[i]));
+            DataPageV1 v1 = new DataPageV1(
+                BytesInput.from(compressed.toByteArray()),
+                10,
+                payloads[i].length,
+                intStats(),
+                Encoding.RLE,
+                Encoding.RLE,
+                Encoding.PLAIN
+            );
+            compressedPages.add(new PrefetchedPageReader.CompressedPage(v1, -1L));
+            totalValues += 10;
+        }
+        try (
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(CompressionCodecName.GZIP),
+                breaker,
+                compressedPages,
+                null,
+                totalValues
+            )
+        ) {
+            for (int i = 0; i < pages; i++) {
+                DataPageV1 out = (DataPageV1) reader.readPage();
+                assertThat(out, notNullValue());
+                assertThat(out.getBytes().toByteArray(), equalTo(payloads[i]));
+            }
+            assertThat(reader.readPage(), nullValue());
+        }
+    }
+
+    public void testGzipDictionaryPageStillDecompresses() throws IOException {
+        byte[] payload = randomBytesOfLength(48);
+        BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.GZIP);
+        BytesInput compressed = compressor.compress(BytesInput.from(payload));
+        DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(compressed.toByteArray()), payload.length, 4, Encoding.PLAIN);
+        try (
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(CompressionCodecName.GZIP),
+                breaker,
+                List.of(),
+                compressedDict,
+                0
+            )
+        ) {
+            DictionaryPage first = reader.readDictionaryPage();
+            DictionaryPage second = reader.readDictionaryPage();
+            assertSame(first, second);
+            assertThat(first.getBytes().toByteArray(), equalTo(payload));
+        }
     }
 
     public void testReadsV1PageZstd() throws IOException {

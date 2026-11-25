@@ -27,6 +27,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.Inflater;
 
 /**
  * {@link PageReader} backed by an in-memory queue of compressed {@link DataPage}s plus an
@@ -58,6 +59,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * that race cannot silently skew the breaker. {@link #reusableDecompBuf} is {@code volatile}
  * so a close that nulls the dest is visible to a concurrent read; the read path snapshots
  * the array into a local and does not re-read the field after {@code decompressInto}.
+ * GZIP data pages reuse one {@code Inflater(true)} for the life of the reader;
+ * {@link Inflater#end()} runs after the {@link #closed} CAS. {@code end()} during a racing
+ * {@code inflate()} is unsafe — the inflate path must not use the inflater after close,
+ * the same race class as the dest-buffer close.
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
 
@@ -97,6 +102,11 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ParquetDecodeBudget decodeBudget;
     private final CompressionCodecName codecName;
+    /**
+     * Reused raw inflater for GZIP data pages. Null for every other codec. Ended in {@link #close()}
+     * after the {@code closed} CAS; not used after close (same race as {@link #reusableDecompBuf}).
+     */
+    private final Inflater gzipInflater;
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
@@ -142,6 +152,12 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             throw t;
         }
         this.compressedDictionaryPage = dictionaryCopy;
+        try {
+            this.gzipInflater = decompressor instanceof PlainCompressionCodecFactory.GzipBytesDecompressor ? new Inflater(true) : null;
+        } catch (Throwable t) {
+            releaseCharge(dictionaryCopyCharge);
+            throw t;
+        }
     }
 
     private DictionaryPage copyDictionaryPage(DictionaryPage dictionaryPage) {
@@ -392,9 +408,21 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             }
             return compressed;
         }
-        if (heapDest != null) {
+        if (gzipInflater != null || heapDest != null) {
             byte[] dest = ensureDecompCapacity(decompressedSize);
-            heapDest.decompressInto(compressed, dest, decompressedSize);
+            if (gzipInflater != null) {
+                try {
+                    GzipPageInflater.inflate(gzipInflater, compressed, dest, decompressedSize);
+                } catch (IllegalStateException e) {
+                    if (closed.get()) {
+                        dropReusableDest();
+                        throw new ParquetDecodingException("PrefetchedPageReader closed", e);
+                    }
+                    throw e;
+                }
+            } else {
+                heapDest.decompressInto(compressed, dest, decompressedSize);
+            }
             BytesInput decompressed = BytesInput.from(dest, 0, decompressedSize);
             if (closed.get()) {
                 dropReusableDest();
@@ -425,6 +453,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     private byte[] ensureDecompCapacity(int needed) {
         byte[] buf = reusableDecompBuf;
         if (buf != null && buf.length >= needed) {
+            if (closed.get()) {
+                throw new ParquetDecodingException("PrefetchedPageReader closed");
+            }
             return buf;
         }
         // Charge the new size on top of any live old charge so breaker tracks peak heap while
@@ -480,12 +511,18 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         if (closed.compareAndSet(false, true) == false) {
             return;
         }
-        // Drop the cached dictionary page reference. It is heap-backed (see readDictionaryPage),
-        // so this is reference hygiene plus breaker release, not a native-buffer lifetime.
-        cachedDictionaryPage = null;
-        compressedDictionaryPage = null;
-        releaseCharge(dictionaryCopyCharge);
-        dropReusableDest();
-        releaseCharge(dictCharge);
+        try {
+            if (gzipInflater != null) {
+                gzipInflater.end();
+            }
+        } finally {
+            // Drop the cached dictionary page reference. It is heap-backed (see readDictionaryPage),
+            // so this is reference hygiene plus breaker release, not a native-buffer lifetime.
+            cachedDictionaryPage = null;
+            compressedDictionaryPage = null;
+            releaseCharge(dictionaryCopyCharge);
+            dropReusableDest();
+            releaseCharge(dictCharge);
+        }
     }
 }

@@ -22,7 +22,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -76,7 +78,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.both;
@@ -1521,18 +1522,13 @@ public class DriverTests extends ESTestCase {
         }
     }
 
-    /** A driver that fails right after waking from a blocked operator must close its sleep, not report it as still going. */
+    /** A driver that fails while asleep must close its sleep, not report it as still going. */
     public void testDriverFailingWhileBlockedClosesItsSleep() {
         DriverContext driverContext = driverContext();
         SubscribableListener<Void> blocked = new SubscribableListener<>();
-        AtomicReference<RuntimeException> operatorFailure = new AtomicReference<>();
         UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
             @Override
             public Page getOutput() {
-                RuntimeException failure = operatorFailure.get();
-                if (failure != null) {
-                    throw failure;
-                }
                 return null;
             }
 
@@ -1553,14 +1549,27 @@ public class DriverTests extends ESTestCase {
             new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
         );
         ThreadPool threadPool = threadPool();
+        DriverExecutor rejectingWakeups = new DriverExecutor() {
+            @Override
+            public void execute(Runnable task) {
+                threadPool.executor("esql").execute(task);
+            }
+
+            @Override
+            public void executeResumed(AbstractRunnable task) {
+                task.onRejection(new EsRejectedExecutionException("wakeup rejected"));
+            }
+        };
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            Driver.start(threadPool.getThreadContext(), rejectingWakeups, driver, between(1, 1000), future);
             assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC)));
-            operatorFailure.set(new IllegalStateException("blocked failed"));
             blocked.onResponse(null);
-            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-            assertThat(failure.getMessage(), equalTo("blocked failed"));
+            EsRejectedExecutionException failure = expectThrows(
+                EsRejectedExecutionException.class,
+                () -> future.actionGet(30, TimeUnit.SECONDS)
+            );
+            assertThat(failure.getMessage(), equalTo("wakeup rejected"));
             assertFinishedWithUsage(driver, 3, 0, 0);
             DriverSleeps.Sleep sleep = driver.status().sleeps().last().get(0);
             assertThat(sleep.reason(), equalTo("test blocked"));

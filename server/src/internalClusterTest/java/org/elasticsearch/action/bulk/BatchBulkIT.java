@@ -1737,7 +1737,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         ensureGreen(index);
 
         int numDocs = randomIntBetween(20, 100);
-        int numDocsWithExtraField = 0;
+        Set<String> idsWithExtraField = new LinkedHashSet<>();
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> source = new LinkedHashMap<>();
@@ -1745,14 +1745,37 @@ public class BatchBulkIT extends ESIntegTestCase {
             source.put("host", "host-" + (i % 5));
             if (i % 2 == 0) {
                 source.put("extra_field", i);
-                numDocsWithExtraField++;
+                idsWithExtraField.add("doc-" + i);
             }
             bulkRequest.add(new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.CREATE).source(source));
         }
 
-        BulkResponse bulkResponse = client(findCoordinatingNode()).bulk(bulkRequest).actionGet();
-        assertNoFailures(bulkResponse);
-        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        // Record whether the coordinating node sent the shard a batch, so that the fallback is not tested against inline bulk items.
+        Set<String> indicesWithBatch = ConcurrentCollections.newConcurrentSet();
+        Set<String> indicesWithoutBatch = ConcurrentCollections.newConcurrentSet();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
+                    // the primary action receives the request wrapped for its target allocation id
+                    BulkShardRequest shardRequest = (BulkShardRequest) ((TransportReplicationAction.ConcreteShardRequest<?>) request)
+                        .getRequest();
+                    (shardRequest.getBulkShardBatch() != null ? indicesWithBatch : indicesWithoutBatch).add(
+                        shardRequest.shardId().getIndexName()
+                    );
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        try {
+            BulkResponse bulkResponse = client(findCoordinatingNode()).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+        assertThat(indicesWithBatch, equalTo(Set.of(index)));
+        assertThat(indicesWithoutBatch, equalTo(Set.of()));
 
         refresh(index);
 
@@ -1762,21 +1785,19 @@ public class BatchBulkIT extends ESIntegTestCase {
         });
 
         // Only the documents that carried a field beyond the limit are reported in _ignored.
-        final long expectedIgnored = numDocsWithExtraField;
-        assertResponse(
-            prepareSearch(index).setQuery(QueryBuilders.existsQuery("_ignored")).setSize(0).setTrackTotalHits(true),
-            searchResponse -> {
+        for (QueryBuilder ignoredQuery : List.of(
+            QueryBuilders.existsQuery("_ignored"),
+            QueryBuilders.termQuery("_ignored", "extra_field")
+        )) {
+            assertResponse(prepareSearch(index).setQuery(ignoredQuery).setSize(numDocs).setTrackTotalHits(true), searchResponse -> {
                 assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(expectedIgnored));
-            }
-        );
-        assertResponse(
-            prepareSearch(index).setQuery(QueryBuilders.termQuery("_ignored", "extra_field")).setSize(0).setTrackTotalHits(true),
-            searchResponse -> {
-                assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(expectedIgnored));
-            }
-        );
+                Set<String> ignoredIds = new LinkedHashSet<>();
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    ignoredIds.add(hit.getId());
+                }
+                assertThat(ignoredIds, equalTo(idsWithExtraField));
+            });
+        }
 
         // Columnar modes rebuild _source from doc values, so the dropped values are lost.
         assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs), searchResponse -> {

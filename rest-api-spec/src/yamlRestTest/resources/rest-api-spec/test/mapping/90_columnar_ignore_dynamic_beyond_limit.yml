@@ -73,6 +73,7 @@ setup:
         index: test_columnar_beyond_limit
   - is_false: test_columnar_beyond_limit.mappings.properties.beyond_limit
   - is_false: test_columnar_beyond_limit.mappings.properties.beyond_object
+  - is_false: test_columnar_beyond_limit.mappings.properties.beyond_object\.nested
 
 ---
 "columnar: dynamic field beyond the limit is rejected by default":

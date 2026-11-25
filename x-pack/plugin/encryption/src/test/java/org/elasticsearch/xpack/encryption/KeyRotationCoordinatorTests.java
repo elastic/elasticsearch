@@ -122,6 +122,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         return ClusterState.builder(CLUSTER_NAME)
             .metadata(Metadata.builder().put(project.build()).build())
             .nodes(nodes(isLocalMaster))
+            .putCompatibilityVersions("local", TransportVersion.current(), Map.of())
+            .putCompatibilityVersions("other", TransportVersion.current(), Map.of())
             .build();
     }
 
@@ -295,7 +297,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         assertNull(submitted("install-project-encryption-key", KeyRotationCoordinator.InstallKeyTask.class).readyNodeIds());
     }
 
-    /** Only the elected master reports the nodes it waits for, even if a check completed after it stepped down. */
+    /** A node that is no longer the elected master reports no nodes, although its last check named some. */
     public void testNodesWithoutPasswordEmptyOnceNoLongerMaster() {
         installWaitingForOther();
 
@@ -414,8 +416,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * A node on a version without the readiness check isn't asked, since a node that receives an unknown action fails an assertion. The
-     * master names it and waits for it to be upgraded.
+     * While a node is on a version without the readiness check, no node is asked, since a node that receives an unknown action fails an
+     * assertion. The master warns once and waits for the upgrade.
      */
     public void testInstallWaitsForNodesOnOlderVersionsWithoutAskingThem() {
         ClusterState state = ClusterState.builder(clusterStateWith(null, true))
@@ -431,10 +433,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),
             KeyRotationCoordinator.class,
             new MockLog.SeenEventExpectation(
-                "names the node",
+                "warns about the upgrade",
                 KeyRotationCoordinator.class.getName(),
                 Level.WARN,
-                "project encryption key not installed yet: nodes [other] are on a version that can't report whether they can persist it*"
+                "project encryption key not installed yet: some nodes are on a version that can't report whether they can persist it*"
             )
         );
         MockLog.assertThatLogger(

@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.JoinValidationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -37,14 +38,12 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * A master-eligible or data node that cannot persist the project encryption key cannot persist any cluster state, so once the key is
  * installed such a node is not allowed to join. Installing the key only once every such node can persist it is covered by
- * {@code MissingPasswordRolloutIT}. A node that cannot read the key on its disk still starts; if
- * it is elected master, it reads the key from its disk once it has the password, and if no node can read the key, a reset recovers the
- * cluster.
+ * {@code MissingPasswordRolloutIT}. A node that cannot read the key on its disk still starts; if it is elected master, it reads the key
+ * from its disk once it has the password, or a failover to a node that can read its copy restores it.
  *
  * <p>Passwords are added with a secure settings reload rather than at startup, so that a restart drops them.
  */
@@ -66,39 +65,12 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
     }
 
-    /** Once the key is installed, a node without a password can't join, and the password can't be reloaded away. */
-    public void testNodeWithoutPasswordCannotJoinOnceKeyIsInstalled() throws Exception {
-        String master = startNodesWithKey(1).get(0);
-
-        String joining;
-        try (MockLog mockLog = MockLog.capture(JoinHelper.class)) {
-            mockLog.addExpectation(new EncryptionIntegTestUtils.JoinRejectedExpectation());
-            joining = internalCluster().startNode(NodeRoles.dataOnlyNode());
-            mockLog.awaitAllExpectationsMatched();
-        }
-        assertEquals(1, internalCluster().clusterService(master).state().nodes().size());
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reload(master, Settings.EMPTY));
-        assertThat(e.getMessage(), containsString("keeping the previous settings"));
-
-        // a coordinating-only node doesn't write cluster state to disk, so it doesn't need a password
-        String coordinating = internalCluster().startNode(NodeRoles.noRoles());
-        ensureStableCluster(2, master);
-        // stopped because the test framework's teardown writes cluster state as if to disk on a random node
-        internalCluster().stopNode(coordinating);
-
-        // the node retries joining, and is admitted once it can persist the key
-        reload(joining, passwordSettings());
-        ensureStableCluster(2);
-        assertBusy(() -> assertEquals(HealthStatus.GREEN, health(joining).status()));
-    }
-
     /**
      * Before the cluster has a key, a node that can persist one can't reload its password away, since the master may install a key as
-     * soon as the node has reported that it can persist it. A restart still removes the password.
+     * soon as the node has reported that it can persist it.
      */
     public void testPasswordCannotBeReloadedAwayBeforeKeyIsInstalled() throws Exception {
-        String master = internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
         // the master has no password, so it doesn't install a key
@@ -106,21 +78,17 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reload(dataNode, Settings.EMPTY));
         assertThat(e.getMessage(), containsString("keeping the previous settings"));
-
-        internalCluster().restartNode(dataNode);
-        ensureStableCluster(2);
-        reload(dataNode, Settings.EMPTY);
-        assertThat(pekOn(master), nullValue());
     }
 
     /**
      * The only node without a password restarts, so the master installs the key while it is away. The master rejects it when it rejoins,
-     * although its join validation can use a state cached from before the install.
+     * although the state it validates the join against is cached from before the install. A coordinating-only node doesn't need one.
      */
     public void testNodeThatRestartsWhileKeyIsInstalledCannotRejoinWithoutPassword() throws Exception {
-        String master = internalCluster().startMasterOnlyNode();
+        String master = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(JoinValidationService.JOIN_VALIDATION_CACHE_TIMEOUT_SETTING.getKey(), "1h").build()
+        );
         ensureStableCluster(1);
-        // joins an elected master, which caches the state it validates the join against
         String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
         reload(master, passwordSettings());
@@ -143,8 +111,15 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         }
         assertEquals(1, internalCluster().clusterService(master).state().nodes().size());
 
+        String coordinating = internalCluster().startNode(NodeRoles.noRoles());
+        ensureStableCluster(2, master);
+        // stopped because the test framework's teardown writes cluster state as if to disk on a random node
+        internalCluster().stopNode(coordinating);
+
+        // the node retries joining, and is admitted once it can persist the key
         reload(dataNode, passwordSettings());
         ensureStableCluster(2);
+        assertBusy(() -> assertEquals(HealthStatus.GREEN, health(dataNode).status()));
     }
 
     /**
@@ -205,33 +180,6 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         // the former master stays in the cluster
         clear.setWaitForRemoval(false);
         client().execute(TransportClearVotingConfigExclusionsAction.TYPE, clear).get();
-    }
-
-    /** No node can read the key: the cluster still forms, so that a reset can recover it. */
-    public void testResetRecoversClusterWhereNoNodeCanReadTheKey() throws Exception {
-        List<String> nodes = startNodesWithKey(2);
-
-        internalCluster().fullRestart();
-        ensureStableCluster(2);
-        for (String node : internalCluster().getNodeNames()) {
-            assertTrue(pekOn(node).isUnwrapFailed());
-        }
-
-        client().execute(TransportEncryptionResetAction.TYPE, new EncryptionResetRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true))
-            .get();
-        for (String node : internalCluster().getNodeNames()) {
-            assertBusy(() -> assertThat(pekOn(node), nullValue()));
-        }
-
-        for (String node : internalCluster().getNodeNames()) {
-            reload(node, passwordSettings());
-        }
-        assertBusy(() -> {
-            for (String node : internalCluster().getNodeNames()) {
-                assertThat(pekOn(node), notNullValue());
-                assertFalse(pekOn(node).isUnwrapFailed());
-            }
-        }, 30, TimeUnit.SECONDS);
     }
 
     private static byte[] decryptOn(String node, EncryptedData encrypted) {

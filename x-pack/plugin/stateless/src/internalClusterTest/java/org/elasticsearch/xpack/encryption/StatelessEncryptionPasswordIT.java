@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.encryption;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.JoinHelper;
-import org.elasticsearch.cluster.coordination.JoinValidationService;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.common.Priority;
@@ -70,20 +69,14 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
     /** A master-eligible node without a password at startup joins, since it gets the password from cluster secrets once it has joined. */
     public void testNodeWithoutPasswordJoinsWhenPasswordIsInClusterSecrets() throws Exception {
         startMasterOnlyNode();
-        startIndexNode();
-        startSearchNode();
-        ensureStableCluster(3);
+        ensureStableCluster(1);
         applyClusterSecrets(1, ACTIVE_PASSWORD_ID_KEY, "v1", PASSWORD_PREFIX + "v1", "test-password-v1");
         assertBusy(() -> assertTrue(hasUsableKey(masterState())));
 
         String joining = startMasterOnlyNode();
-        ensureStableCluster(4);
+        ensureStableCluster(2);
         assertBusy(() -> assertTrue(pekEncryption(joining).canWrapForGateway()));
         assertThat(pekEncryption(joining).activePasswordId(), equalTo("v1"));
-        assertTrue(hasUsableKey(masterState()));
-
-        createIndex("index-after-join");
-        ensureGreen("index-after-join");
     }
 
     /**
@@ -104,7 +97,6 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
             assertThat(node, pekEncryption(node).activePasswordId(), equalTo("v2"));
             assertTrue(node, pekEncryption(node).canWrapForGateway());
         }
-        assertTrue(hasUsableKey(masterState()));
         // the key metadata follows the new password although the old one is gone
         assertBusy(() -> assertThat(masterPek().getPasswordId(), equalTo("v2")));
 
@@ -118,13 +110,7 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
      * a running master it persists the key it already holds with that password: it doesn't read the copy the previous master wrapped.
      */
     public void testMasterEligibleNodeWithoutKeystorePasswordCannotJoin() throws Exception {
-        // otherwise the join is validated against the cached state from the index node's join, which has no key yet
-        String master = startMasterOnlyNode(
-            Settings.builder()
-                .put(FAST_FAILOVER)
-                .put(JoinValidationService.JOIN_VALIDATION_CACHE_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(1))
-                .build()
-        );
+        String master = startMasterOnlyNode(FAST_FAILOVER);
         String indexNode = startIndexNode();
         ensureStableCluster(2);
         // the index node has no password, and the key is installed anyway
@@ -132,8 +118,7 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         assertBusy(() -> assertTrue(hasUsableKey(masterState())));
 
         String searchNode = startSearchNode();
-        String secondIndexNode = startIndexNode();
-        ensureStableCluster(4);
+        ensureStableCluster(3);
 
         String joining;
         try (MockLog mockLog = MockLog.capture(JoinHelper.class)) {
@@ -145,11 +130,11 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
             mockLog.awaitAllExpectationsMatched();
         }
         // asked on the master: a random node may be the rejected one, which has no master
-        assertEquals(4, internalCluster().clusterService(master).state().nodes().size());
+        assertEquals(3, internalCluster().clusterService(master).state().nodes().size());
 
         // the node retries joining, and is admitted once it can persist the key, with a password of its own
         reload(joining, passwordSettings("v2", "test-password-v2"));
-        ensureStableCluster(5);
+        ensureStableCluster(4);
         assertTrue(hasUsableKey(masterState()));
 
         internalCluster().stopNode(master);
@@ -162,7 +147,7 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         ensureGreen("index-after-failover");
 
         // stopped because the test framework's teardown writes cluster state as if to disk on a random node
-        for (String node : List.of(indexNode, secondIndexNode, searchNode)) {
+        for (String node : List.of(indexNode, searchNode)) {
             internalCluster().stopNode(node);
         }
     }

@@ -143,6 +143,8 @@ public class DiscoveryModule extends AbstractModule {
                 }
             });
         }
+        // fails at startup, not on every join, if two plugins set the same join attribute
+        collectJoinAttributes(clusterCoordinationPlugins);
 
         List<String> seedProviderNames = DISCOVERY_SEED_PROVIDERS_SETTING.get(settings);
         // for bwc purposes, add settings provider even if not explicitly specified

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
@@ -71,7 +72,7 @@ public class EncryptionPlugin extends Plugin
     private final boolean stateless;
     private final boolean persistsClusterState;
     private volatile Settings pekSettings;
-    // cached for join requests, which are sent under the coordinator's mutex, since checking derives a key
+    // cached so join requests, sent under the coordinator's mutex, never wait for a key derivation
     private volatile boolean canPersistKey;
 
     private final PasswordPekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
@@ -208,16 +209,21 @@ public class EncryptionPlugin extends Plugin
         }
         String wrapFailure = pekEncryption.wrapForGatewayFailure();
         if (wrapFailure != null) {
-            throw new IllegalStateException(
-                "this node cannot join the cluster: the cluster uses a cluster state encryption key and this node cannot persist it ("
-                    + wrapFailure
-                    + "). Configure ["
-                    + ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
-                    + "] and the matching ["
-                    + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
-                    + "<id>] secure setting in this node's keystore, then restart it or reload its secure settings"
-            );
+            throw cannotJoin("this node", " (" + wrapFailure + ")");
         }
+    }
+
+    private static IllegalStateException cannotJoin(String node, String reason) {
+        return new IllegalStateException(
+            node
+                + " cannot join the cluster: the cluster uses a cluster state encryption key and the node cannot persist it"
+                + reason
+                + ". Configure ["
+                + ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
+                + "] and the matching ["
+                + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+                + "<id>] secure setting in its keystore, then restart it or reload its secure settings"
+        );
     }
 
     /** Reports whether this node can persist the key with each join request, for {@link #getJoinAttributesValidator()} on the master. */
@@ -239,18 +245,10 @@ public class EncryptionPlugin extends Plugin
     private void rejectJoiningNodeThatCannotPersistKey(DiscoveryNode node, Map<String, String> joinAttributes, ClusterState state) {
         // nodes on older versions don't report it
         String canPersist = joinAttributes.get(CAN_PERSIST_KEY_JOIN_ATTRIBUTE);
-        if (canPersist == null || Boolean.parseBoolean(canPersist) || requiresNodesToPersistKey(state) == false) {
+        if (canPersist == null || Booleans.parseBoolean(canPersist) || requiresNodesToPersistKey(state) == false) {
             return;
         }
-        throw new IllegalStateException(
-            "node ["
-                + node.getName()
-                + "] cannot join the cluster: the cluster uses a cluster state encryption key and the node cannot persist it. Configure ["
-                + ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
-                + "] and the matching ["
-                + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
-                + "<id>] secure setting in that node's keystore, then restart it or reload its secure settings"
-        );
+        throw cannotJoin("node [" + node.getName() + "]", "");
     }
 
     /**

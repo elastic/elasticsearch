@@ -431,7 +431,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     }
 
     public void testDegradedTransportCarriesNoCiphertextAndPeerWithoutBlobWritesEmpty() throws IOException {
-        // Ciphertext must not travel over transport — each peer uses its own node-local holder.
+        // Ciphertext must not travel over transport — each peer uses its own copy on disk.
         byte[] keyBytes = randomPlaintextBytes();
         ProjectEncryptionKeyMetadata healthy = new ProjectEncryptionKeyMetadata(
             Map.of("k1", new KeyEntry(keyBytes, 42L)),
@@ -471,7 +471,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         }
         assertTrue(degraded.isUnwrapFailed());
 
-        // Publish to a peer that has never read a local disk blob (empty holder).
+        // Publish to a peer with no copy on disk.
         ProjectEncryptionKeyMetadata received = receivedFromMaster(degraded, TestPekEncryption.onNode(wrongPassword, new GatewayKeys()));
         assertTrue("degraded flag must survive transport round-trip", received.isUnwrapFailed());
 

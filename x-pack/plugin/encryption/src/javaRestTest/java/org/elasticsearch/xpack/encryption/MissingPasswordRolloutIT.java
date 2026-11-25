@@ -105,7 +105,9 @@ public class MissingPasswordRolloutIT extends ESRestTestCase {
             }
         }, 60, TimeUnit.SECONDS);
         // every node persists cluster state with the key, so it acknowledges updates
-        updatePersistentSetting("52mb");
+        Request updateSetting = new Request("PUT", "/_cluster/settings");
+        updateSetting.setJsonEntity("{\"persistent\":{\"indices.recovery.max_bytes_per_sec\":\"52mb\"}}");
+        assertEquals(true, ObjectPath.createFromResponse(client().performRequest(updateSetting)).evaluate("acknowledged"));
     }
 
     private void addPassword(MutableSettingsProvider keystore, int... nodes) throws IOException {
@@ -120,12 +122,6 @@ public class MissingPasswordRolloutIT extends ESRestTestCase {
                 nodeClient.performRequest(reload);
             }
         }
-    }
-
-    private static void updatePersistentSetting(String value) throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("{\"persistent\":{\"indices.recovery.max_bytes_per_sec\":\"" + value + "\"}}");
-        assertEquals(true, ObjectPath.createFromResponse(client().performRequest(request)).evaluate("acknowledged"));
     }
 
     /** The indicator as computed by node {@code node}, which the health API does locally. */

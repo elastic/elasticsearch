@@ -683,7 +683,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     Map.of("test.can_join", "false"),
                     ActionListener.wrap(o -> fail("should have failed"), e -> assertThat(e.getMessage(), containsString("cannot join")))
                 ),
-                // a node already in the cluster was checked when it joined
                 joinTask(existingNode, Map.of("test.can_join", "false"), NO_FAILURE_LISTENER)
             )
         );
@@ -692,6 +691,58 @@ public class NodeJoinExecutorTests extends ESTestCase {
         assertTrue(resultingState.nodes().nodeExists(acceptedNode));
         assertFalse(resultingState.nodes().nodeExists(rejectedNode));
         assertTrue(resultingState.nodes().nodeExists(existingNode));
+    }
+
+    /** A new master builds its first state from its latest accepted state, and validates joins against that one. */
+    public void testJoinAttributesValidatorChecksElectionJoinsAgainstTheLatestAcceptedState() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState appliedState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .version(1L)
+            .build();
+        ClusterState acceptedState = ClusterState.builder(appliedState).version(2L).build();
+
+        AtomicReference<ClusterState> validatedState = new AtomicReference<>();
+        NodeJoinExecutor executor = new NodeJoinExecutor(
+            allocationService,
+            rerouteService,
+            createFeatureService(),
+            Function.identity(),
+            List.of((node, joinAttributes, state) -> validatedState.set(state))
+        );
+
+        DiscoveryNode joiningNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            appliedState,
+            executor,
+            List.of(
+                JoinTask.completingElection(
+                    Stream.of(
+                        new JoinTask.NodeJoinTask(
+                            masterNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        ),
+                        new JoinTask.NodeJoinTask(
+                            joiningNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        )
+                    ),
+                    1L
+                ).alsoRefreshState(acceptedState)
+            )
+        );
+
+        assertSame(acceptedState, validatedState.get());
     }
 
     private static JoinTask joinTask(DiscoveryNode node, Map<String, String> joinAttributes, ActionListener<Void> listener) {

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
@@ -72,10 +71,8 @@ import java.util.stream.Stream;
  *   if such a node joined since the check.</li>
  *   <li><b>Persist check retry</b>: while a node can't, the master asks again after {@link #PERSIST_CHECK_INTERVAL}, or right
  *   away when it reloads its secure settings or a node that persists cluster state joins or leaves.</li>
- *   <li><b>Persist check recheck</b>: an install or restore requested while a check is in flight, e.g. by a join, runs once that check
- *   completes.</li>
  *   <li><b>Join condition</b>: once the key is installed, a node that persists cluster state but can't wrap the key can't join
- *   ({@link EncryptionPlugin#getJoinValidator()}).</li>
+ *   ({@link EncryptionPlugin#getJoinAttributesValidator()} on the master, {@link EncryptionPlugin#getJoinValidator()} on the node).</li>
  *   <li><b>Key rotation</b>: once the active key is older than {@link #ROTATION_INTERVAL_SETTING}, a new key becomes active, the
  *   registered {@link EncryptedDataHandler}s re-encrypt their data under it, and keys no longer in use are retired.</li>
  *   <li><b>Password rotation</b>: when the active password id changes, {@link ProjectEncryptionKeyMetadata#getPasswordId()} follows.</li>
@@ -171,24 +168,20 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private volatile Scheduler.Cancellable scheduledTask;
     private volatile boolean closed = false;
     private final AtomicBoolean reEncrypting = new AtomicBoolean(false);
-    // held from the check that every node can persist the key until the install or restore is submitted or, if a node is not ready,
-    // until the retry
+    // held from the persist check until the install or restore is submitted, or until the retry
     private final AtomicBoolean persistCheckInFlight = new AtomicBoolean(false);
     private final AtomicBoolean beginRotationInFlight = new AtomicBoolean(false);
     private final AtomicBoolean passwordIdRotateInFlight = new AtomicBoolean(false);
-    // set by a call that found a check in flight; once that check succeeds, the master reconciles again
+    // set by a call that found a check in flight, to reconcile again once it succeeds
     private final AtomicBoolean persistCheckRecheck = new AtomicBoolean(false);
-    // set while a retry of that check is pending; whichever of the scheduled retry and an early one takes it releases the check
+    // whichever of the scheduled retry and an early one takes it releases the check
     private final AtomicReference<Object> pendingPersistCheckRetry = new AtomicReference<>();
-    // node names in the last "cannot persist it" warning, so it is logged only when they change
+    // the nodes last warned about, so each warning is logged only when they change
     private final AtomicReference<Set<String>> nodesWithoutPEKPassword = new AtomicReference<>();
-    // likewise for the nodes that didn't answer the check
     private final AtomicReference<Set<String>> nodesNotAnswering = new AtomicReference<>();
-    // likewise for the nodes on a version that can't answer it
-    private final AtomicReference<Set<String>> nodesOnOlderVersion = new AtomicReference<>();
-    // one restore attempt per secure settings snapshot while master, since only a reload can make this node's copy readable
+    private final AtomicBoolean waitingForUpgrade = new AtomicBoolean();
+    // one restore attempt per secure settings snapshot, since only a reload can make this node's copy readable
     private final AtomicReference<Settings> lastRestoreAttempt = new AtomicReference<>();
-    // the keys this master unwrapped from its copy on disk, restored once every node that persists cluster state can wrap them
     private final AtomicReference<ProjectEncryptionKeyMetadata> keysToRestore = new AtomicReference<>();
 
     static KeyRotationCoordinator create(
@@ -281,10 +274,24 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         reEncrypting.set(false);
         lastRestoreAttempt.set(null);
         keysToRestore.set(null);
+        clearWaitingWarnings();
+        stopSchedule();
+    }
+
+    private void clearWaitingWarnings() {
         nodesWithoutPEKPassword.set(null);
         nodesNotAnswering.set(null);
-        nodesOnOlderVersion.set(null);
-        stopSchedule();
+        waitingForUpgrade.set(false);
+    }
+
+    /** Records {@code nodes} as the last ones warned about, and returns whether to warn: some are named and they changed. */
+    private static boolean warnAgain(AtomicReference<Set<String>> lastWarned, Set<String> nodes) {
+        Set<String> previous = lastWarned.getAndSet(nodes.isEmpty() ? null : nodes);
+        return nodes.isEmpty() == false && nodes.equals(previous) == false;
+    }
+
+    private static Stream<DiscoveryNode> persistingNodes(ClusterState state, boolean stateless) {
+        return state.nodes().getAllNodes().stream().filter(node -> PasswordPekEncryption.persistsClusterState(node.getRoles(), stateless));
     }
 
     // package-private for testing
@@ -336,15 +343,12 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             }
             return;
         }
-        // Previous failed unwrap of encrypted PEK
         if (metadata.isUnwrapFailed()) {
             scheduleRestore(metadata, state);
             return;
         }
         keysToRestore.set(null);
-        nodesWithoutPEKPassword.set(null);
-        nodesNotAnswering.set(null);
-        nodesOnOlderVersion.set(null);
+        clearWaitingWarnings();
         if (activePasswordId != null && activePasswordId.equals(metadata.getPasswordId()) == false) {
             schedulePasswordIdChange(metadata, activePasswordId);
         }
@@ -546,8 +550,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             threadPool.generic().execute(() -> {
                 String failure = pekEncryption.wrapForGatewayFailure();
                 if (failure != null) {
-                    Set<String> self = Set.of(state.nodes().getLocalNode().getName());
-                    if (self.equals(nodesWithoutPEKPassword.getAndSet(self)) == false) {
+                    if (warnAgain(nodesWithoutPEKPassword, Set.of(state.nodes().getLocalNode().getName()))) {
                         logger.warn("project encryption key not {} yet: the elected master cannot persist it ({})", operation, failure);
                     }
                     return;
@@ -557,37 +560,26 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             });
             return;
         }
-        // If a node joined during the check, the install or restore would be dropped (not all nodes are guaranteed to be able to wrap the
-        // PEK), so check again once this one completes. Set before acquiring, so a holder that releases concurrently still sees it.
+        // the task drops a node that joined during the check, so recheck after it; set before acquiring, so a concurrent release sees it
         persistCheckRecheck.set(true);
         if (persistCheckInFlight.compareAndSet(false, true) == false) {
             return;
         }
         persistCheckRecheck.set(false);
-        List<DiscoveryNode> persisting = state.nodes()
-            .getAllNodes()
-            .stream()
-            .filter(node -> PasswordPekEncryption.persistsClusterState(node.getRoles(), stateless))
-            .toList();
-        // they don't know the action, and a node that receives an unknown action fails an assertion
-        Set<String> olderNodes = persisting.stream()
-            .filter(node -> canAnswerPersistCheck(state, node) == false)
-            .map(DiscoveryNode::getName)
-            .collect(Collectors.toCollection(TreeSet::new));
-        if (olderNodes.isEmpty() == false) {
-            if (olderNodes.equals(nodesOnOlderVersion.getAndSet(olderNodes)) == false) {
+        // nodes on earlier versions don't know the action, and a node that receives an unknown action fails an assertion
+        if (state.getMinTransportVersion().supports(CAN_PERSIST_KEY_CHECK) == false) {
+            if (waitingForUpgrade.getAndSet(true) == false) {
                 logger.warn(
-                    "project encryption key not {} yet: nodes {} are on a version that can't report whether they can persist it."
-                        + " Upgrade them",
-                    operation,
-                    olderNodes
+                    "project encryption key not {} yet: some nodes are on a version that can't report whether they can persist it."
+                        + " Finish upgrading the cluster",
+                    operation
                 );
             }
             schedulePersistCheckRetry();
             return;
         }
-        nodesOnOlderVersion.set(null);
-        DiscoveryNode[] nodes = persisting.toArray(DiscoveryNode[]::new);
+        waitingForUpgrade.set(false);
+        DiscoveryNode[] nodes = persistingNodes(state, stateless).toArray(DiscoveryNode[]::new);
 
         ActionListener<TransportNodesCanPersistKeyAction.Response> listener = ActionListener.wrap(
             response -> onPersistCheckResponse(state, response, operation, onReady),
@@ -618,9 +610,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             schedulePersistCheckRetry();
             return;
         }
-        nodesWithoutPEKPassword.set(null);
-        nodesNotAnswering.set(null);
-        nodesOnOlderVersion.set(null);
+        clearWaitingWarnings();
         try {
             onReady.accept(ready);
         } catch (Exception e) {
@@ -644,8 +634,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             .filter(r -> r.canPersist() == false)
             .map(r -> r.getNode().getName())
             .collect(Collectors.toCollection(TreeSet::new));
-        Set<String> previouslyNotReady = this.nodesWithoutPEKPassword.getAndSet(notReady.isEmpty() ? null : notReady);
-        if (notReady.isEmpty() == false && notReady.equals(previouslyNotReady) == false) {
+        if (warnAgain(nodesWithoutPEKPassword, notReady)) {
             logger.warn(
                 "project encryption key not {} yet: nodes {} cannot persist it. Configure [{}] and the matching [{}<id>]"
                     + " secure setting on these nodes and reload their secure settings",
@@ -659,8 +648,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             DiscoveryNode node = state.nodes().get(f.nodeId());
             return node == null ? f.nodeId() : node.getName();
         }).collect(Collectors.toCollection(TreeSet::new));
-        Set<String> previouslyNotAnswering = nodesNotAnswering.getAndSet(notAnswering.isEmpty() ? null : notAnswering);
-        if (notAnswering.isEmpty() == false && notAnswering.equals(previouslyNotAnswering) == false) {
+        if (warnAgain(nodesNotAnswering, notAnswering)) {
             logger.warn(
                 "project encryption key not {} yet: nodes {} did not report whether they can persist it. Check that they are reachable"
                     + " from the elected master, and see their logs",
@@ -677,21 +665,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
-    /** Returns whether {@code node} is on a version with {@link TransportNodesCanPersistKeyAction}. */
-    static boolean canAnswerPersistCheck(ClusterState state, DiscoveryNode node) {
-        CompatibilityVersions versions = state.compatibilityVersions().get(node.getId());
-        return versions == null || versions.transportVersion().supports(CAN_PERSIST_KEY_CHECK);
-    }
-
     /** Returns whether every node in {@code state} that persists cluster state is among {@code readyNodeIds}, by ephemeral id. */
     static boolean everyPersistingNodeIsReady(ClusterState state, Set<String> readyNodeIds, boolean stateless) {
-        return state.nodes()
-            .getAllNodes()
-            .stream()
-            .noneMatch(
-                node -> PasswordPekEncryption.persistsClusterState(node.getRoles(), stateless)
-                    && readyNodeIds.contains(node.getEphemeralId()) == false
-            );
+        return persistingNodes(state, stateless).allMatch(node -> readyNodeIds.contains(node.getEphemeralId()));
     }
 
     private void releasePersistCheck() {

@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/** Helpers shared by the encryption integration tests here and in the stateless module. */
+/** Helpers shared by the encryption tests here and in the stateless module. */
 public final class EncryptionIntegTestUtils {
 
     private EncryptionIntegTestUtils() {}

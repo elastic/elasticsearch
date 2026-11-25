@@ -149,6 +149,7 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
 
         HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(ProjectEncryptionKeyHealthIndicatorService.MASTER_HAS_NO_KEY, result.symptom());
+        assertEquals(new TreeSet<>(Set.of("node-b")), detailsMap(result).get("nodes_without_password"));
         assertEquals(
             ProjectEncryptionKeyHealthIndicatorService.NODES_WITHOUT_PASSWORD_DEFINITION,
             result.diagnosisList().get(0).definition()

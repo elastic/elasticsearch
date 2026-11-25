@@ -67,14 +67,14 @@ public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
         assertThat(ProjectEncryptionKeyPasswordSettings.getPassword(settings, "v3"), nullValue());
     }
 
-    public void testWrapForDiskFailure() {
+    public void testWrapForGatewayFailure() {
         assertThat(ProjectEncryptionKeyPasswordSettings.wrapForGatewayFailure(Settings.EMPTY), containsString(ACTIVE_ID_KEY));
         assertThat(ProjectEncryptionKeyPasswordSettings.wrapForGatewayFailure(settings("v1", "v2")), containsString(PREFIX + "v1"));
         assertThat(ProjectEncryptionKeyPasswordSettings.wrapForGatewayFailure(settings("v1", "v1")), nullValue());
     }
 
     /** FIPS needs at least 112 bits of password, so a configured password can still be unable to wrap the key. */
-    public void testWrapForDiskFailsForPasswordTooShortForFips() {
+    public void testWrapForGatewayFailsForPasswordTooShortForFips() {
         MockSecureSettings secure = new MockSecureSettings();
         secure.setString(ACTIVE_ID_KEY, "v1");
         secure.setString(PREFIX + "v1", "short");

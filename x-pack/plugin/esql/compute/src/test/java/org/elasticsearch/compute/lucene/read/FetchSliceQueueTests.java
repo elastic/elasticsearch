@@ -16,17 +16,29 @@ import java.util.List;
 
 import static org.elasticsearch.compute.lucene.read.FetchSliceQueue.SLICE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSliceQueueTests extends ESTestCase {
     /**
-     * A long run of a segment goes in slices of {@link FetchSliceQueue#SLICE_DOCS} documents, whether its documents lie next
-     * to each other or far apart.
+     * A run of a segment goes in as few slices of at most {@link FetchSliceQueue#SLICE_DOCS} documents as it can, of sizes
+     * that differ by at most one, so no slice holds a small leftover. Where the documents lie doesn't matter.
      */
-    public void testCutsARunIntoSlicesOfOneSize() {
-        int rest = between(1, SLICE_DOCS - 1);
-        FetchSliceQueue queue = queue(shard(0, run(0, 0, 2 * SLICE_DOCS + rest, between(1, 100))));
-        assertThat(sizes(queue), equalTo(List.of(SLICE_DOCS, SLICE_DOCS, rest)));
+    public void testCutsARunIntoEvenSlices() {
+        assertThat(sizesOfOneRun(SLICE_DOCS), equalTo(List.of(SLICE_DOCS)));
+        assertThat(sizesOfOneRun(SLICE_DOCS + 1), equalTo(List.of(32, 33)));
+        assertThat(sizesOfOneRun(2 * SLICE_DOCS), equalTo(List.of(SLICE_DOCS, SLICE_DOCS)));
+        assertThat(sizesOfOneRun(2 * SLICE_DOCS + 1), equalTo(List.of(43, 43, 43)));
+    }
+
+    public void testCutsARandomRunIntoEvenSlices() {
+        int runDocs = between(1, 20 * SLICE_DOCS);
+        List<Integer> sizes = sizesOfOneRun(runDocs);
+        assertThat(sizes, hasSize(Math.ceilDiv(runDocs, SLICE_DOCS)));
+        assertThat(sizes.stream().mapToInt(Integer::intValue).sum(), equalTo(runDocs));
+        assertThat(Collections.max(sizes), lessThanOrEqualTo(SLICE_DOCS));
+        assertThat(Collections.max(sizes) - Collections.min(sizes), lessThanOrEqualTo(1));
     }
 
     /**
@@ -61,6 +73,7 @@ public class FetchSliceQueueTests extends ESTestCase {
                 requested.add(new int[] { shard.shard(), shard.segments()[d], shard.docs()[d] });
             }
         }
+        assertThat(queue.docCount(), equalTo(requested.size()));
         assertThat(fromSlices.size(), equalTo(requested.size()));
         for (int r = 0; r < requested.size(); r++) {
             assertArrayEquals(requested.get(r), fromSlices.get(r));
@@ -135,6 +148,7 @@ public class FetchSliceQueueTests extends ESTestCase {
     public void testNoDocumentsMakeNoSlices() {
         FetchSliceQueue queue = queue(new FetchDocsSourceOperator.ShardDocs(0, new int[0], new int[0]));
         assertThat(queue.sliceCount(), equalTo(0));
+        assertThat(queue.docCount(), equalTo(0));
         assertThat(queue.nextSlice(null), nullValue());
     }
 
@@ -203,6 +217,13 @@ public class FetchSliceQueueTests extends ESTestCase {
         }
         slices.sort(Comparator.comparingInt(FetchSliceQueue.Slice::position));
         return slices;
+    }
+
+    /**
+     * The sizes of the slices of one run of {@code docs} documents, a random step apart.
+     */
+    private static List<Integer> sizesOfOneRun(int docs) {
+        return sizes(queue(shard(0, run(0, 0, docs, between(1, 100)))));
     }
 
     private static List<Integer> sizes(FetchSliceQueue queue) {

@@ -160,12 +160,12 @@ public class FetchServiceTests extends FetchContextsTestCase {
     public void testLoadsOneShardOnSeveralDrivers() throws Exception {
         List<OpenShard> shards = openEveryShard();
         FetchRequest everyShard = request(shards, allNs());
-        // the shard with the most documents holds more than one slice
+        // the shard with the most documents holds more than one full slice, enough for two drivers
         FetchRequest.ShardDocs largest = everyShard.shards()
             .stream()
             .max(Comparator.comparingInt(FetchRequest.ShardDocs::docCount))
             .orElseThrow();
-        assertThat(slices(List.of(largest)).sliceCount(), greaterThan(1));
+        assertThat(largest.docCount(), greaterThan(FetchSliceQueue.SLICE_DOCS));
         FetchRequest request = withTaskConcurrency(withShards(everyShard, List.of(largest)), 2);
         AllDriversAtOnce executor = new AllDriversAtOnce(2, computeExecutor());
 
@@ -299,8 +299,31 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
+     * A small fetch runs on one driver, even when its documents lie in many segments and so in many slices.
+     */
+    public void testASmallFetchRunsOnOneDriver() throws Exception {
+        List<OpenShard> shards = openEveryShard();
+        // one document of each segment of each shard
+        List<Long> onePerSegment = new ArrayList<>();
+        for (OpenShard shard : shards) {
+            Map<Integer, Long> nBySegment = new HashMap<>();
+            shard.segmentAndDocByN().forEach((n, location) -> nBySegment.putIfAbsent(location[0], n));
+            onePerSegment.addAll(nBySegment.values());
+        }
+        FetchRequest request = withTaskConcurrency(request(shards, onePerSegment), between(2, 16));
+        assertThat(slices(request.shards()).sliceCount(), greaterThan(1));
+        FetchRequest profiled = withConfiguration(request, new ConfigurationBuilder(request.configuration()).profile(true).build());
+
+        try (Fetched fetched = fetch(profiled)) {
+            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
+            assertThat(fetched.info().driverProfiles(), hasSize(1));
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
      * A profiled query gets the profile of every {@code fetch} driver of the request: {@code task_concurrency} drivers,
-     * but never more than slices.
+     * but no more than full slices of documents.
      */
     public void testProfileListsEveryFetchDriver() throws Exception {
         List<OpenShard> shards = openEveryShard();
@@ -310,7 +333,7 @@ public class FetchServiceTests extends FetchContextsTestCase {
 
         try (Fetched fetched = fetch(profiled)) {
             List<DriverProfile> profiles = fetched.info().driverProfiles();
-            assertThat(profiles, hasSize(Math.min(slices(request.shards()).sliceCount(), concurrency)));
+            assertThat(profiles, hasSize(Math.min(Math.ceilDiv(DOCS, FetchSliceQueue.SLICE_DOCS), concurrency)));
             for (DriverProfile profile : profiles) {
                 assertThat(profile.description(), equalTo(FetchService.DESCRIPTION));
             }

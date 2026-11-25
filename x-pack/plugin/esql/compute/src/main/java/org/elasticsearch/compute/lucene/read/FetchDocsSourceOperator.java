@@ -146,12 +146,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
         try {
             shard = blockFactory.newConstantIntVector(slice.shard(), positions);
             segment = blockFactory.newConstantIntVector(slice.segment(), positions);
-            try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positions)) {
-                for (int doc : slice.docs()) {
-                    builder.appendInt(doc);
-                }
-                docs = builder.build();
-            }
+            docs = blockFactory.newIntArrayVector(slice.docs(), positions);
             position = blockFactory.newConstantIntBlockWith(slice.position(), positions);
             // the vector takes one reference on its shard and returns it when the page is released
             DocVector vector = new DocVector(refCounteds, shard, segment, docs, DocVector.config().singleSegmentNonDecreasing(true));

@@ -39,6 +39,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FetchDocsSourceOperatorTests extends ComputeTestCase {
@@ -208,12 +209,12 @@ public class FetchDocsSourceOperatorTests extends ComputeTestCase {
             while (source.isFinished() == false) {
                 Page page = source.getOutput();
                 if (page != null) {
-                    int left = docCount - pages * FetchSliceQueue.SLICE_DOCS;
-                    assertThat(page.getPositionCount(), equalTo(Math.min(FetchSliceQueue.SLICE_DOCS, left)));
+                    assertThat(page.getPositionCount(), lessThanOrEqualTo(FetchSliceQueue.SLICE_DOCS));
                     page.releaseBlocks();
                     pages++;
                 }
             }
+            assertThat(pages, equalTo(Math.ceilDiv(docCount, FetchSliceQueue.SLICE_DOCS)));
             assertThat(pages, equalTo(slices.sliceCount()));
             assertThat(source.status(), equalTo(new FetchDocsSourceOperator.Status(pages, docCount, 1)));
         }

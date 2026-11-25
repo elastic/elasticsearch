@@ -89,8 +89,9 @@ import java.util.stream.IntStream;
  * on the thread that received the request, so the searcher applies the document and field level security of that request.
  * Then it cuts the documents into slices of a {@link FetchSliceQueue}, and at most {@code task_concurrency} drivers take
  * the slices as they go, like the drivers of the query phase take theirs. So the node loads its shards, and the segments
- * of one shard, in parallel. Without the pragma, the processors of this node set that number. The response holds the
- * rows in request order. A request that fails for one shard fails as a whole, like a fetch request of {@code _search}.
+ * of one shard, in parallel. Without the pragma, the processors of this node set that number. A request starts no more
+ * drivers than it has full slices of documents, so a small fetch runs on one driver. The response holds the rows in
+ * request order. A request that fails for one shard fails as a whole, like a fetch request of {@code _search}.
  * <p>
  * The request holds the first reference on the context of each shard, and the pages take their own while they load. It
  * drops its references once the response is sent, because dropping the last reference to a reader can block. Before that
@@ -396,7 +397,7 @@ public final class FetchService {
 
         /**
          * The drivers that load the documents. They share {@code slices} and take them as they go, at most
-         * {@code task_concurrency} drivers, and never more drivers than slices.
+         * {@code task_concurrency} drivers, and never more drivers than full slices of documents.
          */
         private List<Driver> createDrivers(FetchSliceQueue slices, List<List<Page>> pagesBySlice) {
             IndexedByShardIdFromList<DefaultShardContext> shardContexts = new IndexedByShardIdFromList<>(contexts);
@@ -412,7 +413,10 @@ public final class FetchService {
             );
             ValuesSourceReaderOperator.Factory reader = operationProviders.valuesSourceReader(request.attributes(), 0);
             int taskConcurrency = request.configuration().pragmas().taskConcurrency(clusterService.getSettings());
-            int driverCount = Math.max(1, Math.min(taskConcurrency, slices.sliceCount()));
+            // A driver gets at least about one full slice of documents, also when the documents lie in many small slices.
+            // A slice holds at most SLICE_DOCS documents, so this never starts more drivers than slices.
+            int fullSlices = Math.ceilDiv(slices.docCount(), FetchSliceQueue.SLICE_DOCS);
+            int driverCount = Math.max(1, Math.min(taskConcurrency, fullSlices));
             List<Driver> drivers = new ArrayList<>(driverCount);
             boolean success = false;
             try {

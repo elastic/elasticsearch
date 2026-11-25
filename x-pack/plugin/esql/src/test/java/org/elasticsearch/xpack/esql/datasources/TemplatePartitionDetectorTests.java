@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.PartitionValueMatcher;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -526,6 +527,23 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertFalse(TemplatePartitionDetector.walkableGlob("**/*.parquet"));
         assertFalse(TemplatePartitionDetector.walkableGlob("logs/*/" + "**/*.parquet"));
         assertTrue(TemplatePartitionDetector.walkableGlob("*/*.parquet"));
+    }
+
+    /**
+     * Two glob dirs, template {@code {year}}: mixed {@code year=2024/2025/a.parquet} binds 2025
+     * via {@code fileBindings} / {@code columnValue} (filename dropped). Hive first-wins binds 2024.
+     */
+    public void testWalkLayoutFileBindingsDropsFilenameOnMixedHivePrefix() {
+        TemplatePartitionDetector.WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/data/"),
+            "*/*/*.parquet",
+            "{year}"
+        );
+        assertNotNull(layout);
+        String mixed = StoragePath.of("s3://bucket/data/year=2024/2025/a.parquet").path();
+        assertEquals("2025", layout.fileBindings(mixed).get("year"));
+        assertEquals("2025", TemplatePartitionDetector.columnValue(mixed, "year", "{year}"));
+        assertEquals("2024", PartitionValueMatcher.pathBindings(mixed).get("year"));
     }
 
     /**

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.glob.DiscoveredFilesLimitException;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
@@ -6611,8 +6612,8 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The walk collector throws once matched files exceed {@code max_discovered_files}. A file-set bound
-     * must still return the first matching files rather than fail FIRST_FILE_WINS on a large pruned set.
+     * A file-set bound stops the walk collector at {@code maxFiles}; it does not throw at
+     * {@code max_discovered_files} and prefix-drain unfiltered. Trust is the walked sample.
      */
     public void testBoundedWalkDiscoveryCapFallsBackToBoundedDrain() throws Exception {
         List<StorageEntry> tree = List.of(
@@ -6629,11 +6630,13 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
         assertTrue(result.isTruncated());
         assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2025")));
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
+        assertThat("must not prefix-drain the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
     }
 
     /**
-     * Same discovery-cap fallback through {@link GlobExpander#expand}: concurrency-4 async never enters
-     * the synchronous {@code tryWalk} catch.
+     * Same bound through {@link GlobExpander#expand}: the collector stops at {@code maxFiles}.
+     * Concurrency-4 async never enters a throw-then-prefix-drain catch.
      */
     public void testBoundedWalkDiscoveryCapFallsBackOnSyncExpand() throws IOException {
         List<StorageEntry> tree = List.of(
@@ -6660,6 +6663,8 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
         assertTrue(result.isTruncated());
         assertFalse(paths(result).stream().anyMatch(p -> p.contains("year=2025")));
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
+        assertThat("must not prefix-drain the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
     }
 
     /**
@@ -8859,6 +8864,57 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(1, result.fileCount());
         assertTrue(result.isInferenceAnchor());
         assertEquals(2, provider.keysPulled());
+    }
+
+    /**
+     * Bounded walk of a surviving subtree larger than {@code max_discovered_files} stops at {@code maxFiles}
+     * and marks truncated instead of throwing.
+     */
+    public void testBoundedWalkStopsAtMaxFilesInsteadOfThrowing() throws IOException {
+        List<StorageEntry> files = new ArrayList<>();
+        files.add(entry("s3://bucket/data/year=2024/old.parquet", 100));
+        for (int i = 0; i < 80; i++) {
+            files.add(entry("s3://bucket/data/year=2025/f" + i + ".parquet", 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(files);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            HIVE_ON,
+            40,
+            MAX,
+            MAX,
+            new ListingExtents(10),
+            PlanningMemory.NONE
+        );
+        assertEquals(10, result.fileCount());
+        assertTrue(result.isTruncated());
+        assertFalse(result.isInferenceAnchor());
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
+        assertThat("must not fall back to a prefix drain of the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
+        assertFalse("pruned 2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
+    }
+
+    public void testUnboundedWalkStillThrowsAtDiscoveredFilesLimit() {
+        List<StorageEntry> files = new ArrayList<>();
+        files.add(entry("s3://bucket/data/year=2024/old.parquet", 100));
+        for (int i = 0; i < 80; i++) {
+            files.add(entry("s3://bucket/data/year=2025/f" + i + ".parquet", 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(files);
+        expectThrows(
+            DiscoveredFilesLimitException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/data/**",
+                provider,
+                List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+                HIVE_ON,
+                40,
+                MAX
+            )
+        );
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
     }
 
     /**

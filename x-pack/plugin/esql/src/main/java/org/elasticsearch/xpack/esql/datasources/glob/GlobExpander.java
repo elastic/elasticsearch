@@ -1723,12 +1723,12 @@ public final class GlobExpander {
                         maxDirectoryListings,
                         cancelled,
                         walkPathTemplate(partitionConfig),
+                        extents.maxFiles(),
                         diagnosticsOut
                     );
                 } catch (DiscoveredFilesLimitException e) {
-                    // Walk cannot stop at the file-set bound: the collector throws once matched.size()
-                    // exceeds maxDiscoveredFiles. A bound still needs some files, so fall through to
-                    // the bounded flat drain rather than failing FIRST_FILE_WINS on a large pruned set.
+                    // Unbounded walks still throw at max_discovered_files. A bounded walk stops at
+                    // maxFiles instead; this catch is the leftover path if a collector still overflows.
                     if (extents.boundsFileSet() == false) {
                         throw e;
                     }
@@ -1815,8 +1815,8 @@ public final class GlobExpander {
                         // Prove the walk on the full matched set, then apply the file-set bound. Truncating first
                         // can hide a type-widening folder past the prefix and reject a correct walk, after which
                         // the bounded flat drain prefix-lists unfiltered.
-                        boolean truncated = extents.boundsFileSet() && walked.size() > extents.maxFiles();
-                        if (truncated) {
+                        boolean truncated = walk.truncated() || (extents.boundsFileSet() && walked.size() > extents.maxFiles());
+                        if (extents.boundsFileSet() && walked.size() > extents.maxFiles()) {
                             walked = new ArrayList<>(walked.subList(0, extents.maxFiles()));
                             walkedMetadata = detectPartitions(walked, partitionConfig, ignored -> {});
                         }
@@ -2469,6 +2469,7 @@ public final class GlobExpander {
                         }
                     },
                     walkPathTemplate(partitionConfig),
+                    extents.maxFiles(),
                     diagnosticsOut
                 );
                 return;

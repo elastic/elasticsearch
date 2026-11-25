@@ -873,6 +873,47 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     /**
+     * Numeric account stays {@code *} while string region splices mid-glob. P1 tests used a string account,
+     * so the walk never saw that shape. {@code ALWAYS_FINISH} pins the completed walk: a layout reject
+     * would listObjects {@code AWSLogs/} and never listChildren it. Sparse leaves make RULE flatten.
+     */
+    public void testTemplateNumericAccountSplicedRegionWalksFewListings() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/19/b.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/17/c.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-west-2/2026/11/18/west.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/999999999999/vpcflowlogs/us-east-1/2026/11/18/other.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/12345678901/vpcflowlogs/us-east-1/2026/11/18/unpadded.log.gz")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        List<PartitionFilterHint> hints = List.of(
+            hint("account", Operator.EQUALS, 12345678901L),
+            hint("region", Operator.EQUALS, "us-east-1"),
+            hint("year", Operator.EQUALS, 2026),
+            hint("month", Operator.EQUALS, 11),
+            hint("day", Operator.IN, 18, 19)
+        );
+
+        FileList result = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(provider, AWS_TEMPLATE_GLOB, hints, MAX, AWS_TEMPLATE)
+        );
+
+        List<String> kept = List.of(
+            "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz",
+            "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/19/b.log.gz",
+            "s3://bucket/AWSLogs/12345678901/vpcflowlogs/us-east-1/2026/11/18/unpadded.log.gz"
+        );
+        assertEquals(kept, pathsOf(result));
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/AWSLogs/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
+        assertFalse(containsPath(pathsOf(result), "/11/17/"));
+        assertFalse(containsPath(pathsOf(result), "/us-west-2/"));
+        assertFalse(containsPath(pathsOf(result), "/999999999999/"));
+    }
+
+    /**
      * A {@code *} glob slot filled by a template literal must withdraw on a sibling. Bypass rewrite, which
      * would pin {@code vpcflowlogs} and skip instead. Day 17 is here so a silent skip would prune and return
      * a non-null walk.

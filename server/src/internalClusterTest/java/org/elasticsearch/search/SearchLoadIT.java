@@ -20,6 +20,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -90,6 +91,70 @@ public class SearchLoadIT extends ESIntegTestCase {
         assertThat(searchLoad("searched"), greaterThan(0.0));
         assertCpuIsPartOfTheLoad("searched");
         assertThat(searchLoad("other"), equalTo(0.0));
+    }
+
+    /**
+     * A search reports the load of its shard phases.
+     */
+    public void testSearchReportsTheLoadItsShardsWereCharged() throws Exception {
+        assertSearchReportsTheLoadItsShardsWereCharged(Settings.EMPTY, false, 0);
+    }
+
+    /**
+     * The reported load includes parallel segment searches and the merge on the data node.
+     */
+    public void testSearchReportsTheLoadOfParallelSegmentsAndMerges() throws Exception {
+        assertSearchReportsTheLoadItsShardsWereCharged(
+            Settings.builder().put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1).put("thread_pool.search.size", 4).build(),
+            true,
+            10
+        );
+    }
+
+    /**
+     * With no hits, only the query phase runs.
+     */
+    private void assertSearchReportsTheLoadItsShardsWereCharged(Settings dataNodeSettings, boolean batched, int size) throws Exception {
+        String dataNode = internalCluster().startNode(
+            Settings.builder()
+                .put(dataNodeSettings)
+                // no reaper of search contexts on the search pool while the search runs
+                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1))
+        );
+        String coordinator = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), batched).build()
+        );
+        createIndex("searched", indexSettings(between(1, 5), 0).build());
+        for (int segment = 0; segment < 3; segment++) {
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < 500; i++) {
+                bulk.add(prepareIndex("searched").setSource("k", "k" + (i % 10), "v", i));
+            }
+            assertNoFailures(bulk.get());
+        }
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, dataNode);
+        var search = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
+        long totalBefore = search.getTotalTaskExecutionTime();
+        long chargedBefore = chargedToShards(dataNode);
+
+        var response = client(coordinator).prepareSearch("searched")
+            .setQuery(QueryBuilders.rangeQuery("v").gte(between(0, 50)))
+            .setSize(size)
+            .setBatchedReduceSize(2)
+            .get();
+        SearchLoadMetrics reported;
+        try {
+            assertNoFailures(response);
+            reported = (SearchLoadMetrics) response.getDirectoryMetrics().metrics(SearchLoadMetrics.NAME);
+        } finally {
+            response.decRef();
+        }
+
+        assertThat(reported.loadNanos(), greaterThan(0L));
+        assertThat(reported.cpuNanos(), lessThanOrEqualTo(reported.loadNanos()));
+        // the shards are also charged after the results leave
+        assertBusy(() -> assertThat(chargedToShards(dataNode) - chargedBefore, equalTo(search.getTotalTaskExecutionTime() - totalBefore)));
+        assertThat(reported.loadNanos(), lessThanOrEqualTo(chargedToShards(dataNode) - chargedBefore));
     }
 
     private static long chargedToShards(String node) {

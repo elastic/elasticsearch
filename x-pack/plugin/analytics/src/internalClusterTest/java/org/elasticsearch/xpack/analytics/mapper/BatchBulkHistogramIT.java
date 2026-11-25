@@ -38,7 +38,7 @@ import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
@@ -185,19 +185,21 @@ public class BatchBulkHistogramIT extends ESIntegTestCase {
         refresh(index);
         final List<Map<String, Object>> before = sources(index, null, acknowledged);
 
-        final String backingIndex = concreteIndex(index);
-        final ShardRouting primary = shardRoutingTable(index).primaryShard();
-        final IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName(primary))
-            .getShardOrNull(new ShardId(resolveIndex(backingIndex), 0));
-        shard.failShard("test", new IOException("simulated"));
-        // Failing the shard is asynchronous: wait for the master to allocate a new copy before waiting for it to start.
-        assertBusy(() -> assertNotEquals(primary.allocationId(), shardRoutingTable(index).primaryShard().allocationId()));
+        final IndexShard failed = indexShard(shardRoutingTable(index).primaryShard());
+        failed.failShard("test", new IOException("simulated"));
+        // Failing the shard is asynchronous, and the recovered primary keeps the allocation id of its in-sync copy, so wait for a new
+        // shard instance to have started instead.
+        assertBusy(() -> {
+            final ShardRouting primary = shardRoutingTable(index).primaryShard();
+            assertTrue(primary.assignedToNode());
+            final IndexShard recovered = indexShard(primary);
+            assertNotNull(recovered);
+            assertNotSame(failed, recovered);
+            assertThat(recovered.state(), equalTo(IndexShardState.STARTED));
+        });
         ensureGreen(index);
 
-        final RecoveryState recovery = internalCluster().getInstance(
-            IndicesService.class,
-            nodeName(shardRoutingTable(index).primaryShard())
-        ).getShardOrNull(new ShardId(resolveIndex(backingIndex), 0)).recoveryState();
+        final RecoveryState recovery = indexShard(shardRoutingTable(index).primaryShard()).recoveryState();
         assertThat(recovery.getRecoverySource().getType(), equalTo(RecoverySource.Type.EXISTING_STORE));
         assertThat("recovery must replay the translog", recovery.getTranslog().recoveredOperations(), greaterThan(0));
 
@@ -495,6 +497,10 @@ public class BatchBulkHistogramIT extends ESIntegTestCase {
     /** {@code target} itself, or its backing index if it is a data stream. */
     private String concreteIndex(String target) {
         return clusterService().state().routingTable().hasIndex(target) ? target : getDataStreamBackingIndexNames(target).getFirst();
+    }
+
+    private IndexShard indexShard(ShardRouting shard) {
+        return internalCluster().getInstance(IndicesService.class, nodeName(shard)).getShardOrNull(shard.shardId());
     }
 
     private String nodeName(ShardRouting shard) {

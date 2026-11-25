@@ -15,8 +15,8 @@ import org.elasticsearch.foreign.processor.model.LibraryModel;
 
 import java.io.IOException;
 import java.io.Writer;
-import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.TreeSet;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -39,8 +39,10 @@ public class LibraryProcessor extends AbstractProcessor {
     private static final String LIBRARY_PROVIDER_FQN = LibraryProvider.class.getName();
     private static final String LIBRARY_PROVIDER_SERVICE = "META-INF/services/" + LIBRARY_PROVIDER_FQN;
 
-    // LinkedHashSet so the services file output is deterministic across rounds.
-    private final Set<String> generatedProviderNames = new LinkedHashSet<>();
+    // Sorted so the services file (and the module-info Provides entries ModuleInfoAugmenter derives from it)
+    // is byte-identical across builds. Insertion order would follow javac's source-file order, which depends
+    // on filesystem iteration order and so varies between machines, breaking build cache keys of the jar.
+    private final Set<String> generatedProviderNames = new TreeSet<>();
 
     @Override
     public SourceVersion getSupportedSourceVersion() {

@@ -257,6 +257,42 @@ public class EscfEncoderTests extends ESTestCase {
     }
 
     /**
+     * The longest rendering that {@code Double.toString} produces, 24 characters: a sign, 17 digits and a three-digit
+     * negative exponent. It fills the encoder's buffer exactly.
+     */
+    static final String LONGEST_RENDERING = "-2.2250738585072014E-308";
+
+    /**
+     * The same value with one more digit, 25 characters. No rendering is this long, so it is a spelling to store,
+     * and it must not make the encoder's buffer grow: the buffer holds the rendering of the value, never its token.
+     */
+    static final String LONGEST_RENDERING_PLUS_1 = "-2.22507385850720141E-308";
+
+    /**
+     * Whether a spelling is stored is decided against a buffer that the encoder reuses from one value to the next.
+     * A run of values whose renderings have every length, spelled canonically or not, must store exactly the
+     * spellings that are not canonical, on both walks. Closing the encoder checks that the buffer never grew.
+     */
+    public void testSpellingIsStoredOnlyWhenNotCanonical() throws IOException {
+        int docs = between(50, 200);
+        String[] tokens = floatingPointTokens(docs);
+        List<BytesReference> sources = new ArrayList<>(docs);
+        for (String token : tokens) {
+            sources.add(new BytesArray("{\"d\":" + token + "}"));
+        }
+        for (boolean allowSimd : new boolean[] { true, false }) {
+            try (EscfBatch batch = encode(sources, allowSimd)) {
+                EscfDoubleColumn d = (EscfDoubleColumn) column(batch, "d");
+                for (int i = 0; i < docs; i++) {
+                    boolean canonical = tokens[i].equals(Double.toString(Double.parseDouble(tokens[i])));
+                    assertEquals(tokens[i], canonical ? null : new BytesRef(tokens[i]), d.lexicalForm(i));
+                    assertEquals(tokens[i], d.getStringValue(i).string());
+                }
+            }
+        }
+    }
+
+    /**
      * The number elements of an array at a float element path are parsed straight to float, on either encode path: the column
      * holds the float the text rounds to, widened exactly, where parsing to double and narrowing would round the midpoint text of
      * https://github.com/elastic/elasticsearch/issues/165790 to the other float. Other paths keep their doubles.
@@ -289,6 +325,32 @@ public class EscfEncoderTests extends ESTestCase {
                 assertEquals(Double.parseDouble(midpointText), other.doubleValue(), 0d);
             }
         }
+    }
+
+    /**
+     * Floating-point tokens for {@code count} documents: the longest rendering, the token that is one character
+     * longer, and random ones for the rest.
+     */
+    static String[] floatingPointTokens(int count) {
+        String[] tokens = new String[count];
+        tokens[0] = LONGEST_RENDERING;
+        tokens[1] = LONGEST_RENDERING_PLUS_1;
+        for (int i = 2; i < count; i++) {
+            tokens[i] = randomFloatingPointToken();
+        }
+        return tokens;
+    }
+
+    /** A floating-point token that is spelled as {@code Double.toString} spells its value, or not. */
+    private static String randomFloatingPointToken() {
+        // Half of the values render in a few characters (12.5), half in up to 24 (-1.2345678901234567E8).
+        double value = randomBoolean() ? between(-100_000, 100_000) / 100.0 : randomDoubleBetween(-1e9, 1e9, true);
+        String canonical = Double.toString(value);
+        if (randomBoolean()) {
+            return canonical;
+        }
+        // The same value, just add a 0 or replace E with e to make it non canonical.
+        return canonical.indexOf('E') < 0 ? canonical + "0" : canonical.replace('E', 'e');
     }
 
     /** Elements that are not numbers keep their types at a float element path, so the shard can reject them as before. */
@@ -371,13 +433,11 @@ public class EscfEncoderTests extends ESTestCase {
      * {@link EscfEncoder#buildPartition}), and the returned batch owns and releases the pages when closed.
      */
     private static EscfBatch encode(List<BytesReference> sources) throws IOException {
-        Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
-        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
-            for (BytesReference source : sources) {
-                encoder.addDocument(source, XContentType.JSON, 0);
-            }
-            return encoder.buildPartition(0);
-        }
+        return encode(sources, true);
+    }
+
+    private static EscfBatch encode(List<BytesReference> sources, boolean allowSimd) throws IOException {
+        return encode(sources, allowSimd, Set.of());
     }
 
     private static EscfBatch encode(List<BytesReference> sources, boolean allowSimd, Set<String> floatElementPaths) throws IOException {

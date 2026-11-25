@@ -178,8 +178,9 @@ public class BitmapTermsQuery extends Query implements Accountable {
      * false for such a document and the skip is declined.
      * <p>
      * Only the collecting path's {@link DocIdSetBuilder} is charged to the breaker. The streaming path is charged nothing, although its
-     * scorer keeps one terms enum and one reused postings enum for its whole life. That is the per-clause state a term query keeps too,
-     * which no query charges to the breaker: the clause limit bounds it instead ({@code SearchUtils#calculateMaxClauseValue}).
+     * scorer keeps a terms enum, a reused postings enum and a doc values iterator for its whole life. None of them exposes its size, and
+     * it is the same kind of per-clause state a term query keeps, which no query charges to the breaker: the clause limit bounds it
+     * instead ({@code SearchUtils#calculateMaxClauseValue}).
      */
     private boolean canStream(LeafReader reader, Terms terms) throws IOException {
         return SegmentSort.ascendingBy(reader, field) && singleValued(terms);

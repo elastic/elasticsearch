@@ -38,13 +38,18 @@ abstract class ChargingConstantScoreWeight extends ConstantScoreWeight implement
         return null;
     }
 
+    /** Charges the bytes it accepts to {@code ctx}, for as long as the leaf is scored. */
+    LongConsumer leafCharger(LeafReaderContext ctx) {
+        return bytes -> charger.charge(ctx, bytes, BitmapTermsQueryBuilder.NAME);
+    }
+
     /**
      * For one {@link DocIdSetBuilder} that a scorer fills on {@code ctx}: accepts each count passed to {@link DocIdSetBuilder#grow},
      * and must be called before that grow, so that the breaker can trip before the builder allocates. What it charges is held for as
      * long as the leaf is scored.
      */
     LongConsumer builderCharger(LeafReaderContext ctx) {
-        return new BuilderCharger(bytes -> charger.charge(ctx, bytes, BitmapTermsQueryBuilder.NAME), ctx.reader().maxDoc());
+        return new BuilderCharger(leafCharger(ctx), ctx.reader().maxDoc());
     }
 
     /**

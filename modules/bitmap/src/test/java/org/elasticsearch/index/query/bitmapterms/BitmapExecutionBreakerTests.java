@@ -34,9 +34,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.bkd.BKDConfig;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
@@ -58,8 +61,8 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Searches with both bitmap queries through a {@link ContextIndexSearcher} with a request breaker, and checks that the
- * {@code DocIdSetBuilder} of the collecting path is charged under {@code bitmap_terms} as it grows and released, and that the
- * streaming path charges nothing.
+ * {@code DocIdSetBuilder} of the collecting path is charged under {@code bitmap_terms} as it grows and released, that the points
+ * streaming path is charged for the buffers it reads leaves with, and that the terms streaming path charges nothing.
  */
 public class BitmapExecutionBreakerTests extends ESTestCase {
 
@@ -102,22 +105,65 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         assertChargesThenReleases(null, new BoostQuery(randomFrom(pointsQuery(), termsQuery()), 2f));
     }
 
-    public void testPointsStreamingPathChargesNothing() throws IOException {
-        assertChargesNothing(POINT_FIELD, pointsQuery());
+    /**
+     * Each leaf's scorer is charged for the point tree cursor's two leaf-sized arrays, and for the buffer the matching doc ids are read
+     * into, grown to the one leaf block of 0s. The leaves release their charges one after another, so the peak is one leaf's.
+     */
+    public void testPointsStreamingPathChargesItsBuffers() throws IOException {
+        int leafSize = BKDConfig.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, POINT_FIELD)) {
+            try (ContextIndexSearcher searcher = newSearcher(reader, breaker)) {
+                assertThat(searcher.search(pointsQuery(), DummyTotalHitCountCollector.createManager()), equalTo(NUM_DOCS / 2));
+                assertThat("each leaf must release its charge once it is scored, not on close", breaker.getUsed(), equalTo(0L));
+            }
+        }
+        long buffer = RamUsageEstimator.sizeOf(new int[ArrayUtil.oversize(leafSize, Integer.BYTES)]);
+        assertThat(breaker.peak(), equalTo(cursorScratch(leafSize) + buffer));
+    }
+
+    /**
+     * A tree of one leaf does not tell how many points a leaf can hold, and the cursor's arrays are sized by that, so they are charged
+     * at the default leaf size. The buffer keeps its initial size, since the few matching documents fit in it.
+     */
+    public void testPointsStreamingPathOnASingleLeaf() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.getDefaultCodec())
+                .setIndexSort(new Sort(new SortedNumericSortField(POINT_FIELD, SortField.Type.INT)));
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                for (int docId = 0; docId < 10; docId++) {
+                    writer.addDocument(doc(docId % 2));
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertThat(count(reader, pointsQuery(), breaker), equalTo(5));
+            }
+        }
+        long buffer = RamUsageEstimator.sizeOf(new int[64]);
+        assertThat(breaker.peak(), equalTo(cursorScratch(BKDConfig.DEFAULT_MAX_POINTS_IN_LEAF_NODE) + buffer));
     }
 
     public void testTermsStreamingPathChargesNothing() throws IOException {
-        assertChargesNothing(TERM_FIELD, termsQuery());
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, TERM_FIELD)) {
+            assertThat(count(reader, termsQuery(), breaker), equalTo(NUM_DOCS / 2));
+        }
+        assertFalse("the terms streaming path builds no doc id set", breaker.wasCalled());
     }
 
+    /** Unsorted, both queries collect; sorted on the points field, the points query streams and the terms query still collects. */
     public void testExpensiveQueryTripsBreakerWithoutLeaking() throws IOException {
-        for (Query query : List.of(pointsQuery(), termsQuery())) {
-            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(1L);
-            try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, null)) {
-                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> count(reader, query, breaker));
-                assertThat(e.getMessage(), containsString(BitmapTermsQueryBuilder.NAME));
+        for (String sortField : new String[] { null, POINT_FIELD }) {
+            for (Query query : List.of(pointsQuery(), termsQuery())) {
+                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(1L);
+                try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, sortField)) {
+                    CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> count(reader, query, breaker));
+                    assertThat(e.getMessage(), containsString(BitmapTermsQueryBuilder.NAME));
+                }
+                assertThat("a tripped charge must not leak onto the breaker: " + query, breaker.getUsed(), equalTo(0L));
             }
-            assertThat("a tripped charge must not leak onto the breaker", breaker.getUsed(), equalTo(0L));
         }
     }
 
@@ -187,12 +233,9 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         }
     }
 
-    private void assertChargesNothing(String sortField, Query query) throws IOException {
-        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
-        try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, sortField)) {
-            assertThat(count(reader, query, breaker), equalTo(NUM_DOCS / 2));
-        }
-        assertFalse("the streaming path builds no doc id set: " + query, breaker.wasCalled());
+    /** The point tree cursor's doc ids and decoding scratch, each an {@code int[leafSize]}. */
+    private static long cursorScratch(int leafSize) {
+        return 2 * RamUsageEstimator.sizeOf(new int[leafSize]);
     }
 
     /** Matches the documents with value 0, half of them, so the collecting path builds a bit set. */
@@ -206,7 +249,8 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
 
     /**
      * {@link #SEGMENTS} equal segments, unmerged, in which half the documents have the value 0 and half 1 in both fields, each
-     * sorted on {@code sortField} if not null.
+     * sorted on {@code sortField} if not null. Sorted segments are written with the default codec, so that a BKD leaf holds
+     * {@link BKDConfig#DEFAULT_MAX_POINTS_IN_LEAF_NODE} points and the streaming path's charge is known.
      */
     private DirectoryReader index(Directory directory, String sortField) throws IOException {
         IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
@@ -214,6 +258,7 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
             .setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
         if (sortField != null) {
             config.setIndexSort(new Sort(new SortedNumericSortField(sortField, SortField.Type.INT)));
+            config.setCodec(TestUtil.getDefaultCodec());
         }
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int docId = 0; docId < NUM_DOCS; docId++) {

@@ -20,7 +20,7 @@ import java.io.IOException;
  * until the leaf is done. It must return an upper bound, since nothing corrects the charge later.
  */
 @FunctionalInterface
-public interface LeafExecutionEstimator {
+interface LeafExecutionEstimator {
 
     /**
      * @param ctx      the leaf about to be scored

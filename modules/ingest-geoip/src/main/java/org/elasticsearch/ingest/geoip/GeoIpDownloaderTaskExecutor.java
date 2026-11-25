@@ -267,12 +267,10 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
         }
 
-        // Cleanup
-        atLeastOneGeoIpProcessorByProject.keySet().removeIf(p -> projects.containsKey(p) == false);
-        tasks.keySet()
-            .removeIf(
-                p -> projects.containsKey(p) == false
-                    || PersistentTasksCustomMetadata.getTaskWithId(projects.get(p), getTaskIdForProject(p)) == null
+    // Cleanup
+    atLeastOneGeoIpProcessorByProject.keySet().removeIf(p->projects.containsKey(p)==false);tasks.keySet().removeIf(p->projects.containsKey(p)==false||PersistentTasksCustomMetadata.getTaskWithId(projects.get(p),
+
+    getTaskIdForProject(p)) == null
             );
     }
 

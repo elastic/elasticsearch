@@ -148,3 +148,23 @@ id:keyword | a.host:keyword
 f1         | a
 f2         | c
 ;
+
+// A view is index-like: a map that it outputs is a map in the query that reads it, whatever the view's body does.
+// The setting does not change the body of the view.
+keysOfAMapThatAViewOutputs
+required_capability: map_types_setting
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET map_types=true\;
+FROM view_flattened_paths_mapped
+| RENAME attributes AS a
+| EVAL host = a.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+f2         | c
+;

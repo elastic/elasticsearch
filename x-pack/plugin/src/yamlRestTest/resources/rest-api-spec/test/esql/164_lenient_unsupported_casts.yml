@@ -1,0 +1,69 @@
+---
+# A cast of a field of a type ES|QL doesn't support is null, with a warning that names the type, instead of failing the query.
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ lenient_cast ]
+      reason: "casts of fields of unsupported types were an error"
+      test_runner_features: [ capabilities, warnings_regex, contains ]
+  - do:
+      indices.create:
+        index: lenient_unsupported
+        body:
+          mappings:
+            properties:
+              value:
+                type: rank_feature
+              name:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "lenient_unsupported" } }
+          - { "value": 3, "name": "a" }
+
+---
+"cast of an unsupported field":
+  - do:
+      warnings_regex:
+        - "\\[value\\] of type \\[rank_feature\\] cannot be converted to \\[KEYWORD\\] and will be null\\."
+      esql.query:
+        body:
+          query: 'FROM lenient_unsupported | EVAL x = value::keyword | KEEP name, x | LIMIT 10'
+  - match: { columns: [ { name: name, type: keyword }, { name: x, type: keyword } ] }
+  - match: { values: [ [ "a", null ] ] }
+
+---
+"the field is unsupported where it isn't cast":
+  - do:
+      warnings_regex:
+        - "\\[value\\] of type \\[rank_feature\\] cannot be converted to \\[LONG\\] and will be null\\."
+      esql.query:
+        body:
+          query: 'FROM lenient_unsupported | EVAL x = value::long | KEEP value, x | LIMIT 10'
+  - match: { columns: [ { name: value, type: unsupported }, { name: x, type: long } ] }
+  - match: { values: [ [ null, null ] ] }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM lenient_unsupported | EVAL x = value + 1 | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Cannot use field [value] with unsupported type [rank_feature]' }
+
+---
+"a cast of an unsupported field must be grouped, like any other field":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM lenient_unsupported | STATS x = value::keyword'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'column [value] must appear in the STATS BY clause or be used in an aggregate function' }

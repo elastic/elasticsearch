@@ -43,4 +43,4 @@ These functions don't have a `null` result of the right type for an input they c
 * [`TO_DATEPERIOD`](type-conversion-functions/to_dateperiod.md) and [`TO_TIMEDURATION`](type-conversion-functions/to_timeduration.md): they need a constant.
 * [`TO_LONG`](type-conversion-functions/to_long.md) and [`TO_INTEGER`](type-conversion-functions/to_integer.md) with a `base`: they only parse strings.
 
-Fields of an unsupported type are not converted to `null` either: they fail the query, as they always did. For fields mapped to more than one type, see [Types that can't be converted](../esql-multi-index.md#esql-multi-index-union-unconvertible).
+A field of a type {{esql}} doesn't support, like `rank_feature`, is converted to `null` too, and the warning names its type. The field is still unsupported everywhere it's not the input of one of these functions: using it in another way fails the query, as it always did, and `KEEP field` still returns it as `unsupported`. For fields mapped to more than one type, see [Types that can't be converted](../esql-multi-index.md#esql-multi-index-union-unconvertible).

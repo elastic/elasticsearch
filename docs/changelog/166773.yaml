@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165558
+pr: 166773
+summary: Compare the _unmapped_fields column in DEDUP
+type: enhancement

@@ -17,11 +17,14 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,6 +40,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -877,6 +881,96 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", false)));
         String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
         assertEquals("{\"field\":{\"key\":\"" + value + "\"}}", syntheticSource(mapper, b -> b.field("field", Map.of("key", value))));
+    }
+
+    /**
+     * An indexed flattened field in strictly columnar mode writes a keyed term only for a non-null leaf, but records a null leaf as a
+     * slot in the keyed binary doc values under the same Lucene field name. A document whose leaves are all null must still be accepted
+     * by Lucene next to documents with values, in either order, add no keyed postings, and keep its null for synthetic source.
+     */
+    public void testIndexedNullOnlyObjectInColumnarMode() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR).getName())
+                .build(),
+            fieldMapping(b -> b.field("type", "flattened").field("index", true))
+        );
+        String key = randomAlphaOfLengthBetween(1, 5);
+        String value = randomAlphanumericOfLength(5);
+        assertNullOnlyDocumentIndexes(
+            mapperService,
+            "field" + FlattenedFieldMapper.KEYED_FIELD_SUFFIX,
+            key,
+            value,
+            b -> b.startObject("field").field(key, value).endObject(),
+            b -> b.startObject("field").nullField(key).endObject()
+        );
+    }
+
+    /**
+     * The {@code _unmapped} sink writes through the same parser as a flattened field, and is indexed when the index does not disable
+     * indexing by default, so an unmapped null on its own must index next to an unmapped value too.
+     */
+    public void testIndexedUnmappedSinkNullOnlyDocumentInColumnarMode() throws IOException {
+        assumeTrue("requires the unmapped sink", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR).getName())
+                .put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), false)
+                .build(),
+            topMapping(b -> b.field("dynamic", "flattened"))
+        );
+        String key = randomAlphaOfLengthBetween(1, 5);
+        String value = randomAlphanumericOfLength(5);
+        assertNullOnlyDocumentIndexes(
+            mapperService,
+            FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX,
+            key,
+            value,
+            b -> b.field(key, value),
+            b -> b.nullField(key)
+        );
+    }
+
+    /**
+     * Indexes a document holding {@code key: value} and one holding only {@code key: null}, in both orders, and checks that Lucene
+     * accepts both, that only the document with the value has a posting under {@code keyedField}, and that synthetic source gives the
+     * null-only document back as it was sent. Both documents get a {@code @timestamp} if the index mode requires one.
+     */
+    private void assertNullOnlyDocumentIndexes(
+        MapperService mapperService,
+        String keyedField,
+        String key,
+        String value,
+        CheckedConsumer<XContentBuilder, IOException> withValue,
+        CheckedConsumer<XContentBuilder, IOException> nullOnly
+    ) throws IOException {
+        // Added only where required: elsewhere it would be one more field in the document, or a value in the _unmapped sink.
+        String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999());
+        CheckedConsumer<XContentBuilder, IOException> withTimestamp = b -> {
+            if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+                b.field(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp);
+            }
+        };
+        CheckedConsumer<XContentBuilder, IOException> valuedSource = withTimestamp.andThen(withValue);
+        CheckedConsumer<XContentBuilder, IOException> nullOnlySource = withTimestamp.andThen(nullOnly);
+        for (boolean nullOnlyFirst : new boolean[] { true, false }) {
+            LuceneDocument valued = mapperService.documentMapper().parse(source(valuedSource)).rootDoc();
+            LuceneDocument valueless = mapperService.documentMapper().parse(source(nullOnlySource)).rootDoc();
+            withLuceneIndex(mapperService, iw -> {
+                iw.addDocument(nullOnlyFirst ? valueless : valued);
+                iw.addDocument(nullOnlyFirst ? valued : valueless);
+            }, reader -> {
+                assertEquals("null-only first: " + nullOnlyFirst, 2, reader.numDocs());
+                Term keyedTerm = new Term(keyedField, FlattenedFieldParser.createKeyedValue(key, value));
+                assertEquals("null-only first: " + nullOnlyFirst, 1, newSearcher(reader).count(new TermQuery(keyedTerm)));
+                assertEquals("null-only first: " + nullOnlyFirst, 1, MultiTerms.getTerms(reader, keyedField).getDocCount());
+            });
+        }
+        assertEquals(
+            source(nullOnlySource).source().originalBytes().utf8ToString(),
+            syntheticSource(mapperService.documentMapper(), nullOnlySource)
+        );
     }
 
     public void testKeyedValueLongerThan32766IndexedInColumnarModeIsRejected() throws IOException {
@@ -2087,6 +2181,39 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         });
         // Mapped properties are written after unmapped keys in the current implementation
         assertThat(syntheticSource, equalTo("{\"field\":{\"a_unmapped\":\"val_a\",\"e_unmapped\":\"val_e\",\"c_mapped\":\"val_c\"}}"));
+    }
+
+    /**
+     * Mapped sub-fields that keep their values in stored fields must load them whether or not the flattened root has its own
+     * {@code ignore_above}, which decides if the root has an ignored-values stored field.
+     */
+    public void testSyntheticSourceMappedSubFieldStoredValues() throws IOException {
+        boolean rootIgnoreAbove = randomBoolean();
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "flattened");
+                if (rootIgnoreAbove) {
+                    b.field("ignore_above", 100);
+                }
+                b.startObject("properties");
+                {
+                    b.startObject("name").field("type", "keyword").field("ignore_above", 3).endObject();
+                    b.startObject("desc").field("type", "text").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        assertThat(
+            syntheticSource(mapper, b -> b.startObject("field").field("name", "too_long").endObject()),
+            equalTo("{\"field\":{\"name\":\"too_long\"}}")
+        );
+        assertThat(
+            syntheticSource(mapper, b -> b.startObject("field").field("desc", "some text").endObject()),
+            equalTo("{\"field\":{\"desc\":\"some text\"}}")
+        );
     }
 
     private static final String TIMESTAMP = "2024-01-01T00:00:00.000Z";

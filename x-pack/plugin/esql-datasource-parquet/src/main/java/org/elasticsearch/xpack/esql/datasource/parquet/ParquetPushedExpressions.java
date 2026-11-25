@@ -493,8 +493,8 @@ final class ParquetPushedExpressions {
                 return null;
             }
             BytesRef prefix = (BytesRef) prefixValue;
-            if (physicalPrimitiveIs(schema, ne.name(), PrimitiveType.PrimitiveTypeName.BINARY) == false) {
-                return null; // declared keyword over a non-BINARY physical: decline, let FilterExec re-apply
+            if (binaryStatsHoldKeyword(schema, ne.name()) == false) {
+                return null; // declared keyword over a non-string physical: decline, let FilterExec re-apply
             }
             var col = binaryColumn(schema, ne.name());
             FilterPredicate lower = FilterApi.gtEq(col, toBinary(prefix));
@@ -565,9 +565,12 @@ final class ParquetPushedExpressions {
                 }
                 yield orderedPredicate(doubleColumn(schema, columnName), boxed, op);
             }
-            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
-                ? orderedPredicate(binaryColumn(schema, columnName), value != null ? toBinary(value) : null, op)
-                : null;
+            // IS NULL / IS NOT NULL (value == null) only reads the null count, so the leaf's annotation is irrelevant.
+            case KEYWORD -> (value == null
+                ? physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+                : binaryStatsHoldKeyword(schema, columnName))
+                    ? orderedPredicate(binaryColumn(schema, columnName), value != null ? toBinary(value) : null, op)
+                    : null;
             case BOOLEAN -> {
                 if (physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN) == false) {
                     yield null;
@@ -615,6 +618,19 @@ final class ParquetPushedExpressions {
     private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
         PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
         return primitive != null && primitive.getPrimitiveTypeName() == expected;
+    }
+
+    /**
+     * Whether the raw bytes of the {@code BINARY} leaf at {@code columnName} are the keyword the scan produces, so a
+     * keyword literal can be compared against its statistics. A {@code BINARY DECIMAL} is not: it infers as
+     * {@code double}, so a declared {@code keyword} over it reads the rendered number ({@code "12.34"}) while its
+     * statistics hold the unscaled two's-complement integer, and a pushed keyword bound would prune matching row groups.
+     */
+    private static boolean binaryStatsHoldKeyword(MessageType schema, String columnName) {
+        PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
+        return primitive != null
+            && primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY
+            && primitive.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation == false;
     }
 
     /**
@@ -1235,7 +1251,7 @@ final class ParquetPushedExpressions {
                 }
                 yield inPredicate(doubleColumn(schema, columnName), rawValues, v -> ((Number) v).doubleValue());
             }
-            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+            case KEYWORD -> binaryStatsHoldKeyword(schema, columnName)
                 ? inPredicate(binaryColumn(schema, columnName), rawValues, ParquetPushedExpressions::toBinary)
                 : null;
             case BOOLEAN -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN)

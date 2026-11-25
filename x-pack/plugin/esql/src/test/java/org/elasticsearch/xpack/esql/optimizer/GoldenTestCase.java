@@ -802,7 +802,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            // Mirror EsqlSession#execute: resolve LET bindings first (synchronous, local), then expand views and rewrite
+            // Mirror EsqlSession#execute: resolve LET named subqueries first (synchronous, local), then expand views and rewrite
             // IN subqueries into SemiJoin/AntiJoin/MarkJoin before running pre-analysis and analysis, so inner subquery
             // indices are discovered and verifier checks (e.g. unbounded SORT inside an IN subquery) fire.
             // When the query references views, register them and run the iterative view/IN-subquery resolution; otherwise
@@ -1464,7 +1464,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             .stream()
             .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
                 IndexMode m = indexModeOf(ds);
-                return new IndexProperties(m, 0, 0);
+                return new IndexProperties(m, 0, 0, null);
             }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
@@ -1479,7 +1479,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         Map<String, IndexProperties> indexProperties = new HashMap<>();
         index.indexProperties()
             .forEach(
-                (key, v) -> indexProperties.put(key, new IndexProperties(v.indexMode(), v.numberOfShards(), IndexVersion.current().id()))
+                (key, v) -> indexProperties.put(
+                    key,
+                    new IndexProperties(v.indexMode(), v.numberOfShards(), IndexVersion.current().id(), v.timeSeriesStats())
+                )
             );
         return IndexResolution.valid(
             new EsIndex(

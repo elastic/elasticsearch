@@ -314,12 +314,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier,
-            ParseFieldLimits.parseFieldLimits(reason, indexSettings),
-            source -> parseMappings(source, MergeReason.MAPPING_RECOVERY)
+            ParseFieldLimits.parseFieldLimits(reason, indexSettings)
         );
         this.documentParser = new DocumentParser(
             parserConfiguration,
-            this.mappingParserContextSupplier.apply(MergeReason.MAPPING_RECOVERY)
+            this.mappingParserContextSupplier.apply(MergeReason.MAPPING_RECOVERY),
+            this::parseStoredMappings
         );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
@@ -689,6 +689,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason) {
         return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource));
+    }
+
+    /**
+     * Parses the decoded root object of a mapping that is already stored
+     */
+    MappingBuilder parseStoredMappings(Map<String, Object> decodedRoot) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_RECOVERY, Map.of(SINGLE_MAPPING_NAME, decodedRoot));
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {

@@ -8,10 +8,25 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -19,22 +34,30 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Regression tests for the wiring inside {@link FileSourceFactory#operatorFactory()}.
  */
 public class FileSourceFactoryTests extends ESTestCase {
+
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(NoopCircuitBreaker.INSTANCE)
+        .build();
 
     /**
      * The config-aware {@code canHandle} lets the file factory claim an extensionless resource when the
@@ -181,6 +204,75 @@ public class FileSourceFactoryTests extends ESTestCase {
         assertEquals(List.of(maxErrorsWarning), sink);
     }
 
+    /**
+     * The harvest scope the node resolves is whatever the reader is handed, and nothing else below the
+     * integration layer asserts that the setting reaches a read at all. The grid is not asserted here: the
+     * whole-file read this drives carries none either way (only the split path passes one), so a grid
+     * assertion would hold whatever the factory did with the flag.
+     */
+    public void testTheCacheFlagDecidesTheHarvestScopeHandedToTheReader() {
+        // Not the default scope, so the enabled arm cannot pass on a factory that ignores the setting.
+        Settings settings = Settings.builder().put(ExternalSourceCacheSettings.STRIPE_COLUMNS.getKey(), "count").build();
+
+        FormatReadContext off = readContextWithCache(false, settings);
+        assertEquals("the cache off harvests nothing", StripeColumnScope.NONE, off.statsColumnScope());
+
+        // The control. Without it NONE would also be met by a factory that never read the setting.
+        FormatReadContext on = readContextWithCache(true, settings);
+        assertEquals("the cache on carries the configured scope", StripeColumnScope.COUNT, on.statsColumnScope());
+    }
+
+    /** Opens one read through the whole factory and hands back the context the reader was called with. */
+    private static FormatReadContext readContextWithCache(boolean cacheEnabled, Settings settings) {
+        AtomicReference<FormatReadContext> captured = new AtomicReference<>();
+        FormatReader reader = new StubFormatReader("test-csv", ".csv", captured);
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("test-csv", (s, bf) -> reader, settings, null);
+        formatRegistry.registerExtension(".csv", "test-csv");
+
+        StorageProviderRegistry storageRegistry = new StorageProviderRegistry(settings);
+        storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
+
+        FileSourceFactory factory = new FileSourceFactory(
+            storageRegistry,
+            formatRegistry,
+            new DecompressionCodecRegistry(),
+            settings,
+            null,
+            null,
+            null,
+            null,
+            AdmissionTracker.NOOP,
+            () -> cacheEnabled
+        );
+
+        SourceOperatorContext context = SourceOperatorContext.builder()
+            .sourceType("file")
+            .path(StoragePath.of("s3://bucket/data.csv"))
+            .attributes(List.of(field("value", DataType.INTEGER)))
+            .executor(Runnable::run)
+            .build();
+
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BLOCK_FACTORY, null);
+        SourceOperator operator = factory.operatorFactory().create(context).get(driverContext);
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            operator.close();
+        }
+        assertNotNull("the read never reached the reader", captured.get());
+        return captured.get();
+    }
+
+    private static Attribute field(String name, DataType type) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
     private static FileSourceFactory newFileSourceFactory() {
         FormatReader parquetReader = new StubFormatReader("test-parquet", ".parquet");
         FormatReader csvReader = new StubFormatReader("test-csv", ".csv");
@@ -204,10 +296,18 @@ public class FileSourceFactoryTests extends ESTestCase {
     private static final class StubFormatReader implements NoConfigFormatReader {
         private final String formatName;
         private final List<String> extensions;
+        /** Set only by the harvest-scope test, which is the one case that drives a read. */
+        @Nullable
+        private final AtomicReference<FormatReadContext> captured;
 
         StubFormatReader(String formatName, String extension) {
+            this(formatName, extension, null);
+        }
+
+        StubFormatReader(String formatName, String extension, @Nullable AtomicReference<FormatReadContext> captured) {
             this.formatName = formatName;
             this.extensions = List.of(extension);
+            this.captured = captured;
         }
 
         @Override
@@ -221,11 +321,25 @@ public class FileSourceFactoryTests extends ESTestCase {
         }
 
         @Override
-        public org.elasticsearch.compute.operator.CloseableIterator<org.elasticsearch.compute.data.Page> read(
-            StorageObject object,
-            FormatReadContext context
-        ) {
-            throw new UnsupportedOperationException("operator is not driven in these tests");
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            if (captured == null) {
+                throw new UnsupportedOperationException("operator is not driven in these tests");
+            }
+            captured.set(context);
+            return new CloseableIterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    throw new NoSuchElementException();
+                }
+
+                @Override
+                public void close() {}
+            };
         }
 
         @Override

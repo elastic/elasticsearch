@@ -32,7 +32,9 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -51,7 +53,6 @@ public class LetResolverTests extends ESTestCase {
 
     /** Parses the full statement (LET prefix included) and runs the resolver on it, exactly as EsqlSession does. */
     private static LogicalPlan parseAndResolveLet(String query) {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
         return LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
     }
@@ -73,7 +74,7 @@ public class LetResolverTests extends ESTestCase {
         return relation;
     }
 
-    /** Asserts that {@code plan} is the {@link NamedSubquery} wrapper of the binding {@code name}, and returns the binding body. */
+    /** Asserts that {@code plan} is the {@link NamedSubquery} wrapper of the named subquery {@code name}, and returns the subquery body. */
     private static LogicalPlan binding(LogicalPlan plan, String name) {
         assertThat(plan, instanceOf(NamedSubquery.class));
         NamedSubquery named = (NamedSubquery) plan;
@@ -89,7 +90,7 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // No-op when bindings list is empty
+    // No-op when there are no named subqueries
     // -----------------------------------------------------------------------
 
     public void testEmptyBindingsReturnsSamePlan() {
@@ -99,7 +100,7 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // Binding body substituted, wrapped in a NamedSubquery carrying the binding name
+    // Subquery body substituted, wrapped in a NamedSubquery carrying the subquery name
     // -----------------------------------------------------------------------
 
     public void testBindingBodySubstitutedInNamedSubquery() {
@@ -108,12 +109,12 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // LET binding shadows an ES index with the same name
+    // LET named subquery shadows an ES index with the same name
     // -----------------------------------------------------------------------
 
     public void testLetBindingShadowsIndexWithSameName() {
-        // The LET binding named "languages" takes precedence over the ES index "languages".
-        // FROM languages in the main query resolves to the binding body, not the index.
+        // The LET named subquery called "languages" takes precedence over the ES index "languages".
+        // FROM languages in the main query resolves to the subquery body, not the index.
         LogicalPlan result = parseAndResolveLet("LET languages = (FROM employees | LIMIT 5); FROM languages");
         assertLimitOver(binding(result, "languages"), "employees");
     }
@@ -123,9 +124,49 @@ public class LetResolverTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testUnmatchedNameLeftAsUnresolvedRelation() {
-        LogicalPlan result = parseAndResolveLet("LET known = (FROM some_index); FROM unknown_index");
+        LogicalPlan result = parseAndResolveLet("LET known = (FROM some_index); FROM unknown_index | WHERE a IN (FROM known)");
         // "unknown_index" ≠ "known", should not be substituted
-        assertUnresolvedRelation(result, "unknown_index");
+        assertThat(
+            result.collect(UnresolvedRelation.class).stream().map(ur -> ur.indexPattern().indexPattern()).toList(),
+            contains("unknown_index")
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Unreferenced named subqueries
+    // -----------------------------------------------------------------------
+
+    public void testUnreferencedNamedSubqueryRejected() {
+        expectThrows(
+            ParsingException.class,
+            containsString("line 1:5: LET subquery [unused] is declared but never referenced"),
+            () -> parseAndResolveLet("LET unused = (FROM no_such_index | EVAL x = no_such_fn(y)); ROW a = 1")
+        );
+    }
+
+    public void testSeveralUnreferencedNamedSubqueriesRejected() {
+        expectThrows(
+            ParsingException.class,
+            containsString("LET subqueries [a, c] are declared but never referenced"),
+            () -> parseAndResolveLet("LET a = (FROM idx); LET b = (FROM idx); LET c = (FROM idx); FROM b")
+        );
+    }
+
+    /** A reference from a named subquery that is itself never referenced still counts: only the outer one is reported. */
+    public void testNamedSubqueryReferencedOnlyByUnreferencedOneRejected() {
+        expectThrows(
+            ParsingException.class,
+            containsString("LET subquery [b] is declared but never referenced"),
+            () -> parseAndResolveLet("LET a = (FROM idx); LET b = (FROM a); FROM idx")
+        );
+    }
+
+    public void testNamedSubqueryReferencedOnlyInInSubqueryAccepted() {
+        LogicalPlan result = parseAndResolveLet("LET a = (FROM idx | KEEP x); FROM other | WHERE x IN (FROM a)");
+        assertThat(
+            result.collect(UnresolvedRelation.class).stream().map(ur -> ur.indexPattern().indexPattern()).toList(),
+            contains("other")
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -146,19 +187,19 @@ public class LetResolverTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testLetResolutionSimpleCycle() {
-        // body references its own binding name
+        // body references its own subquery name
         expectThrows(
             VerificationException.class,
-            containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
+            containsString("Forward reference in LET subqueries: [a] cannot be referenced before its declaration"),
             () -> parseAndResolveLet("LET a = (FROM a | LIMIT 1); FROM a")
         );
     }
 
     public void testCycleDetectedThroughMixedPattern() {
-        // "a,real_index" contains the binding name "a" as a token — cycle.
+        // "a,real_index" contains the subquery name "a" as a token — cycle.
         expectThrows(
             VerificationException.class,
-            containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
+            containsString("Forward reference in LET subqueries: [a] cannot be referenced before its declaration"),
             () -> parseAndResolveLet("LET a = (FROM a, real_index | LIMIT 1); FROM a")
         );
     }
@@ -167,7 +208,7 @@ public class LetResolverTests extends ESTestCase {
         // "b,real_index" in a's body contains the forward-reference "b".
         expectThrows(
             VerificationException.class,
-            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
+            containsString("Forward reference in LET subqueries: [b] cannot be referenced before its declaration"),
             () -> parseAndResolveLet("LET a = (FROM b, real_index | LIMIT 1); LET b = (FROM base); FROM a")
         );
     }
@@ -175,7 +216,7 @@ public class LetResolverTests extends ESTestCase {
     public void testForwardReferenceIsRejected() {
         expectThrows(
             VerificationException.class,
-            containsString("Forward reference in LET bindings: [b] cannot be referenced before its declaration"),
+            containsString("Forward reference in LET subqueries: [b] cannot be referenced before its declaration"),
             () -> parseAndResolveLet("LET a = (FROM b | LIMIT 1); LET b = (FROM a | LIMIT 1); FROM a")
         );
     }
@@ -184,7 +225,7 @@ public class LetResolverTests extends ESTestCase {
         // substitute replaces InSubquery(x, UR("a")) and checkForCycles recurses into the subquery
         expectThrows(
             VerificationException.class,
-            containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
+            containsString("Forward reference in LET subqueries: [a] cannot be referenced before its declaration"),
             () -> parseAndResolveLet("LET a = (FROM base | WHERE x IN (FROM a) | LIMIT 1); FROM a")
         );
     }
@@ -193,17 +234,17 @@ public class LetResolverTests extends ESTestCase {
         // Same cycle as above but through a multi-column IN subquery.
         expectThrows(
             VerificationException.class,
-            containsString("Forward reference in LET bindings: [a] cannot be referenced before its declaration"),
+            containsString("Forward reference in LET subqueries: [a] cannot be referenced before its declaration"),
             () -> parseAndResolveLet("LET a = (FROM base | WHERE (x, y) IN (FROM a) | LIMIT 1); FROM a")
         );
     }
 
     // -----------------------------------------------------------------------
-    // Mixed FROM: binding name alongside real index patterns
+    // Mixed FROM: subquery name alongside real index patterns
     // -----------------------------------------------------------------------
 
     public void testMixedFromBindingAndRealIndex() {
-        // The UnresolvedRelation "top3,real_index" should be split: top3 → binding body,
+        // The UnresolvedRelation "top3,real_index" should be split: top3 → subquery body,
         // real_index → new UnresolvedRelation. The result is a UnionAll of the two.
         LogicalPlan result = parseAndResolveLet("LET top3 = (FROM logs | LIMIT 3); FROM top3, real_index");
 
@@ -215,10 +256,10 @@ public class LetResolverTests extends ESTestCase {
     }
 
     public void testMixedFromTwoRealOneBinding() {
-        // binding in the middle
+        // named subquery in the middle
         LogicalPlan result = parseAndResolveLet("LET top3 = (FROM logs | LIMIT 3); FROM real1, top3, real2");
 
-        // all non-binding patterns are grouped in one trailing relation → UnionAll of 2 parts:
+        // all patterns that are not subquery names are grouped in one trailing relation → UnionAll of 2 parts:
         // bindingBody, UR("real1,real2")
         assertThat(result, instanceOf(UnionAll.class));
         List<LogicalPlan> children = ((UnionAll) result).children();
@@ -239,7 +280,7 @@ public class LetResolverTests extends ESTestCase {
     }
 
     /**
-     * A binding beside a literal subquery is a sibling of it: the union substitution builds for {@code real_index, top3} is
+     * A named subquery beside a literal subquery is a sibling of it: the union substitution builds for {@code real_index, top3} is
      * inlined into the parser's union for the {@code FROM}, rather than nested inside it as one opaque branch.
      */
     public void testMixedFromBindingBesideLiteralSubqueryIsFlat() {
@@ -251,7 +292,7 @@ public class LetResolverTests extends ESTestCase {
         assertThat(children, hasSize(3));
         assertLimitOver(binding(children.get(0), "top3"), "logs");
         assertUnresolvedRelation(children.get(1), "real_index");
-        // the literal subquery beside the binding stays unnamed
+        // the literal subquery beside the named subquery stays unnamed
         assertThat(children.get(2), instanceOf(Subquery.class));
         assertThat(children.get(2), not(instanceOf(NamedSubquery.class)));
         assertUnresolvedRelation(((Subquery) children.get(2)).child(), "other");
@@ -423,7 +464,7 @@ public class LetResolverTests extends ESTestCase {
     }
 
     /**
-     * Each binding adds a FORK over the previous one; the chain goes over the plan size limit. FORKs nested through subqueries in
+     * Each named subquery adds a FORK over the previous one; the chain goes over the plan size limit. FORKs nested through subqueries in
      * the main query are rejected by the parser already, by the branch count.
      */
     public void testBigForkExpansionRejected() {
@@ -467,7 +508,7 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // TS source: a binding cannot replace a time-series relation
+    // TS source: a named subquery cannot replace a time-series relation
     // -----------------------------------------------------------------------
 
     public void testBindingAsTsSourceIsRejected() {
@@ -487,12 +528,15 @@ public class LetResolverTests extends ESTestCase {
     }
 
     public void testTsSourceNotMatchingAnyBindingIsLeftAlone() {
-        LogicalPlan result = parseAndResolveLet("LET b = (FROM idx | LIMIT 10); TS tsdb_index");
-        assertThat(assertUnresolvedRelation(result, "tsdb_index").indexMode(), is(IndexMode.TIME_SERIES));
+        LogicalPlan result = parseAndResolveLet("LET b = (FROM idx | KEEP host); TS tsdb_index | WHERE host IN (FROM b)");
+        List<UnresolvedRelation> relations = result.collect(UnresolvedRelation.class);
+        assertThat(relations, hasSize(1));
+        assertThat(relations.get(0).indexPattern().indexPattern(), equalTo("tsdb_index"));
+        assertThat(relations.get(0).indexMode(), is(IndexMode.TIME_SERIES));
     }
 
     // -----------------------------------------------------------------------
-    // Source commands other than FROM inside a binding
+    // Source commands other than FROM inside a named subquery
     // -----------------------------------------------------------------------
 
     public void testBindingWithRowSource() {
@@ -539,20 +583,28 @@ public class LetResolverTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     /**
-     * Captures CURRENT behavior: a wildcard pattern such as {@code x*} is matched against binding names by exact string, so it
-     * never matches the binding {@code x}. The relation is left for field-caps, which resolves it against indices.
+     * Captures CURRENT behavior: a wildcard pattern such as {@code x*} is matched against subquery names by exact string, so it
+     * never matches the named subquery {@code x}. The relation is left for field-caps, which resolves it against indices.
      */
     public void testCurrentBehaviorWildcardPatternDoesNotMatchBinding() {
-        LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM x*");
-        assertUnresolvedRelation(result, "x*");
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM x, x*");
+        assertThat(result, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = ((UnionAll) result).children();
+        assertThat(children, hasSize(2));
+        binding(children.get(0), "x");
+        assertUnresolvedRelation(children.get(1), "x*");
     }
 
     /**
-     * Captures CURRENT behavior: the exclusion {@code -x} is not recognized as the binding {@code x}, so it is
+     * Captures CURRENT behavior: the exclusion {@code -x} is not recognized as the named subquery {@code x}, so it is
      * passed through untouched to index resolution, where it is a no-op because no index matches {@code x}.
      */
     public void testCurrentBehaviorExclusionPatternDoesNotMatchBinding() {
-        LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM sample_data, -x");
-        assertUnresolvedRelation(result, "sample_data,-x");
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM x, sample_data, -x");
+        assertThat(result, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = ((UnionAll) result).children();
+        assertThat(children, hasSize(2));
+        binding(children.get(0), "x");
+        assertUnresolvedRelation(children.get(1), "sample_data,-x");
     }
 }

@@ -224,6 +224,22 @@ public class ExternalPartitionSpecPruningIT extends AbstractExternalDataSourceIT
         );
     }
 
+    /**
+     * ES|QL reads {@code "2025-06"} as 2025-06-01, but the spec's projection cannot parse that spelling. The {@code OR}
+     * becomes {@code ts IN ("2025-01-15", "2025-06")} at dataset resolution, and that {@code IN} must not narrow the
+     * listing to the one value that parses, or the 2025-06-01 row is lost.
+     */
+    public void testOrWithADateSpellingTheSpecCannotParseKeepsItsFolder() throws Exception {
+        String dataset = registerMillisTree("spec_or_short_date");
+        assertPrune(dataset, "WHERE ts == \"2025-01-15\" OR ts == \"2025-06\"", 2, List.of(20250115L, 20250601L));
+    }
+
+    /** The same {@code IN} written by hand: a value the projection cannot parse leaves the whole list unrestricted. */
+    public void testInWithADateSpellingTheSpecCannotParseKeepsItsFolder() throws Exception {
+        String dataset = registerMillisTree("spec_in_short_date");
+        assertPrune(dataset, "WHERE ts IN (\"2025-01-15\", \"2025-06\")", 2, List.of(20250115L, 20250601L));
+    }
+
     private void assertPrune(String dataset, String filterClause, int expectedFilesScanned, List<Long> expectedIds) {
         assertPrune(dataset, filterClause, TOTAL_FILES, expectedFilesScanned, expectedIds, "id");
     }

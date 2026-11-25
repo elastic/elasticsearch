@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -22,15 +20,12 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFunctionComparisonRewriter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -57,7 +52,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Finds the range of {@code @timestamp} that a query restricts an index pattern to, from the parsed (not yet analyzed) plan.
@@ -82,12 +76,8 @@ import java.util.Set;
 final class QueryTimeRangeExtractor {
 
     private static final String TIMESTAMP = MetadataAttribute.TIMESTAMP_FIELD;
-    private static final String NOW = "now";
     private static final String TRANGE = "trange";
     private static final String DATE_TRUNC = "date_trunc";
-    private static final String DATE_PARSE = "date_parse";
-    private static final Set<String> TO_DATETIME = Set.of("to_datetime", "to_dt");
-    private static final Set<String> TO_DATE_NANOS = Set.of("to_date_nanos", "to_datenanos");
 
     private QueryTimeRangeExtractor() {}
 
@@ -137,9 +127,9 @@ final class QueryTimeRangeExtractor {
      * The filter on {@code @timestamp} to resolve each index pattern of the plan with. A pattern has no entry when the query
      * does not bound its {@code @timestamp}, or when it is read more than once and one of those reads is not bounded.
      */
-    static Map<IndexPattern, QueryBuilder> extract(LogicalPlan parsed, Configuration configuration) {
+    static Map<IndexPattern, QueryBuilder> extract(LogicalPlan parsed, Configuration configuration, EsqlFunctionRegistry functionRegistry) {
         Map<IndexPattern, QueryBuilder> filters = new HashMap<>();
-        for (Map.Entry<IndexPattern, TimeRange> range : ranges(parsed, configuration).entrySet()) {
+        for (Map.Entry<IndexPattern, TimeRange> range : ranges(parsed, configuration, functionRegistry).entrySet()) {
             if (range.getValue().isUnbounded() == false) {
                 filters.put(range.getKey(), range.getValue().toQuery());
             }
@@ -153,7 +143,7 @@ final class QueryTimeRangeExtractor {
      * The walk is the one that external sources are listed with, see {@link PartitionFilterHintExtractor#forEachGuardedRelation}:
      * it hands over each relation with the conjuncts of the filters that apply to its rows.
      */
-    static Map<IndexPattern, TimeRange> ranges(LogicalPlan parsed, Configuration configuration) {
+    static Map<IndexPattern, TimeRange> ranges(LogicalPlan parsed, Configuration configuration, EsqlFunctionRegistry functionRegistry) {
         Map<IndexPattern, TimeRange> ranges = new HashMap<>();
         Context context = new Context(
             configuration,
@@ -173,7 +163,9 @@ final class QueryTimeRangeExtractor {
                 } else {
                     TimeRange range = TimeRange.UNBOUNDED;
                     for (Expression conjunct : conjuncts) {
-                        range = range.intersect(rangeOf(conjunct, context));
+                        // The constant dates of the condition become literals, the same way that external sources fold them.
+                        Expression folded = DateFunctionComparisonRewriter.foldConstants(conjunct, configuration, functionRegistry);
+                        range = range.intersect(rangeOf(folded, context));
                     }
                     add((UnresolvedRelation) plan, range, ranges);
                 }
@@ -368,129 +360,35 @@ final class QueryTimeRangeExtractor {
     }
 
     /**
-     * The epoch milliseconds that a constant date expression evaluates to, or {@code null} for any expression but the shapes
-     * that time ranges are commonly written with: a date string, {@code NOW()}, casts to and parsing of a date, and time spans added to,
-     * subtracted from or truncating those. Nanoseconds are rounded down to the millisecond, which {@link TimeRange} allows for.
+     * The epoch milliseconds of a constant date, or {@code null} for anything else. The condition was folded by
+     * {@link DateFunctionComparisonRewriter#foldConstants}, so a constant date is a literal here: a date, or the string
+     * that the analyzer casts to one when it is compared with a date. Nanoseconds are rounded down to the millisecond,
+     * which {@link TimeRange} allows for.
      */
     private static Long millis(Expression expression, Context context) {
-        return switch (expression) {
-            case Literal literal when literal.dataType() == DataType.DATETIME && literal.value() instanceof Long value -> value;
-            // The conversion that the analyzer casts a string compared to a date with.
-            case Literal literal when literal.dataType() == DataType.KEYWORD -> parse(literal, DataType.DATETIME, context);
-            // The inline casts, which the parser turns into the conversion functions right away.
-            case ToDatetime cast -> cast(cast.field(), DataType.DATETIME, context);
-            case ToDateNanos cast -> cast(cast.field(), DataType.DATE_NANOS, context);
-            case UnresolvedFunction function -> millis(function, context);
-            case Add add -> {
-                if (temporalAmount(add.right()) instanceof TemporalAmount amount) {
-                    yield plus(millis(add.left(), context), amount, 1, context.zone());
-                }
-                if (temporalAmount(add.left()) instanceof TemporalAmount amount) {
-                    yield plus(millis(add.right(), context), amount, 1, context.zone());
-                }
-                yield null;
+        if (expression instanceof Literal literal && literal.value() != null) {
+            if (literal.dataType() == DataType.DATETIME && literal.value() instanceof Long value) {
+                return value;
             }
-            case Sub sub -> temporalAmount(sub.right()) instanceof TemporalAmount amount
-                ? plus(millis(sub.left(), context), amount, -1, context.zone())
-                : null;
-            default -> null;
-        };
-    }
-
-    private static Long millis(UnresolvedFunction function, Context context) {
-        List<Expression> arguments = function.arguments();
-        String name = function.name().toLowerCase(Locale.ROOT);
-        if (NOW.equals(name) && arguments.isEmpty()) {
-            return context.now();
-        }
-        if (TO_DATETIME.contains(name) && arguments.size() == 1) {
-            return cast(arguments.get(0), DataType.DATETIME, context);
-        }
-        if (TO_DATE_NANOS.contains(name) && arguments.size() == 1) {
-            return cast(arguments.get(0), DataType.DATE_NANOS, context);
-        }
-        if (DATE_PARSE.equals(name)) {
-            return dateParse(arguments, context);
-        }
-        if (DATE_TRUNC.equals(name) && arguments.size() == 2 && temporalAmount(arguments.get(0)) instanceof TemporalAmount interval) {
-            Long date = millis(arguments.get(1), context);
-            if (date == null) {
-                return null;
+            if (literal.dataType() == DataType.DATE_NANOS && literal.value() instanceof Long value) {
+                return Math.floorDiv(value, 1_000_000L);
             }
-            try {
-                return DateTrunc.createRounding(interval, context.zone(), null, null).round(date);
-            } catch (RuntimeException e) {
-                // An interval that cannot be rounded to, which is for the analyzer to report.
-                return null;
+            if (literal.dataType() == DataType.KEYWORD) {
+                return parse(literal, context);
             }
         }
         return null;
     }
 
-    /**
-     * {@code DATE_PARSE(date)} and {@code DATE_PARSE(pattern, date)} of string literals. The options of the function, which
-     * change the locale and the time zone of the pattern, are left alone.
-     */
-    private static Long dateParse(List<Expression> arguments, Context context) {
-        if (arguments.isEmpty() || arguments.size() > 2) {
-            return null;
-        }
-        BytesRef date = string(arguments.get(arguments.size() - 1));
-        BytesRef pattern = arguments.size() == 2 ? string(arguments.get(0)) : null;
-        if (date == null || (arguments.size() == 2 && pattern == null)) {
-            return null;
-        }
+    private static Long parse(Literal string, Context context) {
         try {
-            DateFormatter formatter = pattern == null
-                ? EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER
-                : DateFormatter.forPattern(pattern.utf8ToString());
-            return DateParse.process(date, formatter.withLocale(Locale.ROOT), context.zone(), Locale.ROOT);
-        } catch (RuntimeException e) {
-            // A pattern or a date that does not parse, which is for the analyzer or the evaluation to report.
-            return null;
-        }
-    }
-
-    private static BytesRef string(Expression expression) {
-        return expression instanceof Literal literal && literal.dataType() == DataType.KEYWORD && literal.value() instanceof BytesRef value
-            ? value
-            : null;
-    }
-
-    /**
-     * The epoch milliseconds of a cast to {@code target}, a date type. A string is parsed, a number counts the units of the
-     * type since the epoch, and a date is converted between the two resolutions.
-     */
-    private static Long cast(Expression argument, DataType target, Context context) {
-        if (argument instanceof Literal literal) {
-            if (literal.dataType() == DataType.KEYWORD) {
-                return parse(literal, target, context);
-            }
-            if ((literal.dataType() == DataType.LONG || literal.dataType() == DataType.INTEGER)
-                && literal.value() instanceof Number number) {
-                return epochMillis(number.longValue(), target);
-            }
-        }
-        return millis(argument, context);
-    }
-
-    private static Long parse(Literal string, DataType target, Context context) {
-        try {
-            return EsqlDataTypeConverter.convert(string.value(), target, context.configuration()) instanceof Long date
-                ? epochMillis(date, target)
+            return EsqlDataTypeConverter.convert(string.value(), DataType.DATETIME, context.configuration()) instanceof Long date
+                ? date
                 : null;
         } catch (RuntimeException e) {
             // Not a date, which is for the analyzer to report.
             return null;
         }
-    }
-
-    /** The epoch milliseconds of a value of the date type. Nanoseconds do not go back beyond the epoch. */
-    private static Long epochMillis(long value, DataType type) {
-        if (type == DataType.DATE_NANOS) {
-            return value < 0 ? null : Long.valueOf(Math.floorDiv(value, 1_000_000L));
-        }
-        return value;
     }
 
     private static TemporalAmount temporalAmount(Expression expression) {

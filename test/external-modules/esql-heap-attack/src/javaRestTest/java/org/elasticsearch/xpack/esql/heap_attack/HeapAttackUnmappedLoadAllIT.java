@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -441,9 +443,14 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
      * suite allows ten connections to a node, so at least ten queries are in flight on each of them. The breaker has to reject some, with
      * a 429, and nothing else may go wrong: no other status, no failed connection, and no node that stops answering. Each client talks
      * to one node because the shared client retries on the other node after a dropped connection or a 502, 503 or 504, which would let a
-     * query that lost its node count as a success. With 8 clients and the default breaker, nothing broke.
+     * query that lost its node count as a success. Those clients do not carry the project of a multi-project run, so the test is skipped
+     * there. With 8 clients and the default breaker, nothing broke.
      */
     public void testConcurrentWideQueriesCircuitBreakAndEveryNodeStillAnswers() throws Exception {
+        assumeTrue(
+            "the clients that are pinned to one node do not carry the project of a multi-project run",
+            Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false")) == false
+        );
         String index = "load_all_concurrent";
         int docs = 5_000;
         int clients = 24;
@@ -452,25 +459,33 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         assertLoadAllSingleColumn(index, docs);
 
         List<RestClient> nodes = new ArrayList<>();
-        for (HttpHost host : getClusterHosts()) {
-            nodes.add(buildClient(restClientSettings(), new HttpHost[] { host }));
-        }
         try {
+            for (HttpHost host : getClusterHosts()) {
+                nodes.add(buildClient(restClientSettings(), new HttpHost[] { host }));
+            }
             boolean broke = false;
             for (int round = 0; round < 3 && broke == false; round++) {
                 ExecutorService clientsPool = Executors.newFixedThreadPool(clients);
+                AtomicBoolean abandoned = new AtomicBoolean();
                 Throwable failure = null;
                 try {
                     CountDownLatch go = new CountDownLatch(1);
                     List<Future<Boolean>> outcomes = new ArrayList<>(clients);
-                    for (int c = 0; c < clients; c++) {
-                        RestClient node = nodes.get(c % nodes.size());
-                        outcomes.add(clientsPool.submit(() -> {
-                            go.await();
-                            return loadAllBrokeTheCircuit(node, index, docs);
-                        }));
+                    try {
+                        for (int c = 0; c < clients; c++) {
+                            RestClient node = nodes.get(c % nodes.size());
+                            outcomes.add(clientsPool.submit(() -> {
+                                go.await();
+                                // A worker that was still at the gate when another could not be submitted does not start its query.
+                                return abandoned.get() == false && loadAllBrokeTheCircuit(node, index, docs);
+                            }));
+                        }
+                    } catch (RuntimeException e) {
+                        abandoned.set(true);
+                        throw e;
+                    } finally {
+                        go.countDown();
                     }
-                    go.countDown();
                     for (Future<Boolean> outcome : outcomes) {
                         try {
                             broke |= outcome.get();
@@ -481,8 +496,8 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
                         }
                     }
                 } finally {
-                    // Wait for every query to finish. shutdownNow() would not cancel their requests, and their reservations would still be
-                    // held when this test starts to tear down, with failures of their own that hide the first one.
+                    // Wait for every query that started to finish. shutdownNow() would not cancel their requests, and their reservations
+                    // would still be held when this test starts to tear down, with failures of their own that hide the first one.
                     clientsPool.shutdown();
                     assertTrue("the queries did not finish", clientsPool.awaitTermination(10, TimeUnit.MINUTES));
                 }
@@ -495,9 +510,26 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
                 assertLoadAllSingleColumn(node, index, docs);
             }
         } finally {
-            for (RestClient node : nodes) {
-                node.close();
+            closeAll(nodes);
+        }
+    }
+
+    /** Closes every client, also when closing one fails, and then throws the first failure with the others added to it. */
+    private static void closeAll(List<RestClient> clients) throws IOException {
+        IOException failure = null;
+        for (RestClient client : clients) {
+            try {
+                client.close();
+            } catch (IOException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
             }
+        }
+        if (failure != null) {
+            throw failure;
         }
     }
 

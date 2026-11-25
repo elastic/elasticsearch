@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.TimeSeriesStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -24,7 +25,7 @@ public class IndexPropertiesTests extends ESTestCase {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
         int createdVersion = randomIntBetween(1, Integer.MAX_VALUE);
-        IndexProperties props = new IndexProperties(mode, count, createdVersion);
+        IndexProperties props = new IndexProperties(mode, count, createdVersion, null);
         assertEquals(count, props.numberOfShards());
         assertEquals(createdVersion, props.createdVersion());
         assertEquals(mode, props.indexMode());
@@ -33,7 +34,7 @@ public class IndexPropertiesTests extends ESTestCase {
     public void testSerializationRoundTripCurrentVersion() throws IOException {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
-        IndexProperties original = new IndexProperties(mode, count, randomIntBetween(1, Integer.MAX_VALUE));
+        IndexProperties original = new IndexProperties(mode, count, randomIntBetween(1, Integer.MAX_VALUE), randomTimeSeriesStats());
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersion.current());
@@ -71,5 +72,29 @@ public class IndexPropertiesTests extends ESTestCase {
             assertEquals(mode, roundTripped.indexMode());
             assertEquals(0, roundTripped.numberOfShards());
         }
+    }
+
+    public void testTimeseriesStatsOldVersion() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(IndexProperties.TIME_SERIES_STATS);
+        IndexMode mode = randomValueOtherThanMany(
+            m -> m.supportsVersion(oldVersion) == false,
+            () -> randomFrom(IndexMode.availableModes())
+        );
+        int createdVersion = randomIntBetween(1, Integer.MAX_VALUE);
+        IndexProperties original = new IndexProperties(mode, between(1, 1000), createdVersion, randomTimeSeriesStats());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        original.writeTo(out);
+
+        try (var in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), new NamedWriteableRegistry(List.of()))) {
+            in.setTransportVersion(oldVersion);
+            IndexProperties roundTripped = new IndexProperties(in);
+            assertEquals(new IndexProperties(mode, original.numberOfShards(), createdVersion, null), roundTripped);
+        }
+    }
+
+    private static TimeSeriesStats randomTimeSeriesStats() {
+        return randomBoolean() ? null : new TimeSeriesStats(randomNonNegativeLong(), randomLong(), randomLong());
     }
 }

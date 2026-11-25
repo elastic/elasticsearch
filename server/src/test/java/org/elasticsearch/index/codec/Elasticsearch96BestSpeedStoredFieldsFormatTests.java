@@ -12,7 +12,10 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
+@RunWith(ESRandomizedRunner.class)
 public class Elasticsearch96BestSpeedStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
     private final Codec codec = new Elasticsearch96Codec(Lucene104Codec.Mode.BEST_SPEED);

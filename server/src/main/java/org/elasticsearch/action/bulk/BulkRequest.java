@@ -473,11 +473,14 @@ public class BulkRequest extends UntypedActionRequest
     }
 
     /**
-     * Attaches pre-built ESCF batches to this request, keyed by the name its items target — index, alias, or
-     * data stream. The request owns the batches from here on until the bulk action takes them via
-     * {@link #takePreBuiltBatches()}; while it still owns them, {@link #releasePreBuiltBatches()} lets the
-     * action and the submitter release them if the request is rejected before that point. A {@link #shallowClone()}
-     * shares the batches with its original, so a request must not be cloned while it still owns them.
+     * Attaches pre-built ESCF batches to this request, one per index abstraction its items target, each keyed by the
+     * name of that abstraction: the index, alias, or data stream the name of an item resolves to, so for an item
+     * named with date math, the name it resolves to. A bulk may carry batches for several abstractions, but not for
+     * two that write to the same index, such as an alias and the index it points to. The request owns the batches
+     * from here on until the bulk action takes them via {@link #takePreBuiltBatches()}; while it still owns them,
+     * {@link #releasePreBuiltBatches()} lets the action and the submitter release them if the request is rejected
+     * before that point. A {@link #shallowClone()} shares the batches with its original, so a request must not be
+     * cloned while it still owns them.
      *
      * <p>TODO: implement serialization for ingest-node forwarding.
      */

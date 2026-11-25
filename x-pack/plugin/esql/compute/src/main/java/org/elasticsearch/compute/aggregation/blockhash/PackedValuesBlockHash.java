@@ -180,6 +180,48 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         add(page, addInput, DEFAULT_BATCH_SIZE);
     }
 
+    /**
+     * Like {@link #add(Page, GroupingAggregatorFunction.AddInput)}, but with {@code skipMultivalues} a position where any key
+     * has more than one value gets a {@code null} group and adds nothing, rather than a group for every combination of its
+     * values. The add-side twin of the {@code multivaluesMiss} option of
+     * {@link #lookup(Page, BlockFactory, ByteSizeValue, boolean)}: a caller that treats multivalued keys as invalid can keep
+     * them out of the hash without copying the key blocks. A page with no multivalued key keeps the fast paths.
+     */
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput, boolean skipMultivalues) {
+        Block[] multivaluedKeys = skipMultivalues ? multivaluedKeys(page) : new Block[0];
+        if (multivaluedKeys.length == 0) {
+            add(page, addInput);
+            return;
+        }
+        try (AddWork work = new AddWork(page, addInput, DEFAULT_BATCH_SIZE, multivaluedKeys)) {
+            work.add();
+        }
+    }
+
+    /**
+     * The key blocks of {@code page} with a multivalued position. These are the raw blocks because the encoders deduplicate
+     * values, and a key like {@code [7, 7]} is still multivalued.
+     */
+    private Block[] multivaluedKeys(Page page) {
+        return specs.stream().map(s -> page.<Block>getBlock(s.channel())).filter(Block::doesHaveMultivaluedFields).toArray(Block[]::new);
+    }
+
+    private static boolean anyMultivalued(Block[] keys, int position) {
+        for (Block key : keys) {
+            if (key.getValueCount(position) > 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Moves every group past the current position's values without hashing them. */
+    private static void skipValues(Group[] groups) {
+        for (Group group : groups) {
+            group.valueOffset += group.valueCount;
+        }
+    }
+
     /** Whether any key column of the page holds no value at some position. */
     private boolean mayHaveNulls(Page page) {
         for (GroupSpec spec : specs) {
@@ -211,7 +253,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
     }
 
     void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
-        try (AddWork work = new AddWork(page, addInput, batchSize)) {
+        try (AddWork work = new AddWork(page, addInput, batchSize, new Block[0])) {
             work.add();
         }
     }
@@ -236,10 +278,15 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         int valueCount;
         int bytesStart;
 
-        Group(GroupSpec spec, Page page, int batchSize, boolean wholeMultivalues) {
+        /**
+         * @param direct read each value from the block only when it's hashed, rather than deduplicating and copying a batch
+         *               of positions up front. Whole multivalues need it, and so does skipping multivalued positions, which
+         *               would otherwise copy the values it skips.
+         */
+        Group(GroupSpec spec, Page page, int batchSize, boolean direct) {
             this.spec = spec;
             Block block = page.getBlock(spec.channel());
-            this.encoder = wholeMultivalues ? MultivalueDedupe.directEncoder(block) : MultivalueDedupe.batchEncoder(block, batchSize, true);
+            this.encoder = direct ? MultivalueDedupe.directEncoder(block) : MultivalueDedupe.batchEncoder(block, batchSize, true);
         }
 
         @Override
@@ -251,15 +298,18 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
     class AddWork extends AddPage {
         final Group[] groups;
         final int positionCount;
+        /** Key blocks whose multivalued positions are skipped. Empty unless the caller asked to skip multivalues. */
+        private final Block[] skippedMultivaluedKeys;
         int position;
 
-        AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
+        AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize, Block[] skippedMultivaluedKeys) {
             super(blockFactory, emitBatchSize, addInput);
+            this.skippedMultivaluedKeys = skippedMultivaluedKeys;
             Group[] groups = new Group[specs.size()];
             boolean success = false;
             try {
                 for (int g = 0; g < groups.length; g++) {
-                    groups[g] = new Group(specs.get(g), page, batchSize, wholeMultivalues);
+                    groups[g] = new Group(specs.get(g), page, batchSize, wholeMultivalues || skippedMultivaluedKeys.length > 0);
                 }
                 success = true;
             } finally {
@@ -280,7 +330,10 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         void add() {
             for (position = 0; position < positionCount; position++) {
                 boolean singleEntry = startPosition(groups, bytes);
-                if (singleEntry) {
+                if (anyMultivalued(skippedMultivaluedKeys, position)) {
+                    appendNullSv(position);
+                    skipValues(groups);
+                } else if (singleEntry) {
                     addSingleEntry();
                 } else if (wholeMultivalues) {
                     addWholeEntry();
@@ -415,14 +468,13 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
             BreakingBytesRefBuilder bytes,
             boolean multivaluesMiss
         ) {
-            this.groups = specs.stream().map(s -> new Group(s, page, batchSize, false)).toArray(Group[]::new);
+            this.multivaluedKeys = multivaluesMiss ? multivaluedKeys(page) : new Block[0];
+            boolean direct = multivaluedKeys.length > 0;
+            this.groups = specs.stream().map(s -> new Group(s, page, batchSize, direct)).toArray(Group[]::new);
             this.resultFactory = resultFactory;
             this.positionCount = page.getPositionCount();
             this.targetByteSize = targetByteSize;
             this.bytes = bytes;
-            this.multivaluedKeys = multivaluesMiss
-                ? specs.stream().map(s -> page.<Block>getBlock(s.channel())).filter(Block::doesHaveMultivaluedFields).toArray(Block[]::new)
-                : new Block[0];
             for (Block key : multivaluedKeys) {
                 key.incRef();
             }
@@ -445,8 +497,9 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                 while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
                     // TODO a test where targetByteSize is very small should still make a few rows.
                     boolean singleEntry = startPosition(groups, bytes);
-                    if (isMultivaluedMiss()) {
-                        missMultivalued(ords);
+                    if (anyMultivalued(multivaluedKeys, position)) {
+                        ords.appendNull();
+                        skipValues(groups);
                     } else if (singleEntry) {
                         lookupSingleEntry(ords);
                     } else {
@@ -455,25 +508,6 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                     position++;
                 }
                 return ords.build();
-            }
-        }
-
-        private boolean isMultivaluedMiss() {
-            for (Block key : multivaluedKeys) {
-                if (key.getValueCount(position) > 1) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Appends a miss and moves every group past this position's values without looking them up.
-         */
-        private void missMultivalued(IntBlock.Builder ords) {
-            ords.appendNull();
-            for (Group group : groups) {
-                group.valueOffset += group.valueCount;
             }
         }
 

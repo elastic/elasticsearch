@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -632,6 +633,8 @@ public final class StreamingParallelParsingCoordinator {
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
+        /** One mtime for the whole file: empty is a non-answer, null is not yet probed. */
+        private final AtomicReference<Optional<Instant>> pinnedSourceMtime = new AtomicReference<>();
 
         private final ArrayBlockingQueue<PoolBuffer> bufferPool;
         /**
@@ -1049,7 +1052,11 @@ public final class StreamingParallelParsingCoordinator {
                 try {
                     storageObject.close();
                 } catch (IOException e) {
-                    logger.warn("Failed to close storage object for [{}]", storageObject.path(), e);
+                    logger.warn(
+                        "Failed to close storage object for [{}]",
+                        ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+                        e
+                    );
                 }
             }
         }
@@ -1078,7 +1085,11 @@ public final class StreamingParallelParsingCoordinator {
                 try {
                     stream.close();
                 } catch (Exception e) {
-                    logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
+                    logger.warn(
+                        "Failed to release stream for [{}]",
+                        storageObject != null ? ExternalFailures.redactHttpUrl(storageObject.path().toString()) : "<stream>",
+                        e
+                    );
                 }
             }
         }
@@ -1103,7 +1114,11 @@ public final class StreamingParallelParsingCoordinator {
                     stream.close();
                 }
             } catch (Exception e) {
-                logger.warn("Failed to abort transport for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
+                logger.warn(
+                    "Failed to abort transport for [{}]",
+                    storageObject != null ? ExternalFailures.redactHttpUrl(storageObject.path().toString()) : "<stream>",
+                    e
+                );
             }
         }
 
@@ -1489,9 +1504,8 @@ public final class StreamingParallelParsingCoordinator {
                 // are missing. Log the real cause at WARN so the two can be connected — this is the only place
                 // it is visible.
                 logger.warn(
-                    () -> "could not read header columns from the first chunk of ["
-                        + (storageObject == null ? "<stream>" : storageObject.path())
-                        + "]",
+                    "could not read header columns from the first chunk of [{}]",
+                    storageObject == null ? "<stream>" : ExternalFailures.redactHttpUrl(storageObject.path().toString()),
                     e
                 );
             }
@@ -2481,6 +2495,36 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
+         * The source's last-modified, probed on first use and reused by every later chunk, so a store that
+         * serves no last-modified costs one metadata request per file rather than one per chunk -- GCS,
+         * Azure and http/https all re-enter {@code fetchMetadata()} whenever their {@code cachedLastModified}
+         * is still null, which for such an object is every call, and S3 is the one store that memoizes the
+         * non-answer. Either non-answer is final for this read, as it is for the row readers, which probe
+         * once at open and stop caching the file on a null or a throw.
+         */
+        @Nullable
+        private Instant pinnedSourceMtime() {
+            Optional<Instant> cached = pinnedSourceMtime.get();
+            if (cached == null) {
+                Optional<Instant> probed;
+                try {
+                    probed = Optional.ofNullable(storageObject.lastModified());
+                } catch (IOException e) {
+                    probed = Optional.empty(); // No pin, so the publish guard leaves the file a safe miss.
+                    // The throwable stays out: a store's own message can quote the signed URL back.
+                    logger.debug(
+                        "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                        ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+                        e.getClass().getSimpleName()
+                    );
+                }
+                pinnedSourceMtime.compareAndSet(null, probed);
+                cached = pinnedSourceMtime.get();
+            }
+            return cached.orElse(null);
+        }
+
+        /**
          * Test-only accessor: returns {@code true} when at least one thread is parked on
          * {@link #dispatchPermits}. Used by close-path tests to deterministically wait for the
          * segmentator to reach the permit-acquire blocking site instead of relying on wall-clock sleeps.
@@ -2496,13 +2540,10 @@ public final class StreamingParallelParsingCoordinator {
             // the chunk under a fabricated mtime — risking a stale warm hit if the file later changes. A null
             // mtime leaves pinnedMtimeMillis at -1, so the chunk's stats are uncacheable (safe-miss). A real
             // last-modified (including a genuine EPOCH) still flows through and stays cacheable.
+            // Only a read that harvests needs the stamp, so one that does not never probes.
             Instant mtime = null;
-            if (storageObject != null) {
-                try {
-                    mtime = storageObject.lastModified();
-                } catch (IOException e) {
-                    // Fall back to null — the chunk cannot be safely cached without a pinned mtime.
-                }
+            if (storageObject != null && captureSink != null && statsColumnScope != StripeColumnScope.NONE) {
+                mtime = pinnedSourceMtime();
             }
             return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
         }

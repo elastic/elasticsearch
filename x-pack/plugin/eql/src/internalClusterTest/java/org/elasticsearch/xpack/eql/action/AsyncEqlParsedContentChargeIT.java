@@ -11,17 +11,12 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -37,6 +32,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.BreakerTestUtil.parsedRequestHeldBytes;
+import static org.elasticsearch.test.BreakerTestUtil.parsedRequestMeasurements;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -87,7 +84,7 @@ public class AsyncEqlParsedContentChargeIT extends AbstractEqlBlockingIntegTestC
             String id = (String) body.get("id");
             awaitForBlockedFieldCaps(plugins);
             // The response is sent, but the query still runs.
-            assertThat(parsedRequestHeldBytes(), greaterThan(0L));
+            assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
 
             if (delete) {
                 // Cancels the query, which stops once field caps are unblocked. The delete responds once it stops.
@@ -95,7 +92,7 @@ public class AsyncEqlParsedContentChargeIT extends AbstractEqlBlockingIntegTestC
                     TransportDeleteAsyncResultAction.TYPE,
                     new DeleteAsyncResultRequest(id)
                 );
-                assertThat(parsedRequestHeldBytes(), greaterThan(0L));
+                assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
                 disableBlocks(plugins);
                 assertTrue(deleted.actionGet(TimeValue.timeValueSeconds(30)).isAcknowledged());
             } else {
@@ -108,7 +105,7 @@ public class AsyncEqlParsedContentChargeIT extends AbstractEqlBlockingIntegTestC
                     response.decRef();
                 }
             }
-            assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+            assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
             if (delete == false) {
                 assertTrue(
                     client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(id)).get().isAcknowledged()
@@ -121,13 +118,13 @@ public class AsyncEqlParsedContentChargeIT extends AbstractEqlBlockingIntegTestC
 
     public void testChargeIsReleasedWhenTheQueryEndsBeforeTheResponse() throws Exception {
         createTestIndex();
-        int measurementsBefore = parsedRequestMeasurements().size();
+        int measurementsBefore = parsedRequestMeasurements(internalCluster()).size();
         // Long enough for the query to end before the submit responds.
         Map<String, Object> body = submitThroughRest("30s");
         assertEquals(Boolean.FALSE, body.get("is_running"));
-        assertThat(parsedRequestMeasurements().size(), greaterThan(measurementsBefore));
+        assertThat(parsedRequestMeasurements(internalCluster()).size(), greaterThan(measurementsBefore));
         // The query can drop its hold just after the response is sent.
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
         assertTrue(
             client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest((String) body.get("id")))
                 .get()
@@ -151,30 +148,5 @@ public class AsyncEqlParsedContentChargeIT extends AbstractEqlBlockingIntegTestC
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    /** The bytes the request breakers of all nodes hold for parsed requests, from the held memory metric. */
-    private long parsedRequestHeldBytes() {
-        return parsedRequestMeasurements().stream().mapToLong(Measurement::getLong).sum();
-    }
-
-    private List<Measurement> parsedRequestMeasurements() {
-        List<Measurement> measurements = new ArrayList<>();
-        for (String node : internalCluster().getNodeNames()) {
-            TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class, node)
-                .filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
-            for (Measurement measurement : telemetry.getLongUpDownCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)) {
-                Map<String, Object> attributes = measurement.attributes();
-                if (CircuitBreaker.REQUEST.equals(attributes.get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
-                    && ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST.equals(
-                        attributes.get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)
-                    )) {
-                    measurements.add(measurement);
-                }
-            }
-        }
-        return measurements;
     }
 }

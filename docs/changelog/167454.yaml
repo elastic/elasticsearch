@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167454
+summary: Walk spliced TEMPLATE placeholders
+type: enhancement

@@ -826,7 +826,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     0,
                     0,
                     0,
-                    0
+                    0,
+                    null
                 )
             );
         }

@@ -297,7 +297,6 @@ public class DataStreamAutoShardingService {
          *     {@link #DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS} and
          *     {@link #DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS} cluster settings)
          */
-        // TODO add ProjectId
         record Inputs(
             long timestampMillis,
             TimeValue increaseShardsCooldown,
@@ -313,7 +312,9 @@ public class DataStreamAutoShardingService {
             double writeIndexPeakLoad,
             int currentNumberOfWriteIndexShards,
             int minNumberOfShards
-        ) {}
+        ) {
+            // TODO add ProjectId
+        }
 
         /**
          * Contains details from the increase shards calculation.
@@ -871,7 +872,7 @@ public class DataStreamAutoShardingService {
         static final int BUFFER_SIZE = 10;
         static final long FLUSH_INTERVAL_MILLIS = TimeValue.timeValueMinutes(5).millis();
 
-        private static final Comparator<Decision> HIGHEST_LOAD_COMPARATOR = Comparator.comparing(
+        private static final Comparator<Decision> HIGHEST_LOAD_COMPARATOR = Comparator.comparingDouble(
             d -> d.increaseCalculation().writeIndexLoadForIncrease()
         );
 

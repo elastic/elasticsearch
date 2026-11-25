@@ -5707,7 +5707,7 @@ public class GlobExpanderTests extends ESTestCase {
             }
         };
         // Globstar so the two-directory mixed path matches; TEMPLATE does not walk `**`.
-        FileList result = GlobExpander.expand("s3://bucket/data/**/*.parquet", provider, null, TEMPLATE_YEAR, MAX, MAX, year2025);
+        FileList result = GlobExpander.expand("s3://bucket/data/" + "**/*.parquet", provider, null, TEMPLATE_YEAR, MAX, MAX, year2025);
         assertEquals(List.of("s3://bucket/data/year=2024/2025/a.parquet"), paths(result));
     }
 
@@ -8585,7 +8585,7 @@ public class GlobExpanderTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ListingExtents(10),
+            new ListingExtents(1),
             PlanningMemory.NONE
         );
         assertEquals(1, result.fileCount());

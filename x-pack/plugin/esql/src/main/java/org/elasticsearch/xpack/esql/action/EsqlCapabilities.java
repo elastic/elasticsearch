@@ -4398,9 +4398,10 @@ public class EsqlCapabilities {
 
         /**
          * PromQL {@code topk}, {@code bottomk}, {@code limitk} and {@code limit_ratio} with {@code without(...)}: they partition
-         * by every label of a series but the listed ones and the metric name.
+         * by every label of a series but the listed ones and the metric name. It takes the label container functions, so it is
+         * on only where {@link #PROMQL_TIMESERIES_METADATA_FUNCTIONS} is.
          */
-        PROMQL_REDUCTION_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_REDUCTION_WITHOUT(PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()),
 
         /**
          * PromQL {@code without(...)} over another {@code without(...)}: each level leaves out its own labels from what the level

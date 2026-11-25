@@ -12,9 +12,13 @@
             index.sort.field: "@timestamp"
             index.sort.order: desc
           mappings:
+            # Like a backing index of a data stream, so the search can use the tail
+            _data_stream_timestamp:
+              enabled: true
             properties:
               "@timestamp":
-                type: long
+                type: date
+                format: epoch_millis
               rank:
                 type: long
 

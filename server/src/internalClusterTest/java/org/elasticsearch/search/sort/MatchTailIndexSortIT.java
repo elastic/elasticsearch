@@ -18,7 +18,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +40,11 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * A match-all query sorted by {@code @timestamp} ascending reads only the end of each segment of an index sorted by descending
  * {@code @timestamp}. That is only correct if the last documents are the ones with the smallest timestamps. These tests cover
- * cases where they are not. They use indices, not data streams, so a document can lack {@code @timestamp}.
+ * cases where they are not.
+ * <p>
+ * The tail is only used if the data stream timestamp mapper is enabled, because it makes sure that every document has exactly
+ * one {@code @timestamp} value. Most tests enable it on a plain index. Tests that need a document with no value or with many
+ * values use an index without it, and check that the search does not use the tail.
  */
 public class MatchTailIndexSortIT extends ESIntegTestCase {
 
@@ -44,7 +52,7 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
 
     /** Documents without a timestamp sort last, so with more of them than hits the end of the segment holds no top hit. */
     public void testDocumentsWithoutTimestampFillTheEndOfTheSegment() {
-        createIndex(descendingTimestampSort());
+        createIndexWithoutDataStreamTimestamp(descendingTimestampSort(), "date");
         List<Map<String, Object>> docs = new ArrayList<>();
         for (long i = 0; i < 50; i++) {
             docs.add(Map.of("@timestamp", 1000 + i));
@@ -116,7 +124,7 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
      * first hit can be before the end of the segment.
      */
     public void testMultiValuedTimestamp() {
-        createIndex(descendingTimestampSort());
+        createIndexWithoutDataStreamTimestamp(descendingTimestampSort(), "date");
         List<Map<String, Object>> docs = new ArrayList<>();
         docs.add(Map.of("@timestamp", List.of(1000L, 90_000L)));
         for (long i = 0; i < 50; i++) {
@@ -137,7 +145,7 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
      * value ties with them, so it can be the last document, after the documents without a value.
      */
     public void testMinValueTimestamp() {
-        createIndex(descendingTimestampSort(), "type=long");
+        createIndexWithoutDataStreamTimestamp(descendingTimestampSort(), "long");
         List<Map<String, Object>> docs = new ArrayList<>();
         for (long i = 0; i < 30; i++) {
             docs.add(Map.of("@timestamp", 1000 + i));
@@ -155,13 +163,13 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
     /** A columnar index can store a {@code long} with binary doc values, which are not {@code SORTED_NUMERIC} doc values. */
     public void testBinaryDocValues() {
         assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
-        createIndex(
+        createIndexWithoutDataStreamTimestamp(
             Settings.builder()
                 .put(descendingTimestampSort())
                 .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
                 .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), true)
                 .build(),
-            "type=long"
+            "long"
         );
         List<Map<String, Object>> docs = new ArrayList<>();
         for (long i = 0; i < 50; i++) {
@@ -276,11 +284,35 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
         return Settings.builder().put("index.sort.field", "@timestamp").put("index.sort.order", "desc").build();
     }
 
+    /** Creates an index with the data stream timestamp mapper, as a backing index of a data stream has. */
     private void createIndex(Settings sortSettings) {
-        createIndex(sortSettings, "type=date,format=epoch_millis");
+        createIndex(sortSettings, "date", true);
     }
 
-    private void createIndex(Settings sortSettings, String timestampMapping) {
+    /** Creates an index without the data stream timestamp mapper, so a document can have no timestamp or many. */
+    private void createIndexWithoutDataStreamTimestamp(Settings sortSettings, String timestampType) {
+        createIndex(sortSettings, timestampType, false);
+    }
+
+    private void createIndex(Settings sortSettings, String timestampType, boolean dataStreamTimestamp) {
+        XContentBuilder mapping;
+        try {
+            mapping = XContentFactory.jsonBuilder().startObject();
+            if (dataStreamTimestamp) {
+                mapping.startObject("_data_stream_timestamp").field("enabled", true).endObject();
+            }
+            mapping.startObject("properties");
+            mapping.startObject("@timestamp").field("type", timestampType);
+            if (timestampType.equals("date")) {
+                mapping.field("format", "epoch_millis");
+            }
+            mapping.endObject();
+            mapping.startObject("host.name").field("type", "keyword").endObject();
+            mapping.startObject("keep").field("type", "boolean").endObject();
+            mapping.endObject().endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         assertAcked(
             indicesAdmin().prepareCreate(INDEX)
                 .setSettings(
@@ -290,7 +322,7 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
                         .put("index.refresh_interval", "-1")
                         .put(sortSettings)
                 )
-                .setMapping("@timestamp", timestampMapping, "host.name", "type=keyword", "keep", "type=boolean")
+                .setMapping(mapping)
         );
     }
 

@@ -129,7 +129,9 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, empty());
     }
 
-    private static final String FAILED = "index refresh for INTO [" + DEST + "] failed: ";
+    private static final String FAILED = "index refresh for INTO ["
+        + DEST
+        + "] failed after [1] documents were written, so they may not be searchable yet: ";
 
     /**
      * The rows are stored whatever the refresh does, and a failed query invites a retry that stores them again, so a refresh that
@@ -162,8 +164,10 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
                 List.of(
                     "index refresh for INTO ["
                         + DEST
-                        + "] failed: action [indices:admin/refresh] is unauthorized"
-                        + " (INTO includes an index refresh that requires the [maintenance] privilege; use \"refresh\": false to skip it)"
+                        + "] failed after [4] documents were written, so they may not be searchable yet: "
+                        + "action [indices:admin/refresh] is unauthorized"
+                        + " (INTO includes an index refresh that requires the [maintenance] privilege; use \"refresh\": false in future"
+                        + " INTO queries to skip it, since re-running this one writes the documents again)"
                 )
             )
         );

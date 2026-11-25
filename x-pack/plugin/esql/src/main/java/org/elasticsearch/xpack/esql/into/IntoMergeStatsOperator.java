@@ -198,11 +198,18 @@ public final class IntoMergeStatsOperator implements Operator {
         // node is wrapped again with the details of that node, which are internal. The warning says what actually went wrong.
         Throwable underlying = ExceptionsHelper.unwrapCause(cause);
         String hint = ExceptionsHelper.status(underlying) == RestStatus.FORBIDDEN
-            ? " (INTO includes an index refresh that requires the [maintenance] privilege; use \"refresh\": false to skip it)"
+            ? " (INTO includes an index refresh that requires the [maintenance] privilege; use \"refresh\": false in future INTO queries"
+                + " to skip it, since re-running this one writes the documents again)"
             : "";
         // Kept here and published by the driver thread in getOutput: the callback can arrive after a cancellation has finished the
         // driver context, which must not be written to any more.
-        refreshWarning = Strings.format("index refresh for INTO [%s] failed: %s%s", refresher.destination(), underlying.getMessage(), hint);
+        refreshWarning = Strings.format(
+            "index refresh for INTO [%s] failed after [%d] documents were written, so they may not be searchable yet: %s%s",
+            refresher.destination(),
+            createdSum,
+            underlying.getMessage(),
+            hint
+        );
     }
 
     private boolean refreshPending() {

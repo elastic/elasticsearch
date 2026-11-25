@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
 import java.util.List;
@@ -88,6 +89,8 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
 
     @Override
     protected List<Block> getSubBlocks() {
+        // The first sub-block determines the nullity of this block, so it must be null exactly when the digest is null.
+        // That excludes minima, maxima and sums, which are also null for empty digests.
         return List.of(encodedDigests, minima, maxima, sums, valueCounts);
     }
 
@@ -147,6 +150,26 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
         maximaBuilder.copyFrom(maxima, beginInclusive, endExclusive);
         sumsBuilder.copyFrom(sums, beginInclusive, endExclusive);
         valueCountsBuilder.copyFrom(valueCounts, beginInclusive, endExclusive);
+    }
+
+    @Override
+    public DoubleBlock getMinBlock() {
+        return minima;
+    }
+
+    @Override
+    public DoubleBlock getMaxBlock() {
+        return maxima;
+    }
+
+    @Override
+    public DoubleBlock getSumBlock() {
+        return sums;
+    }
+
+    @Override
+    public LongBlock getCountBlock() {
+        return valueCounts;
     }
 
     @Override
@@ -260,6 +283,13 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
         double sum = sums.isNull(valueIndex) ? Double.NaN : sums.getDouble(sums.getFirstValueIndex(valueIndex));
         long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
         scratch.reset(encoded, min, max, sum, valueCount);
+        return scratch;
+    }
+
+    @Override
+    public EncodedTDigest getEncodedTDigest(int valueIndex, EncodedTDigest scratch) {
+        BytesRef bytes = encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(valueIndex), scratch.encodedDigest());
+        scratch.reset(bytes);
         return scratch;
     }
 

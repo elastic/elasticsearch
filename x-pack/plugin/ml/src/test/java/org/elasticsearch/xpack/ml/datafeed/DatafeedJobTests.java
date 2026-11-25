@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -32,6 +33,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -733,7 +735,18 @@ public class DatafeedJobTests extends ESTestCase {
         when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
-        datafeedJob.runLookBack(0L, 1000L);
+        try (var mockLog = MockLog.capture(DatafeedJob.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "truncated chunk logged at WARN",
+                    DatafeedJob.class.getCanonicalName(),
+                    Level.WARN,
+                    ".*\\[" + jobId + "\\].*reached its row limit.*"
+                )
+            );
+            datafeedJob.runLookBack(0L, 1000L);
+            mockLog.assertAllExpectationsMatched();
+        }
 
         String expectedMessage =
             "Within [1970-01-01T00:00:00.100Z, 1970-01-01T00:00:00.200Z) at least one ES|QL datafeed chunk reached its row limit. "

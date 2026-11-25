@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166524
+summary: Optimize `round_to` for common buckets
+type: enhancement

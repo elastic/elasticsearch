@@ -870,7 +870,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testSearchShardGenerationFilesRetention() throws Exception {
-        final var indexingNodeSettings = randomHollowIndexNodeSettings();
+        final var indexingNodeSettings = Settings.builder()
+            .put(randomHollowIndexNodeSettings())
+            // Release commit files right after upload so that directory content assertions don't wait on search notifications
+            .put(StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), TimeValue.ZERO)
+            .build();
         final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(indexingNodeSettings);
         var masterNode = startMasterOnlyNode();
         var indexNode = startIndexNode(indexingNodeSettings);

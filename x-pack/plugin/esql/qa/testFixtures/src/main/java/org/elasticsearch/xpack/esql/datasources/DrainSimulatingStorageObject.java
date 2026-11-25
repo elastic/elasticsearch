@@ -172,9 +172,15 @@ public final class DrainSimulatingStorageObject {
             // tail aborts rather than draining. Same package as MAX_TRAILING_DRAIN_BYTES.
             if (unread > DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES) {
                 markAborted();
+                if (tracking.abortCalls.getAndIncrement() == 0) {
+                    tracking.endOfBodyReadBeforeAbort.set(tracking.endOfBodyRead.get());
+                }
                 return;
             }
             if (unread == 0) {
+                if (tracking.endOfBodyRead.get()) {
+                    tracking.endOfBodyReadBeforeAbort.compareAndSet(false, true);
+                }
                 return;
             }
             CountDownLatch latch = tracking.drainLatch;
@@ -191,6 +197,7 @@ public final class DrainSimulatingStorageObject {
             while ((n = delegate.read(drain)) != -1) {
                 tracking.bytesConsumed.addAndGet(n);
             }
+            tracking.endOfBodyReadBeforeAbort.compareAndSet(false, true);
         }
     }
 }

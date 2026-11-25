@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Resolved leaf for the {@code EQL <indexPattern> "<query>"} source command. Delegates execution to the EQL
@@ -66,6 +68,24 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
     public static final String SEQUENCE_COLUMN = "_sequence";
     public static final String SEQUENCE_STAGE_COLUMN = "_sequence_stage";
     public static final String JOIN_KEYS_COLUMN = "join_keys";
+
+    /**
+     * The set of column types the converter can materialize from the EQL fields API. The analyzer ({@code ResolveEqlRelation}) gates
+     * every mapped field against this set — anything outside it becomes an {@code UnsupportedAttribute}
+     */
+    public static final Set<DataType> CONVERTIBLE_TYPES = Set.copyOf(
+        EnumSet.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.LONG,
+            DataType.INTEGER,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.IP,
+            DataType.VERSION
+        )
+    );
 
     /**
      * The synthetic columns a sequence/sample result prepends, in schema order: {@code _sequence} (long, which

@@ -13,7 +13,9 @@ import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -25,6 +27,9 @@ import java.util.function.Supplier;
  * @param load           where the time of a compute that reads no shard of its own is charged, or {@code null}
  * @param fetchOperators the fetch operators of the plan. Only the coordinator of a query that plans the fetch phase has
  *                       them.
+ * @param executionInfo  the query's execution info, to which a coordinator-local source reports the shards it lost. Only
+ *                       the coordinator of the query has it.
+ * @param queryLoad      what the compute charged outside its drivers, and its waiting
  */
 record ComputeContext(
     String sessionId,
@@ -40,7 +45,9 @@ record ComputeContext(
     boolean singleNodeOptimizations,
     @Nullable SharedSortBound sortBound,
     @Nullable TaskLoadAttribution.Target load,
-    FetchOperatorProvider fetchOperators
+    FetchOperatorProvider fetchOperators,
+    @Nullable EsqlExecutionInfo executionInfo,
+    QueryLoad queryLoad
 ) {
     /**
      * For computes whose plans never fetch and share no sort bound.
@@ -72,7 +79,9 @@ record ComputeContext(
             singleNodeOptimizations,
             null,
             null,
-            FetchOperatorProvider.UNSUPPORTED
+            FetchOperatorProvider.UNSUPPORTED,
+            null,
+            new QueryLoad()
         );
     }
 }

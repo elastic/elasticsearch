@@ -22,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,7 +33,6 @@ import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.lucene.search.cost.QueryCacheEntryCostEstimator;
-import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollectorManager;
 import org.elasticsearch.search.internal.BreakerWeightTestUtils.TrackingCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -84,7 +84,10 @@ public class QueryCacheBreakerWeightTests extends ESTestCase {
             searcher.setCircuitBreaker(breaker);
             final long denseBytes = denseEntryBytes(shardReader);
 
-            assertThat(searcher.search(new TermQuery(new Term(FIELD, TERM)), new CountingCollectorManager()), equalTo(NUM_DOCS));
+            assertThat(
+                searcher.search(new TermQuery(new Term(FIELD, TERM)), DummyTotalHitCountCollector.createManager()),
+                equalTo(NUM_DOCS)
+            );
             assertThat("the entry was cached", cache.getStats(shard, () -> 0L).getCacheCount(), equalTo(1L));
             assertThat("the entry was reserved at the size Lucene builds it", breaker.charges(), contains(denseBytes));
             assertThat("the reservation was held while the search ran", breaker.peak(), equalTo(denseBytes));
@@ -108,7 +111,11 @@ public class QueryCacheBreakerWeightTests extends ESTestCase {
             searcher.setCircuitBreaker(breaker);
             Query query = new TermQuery(new Term(FIELD, TERM));
 
-            assertThat("the search succeeds without the cache", searcher.search(query, new CountingCollectorManager()), equalTo(NUM_DOCS));
+            assertThat(
+                "the search succeeds without the cache",
+                searcher.search(query, DummyTotalHitCountCollector.createManager()),
+                equalTo(NUM_DOCS)
+            );
             QueryCacheStats stats = cache.getStats(shard, () -> 0L);
             assertThat("the entry was not built", stats.getCacheCount(), equalTo(0L));
             assertThat(stats.getMissCount(), equalTo(1L));
@@ -133,7 +140,7 @@ public class QueryCacheBreakerWeightTests extends ESTestCase {
             searcher.setCircuitBreaker(new TrackingCircuitBreaker(-1L));
 
             Query query = new ConstantScoreQuery(new TermQuery(new Term(FIELD, TERM)));
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(NUM_DOCS));
+            assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(NUM_DOCS));
 
             QueryCacheStats stats = cache.getStats(shard, () -> 0L);
             assertThat(stats.getCacheCount(), equalTo(1L));

@@ -18,32 +18,26 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
 
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -93,9 +87,9 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         for (Query query : List.of(pointsQuery(), termsQuery())) {
             TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(1L);
             try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, null)) {
-                expectThrows(CircuitBreakingException.class, () -> count(reader, query, breaker));
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> count(reader, query, breaker));
+                assertThat(e.getMessage(), containsString(BitmapTermsQueryBuilder.NAME));
             }
-            assertThat(breaker.trippedLabels(), equalTo(List.of(BitmapTermsQueryBuilder.NAME)));
             assertThat("a tripped reservation must not leak onto the breaker", breaker.getUsed(), equalTo(0L));
         }
     }
@@ -106,7 +100,6 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
             assertThat(count(reader, query, breaker), equalTo(NUM_DOCS / 2));
         }
         assertThat("the collecting path must charge the set it builds: " + query, breaker.peak(), greaterThan(0L));
-        assertThat(breaker.labels(), everyItem(equalTo(BitmapTermsQueryBuilder.NAME)));
         assertThat("the per-leaf execution charge must be released once the leaf is scored", breaker.getUsed(), equalTo(0L));
     }
 
@@ -115,7 +108,7 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, sortField)) {
             assertThat(count(reader, query, breaker), equalTo(NUM_DOCS / 2));
         }
-        assertThat("the streaming path builds no doc id set: " + query, breaker.labels(), empty());
+        assertFalse("the streaming path builds no doc id set: " + query, breaker.wasCalled());
     }
 
     /** Matches the documents with value 0, half of them, so the collecting path builds a bit set. */
@@ -156,31 +149,7 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
      */
     private static int count(DirectoryReader reader, Query query, TrackingCircuitBreaker breaker) throws IOException {
         try (ContextIndexSearcher searcher = newSearcher(reader, breaker)) {
-            return searcher.search(query, new CollectorManager<CountingCollector, Integer>() {
-                @Override
-                public CountingCollector newCollector() {
-                    return new CountingCollector();
-                }
-
-                @Override
-                public Integer reduce(Collection<CountingCollector> collectors) {
-                    return collectors.stream().mapToInt(c -> c.count).sum();
-                }
-            });
-        }
-    }
-
-    private static final class CountingCollector extends SimpleCollector {
-        private int count;
-
-        @Override
-        public void collect(int doc) {
-            count++;
-        }
-
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES;
+            return searcher.search(query, DummyTotalHitCountCollector.createManager());
         }
     }
 
@@ -194,64 +163,5 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         );
         searcher.setCircuitBreaker(breaker);
         return searcher;
-    }
-
-    /** Request breaker that keeps track of what is in use, the peak, and the labels it was charged and tripped under. */
-    private static final class TrackingCircuitBreaker extends NoopCircuitBreaker {
-        private final long limit;
-        private final AtomicLong used = new AtomicLong();
-        private final AtomicLong peak = new AtomicLong();
-        private final List<Long> charges = new CopyOnWriteArrayList<>();
-        private final List<String> labels = new CopyOnWriteArrayList<>();
-        private final List<String> trippedLabels = new CopyOnWriteArrayList<>();
-
-        TrackingCircuitBreaker(long limit) {
-            super("request");
-            this.limit = limit;
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            long current = used.addAndGet(bytes);
-            if (limit >= 0 && current > limit) {
-                used.addAndGet(-bytes);
-                trippedLabels.add(label);
-                throw new CircuitBreakingException("test breaker tripped", bytes, limit, Durability.TRANSIENT);
-            }
-            peak.accumulateAndGet(current, Math::max);
-            charges.add(bytes);
-            labels.add(label);
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            used.addAndGet(bytes);
-        }
-
-        @Override
-        public long getUsed() {
-            return used.get();
-        }
-
-        @Override
-        public long getLimit() {
-            return limit;
-        }
-
-        long peak() {
-            return peak.get();
-        }
-
-        List<Long> charges() {
-            return charges;
-        }
-
-        List<String> labels() {
-            return labels;
-        }
-
-        List<String> trippedLabels() {
-            return trippedLabels;
-        }
     }
 }

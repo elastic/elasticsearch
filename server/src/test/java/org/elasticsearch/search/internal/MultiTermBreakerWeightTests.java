@@ -35,13 +35,13 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
-import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollectorManager;
 import org.elasticsearch.search.internal.BreakerWeightTestUtils.TrackingCircuitBreaker;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
@@ -212,7 +212,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
         searcher.setProfiler(new QueryProfiler());
-        int hits = searcher.search(fewPresentTermsQuery(), new CountingCollectorManager());
+        int hits = searcher.search(fewPresentTermsQuery(), DummyTotalHitCountCollector.createManager());
         assertThat("the query must match documents so its scorer actually runs", hits, greaterThan(0));
         assertThat("profiling must not hide the query Lucene runs as a plain disjunction", breaker.peak(), equalTo(0L));
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -240,7 +240,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
                 TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
                 ContextIndexSearcher searcher = newContextIndexSearcher(sharedReader);
                 searcher.setCircuitBreaker(breaker);
-                int hits = searcher.search(new TermInSetQuery(FIELD, terms), new CountingCollectorManager());
+                int hits = searcher.search(new TermInSetQuery(FIELD, terms), DummyTotalHitCountCollector.createManager());
                 assertThat(hits, equalTo(numDocs));
                 assertThat("a term matching every doc is run as a single term query, with no doc-id set", breaker.peak(), equalTo(0L));
                 assertThat(breaker.getUsed(), equalTo(0L));
@@ -283,7 +283,7 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
-        int hits = searcher.search(new TermQuery(new Term(FIELD, term(0))), new CountingCollectorManager());
+        int hits = searcher.search(new TermQuery(new Term(FIELD, term(0))), DummyTotalHitCountCollector.createManager());
         assertThat("the term query must match documents so the search actually runs", hits, greaterThan(0));
         assertFalse(
             "a search whose query tree contains no costly multi-term query must not allocate accounting",
@@ -296,13 +296,13 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
         assertFalse("accounting must not be allocated before any query has run", searcher.hasLeafExecutionAccounting());
-        searcher.search(termInSetQuery(), new CountingCollectorManager());
+        searcher.search(termInSetQuery(), DummyTotalHitCountCollector.createManager());
         assertTrue("wrapping a costly multi-term query must lazily allocate accounting", searcher.hasLeafExecutionAccounting());
     }
 
     public void testNoCircuitBreakerConfiguredIsNoop() throws IOException {
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
-        int hits = searcher.search(termInSetQuery(), new CountingCollectorManager());
+        int hits = searcher.search(termInSetQuery(), DummyTotalHitCountCollector.createManager());
         assertThat("the query must still match documents when no breaker is configured", hits, greaterThan(0));
         assertFalse("no breaker means no accounting is allocated", searcher.hasLeafExecutionAccounting());
     }
@@ -345,11 +345,11 @@ public class MultiTermBreakerWeightTests extends ESTestCase {
             )
         ) {
             searcher.setCircuitBreaker(breaker);
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(RARE_DOCS));
             assertThat("filling the cache builds the result set", breaker.charges(), hasSize(1));
             assertThat(queryCache.getCacheCount(), equalTo(1L));
 
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(RARE_DOCS));
             assertThat(queryCache.getHitCount(), equalTo(1L));
             assertThat("a cached clause must not be charged", breaker.charges(), hasSize(1));
             assertThat(breaker.getUsed(), equalTo(0L));

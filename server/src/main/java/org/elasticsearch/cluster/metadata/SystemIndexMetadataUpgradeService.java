@@ -66,14 +66,8 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         @FixForMultiProject
         ProjectMetadata currentMetadata = event.state().metadata().getProject();
         ProjectMetadata previousMetadata = event.previousState().metadata().getProject();
-<<<<<<< HEAD
-=======
-        final boolean localNodeNewlyElectedMaster = event.localNodeIsNewMaster();
-        final boolean reportHybridDataStreams = localNodeNewlyElectedMaster
-            || event.previousState().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
         if (event.localNodeMaster()
-            && (event.previousState().nodes().isLocalNodeElectedMaster() == false
+            && (event.localNodeIsNewMaster()
                 || currentMetadata.indices() != previousMetadata.indices()
                 || currentMetadata.dataStreams() != previousMetadata.dataStreams())) {
             final Map<String, IndexMetadata> indexMetadataMap = currentMetadata.indices();

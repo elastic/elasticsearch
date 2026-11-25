@@ -1099,6 +1099,13 @@ public enum DataType implements Writeable {
         return supportedVersion;
     }
 
+    /**
+     * The cast to suggest for a column whose indices map it to {@code originalTypes}, given by name.
+     */
+    public static DataType suggestedCastOfTypeNames(Collection<String> originalTypes) {
+        return suggestedCast(originalTypes.stream().map(DataType::fromTypeName).filter(Objects::nonNull).collect(Collectors.toSet()));
+    }
+
     public static DataType suggestedCast(Set<DataType> originalTypes) {
         if (originalTypes.isEmpty() || originalTypes.contains(UNSUPPORTED)) {
             return null;

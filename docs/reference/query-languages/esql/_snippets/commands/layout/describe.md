@@ -54,6 +54,12 @@ DESCRIBE
 `description`
 :   The `description` in the field's `meta`. When the indices, or the branches of a query that read the same field, disagree, the column lists every description. The listed units and descriptions are collected independently, so their positions don't match.
 
+`original_types`
+:   The types of an unsupported column, for example the types its indices disagree on, as reported by the `original_types` of the column in the response.
+
+`suggested_cast`
+:   The type to cast an unsupported column to, as reported by the `suggested_cast` of the column in the response.
+
 ## Examples
 
 Describe the fields of an index:

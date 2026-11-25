@@ -15,11 +15,16 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,6 +43,8 @@ import java.util.Set;
  * @param interval     the interval of a date bucket with a constant interval
  * @param timeZone     the time zone of that date bucket
  * @param descriptions every description of the field the column reads
+ * @param originalTypes  the types of an unsupported column, such as the types its indices disagree on, sorted
+ * @param suggestedCast  the type to cast an unsupported column to, if any
  */
 public record ColumnDescription(
     @Nullable FieldSemantics.Role role,
@@ -47,7 +54,9 @@ public record ColumnDescription(
     List<String> units,
     @Nullable String interval,
     @Nullable String timeZone,
-    List<String> descriptions
+    List<String> descriptions,
+    List<String> originalTypes,
+    @Nullable String suggestedCast
 ) {
 
     /**
@@ -68,6 +77,8 @@ public record ColumnDescription(
             FieldSemantics field = semantics.get(column.id());
             Attribute datasetColumn = datasetColumns.get(column.id());
             ColumnIntervals.Interval interval = intervals.get(column.id());
+            List<String> originalTypes = originalTypes(column);
+            DataType suggestedCast = originalTypes.isEmpty() ? null : DataType.suggestedCastOfTypeNames(originalTypes);
             descriptions.put(
                 column.id(),
                 new ColumnDescription(
@@ -78,7 +89,9 @@ public record ColumnDescription(
                     units.getOrDefault(column.id(), List.of()),
                     interval == null ? null : interval.interval(),
                     interval == null ? null : interval.timeZone(),
-                    field == null ? List.of() : List.copyOf(field.descriptions())
+                    field == null ? List.of() : List.copyOf(field.descriptions()),
+                    originalTypes,
+                    suggestedCast == null ? null : suggestedCast.typeName()
                 )
             );
         }
@@ -87,7 +100,8 @@ public record ColumnDescription(
 
     /**
      * The {@code _meta} entries of a result column, named like the columns of {@code DESCRIBE}. Unknown values are left out,
-     * and a list with a single value is reported as that value.
+     * and a list with a single value is reported as that value. The original types and the suggested cast are left out
+     * too, since the column reports them itself.
      */
     public Map<String, Object> toColumnMetadata() {
         Map<String, Object> map = new LinkedHashMap<>();
@@ -114,6 +128,25 @@ public record ColumnDescription(
             map.put("description", FieldSemantics.singleOrList(descriptions));
         }
         return map;
+    }
+
+    /**
+     * The types the response reports as {@code original_types} for this column, sorted, or empty if it is supported.
+     */
+    private static List<String> originalTypes(Attribute column) {
+        Collection<String> types;
+        if (column instanceof UnsupportedAttribute unsupported) {
+            types = unsupported.originalTypes();
+        } else if (column instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField conflict) {
+            types = conflict.getTypesToIndices().keySet();
+        } else if (column instanceof FieldAttribute fa && fa.field() instanceof UnsupportedEsField unsupported) {
+            types = unsupported.getOriginalTypes();
+        } else {
+            return List.of();
+        }
+        List<String> sorted = new ArrayList<>(types == null ? List.of() : types);
+        Collections.sort(sorted);
+        return sorted;
     }
 
     private static String origin(Attribute column, @Nullable FieldSemantics field, @Nullable Attribute datasetColumn) {

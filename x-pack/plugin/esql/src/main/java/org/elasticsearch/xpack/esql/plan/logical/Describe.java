@@ -53,7 +53,9 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         new Column("unit", DataType.KEYWORD),
         new Column("interval", DataType.KEYWORD),
         new Column("time_zone", DataType.KEYWORD),
-        new Column("description", DataType.KEYWORD)
+        new Column("description", DataType.KEYWORD),
+        new Column("original_types", DataType.KEYWORD),
+        new Column("suggested_cast", DataType.KEYWORD)
     );
 
     private record Column(String name, DataType type) {}
@@ -146,7 +148,9 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                     description.units(),
                     description.interval(),
                     description.timeZone(),
-                    description.descriptions() };
+                    description.descriptions(),
+                    description.originalTypes(),
+                    description.suggestedCast() };
                 for (int i = 0; i < row.length; i++) {
                     append(builders[i], row[i], elementTypes[i]);
                 }

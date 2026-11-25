@@ -9,14 +9,11 @@ package org.elasticsearch.xpack.esql.index;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexSortConfig.SortEntry;
 import org.elasticsearch.index.IndexSortParser;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -35,7 +32,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.FieldExpression;
@@ -236,42 +232,6 @@ public class EsqlIndexSortParserTests extends ESTestCase {
             fromExpression,
             equalTo(buildIndexSort(IndexSettingsModule.newIndexSettings("test", sortSettings).getIndexSortConfig()))
         );
-    }
-
-    public void testComputedKeysNeedIndexVersion() {
-        Settings settings = Settings.builder()
-            .put("index.sort", "DATE_TRUNC(1 hour, @timestamp) DESC")
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORT_COMPUTED_KEYS))
-            .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexSettingsModule.newIndexSettings("test", settings).getIndexSortConfig()
-        );
-        assertThat(e.getMessage(), containsString("can't have computed keys on an index created before all nodes support them"));
-    }
-
-    public void testOlderIndicesKeepTheFieldSortSyntax() {
-        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORT_COMPUTED_KEYS);
-        // A long quoted name doesn't need a deep stack to check
-        String longName = "`" + "a".repeat(100_000) + "`";
-        for (String sort : List.of(
-            "host.name",
-            "MV_MAX(`a b`) DESC NULLS LAST, @timestamp desc",
-            "mv_min( `x``y` ) asc,_a NULLS first",
-            longName + " DESC"
-        )) {
-            Settings settings = Settings.builder().put("index.sort", sort).put(IndexMetadata.SETTING_VERSION_CREATED, previous).build();
-            IndexSettingsModule.newIndexSettings("test", settings).getIndexSortConfig();
-        }
-        // Syntax that only ES|QL reads, such as parentheses or comments, needs every node to parse the setting with ES|QL
-        for (String sort : List.of("(count) DESC", "count /* c */ DESC", "host.name, count // c")) {
-            Settings settings = Settings.builder().put("index.sort", sort).put(IndexMetadata.SETTING_VERSION_CREATED, previous).build();
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> IndexSettingsModule.newIndexSettings("test", settings).getIndexSortConfig()
-            );
-            assertThat(e.getMessage(), containsString("on an index created before all nodes support computed keys"));
-        }
     }
 
     public void testResolve() {

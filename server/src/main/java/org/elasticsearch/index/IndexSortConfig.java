@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -308,16 +307,6 @@ public final class IndexSortConfig {
         }
     }
 
-    private static final String SORT_FIELD_NAME =
-        "(?:`(?:[^`]++|``)++`|(?:[a-z][a-z0-9_]*|[_@][a-z0-9_]+)(?:\\.(?:[a-z][a-z0-9_]*|[_@][a-z0-9_]+))*)";
-    private static final String SORT_FIELD_KEY = "(?:" + SORT_FIELD_NAME + "|MV_M(?:IN|AX)\\s*\\(\\s*" + SORT_FIELD_NAME + "\\s*\\))";
-    private static final String SORT_FIELD_ENTRY = "\\s*" + SORT_FIELD_KEY + "(?:\\s*(?:ASC|DESC|NULLS|FIRST|LAST)(?![^\\s,()`]))*\\s*";
-    /** The {@link #INDEX_SORT_SETTING} syntax that nodes read before computed keys, which sorts on fields only. */
-    private static final Pattern FIELD_SORT_SYNTAX = Pattern.compile(
-        SORT_FIELD_ENTRY + "(?:," + SORT_FIELD_ENTRY + ")*",
-        Pattern.CASE_INSENSITIVE
-    );
-
     /**
      * One entry of an {@link #INDEX_SORT_SETTING} expression, with the order, multi-value mode and missing value already resolved
      * to their ES|QL defaults.
@@ -516,24 +505,6 @@ public final class IndexSortConfig {
             this.fields = entries.stream()
                 .flatMap(e -> e.field() != null ? Stream.of(e.field()) : e.computedKeyFields().stream())
                 .collect(Collectors.toUnmodifiableSet());
-            if (computedKeys.stream().anyMatch(Objects::nonNull) && indexCreatedVersion.before(IndexVersions.INDEX_SORT_COMPUTED_KEYS)) {
-                throw new IllegalArgumentException(
-                    "setting ["
-                        + INDEX_SORT_SETTING.getKey()
-                        + "] can't have computed keys on an index created before all nodes support them"
-                );
-            }
-            if (indexCreatedVersion.before(IndexVersions.INDEX_SORT_COMPUTED_KEYS)
-                && FIELD_SORT_SYNTAX.matcher(expression).matches() == false) {
-                throw new IllegalArgumentException(
-                    "setting ["
-                        + INDEX_SORT_SETTING.getKey()
-                        + "] can only sort on fields, or MV_MIN or MV_MAX of a field, on an index created before all nodes support"
-                        + " computed keys, in ["
-                        + expression
-                        + "]"
-                );
-            }
         }
         if (indexSettings.isSliceEnabled()) {
             prependSliceKeySort(fields, orders, modes, missingValues);

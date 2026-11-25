@@ -5,8 +5,8 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [index_sort_computed_keys]
-      reason: index.sort keys computed by a function are not supported on older nodes
+          capabilities: [index_sort_expression]
+      reason: index.sort expressions are not supported on older nodes
 
 ---
 "Index sorted on a key computed by an ES|QL function":

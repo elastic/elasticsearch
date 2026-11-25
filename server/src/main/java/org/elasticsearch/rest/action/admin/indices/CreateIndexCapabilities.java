@@ -68,11 +68,6 @@ public class CreateIndexCapabilities {
     private static final String INDEX_SORT_EXPRESSION_CAPABILITY = "index_sort_expression";
 
     /**
-     * Support for keys computed by an expression in the {@code index.sort} expression setting, and for its ES|QL syntax.
-     */
-    private static final String INDEX_SORT_COMPUTED_KEYS_CAPABILITY = "index_sort_computed_keys";
-
-    /**
      * Support for {@code doc_values.on_failure=ignore}. Always advertised now that the feature is no longer behind a flag; kept so
      * mixed-version yaml tests still skip against older nodes where the capability was not yet advertised.
      */
@@ -118,7 +113,6 @@ public class CreateIndexCapabilities {
         }
         Set<String> caps = new HashSet<>(CAPABILITIES);
         caps.add(INDEX_SORT_EXPRESSION_CAPABILITY);
-        caps.add(INDEX_SORT_COMPUTED_KEYS_CAPABILITY);
         return Set.copyOf(caps);
     }
 }

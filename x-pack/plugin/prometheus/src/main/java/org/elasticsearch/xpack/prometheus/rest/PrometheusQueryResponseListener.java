@@ -113,6 +113,9 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // and crash the node. Reading its pages/blocks directly (without incRef/decRef/close) is safe: the
         // response holds a live reference for the duration of this synchronous callback, same as the
         // generic EsqlResponse.rows()/ResponseValueUtils path this class used to go through.
+        // TODO: the whole body is built in one byte array that the circuit breaker does not see, next to the pages it is
+        // built from. Send it as a chunked response instead, serializing each page into chunks and releasing the page once
+        // it is written, so the JSON never exceeds a chunk and memory goes down while the body is sent.
         try {
             XContentBuilder builder = convertToPrometheusJson(
                 queryResponse.pages(),

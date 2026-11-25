@@ -97,8 +97,7 @@ dependencies {
   api project(":libs:h3")
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
   implementation 'com.carrotsearch:hppc:0.8.1'
-  // TODO: upgrade once a release has https://github.com/google/re2j/pull/220, the fix of the case folding hang
-  // https://github.com/google/re2j/issues/215 that Re2Programs#parse notes
+  // TODO: upgrade once RE2/J releases a version after 1.8
   implementation 'com.google.re2j:re2j:1.8'
 
   testImplementation(project('qa:testFixtures')) {

@@ -5644,6 +5644,73 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(List.of("s3://bucket/data/region=eu/year=2025/b.parquet"), paths(proven));
     }
 
+    /**
+     * Closed-range post-filter after drain used to drop the files an untrusted put-back just restored.
+     * A stray means {@code year} is file data; {@code BETWEEN 2025 AND 2026} must keep {@code year=2024}.
+     */
+    public void testUnhintedParentClosedRangeWithStrayKeepsFullListing() throws IOException {
+        List<StorageEntry> withStray = List.of(
+            entry("s3://bucket/data/region=eu/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/region=eu/year=2025/b.parquet", 100),
+            entry("s3://bucket/data/stray.parquet", 100)
+        );
+        var closed = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2025),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+        );
+
+        FileList stray = GlobExpander.expand("s3://bucket/data/**", new TreeStubProvider(withStray), closed, HIVE_ON, MAX, MAX);
+        assertEquals("untrusted put-back must not be undone by the closed-range pass", 3, stray.fileCount());
+
+        FileList proven = GlobExpander.expand(
+            "s3://bucket/data/**",
+            new TreeStubProvider(
+                List.of(
+                    entry("s3://bucket/data/region=eu/year=2024/a.parquet", 100),
+                    entry("s3://bucket/data/region=eu/year=2025/b.parquet", 100)
+                )
+            ),
+            closed,
+            HIVE_ON,
+            MAX,
+            MAX
+        );
+        assertEquals(List.of("s3://bucket/data/region=eu/year=2025/b.parquet"), paths(proven));
+    }
+
+    /**
+     * Mixed Hive-prefix + positional {@code {year}}: {@code year=2024/2025/a.parquet} is year 2025 on disk.
+     * Hive {@code pathBindings} would bind {@code 2024} and drop the in-range file.
+     */
+    public void testTemplateFolderRangeKeepsMixedHivePrefixFile() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(entry("s3://bucket/data/year=2024/2024/b.parquet", 100), entry("s3://bucket/data/year=2024/2025/a.parquet", 100))
+            )
+        );
+        FolderRangePredicate year2025 = new FolderRangePredicate() {
+            @Override
+            public boolean mayContain(Map<String, String> boundKeyValues) {
+                String year = boundKeyValues.get("year");
+                return year == null || "2025".equals(year);
+            }
+
+            @Override
+            public String identity() {
+                return "year=2025";
+            }
+
+            @Override
+            public List<String> bindKeys() {
+                return List.of("year");
+            }
+        };
+        // Globstar so the two-directory mixed path matches; TEMPLATE does not walk `**`.
+        FileList result = GlobExpander.expand("s3://bucket/data/" + "**/*.parquet", provider, null, TEMPLATE_YEAR, MAX, MAX, year2025);
+        assertEquals(List.of("s3://bucket/data/year=2024/2025/a.parquet"), paths(result));
+    }
+
     /** A provider that cannot enumerate directories uses the flat listing, which the value filter still narrows. */
     public void testGlobstarWalkUnsupportedProviderFallsBack() throws IOException {
         TreeStubProvider provider = hiveTree();
@@ -8425,10 +8492,9 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A range filter cannot splice the prefix. This provider does not list children, so the walk withdraws
-     * and the first page may keep nothing: {@code listed} hits the bound before the matching key. The empty
-     * truncated listing must retry unbounded, or FIRST_FILE_WINS (which now passes value filters here) would
-     * miss files past the prefix.
+     * A range filter cannot splice the prefix. Counting the excluded 2024 key toward {@code maxFiles}
+     * would fill a bound of 1 before 2025, truncated-empty, and retry unbounded. Survivors-after-filter
+     * keep 2025 on the first pass ({@code keysPulled == 2}) and mark truncated.
      */
     public void testBoundedRangeFilterMatchingPastTheBoundRelistsInFull() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -8437,9 +8503,10 @@ public class GlobExpanderTests extends ESTestCase {
         );
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2025));
 
+        CountingStubProvider provider = new CountingStubProvider(listing);
         FileList result = GlobExpander.expand(
             "s3://bucket/data/year=*/*.parquet",
-            new CountingStubProvider(listing),
+            provider,
             hints,
             HIVE_ON,
             Integer.MAX_VALUE,
@@ -8451,14 +8518,87 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals("the matching file past the bound must still be found", 1, result.fileCount());
         assertEquals("s3://bucket/data/year=2025/b.parquet", result.path(0).toString());
-        assertFalse("the listing read to the end of the pattern, so its answer is complete", result.isTruncated());
+        assertTrue("the bound filled with the later survivor", result.isTruncated());
+        assertEquals("value-excluded files must not force an unbounded retry", 2, provider.keysPulled());
+    }
+
+    /**
+     * First {@code partition_sample_size} keys can all be value-excluded. Survivors on later pages still
+     * fill the bound; the listing never retries unbounded.
+     */
+    public void testBoundedListingCountsSurvivorsAfterValueFilter() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            listing.add(entry("s3://bucket/data/year=2024/f" + i + ".parquet", 100));
+        }
+        listing.add(entry("s3://bucket/data/year=2025/keep.parquet", 100));
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
+        CountingStubProvider provider = new CountingStubProvider(listing);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/year=*/*.parquet",
+            provider,
+            hints,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2025/keep.parquet", result.path(0).toString());
+        assertTrue("the bound filled with survivors from later pages", result.isTruncated());
+        assertEquals(21, provider.keysPulled());
+    }
+
+    public void testBoundedListingCountsSurvivorsAfterValueFilterAsync() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            listing.add(entry("s3://bucket/data/year=2024/f" + i + ".parquet", 100));
+        }
+        listing.add(entry("s3://bucket/data/year=2025/keep.parquet", 100));
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
+        CountingStubProvider provider = new CountingStubProvider(listing);
+        FileList result = expandSync("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX, MAX, 1, 4, () -> false);
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2025/keep.parquet", result.path(0).toString());
+        assertTrue("the bound filled with survivors from later pages", result.isTruncated());
+        assertEquals(21, provider.keysPulled());
+    }
+
+    /**
+     * A bounded drain that value-excludes every file still keeps one schema anchor. Unbounded retry
+     * would list the dataset again and can fail "matched no files".
+     */
+    public void testBoundedAllValueExcludedKeepsSchemaAnchor() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/a.parquet", 100),
+            entry("s3://bucket/data/year=2024/b.parquet", 100)
+        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        CountingStubProvider provider = new CountingStubProvider(listing);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/year=*/*.parquet",
+            provider,
+            hints,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertEquals(2, provider.keysPulled());
     }
 
     /**
      * {@code _file.*} promotion of a schema-inference stash is only sound over a listing that saw the
      * whole pattern: the first reject is then a well-defined choice. A bound that fills with files the
      * hint drops has not seen the rest; a match may sit past it. The empty truncated listing must
-     * retry unbounded, the same as a partition-value miss, or FIRST_FILE_WINS infers schema from a
+     * retry unbounded. That retry is not the partition-value-filter path: value-excluded keys do not
+     * fill {@code maxFiles} and must not relist. FIRST_FILE_WINS would otherwise infer schema from a
      * file the query excluded.
      */
     public void testBoundedFileHintRejectingThePrefixRelistsInFull() throws IOException {

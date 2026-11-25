@@ -353,7 +353,7 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

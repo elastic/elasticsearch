@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166222
+summary: Tie the reduced aggregations charge to the lifetime of the response
+type: enhancement

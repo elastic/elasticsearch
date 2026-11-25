@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165756
+pr: 165968
+summary: Skip ROUND_TO block loader for MV fields
+type: bug

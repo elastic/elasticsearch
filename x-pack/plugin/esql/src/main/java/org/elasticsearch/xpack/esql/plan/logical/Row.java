@@ -28,7 +28,7 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
 
     private final List<Alias> fields;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Row(Source source, List<Alias> fields) {
         super(source);

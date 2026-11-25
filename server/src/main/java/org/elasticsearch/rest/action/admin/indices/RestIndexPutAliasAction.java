@@ -13,8 +13,10 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -23,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -31,6 +34,10 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndexPutAliasAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, RestUtils.REST_TIMEOUT_PARAM);
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index", "name");
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -125,4 +132,15 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         indicesAliasesRequest.addAliasAction(aliasAction);
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

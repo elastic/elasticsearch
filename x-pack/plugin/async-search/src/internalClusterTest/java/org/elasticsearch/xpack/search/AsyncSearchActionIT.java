@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -288,7 +289,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertNotNull(response.getFailure());
             assertTrue(response.isPartial());
             assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-            assertThat(response.getSearchResponse().getShardFailures().length, equalTo(numShards));
+            assertThat(response.getSearchResponse().getShardFailures(), hasSize(numShards));
         } finally {
             response.decRef();
         }

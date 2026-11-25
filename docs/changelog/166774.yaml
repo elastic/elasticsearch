@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 166774
+summary: "Fix audit URI parsing when # precedes ?"
+type: bug

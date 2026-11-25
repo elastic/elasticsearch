@@ -340,7 +340,7 @@ public class TaskManagerTests extends ESTestCase {
             Map<String, Object> attributes = hasParentTask
                 ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
                 : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
-            verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), eq(attributes));
+            verify(mockTracer).startTrace(eq(task), eq("testAction"), eq(attributes));
 
             taskManager.unregister(task);
             verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
@@ -471,7 +471,7 @@ public class TaskManagerTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        verify(mockTracer).startTrace(any(), eq(task), eq("actionName"), anyMap());
+        verify(mockTracer).startTrace(eq(task), eq("actionName"), anyMap());
         verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
     }
 

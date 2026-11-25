@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 164443
+pr: 165948
+summary: Fix `top_hits` leak on fetch-phase failure
+type: bug

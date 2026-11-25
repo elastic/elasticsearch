@@ -230,6 +230,25 @@ public final class FieldPath {
     }
 
     /**
+     * Like {@link #resolve(IngestDocument)}, except that this returns <code>null</code> rather than throwing if the path is empty.
+     * <p>
+     * This is for the processors that have always treated an empty field as one that is missing, rather than as an invalid path, which
+     * matters (together with <code>ignore_missing</code>) when a template renders as nothing for a document that doesn't have the
+     * thing that the template refers to. Other malformed paths still throw.
+     *
+     * @return the path to use for the document, or null if it is empty
+     * @throws IllegalArgumentException if the path is malformed (but not if it is empty)
+     */
+    @Nullable
+    public FieldPath resolveUnlessEmpty(IngestDocument document) {
+        if (pathElements != null) {
+            return this; // a path that parsed can't be empty
+        }
+        String unresolved = template != null ? document.renderTemplate(template) : path;
+        return Strings.isEmpty(unresolved) ? null : parse(unresolved);
+    }
+
+    /**
      * Checks the access pattern specific rules for a parsed path. The {@link IngestPipelineFieldAccessPattern#CLASSIC} pattern
      * supports syntax like context aware array access, so it has no further restrictions. The
      * {@link IngestPipelineFieldAccessPattern#FLEXIBLE} pattern reserves square brackets for (future) array access syntax, so

@@ -24,6 +24,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Unit tests for {@link SeqNoFieldMapper}'s columnar batch-mapping path. These tests exercise
@@ -51,7 +52,10 @@ public class SeqNoFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         SeqNoFieldMapper mapper = (SeqNoFieldMapper) mapperService.documentMapper().mappers().getMapper(SeqNoFieldMapper.NAME);
         assertNotNull(mapper);
-        assertTrue("supportsColumnarParse must be true for _seq_no", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        assertTrue(
+            "supportsColumnarParse must be true for _seq_no",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
+        );
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);

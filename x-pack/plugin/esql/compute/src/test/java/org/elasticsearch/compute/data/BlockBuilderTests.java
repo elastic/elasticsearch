@@ -146,6 +146,70 @@ public class BlockBuilderTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
+    public void testPooledReusesArray() {
+        assumeTrue("only int, long, and double arrays are pooled", supportsPooling(elementType));
+        BlockFactory parent = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
+        BlockFactory factory = parent.newChildFactory(local);
+        int size = between(1_000, 10_000);
+        long pooledBytes = -1;
+        for (int page = 0; page < 3; page++) {
+            boolean nullable = randomBoolean();
+            try (Block.Builder builder = pooledBlockBuilder(size, factory)) {
+                RandomBlock random = RandomBlock.randomBlock(elementType, size, nullable, 1, 1, 0, 0);
+                builder.copyFrom(random.block(), 0, size);
+                try (Block built = builder.build()) {
+                    assertThat(built, equalTo(random.block()));
+                    assertThat(local.pool().idleBytes(), equalTo(0L));
+                    assertThat(parent.breaker().getUsed(), equalTo(built.ramBytesUsed()));
+                }
+            }
+            assertThat(local.pool().idleBytes(), greaterThan(0L));
+            assertThat(parent.breaker().getUsed(), equalTo(local.pool().idleBytes()));
+            if (page == 0) {
+                pooledBytes = local.pool().idleBytes();
+            } else {
+                assertThat(local.pool().idleBytes(), equalTo(pooledBytes));
+            }
+        }
+        local.close();
+        assertThat(parent.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testPooledGrows() {
+        assumeTrue("only int, long, and double arrays are pooled", supportsPooling(elementType));
+        BlockFactory parent = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
+        BlockFactory factory = parent.newChildFactory(local);
+        for (int page = 0; page < 3; page++) {
+            int size = between(1_000, 10_000);
+            try (Block.Builder builder = pooledBlockBuilder(between(1, size), factory)) {
+                RandomBlock random = RandomBlock.randomBlock(elementType, size, randomBoolean(), 1, 3, 0, 0);
+                builder.copyFrom(random.block(), 0, size);
+                try (Block built = builder.build()) {
+                    assertThat(built, equalTo(random.block()));
+                    assertThat(parent.breaker().getUsed(), equalTo(built.ramBytesUsed() + local.pool().idleBytes()));
+                }
+            }
+            assertThat(parent.breaker().getUsed(), equalTo(local.pool().idleBytes()));
+        }
+        local.close();
+        assertThat(parent.breaker().getUsed(), equalTo(0L));
+    }
+
+    private static boolean supportsPooling(ElementType type) {
+        return type == ElementType.INT || type == ElementType.LONG || type == ElementType.DOUBLE;
+    }
+
+    private Block.Builder pooledBlockBuilder(int estimatedSize, BlockFactory factory) {
+        return switch (elementType) {
+            case INT -> factory.newIntBlockBuilder(estimatedSize, true);
+            case LONG -> factory.newLongBlockBuilder(estimatedSize, true);
+            case DOUBLE -> factory.newDoubleBlockBuilder(estimatedSize, true);
+            default -> throw new UnsupportedOperationException();
+        };
+    }
+
     public void testDoubleBuild() {
         try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
             RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);

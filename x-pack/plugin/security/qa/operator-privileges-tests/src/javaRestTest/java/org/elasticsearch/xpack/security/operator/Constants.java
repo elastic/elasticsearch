@@ -630,6 +630,8 @@ public class Constants {
         "indices:data/read/esql/resolve_views",
         "indices:data/read/esql/search_shards",
         "indices:data/read/esql/stream",
+        "indices:data/read/esql/stream/delete",
+        "indices:data/read/esql/stream/get",
         "indices:data/read/explain",
         "indices:data/read/field_caps",
         "indices:data/read/get",

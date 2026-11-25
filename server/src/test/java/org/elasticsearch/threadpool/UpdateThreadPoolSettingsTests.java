@@ -12,6 +12,7 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -35,14 +36,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
         ThreadPool threadPool = null;
         try {
-            threadPool = new ThreadPool(
-                Settings.builder()
-                    .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
-                    .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
-                    .build(),
-                MeterRegistry.NOOP,
-                new DefaultBuiltInExecutorBuilders()
-            );
+            Settings settings = Settings.builder()
+                .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
+                .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
+                .build();
+            threadPool = new ThreadPool(new ThreadContext(settings), settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), correctThreadPoolType);
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
@@ -57,14 +55,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         final IllegalArgumentException initial = expectThrows(IllegalArgumentException.class, () -> {
             ThreadPool tp = null;
             try {
-                tp = new ThreadPool(
-                    Settings.builder()
-                        .put("node.name", "testIndexingThreadPoolsMaxSize")
-                        .put("thread_pool." + Names.WRITE + ".size", tooBig)
-                        .build(),
-                    MeterRegistry.NOOP,
-                    new DefaultBuiltInExecutorBuilders()
-                );
+                Settings settings = Settings.builder()
+                    .put("node.name", "testIndexingThreadPoolsMaxSize")
+                    .put("thread_pool." + Names.WRITE + ".size", tooBig)
+                    .build();
+                tp = new ThreadPool(new ThreadContext(settings), settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
             } finally {
                 terminateThreadPoolIfNeeded(tp);
             }
@@ -100,7 +95,12 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testFixedExecutorType")
                 .put("thread_pool." + threadPoolName + ".size", expectedSize)
                 .build();
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+            threadPool = new ThreadPool(
+                new ThreadContext(nodeSettings),
+                nodeSettings,
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
+            );
             assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
 
             assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
@@ -124,7 +124,12 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("thread_pool." + threadPoolName + ".max", 10)
                 .put("node.name", "testScalingExecutorType")
                 .build();
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+            threadPool = new ThreadPool(
+                new ThreadContext(nodeSettings),
+                nodeSettings,
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
+            );
             final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
@@ -145,7 +150,12 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("thread_pool." + threadPoolName + ".queue_size", 1000)
                 .put("node.name", "testShutdownNowInterrupts")
                 .build();
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+            threadPool = new ThreadPool(
+                new ThreadContext(nodeSettings),
+                nodeSettings,
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
+            );
             assertEquals(info(threadPool, threadPoolName).getQueueSize(), (Long) 1000L);
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
@@ -189,8 +199,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
 
+            Settings settings = Settings.builder().put("node.name", "testCustomThreadPool").build();
             threadPool = new ThreadPool(
-                Settings.builder().put("node.name", "testCustomThreadPool").build(),
+                new ThreadContext(settings),
+                settings,
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders(),
                 scaling,

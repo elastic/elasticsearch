@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -63,6 +64,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.xpack.stateless.memory.ShardHeapEstimator.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService.estimateIndexMetadataHeapBytes;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.computeShardHeapEstimate;
@@ -166,6 +168,68 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
             assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));
         }
+    }
+
+    /**
+     * Tests that the shard heap usage returned to the allocation decider
+     * ({@link StatelessMemoryMetricsService#getShardHeapUsageEstimates()}) is the plain adaptive estimate.
+     * The adaptive minimum threshold is an autoscaling floor only and must not affect per-shard allocation decisions.
+     * {@link StatelessMemoryMetricsService#aggregateShardMetrics} (since it's used by autoscaling) should still apply this floor.
+     */
+    public void testShardHeapUsageForAllocationDeciderIsNotInflatedByAdaptiveFloorEstimate() {
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), "0%")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 1_000)
+                .build()
+        );
+
+        // Firstly, a sanity check that the autoscaling floor is greater than the default adaptive overhead
+        long adaptiveOverhead = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes();
+        int totalIndices = between(1, 100);
+        long floor = service.getAdaptiveShardMemoryEstimationMinThreshold(totalIndices);
+        assertThat(floor, greaterThan(adaptiveOverhead));
+
+        // This creates a shard with no segments, fields, postings, live-docs, or points.
+        // The adaptive estimate should be just ADAPTIVE_SHARD_MEMORY_OVERHEAD (75 KB), well below the autoscaling floor.
+        var emptyShardMetrics = new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            0L,
+            0,
+            0,
+            0L,
+            0L,
+            0L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            0L,
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+        var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), 0);
+        service.getShardMemoryMetrics().put(shardId, emptyShardMetrics);
+
+        var shardHeapUsages = service.getShardHeapUsageEstimates();
+        assertThat(shardHeapUsages.perShard().get(shardId).shardHeapUsageBytes(), equalTo(adaptiveOverhead));
+        assertThat(shardHeapUsages.defaultForShardsWithoutMetrics().shardHeapUsageBytesExcludingPostings(), equalTo(adaptiveOverhead));
+        assertThat(computeShardHeapEstimate(service, emptyShardMetrics).shardHeapUsageBytesExcludingPostings(), equalTo(adaptiveOverhead));
+
+        // Now check that the autoscaling estimates are inflated
+        var tierAggregate = service.aggregateShardMetrics(
+            totalIndices,
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE,
+            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE
+        );
+        assertThat(tierAggregate.totalShardHeapInBytes(), equalTo(floor));
+
+        // Changing only the caller's index count must change the autoscaling floor.
+        var aggregateWithMoreIndices = service.aggregateShardMetrics(
+            totalIndices + between(1, 100),
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE,
+            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE
+        );
+        assertThat(aggregateWithMoreIndices.totalShardHeapInBytes(), lessThan(tierAggregate.totalShardHeapInBytes()));
     }
 
     public void testShardHeapUsageIncludesPointsMemory() {
@@ -365,7 +429,9 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         for (var nodeMetrics : perNodeMemoryMetrics.entrySet()) {
             final long mergeMemoryEstimate = service.mergeMemoryEstimation();
             final long minimumRequiredHeapForHandlingLargeIndexingOps = service.minimumRequiredHeapForAcceptingLargeIndexingOps();
-            final long indicesAndWorkloadOverheads = service.getNodeBaseHeapEstimateInBytes();
+            final long indicesAndWorkloadOverheads = service.getNodeBaseHeapEstimateInBytes(
+                clusterState.metadata().getTotalNumberOfIndices()
+            );
             final long miscNodeUsage = mergeMemoryEstimate + minimumRequiredHeapForHandlingLargeIndexingOps + indicesAndWorkloadOverheads;
             final DiscoveryNode discoveryNodeForEstimate = clusterState.nodes().get(nodeMetrics.getKey());
             if (discoveryNodeForEstimate != null && discoveryNodeForEstimate.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
@@ -412,6 +478,26 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                     greaterThanOrEqualTo(hostedShardsOnly),
                     lessThanOrEqualTo(hostedShardsOnly + getLastMaxTotalPostingsInMemoryBytes(service))
                 )
+            );
+        }
+    }
+
+    public void testPerNodeMemoryMetricsUsesCallerIndexCount() {
+        final int initialIndices = between(1, 10);
+        final ClusterState appliedState = randomInitialTwoNodeClusterState(initialIndices);
+        service.clusterChanged(new ClusterChangedEvent("init", appliedState, ClusterState.EMPTY_STATE));
+        final var baseline = service.getPerNodeMemoryMetrics(appliedState);
+
+        final int extraIndices = between(1, 10);
+        final ClusterState callerState = randomInitialTwoNodeClusterState(initialIndices + extraIndices);
+        // Do not deliver another listener event: the estimate must use the caller's snapshot.
+        final var updated = service.getPerNodeMemoryMetrics(callerState);
+        assertThat(updated.keySet(), equalTo(baseline.keySet()));
+        assertThat(updated.size(), equalTo(2));
+        for (var entry : updated.entrySet()) {
+            assertThat(
+                entry.getValue().nonShardHeapUsage() - baseline.get(entry.getKey()).nonShardHeapUsage(),
+                equalTo(extraIndices * StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD)
             );
         }
     }
@@ -497,7 +583,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             onlyShard,
             otherNode.getId(),
             randomNegativeLong(),
-            "relocate",
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
@@ -713,7 +799,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     /**
-     * Same parity with every shard sitting at the adaptive per-shard floor, as they do for projects with many small indices.
+     * Same parity when the autoscaling floor is enabled and every shard's adaptive estimate is below that floor.
+     * Neither the master's per-node estimate nor the recovery-gate self-estimate may be raised to the floor.
      */
     public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimateAtAdaptiveMinThreshold() {
         runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(true, true);
@@ -738,7 +825,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final Map<ShardId, ShardMappingSize> shardMappingSizes = randomMemoryMetrics(
             node0,
             clusterState,
-            // Few segments keep each shard's adaptive estimate below the floor
+            // Few segments keep each shard's adaptive estimate below the autoscaling floor
             shardsAtAdaptiveMinThreshold ? 10 : 1_000
         );
         service.updateShardsMappingSize(new HeapMemoryUsage(1, shardMappingSizes));
@@ -746,9 +833,13 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
         if (shardsAtAdaptiveMinThreshold) {
             assertThat(
-                "shards should be small enough to sit at the adaptive floor",
+                "allocation estimates must not be inflated to the adaptive floor",
                 masterEstimate.hostedShardsHeapUsage(),
-                greaterThanOrEqualTo(shardMappingSizes.size() * service.getAdaptiveShardMemoryEstimationMinThreshold())
+                lessThan(
+                    shardMappingSizes.size() * service.getAdaptiveShardMemoryEstimationMinThreshold(
+                        clusterState.metadata().getTotalNumberOfIndices()
+                    )
+                )
             );
         }
 
@@ -901,7 +992,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         Metadata oneIndex = randomInitialTwoNodeClusterState(1).metadata();
         long oneIndexHeapBytes = estimateIndexMetadataHeapBytes(oneIndex);
         assertThat(oneIndexHeapBytes, greaterThan(0L));
-        // Object-size estimate is expected below the fixed per-index constant used by getIndexMemoryOverhead().
+        // Object-size estimate is expected below the fixed per-index constant used by getNodeBaseHeapEstimateInBytes(int).
         assertThat(oneIndexHeapBytes, lessThan(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD));
 
         final int manyIndices = 10;
@@ -924,7 +1015,6 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         ClusterServiceUtils.setState(clusterService, emptyClusterState);
         service.clusterChanged(new ClusterChangedEvent("test", emptyClusterState, ClusterState.EMPTY_STATE));
         assertThat(service.getIndexMetadataEstimatedHeapBytes(), equalTo(0L));
-        assertThat(service.getIndexMemoryOverhead(), equalTo(0L));
 
         ClusterState clusterState = randomInitialTwoNodeClusterState(between(1, 10));
         ClusterServiceUtils.setState(clusterService, clusterState);

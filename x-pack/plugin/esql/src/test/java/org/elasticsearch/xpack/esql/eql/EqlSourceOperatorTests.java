@@ -19,21 +19,26 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -43,6 +48,7 @@ import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +59,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -71,6 +78,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class EqlSourceOperatorTests extends AnyOperatorTestCase {
 
+    private static final String LOCAL = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
     private static final List<Attribute> SEQUENCE_SYNTHETICS = List.of(
         new ReferenceAttribute(Source.EMPTY, "_sequence", LONG),
         new ReferenceAttribute(Source.EMPTY, "_sequence_stage", INTEGER),
@@ -97,7 +105,8 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             EqlRelation.Mode.EVENT,
             List.of(fieldAttribute("process.name", KEYWORD)),
             Source.EMPTY,
-            false
+            false,
+            executionInfo(LOCAL)
         );
     }
 
@@ -155,7 +164,8 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             EqlRelation.Mode.EVENT,
             List.of(fieldAttribute("process.name", KEYWORD)),
             Source.EMPTY,
-            false
+            false,
+            executionInfo(LOCAL)
         );
         DriverContext driverContext = driverContext();
         try (SourceOperator operator = factory.get(driverContext)) {
@@ -176,7 +186,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             )
         );
 
-        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.EVENT, schema, false);
+        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.EVENT, schema);
         Page page = null;
         try {
             // Before the response, the operator blocks and yields nothing.
@@ -224,7 +234,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         Event missing = new Event("", "", null, null, true);
         EqlSearchResponse response = sequenceResponse(List.of(new Sequence(List.of("host-a"), List.of(present, missing))));
 
-        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.SEQUENCE, schema, false);
+        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.SEQUENCE, schema);
         Page page = null;
         try {
             assertBlocked(operator); // first poll issues the request and captures the listener
@@ -265,8 +275,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         Page page = null;
         try {
@@ -307,8 +316,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator); // issue the request, capture the listener
@@ -340,8 +348,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator);
@@ -351,6 +358,72 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         } finally {
             operator.close();
             response.decRef();
+        }
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The response callback runs on the EQL response thread while the driver run loop may still own the driver's
+     * {@link LocalCircuitBreaker}. Building the page must not touch that breaker, or the single-thread assertion fails
+     * and kills the node.
+     */
+    public void testResponseOnOtherThreadDoesNotTouchLocalBreaker() throws Exception {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContextWithLocalBreaker();
+        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b")));
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequest(1000),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD))
+        );
+        Page page = null;
+        try {
+            assertBlocked(operator);
+            pinLocalBreakerToAnotherThread(driverContext);
+            client.capturedListener.onResponse(response);
+            unpinLocalBreaker(driverContext);
+
+            page = operator.getOutput();
+            assertThat(page.getPositionCount(), equalTo(2));
+            assertBytesRefColumn(page, 0, "a", "b");
+        } finally {
+            if (page != null) {
+                page.releaseBlocks();
+            }
+            operator.close();
+            response.decRef();
+            unpinLocalBreaker(driverContext);
+            closeLocalBreaker(driverContext);
+        }
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Same as above, but the operator is closed first, so the response thread releases the page it just built. */
+    public void testResponseAfterCloseOnOtherThreadDoesNotTouchLocalBreaker() throws Exception {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContextWithLocalBreaker();
+        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b")));
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequest(1000),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD))
+        );
+        try {
+            assertBlocked(operator);
+            operator.close();
+            pinLocalBreakerToAnotherThread(driverContext);
+            client.capturedListener.onResponse(response);
+            unpinLocalBreaker(driverContext);
+            assertThat(operator.getOutput(), equalTo(null));
+        } finally {
+            operator.close();
+            response.decRef();
+            unpinLocalBreaker(driverContext);
+            closeLocalBreaker(driverContext);
         }
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
@@ -365,8 +438,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator);
@@ -394,7 +466,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         List<Attribute> schema = List.of(metadata("_score"));
         EqlSearchResponse response = eventResponse(List.of(fieldEvent("a")));
 
-        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.EVENT, schema, false);
+        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.EVENT, schema);
         try {
             assertBlocked(operator);
             client.capturedListener.onResponse(response);
@@ -424,8 +496,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator);
@@ -454,8 +525,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertFalse(operator.isFinished());
@@ -467,70 +537,223 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
-    /**
-     * With {@code warnOnTruncation} and a response that fills the request size cap, a truncation warning is emitted —
-     * and only from the {@code getOutput()} (driver-thread) path, never from the response callback. In production the
-     * callback runs on a transport thread whose thread-context headers are not collected, so the operator defers the
-     * warning to {@code getOutput()}; here we assert the callback emits no warning header and only {@code getOutput()}
-     * does.
-     */
-    public void testTruncationWarningEmittedFromGetOutputNotCallback() {
+    public void testLostShardIsListedOnItsCluster() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        ShardSearchFailure lost = shardFailure(new IllegalStateException("shard failure"), 0, "n1", null);
+        DriverContext driverContext = pullEventPage(executionInfo, eqlRequestOn("logs"), false, lost);
+        assertThat(collectWarnings(driverContext), empty());
+        assertTrue(executionInfo.isPartial());
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(local.getFailures(), equalTo(List.of(lost)));
+    }
+
+    public void testTimedOutResponseIsPartial() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        DriverContext driverContext = pullEventPage(executionInfo, eqlRequestOn("logs"), true);
+        assertThat(collectWarnings(driverContext), empty());
+        assertTrue(executionInfo.isPartial());
+        assertThat(executionInfo.getCluster(LOCAL).getFailures(), empty());
+    }
+
+    public void testCompleteResponseIsNotPartial() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        DriverContext driverContext = pullEventPage(executionInfo, eqlRequestOn("logs"), false);
+        assertThat(collectWarnings(driverContext), empty());
+        assertFalse(executionInfo.isPartial());
+        assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+        assertThat(executionInfo.getCluster(LOCAL).getFailures(), empty());
+    }
+
+    public void testLostShardsAreListedOnceUpToALimit() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        ShardSearchFailure listedBefore = shardFailure(new IllegalStateException("earlier branch"), 0, "n1", null);
+        executionInfo.swapCluster(
+            LOCAL,
+            (alias, cluster) -> new EsqlExecutionInfo.Cluster.Builder(cluster).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+                .addFailures(List.of(listedBefore))
+                .build()
+        );
+        IllegalStateException noShard = new IllegalStateException("no shard");
+        List<ShardSearchFailure> failures = new ArrayList<>();
+        failures.add(shardFailure(new IllegalStateException("again"), 0, "n2", null));
+        failures.add(shardFailure(new IllegalStateException("first"), 1, "n1", null));
+        failures.add(shardFailure(new IllegalStateException("other copy"), 1, "n2", null));
+        failures.add(new ShardSearchFailure(noShard));
+        failures.add(new ShardSearchFailure(noShard));
+        for (int shard = 2; shard < 6; shard++) {
+            failures.add(shardFailure(new IllegalStateException("shard " + shard), shard, "n1", null));
+        }
+        pullEventPage(executionInfo, eqlRequestOn("logs"), false, failures.toArray(ShardSearchFailure[]::new));
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(
+            local.getFailures(),
+            equalTo(List.of(listedBefore, failures.get(1), failures.get(3), failures.get(5), failures.get(6), failures.get(7)))
+        );
+    }
+
+    public void testLostShardsAreListedOnTheClusterTheyBelongTo() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
+        ShardSearchFailure remote = shardFailure(new IllegalStateException("remote"), 0, "n1", "remote1");
+        ShardSearchFailure local = shardFailure(new IllegalStateException("local"), 0, "n1", null);
+        pullEventPage(executionInfo, eqlRequestOn("logs", "remote1:logs"), false, remote, local);
+        assertThat(executionInfo.getCluster("remote1").getFailures(), equalTo(List.of(remote)));
+        assertThat(executionInfo.getCluster(LOCAL).getFailures(), equalTo(List.of(local)));
+        assertThat(executionInfo.getCluster("remote1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testLostShardsOfASingleRemoteClusterSearchAreListedOnThatCluster() {
+        for (String[] indices : List.of(new String[] { "remote1:logs", "remote1:other" }, new String[] { "remote*:logs" })) {
+            EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
+            ShardSearchFailure lost = shardFailure(new IllegalStateException("lost"), 0, "n1", null);
+            pullEventPage(executionInfo, eqlRequestOn(indices), false, lost);
+            assertThat(String.join(",", indices), executionInfo.getCluster("remote1").getFailures(), equalTo(List.of(lost)));
+            assertThat(String.join(",", indices), executionInfo.getCluster(LOCAL).getFailures(), empty());
+        }
+    }
+
+    public void testLostShardInASubplanLeavesARemoteClusterStatusToTheMainPlan() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
+        executionInfo.startSubPlans(true);
+        ShardSearchFailure remote = shardFailure(new IllegalStateException("remote"), 0, "n1", "remote1");
+        ShardSearchFailure local = shardFailure(new IllegalStateException("local"), 0, "n1", null);
+        pullEventPage(executionInfo, eqlRequestOn("logs", "remote1:logs"), false, remote, local);
+        assertTrue(executionInfo.isPartial());
+        assertThat(executionInfo.getCluster("remote1").getFailures(), equalTo(List.of(remote)));
+        assertThat(executionInfo.getCluster("remote1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+        assertThat(executionInfo.getCluster(LOCAL).getFailures(), equalTo(List.of(local)));
+        assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    public void testLostShardOfAnUnlistedClusterOnlyMarksTheResultPartial() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        pullEventPage(executionInfo, eqlRequestOn("logs"), false, shardFailure(new IllegalStateException("x"), 0, "n1", "remote9"));
+        assertTrue(executionInfo.isPartial());
+        assertThat(executionInfo.getCluster(LOCAL).getFailures(), empty());
+        assertThat(executionInfo.getCluster("remote9"), nullValue());
+    }
+
+    public void testDefaultSizeWarningIsRegisteredWhenTheSearchIsIssued() {
+        assertDefaultSizeWarning(
+            new Source(1, 0, "eqlq"),
+            "Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more."
+        );
+    }
+
+    public void testDefaultSizeWarningNamesTheViewWithoutEchoingItsDefinition() {
+        assertDefaultSizeWarning(
+            new Source(1, 0, "EQL logs \"process where secret_field == \\\"secret\\\"\"").withViewName("eql_view"),
+            "Line 1:1 (in view [eql_view]): EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more."
+        );
+    }
+
+    private void assertDefaultSizeWarning(Source source, String expectedWarning) {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
         DriverContext driverContext = driverContext();
-        int size = 2;
-        Source source = new Source(1, 0, "eqlq");
-        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b"))); // fills the cap of 2
-
-        String expected = "Line "
-            + source.lineNumber()
-            + ":"
-            + source.columnNumber()
-            + " ["
-            + source.text()
-            + "]: EQL query returned the maximum number of results ["
-            + size
-            + "]; results may be incomplete. Raise the size option or the [esql.query.result_truncation_max_size] setting";
-
-        SourceOperator operator = operator(client, driverContext, eqlRequest(size), EqlRelation.Mode.EVENT, source, true);
-        Page page = null;
+        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a")));
+        SourceOperator operator = new EqlSourceOperator.Factory(
+            client,
+            eqlRequest(10),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            source,
+            true,
+            executionInfo(LOCAL)
+        ).get(driverContext);
         try {
             assertBlocked(operator);
+            assertThat(collectWarnings(driverContext), equalTo(List.of(expectedWarning)));
+            operator.close();
             client.capturedListener.onResponse(response);
-            page = operator.getOutput();
-            assertThat(page.getPositionCount(), equalTo(2));
         } finally {
-            if (page != null) {
-                page.releaseBlocks();
-            }
             operator.close();
             response.decRef();
         }
-        // The warning is registered on the driver context during getOutput(), not the response callback.
-        assertThat(collectWarnings(driverContext), equalTo(List.of(expected)));
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
-    /** A partial EQL response (a shard failed while the enclosing query allowed partial results) surfaces as a warning. */
-    public void testPartialResponseEmitsWarning() {
+    // ---- helpers ----
+
+    /** A driver context whose block factory charges a {@link LocalCircuitBreaker}, as the real {@code Driver} sets up. */
+    private DriverContext driverContextWithLocalBreaker() {
+        DriverContext root = driverContext();
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(root.breaker(), 0, 0);
+        return new DriverContext(root.bigArrays(), root.blockFactory().newChildFactory(localBreaker), null);
+    }
+
+    /** Releases the run-loop pin. Idempotent, so {@code finally} can call it even if the body already did. */
+    private static void unpinLocalBreaker(DriverContext driverContext) {
+        assertTrue(driverContext.assertEndRunLoop());
+    }
+
+    private static void closeLocalBreaker(DriverContext driverContext) {
+        ((LocalCircuitBreaker) driverContext.blockFactory().breaker()).close();
+    }
+
+    /** Marks another thread as the driver run-loop owner of the local breaker, like a driver that is still running. */
+    private static void pinLocalBreakerToAnotherThread(DriverContext driverContext) throws InterruptedException {
+        Thread driverThread = new Thread(() -> assertTrue(driverContext.assertBeginRunLoop()), "pin-driver-breaker");
+        driverThread.start();
+        driverThread.join();
+    }
+
+    private SourceOperator operator(
+        CapturingEqlClient client,
+        DriverContext driverContext,
+        EqlSearchRequest request,
+        EqlRelation.Mode mode,
+        List<Attribute> schema
+    ) {
+        return operator(client, driverContext, request, mode, schema, executionInfo(LOCAL));
+    }
+
+    private SourceOperator operator(
+        CapturingEqlClient client,
+        DriverContext driverContext,
+        EqlSearchRequest request,
+        EqlRelation.Mode mode,
+        List<Attribute> schema,
+        EsqlExecutionInfo executionInfo
+    ) {
+        return new EqlSourceOperator.Factory(client, request, mode, schema, Source.EMPTY, false, executionInfo).get(driverContext);
+    }
+
+    private static EsqlExecutionInfo executionInfo(String... clusters) {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY);
+        for (String cluster : clusters) {
+            executionInfo.initCluster(cluster, EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "logs");
+        }
+        return executionInfo;
+    }
+
+    private static ShardSearchFailure shardFailure(Exception cause, int shard, String node, String clusterAlias) {
+        return new ShardSearchFailure(cause, new SearchShardTarget(node, new ShardId("logs", "_na_", shard), clusterAlias));
+    }
+
+    private DriverContext pullEventPage(
+        EsqlExecutionInfo executionInfo,
+        EqlSearchRequest request,
+        boolean timedOut,
+        ShardSearchFailure... failures
+    ) {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
         DriverContext driverContext = driverContext();
-        Source source = new Source(1, 0, "eqlq");
         Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
-        // isPartial=true: the delegate returned partial results because the enclosing ES|QL query allowed them.
-        EqlSearchResponse response = new EqlSearchResponse(hits, 1, false, null, false, true, new ShardSearchFailure[0]);
-
+        EqlSearchResponse response = new EqlSearchResponse(hits, 1, timedOut, List.of(failures));
         SourceOperator operator = operator(
             client,
             driverContext,
-            eqlRequest(1000),
+            request,
             EqlRelation.Mode.EVENT,
-            source,
             List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            executionInfo
         );
         Page page = null;
         try {
             assertBlocked(operator);
+            request.indices("rewritten");
             client.capturedListener.onResponse(response);
             page = operator.getOutput();
             assertThat(page.getPositionCount(), equalTo(1));
@@ -541,120 +764,8 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             operator.close();
             response.decRef();
         }
-        // The warning is registered on the driver context during getOutput(), not the response callback.
-        assertThat(
-            collectWarnings(driverContext),
-            equalTo(
-                List.of(
-                    "Line "
-                        + source.lineNumber()
-                        + ":"
-                        + source.columnNumber()
-                        + " ["
-                        + source.text()
-                        + "]: EQL query returned partial results (one or more shards failed or timed out); some events may be missing"
-                )
-            )
-        );
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
-    }
-
-    /** No warning when the result count is below the size cap, even with {@code warnOnTruncation} on. */
-    public void testNoTruncationWarningBelowCap() {
-        CapturingEqlClient client = new CapturingEqlClient(threadPool);
-        DriverContext driverContext = driverContext();
-        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"))); // one result, cap is 5
-
-        SourceOperator operator = operator(
-            client,
-            driverContext,
-            eqlRequest(5),
-            EqlRelation.Mode.EVENT,
-            new Source(1, 0, "eqlq"),
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            true
-        );
-        Page page = null;
-        try {
-            assertBlocked(operator);
-            client.capturedListener.onResponse(response);
-            page = operator.getOutput();
-        } finally {
-            if (page != null) {
-                page.releaseBlocks();
-            }
-            operator.close();
-            response.decRef();
-        }
-        assertThat("below the cap must not warn", collectWarnings(driverContext), equalTo(List.of()));
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
-    }
-
-    /** With {@code warnOnTruncation} off, a full response does not warn (the size did not come from the cap). */
-    public void testNoTruncationWarningWhenFlagDisabled() {
-        CapturingEqlClient client = new CapturingEqlClient(threadPool);
-        DriverContext driverContext = driverContext();
-        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b"))); // fills the cap of 2
-
-        SourceOperator operator = operator(
-            client,
-            driverContext,
-            eqlRequest(2),
-            EqlRelation.Mode.EVENT,
-            new Source(1, 0, "eqlq"),
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
-        );
-        Page page = null;
-        try {
-            assertBlocked(operator);
-            client.capturedListener.onResponse(response);
-            page = operator.getOutput();
-        } finally {
-            if (page != null) {
-                page.releaseBlocks();
-            }
-            operator.close();
-            response.decRef();
-        }
-        assertThat("flag off must not warn", collectWarnings(driverContext), equalTo(List.of()));
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
-    }
-
-    // ---- helpers ----
-
-    private SourceOperator operator(
-        CapturingEqlClient client,
-        DriverContext driverContext,
-        EqlSearchRequest request,
-        EqlRelation.Mode mode,
-        List<Attribute> schema,
-        boolean warnOnTruncation
-    ) {
-        return operator(client, driverContext, request, mode, Source.EMPTY, schema, warnOnTruncation);
-    }
-
-    private SourceOperator operator(
-        CapturingEqlClient client,
-        DriverContext driverContext,
-        EqlSearchRequest request,
-        EqlRelation.Mode mode,
-        Source source,
-        boolean warnOnTruncation
-    ) {
-        return operator(client, driverContext, request, mode, source, List.of(fieldAttribute("process.name", KEYWORD)), warnOnTruncation);
-    }
-
-    private SourceOperator operator(
-        CapturingEqlClient client,
-        DriverContext driverContext,
-        EqlSearchRequest request,
-        EqlRelation.Mode mode,
-        Source source,
-        List<Attribute> schema,
-        boolean warnOnTruncation
-    ) {
-        return new EqlSourceOperator.Factory(client, request, mode, schema, source, warnOnTruncation).get(driverContext);
+        return driverContext;
     }
 
     private static void assertBlocked(SourceOperator operator) {
@@ -667,6 +778,10 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
 
     private static EqlSearchRequest eqlRequest(int size) {
         return new EqlSearchRequest().indices("logs").query("any where true").size(size);
+    }
+
+    private static EqlSearchRequest eqlRequestOn(String... indices) {
+        return new EqlSearchRequest().indices(indices).query("any where true").size(1000);
     }
 
     private static MetadataAttribute metadata(String name) {
@@ -689,12 +804,12 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
 
     private static EqlSearchResponse eventResponse(List<Event> events) {
         Hits hits = new Hits(events, null, new TotalHits(events.size(), TotalHits.Relation.EQUAL_TO));
-        return new EqlSearchResponse(hits, 1, false, new ShardSearchFailure[0]);
+        return new EqlSearchResponse(hits, 1, false, List.of());
     }
 
     private static EqlSearchResponse sequenceResponse(List<Sequence> sequences) {
         Hits hits = new Hits(null, sequences, new TotalHits(sequences.size(), TotalHits.Relation.EQUAL_TO));
-        return new EqlSearchResponse(hits, 1, false, new ShardSearchFailure[0]);
+        return new EqlSearchResponse(hits, 1, false, List.of());
     }
 
     private static List<Attribute> concat(List<Attribute> head, Attribute tail) {

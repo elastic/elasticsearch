@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 
 import java.util.List;
 

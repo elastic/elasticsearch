@@ -7,13 +7,22 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public final class CsvSpecReader {
 
@@ -24,6 +33,7 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new Capability(ctx));
         ctx.addOptionParser(new Dataset(ctx));
         ctx.addOptionParser(new Pragma(ctx));
+        ctx.addOptionParser(new Params(ctx));
         ctx.addOptionParser(new RequestStored(ctx));
         ctx.addOptionParser(new RequestTimeFilter(ctx));
         ctx.addOptionParser(new Warning(ctx));
@@ -56,6 +66,7 @@ public final class CsvSpecReader {
         private final List<DatasetSource> datasetSources = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
         private final Map<String, String> pragmas = new HashMap<>();
+        private final List<Param> params = new ArrayList<>();
         WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
         String requestTimeRangeGte;
         String requestTimeRangeLte;
@@ -93,6 +104,7 @@ public final class CsvSpecReader {
                 testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
                 testCase.datasetSources = List.copyOf(datasetSources);
                 testCase.pragmas = Map.copyOf(pragmas);
+                testCase.params = List.copyOf(params);
                 testCase.requestStored = requestStored;
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
@@ -103,6 +115,7 @@ public final class CsvSpecReader {
                 missingCapabilitiesLocalCluster.clear();
                 missingCapabilitiesRemoteCluster.clear();
                 datasetSources.clear();
+                params.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
@@ -463,6 +476,93 @@ public final class CsvSpecReader {
     }
 
     /**
+     * A query parameter declared by a {@code param:} preamble directive.
+     *
+     * @param name the parameter name, or {@code null} for an unnamed parameter
+     * @param json the parameter value as it appears in the {@code params} array of the request: a JSON string, number,
+     *             boolean, {@code null} or array, or for a named parameter also an object such as {@code {"identifier": "x"}}
+     */
+    public record Param(String name, String json) {
+        /**
+         * Whether the parameter is declared as a field or function name, with {@code {"identifier": ...}} or
+         * {@code {"pattern": ...}}.
+         */
+        public boolean declaredAsName() {
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT || parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                    return false;
+                }
+                String classification = parser.currentName().toLowerCase(Locale.ROOT);
+                return classification.equals("identifier") || classification.equals("pattern");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    /**
+     * Parses {@code param:} preamble directives, of the form {@code param: <name> = <json>} for a named parameter and
+     * {@code param: <json>} for an unnamed one. The JSON value is written as in the {@code params} array of the request,
+     * so strings are quoted. The directive is repeatable, and the parameters are sent in declaration order. Like the
+     * request, a test can't mix named and unnamed parameters.
+     * <p>
+     * Only recognized in the preamble, so a result column named {@code param} stays part of the results.
+     */
+    record Params(ParserContext state) implements SpecReader.Parser {
+        private static final Pattern NAMED = Pattern.compile("([a-zA-Z_][a-zA-Z0-9_]*)\\s*=(.*)");
+
+        @Override
+        public Object parse(String line) {
+            if (state.testCase != null) {
+                return null;
+            }
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("param:") == false) {
+                return null;
+            }
+            String declaration = line.substring("param:".length()).trim();
+            String name = null;
+            String json = declaration;
+            Matcher named = NAMED.matcher(declaration);
+            if (named.matches()) {
+                name = named.group(1);
+                json = named.group(2).trim();
+            }
+            XContentParser.Token token = parseJsonValue(line, json);
+            if (name == null && token == XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException(
+                    "Invalid param [" + line + "]: an unnamed parameter can't be an object, use [param: <name> = <json>]"
+                );
+            }
+            if (state.params.isEmpty() == false && (state.params.getFirst().name() == null) != (name == null)) {
+                throw new IllegalArgumentException("Invalid param [" + line + "]: named and unnamed parameters can't be mixed");
+            }
+            state.params.add(new Param(name, json));
+            return Boolean.TRUE;
+        }
+
+        /**
+         * Checks that {@code json} is a single JSON value and returns its first token.
+         */
+        private static XContentParser.Token parseJsonValue(String line, String json) {
+            String error = "Invalid param [" + line + "]: expected [param: <name> = <json>] or [param: <json>], with a single JSON value";
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+                XContentParser.Token token = parser.nextToken();
+                if (token == null) {
+                    throw new IllegalArgumentException(error);
+                }
+                parser.skipChildren();
+                if (parser.nextToken() != null) {
+                    throw new IllegalArgumentException(error);
+                }
+                return token;
+            } catch (IOException | XContentParseException e) {
+                throw new IllegalArgumentException(error, e);
+            }
+        }
+    }
+
+    /**
      * Marks a test as expected to fail under the {@code keyword}-to-{@code flattened} variant
      * ({@code CsvFlattenedKeywordIT}) because it exercises a known limitation of
      * {@code field_extract()} or of an upstream grammar/engine constraint. The directive is a
@@ -569,6 +669,47 @@ public final class CsvSpecReader {
          * Pragmas that must be sent.
          */
         public Map<String, String> pragmas = new HashMap<>();
+
+        /**
+         * Query parameters declared via {@code param:} preamble directives, in declaration order.
+         */
+        public List<Param> params = List.of();
+
+        /**
+         * The {@code params} array to send with the request, or {@code null} when the test declares no parameter.
+         */
+        public String paramsJson() {
+            if (params.isEmpty()) {
+                return null;
+            }
+            return params.stream()
+                .map(p -> p.name() == null ? p.json() : "{\"" + p.name() + "\": " + p.json() + "}")
+                .collect(Collectors.joining(", ", "[", "]"));
+        }
+
+        /**
+         * Whether a parameter can be read as a field or function name: through a {@code ??} reference in the query, which
+         * always reads the parameter as a name, or by being declared as one (see {@link Param#declaredAsName()}).
+         * Test variants that find or rewrite field names in the query text don't see these names.
+         */
+        public boolean hasParamsUsedAsNames() {
+            // Also true for a "??" inside a string literal: a rare case, where it only skips a test that could run.
+            return params.isEmpty() == false && (query.contains("??") || params.stream().anyMatch(Param::declaredAsName));
+        }
+
+        private static final Pattern PROMQL_INDEX_PARAM = Pattern.compile(
+            "\\bPROMQL\\b[^|]*?\\bindex\\s*=\\s*\\?",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
+
+        /**
+         * Whether a {@code PROMQL} command takes its index from a query parameter, like {@code PROMQL index = ?idx}.
+         * Test variants that find the indices in the query text don't see that index.
+         */
+        public boolean hasPromqlIndexParam() {
+            // Also true for that text inside a string literal: a rare case, where it only skips a test that could run.
+            return params.isEmpty() == false && PROMQL_INDEX_PARAM.matcher(query).find();
+        }
 
         /**
          * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format

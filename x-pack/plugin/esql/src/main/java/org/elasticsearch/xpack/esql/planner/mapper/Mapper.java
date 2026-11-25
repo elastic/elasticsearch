@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.planner.mapper;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -23,16 +25,19 @@ import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -44,11 +49,13 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -96,29 +103,28 @@ public class Mapper {
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        SubqueryJoin.rejectUntilSupported(versionedPlan.inner());
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
         return mapInner(versionedPlan.inner());
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {
+        PhysicalPlan mapped;
         if (p instanceof LeafPlan leaf) {
-            return mapLeaf(leaf);
+            mapped = mapLeaf(leaf);
+        } else if (p instanceof UnaryPlan unary) {
+            mapped = mapUnary(unary);
+        } else if (p instanceof BinaryPlan binary) {
+            mapped = mapBinary(binary);
+        } else if (p instanceof MergePlan merge) {
+            mapped = mapMergePlan(merge);
+        } else {
+            mapped = MapperUtils.unsupported(p);
         }
-
-        if (p instanceof UnaryPlan unary) {
-            return mapUnary(unary);
-        }
-
-        if (p instanceof BinaryPlan binary) {
-            return mapBinary(binary);
-        }
-
-        if (p instanceof MergePlan merge) {
-            return mapMergePlan(merge);
-        }
-
-        return MapperUtils.unsupported(p);
+        // Nodes built in this class (FragmentExec, LimitExec, joins, MergeExec) have no origin yet.
+        // MapperUtils translations stamp themselves; stampOrigin leaves those alone.
+        return MapperUtils.stampOrigin(mapped, p);
     }
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {
@@ -233,6 +239,27 @@ public class Mapper {
             return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
         }
 
+        // Child documents are read from the parent row, so the command has to stay inside the data-node fragment.
+        if (unary instanceof NestedExpand) {
+            throw new VerificationException(
+                "NESTED_EXPAND must run on the data nodes, so it cannot follow [{}]",
+                unary.child().sourceText()
+            );
+        }
+
+        // A nested predicate reads child documents from the parent row, so its WHERE or EVAL has to stay inside the data-node fragment.
+        if ((unary instanceof Filter || unary instanceof Eval) && NestedPredicate.usedBy(unary)) {
+            throw new VerificationException("NESTED_ANY must run on the data nodes, so it cannot follow [{}]", unary.child().sourceText());
+        }
+
+        // Into: two-phase WRITE (data nodes or coordinator) then MERGE_STATS (coordinator).
+        if (unary instanceof Into into) {
+            PhysicalPlan write = mappedChild instanceof FragmentExec
+                ? addExchangeForFragment(into, mappedChild)
+                : MapperUtils.mapIntoWrite(into, mappedChild);
+            return new IntoExec(into.source(), write, into.destination(), List.of(), into.output(), IntoExec.Mode.MERGE_STATS);
+        }
+
         //
         // Pipeline operators
         //
@@ -241,7 +268,16 @@ public class Mapper {
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof HashJoin hashJoin) {
+            if (hashJoin.unique() && hashJoin.repeatedKeys()) {
+                // A unique join matches a probe row to at most one build row, which only holds while the lookup table rejects
+                // repeated build keys.
+                throw new EsqlIllegalArgumentException("a unique hash join cannot allow repeated keys");
+            }
             PhysicalPlan left = mapInner(bp.left());
+            if (left instanceof FragmentExec) {
+                // The join runs on the coordinator: bring the left side's rows here, as for a coordinator LOOKUP JOIN.
+                left = new ExchangeExec(left.source(), left);
+            }
             PhysicalPlan right = mapInner(bp.right());
             if (right instanceof LocalSourceExec localData) {
                 var marker = newJoinMarker(hashJoin.source());
@@ -253,7 +289,8 @@ public class Mapper {
                     localData,
                     hashJoin.leftFields(),
                     hashJoin.rightFields(),
-                    addedFields
+                    addedFields,
+                    hashJoin.repeatedKeys()
                 );
                 // `INNER` tells operator to filter out non-matched outputs
                 if (hashJoin.config().type() == JoinTypes.INNER) {
@@ -302,7 +339,8 @@ public class Mapper {
                     localData,
                     config.leftFields(),
                     config.rightFields(),
-                    join.rightOutputFields()
+                    join.rightOutputFields(),
+                    false
                 );
             }
             if (right instanceof FragmentExec fragment) {

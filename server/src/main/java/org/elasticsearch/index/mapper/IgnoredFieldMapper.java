@@ -31,6 +31,7 @@ import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * A field mapper that records fields that have been ignored because they were malformed.
@@ -147,7 +148,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // Field mappers that support columnar parsing call BatchMappingContext#addIgnoredFieldColumnar
         // (the columnar equivalent of DocumentParserContext#addIgnoredField) when a value is dropped
         // (e.g. ignore_above on keyword). postColumnarParse drains that accumulator and writes the

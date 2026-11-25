@@ -479,6 +479,116 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         );
     }
 
+    public void testWalkLayoutRightAlignsAwsLogs() {
+        StoragePath prefix = StoragePath.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/");
+        TemplatePartitionDetector.WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            prefix,
+            "*/*/*/*.log.gz",
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}/{month}/{day}"
+        );
+        assertNotNull(layout);
+        assertEquals(Set.of("year", "month", "day"), layout.placeholderKeys());
+        assertEquals("012345678901", layout.prefixBindings().get("account"));
+        assertEquals("us-east-1", layout.prefixBindings().get("region"));
+        assertEquals(3, layout.depth());
+        assertTrue(layout.level(0).isPlaceholder());
+        assertEquals("year", layout.level(0).name());
+        assertFalse(layout.level(0).globSpelled());
+        Map<String, String> bound = layout.bindings("/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11");
+        assertEquals("2026", bound.get("year"));
+        assertEquals("11", bound.get("month"));
+        assertFalse(bound.containsKey("day"));
+    }
+
+    public void testWalkLayoutMarksGlobSpelledLiteral() {
+        TemplatePartitionDetector.WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/AWSLogs/"),
+            "*/vpcflowlogs/*/*/*.log.gz",
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}"
+        );
+        assertNotNull(layout);
+        assertTrue(layout.level(1).isLiteral());
+        assertTrue(layout.level(1).globSpelled());
+        assertEquals("vpcflowlogs", layout.level(1).literal());
+        TemplatePartitionDetector.WalkLayout starred = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/AWSLogs/"),
+            "*/*/*/*/*.log.gz",
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}"
+        );
+        assertNotNull(starred);
+        assertTrue(starred.level(1).isLiteral());
+        assertFalse(starred.level(1).globSpelled());
+        assertEquals("vpcflowlogs", starred.level(1).literal());
+    }
+
+    public void testWalkLayoutRejectsGlobstar() {
+        assertNull(TemplatePartitionDetector.walkLayout(StoragePath.of("s3://bucket/logs/"), "**/*.parquet", "{year}"));
+        assertFalse(TemplatePartitionDetector.walkableGlob("**/*.parquet"));
+        assertFalse(TemplatePartitionDetector.walkableGlob("logs/*/" + "**/*.parquet"));
+        assertTrue(TemplatePartitionDetector.walkableGlob("*/*.parquet"));
+    }
+
+    /**
+     * Empty glob dirs keep a slot that {@link TemplatePartitionDetector#nonEmptySegments} drops.
+     * Binding that empty string as a placeholder literal would apply {@code x} filters to the
+     * folder that actually binds {@code y}. Fail closed — no walk.
+     */
+    public void testWalkLayoutRejectsEmptyGlobDirectory() {
+        assertFalse(TemplatePartitionDetector.walkableGlob("*/*//*.parquet"));
+        assertNull(TemplatePartitionDetector.walkLayout(StoragePath.of("s3://bucket/data/"), "*/*//*.parquet", "{x}/{y}"));
+        assertTrue(TemplatePartitionDetector.walkableGlob("*/*/*.parquet"));
+    }
+
+    /**
+     * Numeric account stays {@code *}; string region splices mid-glob. That literal is a pre-bound
+     * placeholder, not a layout reject — otherwise the walk never starts and listing goes flat.
+     */
+    public void testWalkLayoutBindsSplicedPlaceholderLiteral() {
+        TemplatePartitionDetector.WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/AWSLogs/"),
+            "*/vpcflowlogs/us-east-1/*/*/*/*.log.gz",
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}/{month}/{day}"
+        );
+        assertNotNull(layout);
+        assertEquals(Set.of("account", "year", "month", "day"), layout.placeholderKeys());
+        assertEquals("us-east-1", layout.prefixBindings().get("region"));
+        assertFalse(layout.prefixBindings().containsKey("account"));
+        assertTrue(layout.level(0).isPlaceholder());
+        assertEquals("account", layout.level(0).name());
+        assertTrue(layout.level(1).globSpelled());
+        assertEquals("vpcflowlogs", layout.level(1).literal());
+        assertTrue(layout.level(2).globSpelled());
+        assertEquals("us-east-1", layout.level(2).literal());
+        assertTrue(layout.level(3).isPlaceholder());
+        assertEquals("year", layout.level(3).name());
+        Map<String, String> bound = layout.bindings("/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026");
+        assertEquals("012345678901", bound.get("account"));
+        assertEquals("us-east-1", bound.get("region"));
+        assertEquals("2026", bound.get("year"));
+    }
+
+    /**
+     * Repeated placeholder whose spellings disagree cannot be trusted. Trailing {@code *} keeps the
+     * glob walkable so this is {@code bindIfAgree}, not the no-directory-star gate. Prefix dirs used
+     * to last-win; they now reject too.
+     */
+    public void testWalkLayoutRejectsDisagreeingSplicedPlaceholder() {
+        StoragePath prefix = StoragePath.of("s3://bucket/logs/");
+        assertNull(TemplatePartitionDetector.walkLayout(prefix, "foo/bar/*/*.parquet", "{x}/{x}/{y}"));
+        TemplatePartitionDetector.WalkLayout agreed = TemplatePartitionDetector.walkLayout(prefix, "foo/foo/*/*.parquet", "{x}/{x}/{y}");
+        assertNotNull(agreed);
+        assertEquals("foo", agreed.prefixBindings().get("x"));
+        assertEquals(Set.of("y"), agreed.placeholderKeys());
+        assertNull(TemplatePartitionDetector.walkLayout(StoragePath.of("s3://bucket/logs/foo/bar/"), "*/*.parquet", "{x}/{x}/{y}"));
+        TemplatePartitionDetector.WalkLayout prefixAgreed = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/logs/foo/foo/"),
+            "*/*.parquet",
+            "{x}/{x}/{y}"
+        );
+        assertNotNull(prefixAgreed);
+        assertEquals("foo", prefixAgreed.prefixBindings().get("x"));
+    }
+
     private static Map<String, Object> values(PartitionMetadata result, List<StorageEntry> files, String path) {
         for (int i = 0; i < files.size(); i++) {
             if (files.get(i).path().toString().equals(path)) {

@@ -17,7 +17,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureClusterStateSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -25,9 +28,13 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -97,6 +104,24 @@ public class EncryptionPluginTests extends ESTestCase {
         // a node on an earlier version doesn't report it, and its own join validator checks it
         plugin.getJoinAttributesValidator().validate(otherNode, Map.of(), withKey);
         plugin.getJoinAttributesValidator().validate(otherNode, Map.of(CAN_PERSIST, "false"), stateWith(null));
+    }
+
+    /** On stateless with the password in cluster secrets, a keystore reload, which doesn't have it, doesn't replace it. */
+    public void testKeystoreReloadKeepsPasswordFromClusterSecretsOnStateless() throws IOException {
+        String json = Strings.format(
+            "{\"string_secrets\":{\"%s\":\"v1\",\"%sv1\":\"test-password-fips\"}}",
+            ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
+            ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+        );
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            ClusterSecrets secrets = new ClusterSecrets(1, SecureClusterStateSettings.fromXContent(parser));
+            state.set(ClusterState.builder(stateWith(null)).putCustom(ClusterSecrets.TYPE, secrets).build());
+        }
+        plugin = new EncryptionPlugin(Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build());
+        plugin.createComponents(pluginServices());
+
+        plugin.reload(Settings.EMPTY);
+        assertEquals(Map.of(CAN_PERSIST, "true"), plugin.getJoinAttributes());
     }
 
     private static ProjectEncryptionKeyMetadata key() {

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
@@ -159,8 +160,16 @@ public class EncryptionPlugin extends Plugin
     // synchronized so concurrent reloads can't each validate against the same stale settings
     @Override
     public synchronized void reload(Settings settings) {
-        Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
-        if (shouldValidateReload()) {
+        ClusterService localClusterService = clusterService.get();
+        ClusterState state = localClusterService == null ? null : localClusterService.state();
+        boolean fromClusterSecrets = state != null && PasswordPekEncryption.passwordsFromClusterSecrets(state, stateless);
+        // a keystore reload must not replace the password from cluster secrets, which are applied to the state before they're reloaded
+        Settings source = fromClusterSecrets
+            ? Settings.builder().setSecureSettings(state.<ClusterSecrets>custom(ClusterSecrets.TYPE).getSettings()).build()
+            : settings;
+        Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(source);
+        // also before a key exists: the master may install one as soon as this node has reported that it can persist it
+        if (persistsClusterState && state != null && fromClusterSecrets == false) {
             ProjectEncryptionKeyPasswordSettings.validateReload(
                 pekEncryption.canWrapForGateway(),
                 pekSettings,
@@ -175,18 +184,6 @@ public class EncryptionPlugin extends Plugin
         if (localCoordinator != null) {
             localCoordinator.reload();
         }
-    }
-
-    // also before a key exists: the master may install one as soon as this node has reported that it can persist it
-    private boolean shouldValidateReload() {
-        if (persistsClusterState == false) {
-            return false;
-        }
-        ClusterService localClusterService = clusterService.get();
-        if (localClusterService == null) {
-            return false;
-        }
-        return PasswordPekEncryption.passwordsFromClusterSecrets(localClusterService.state(), stateless) == false;
     }
 
     /**

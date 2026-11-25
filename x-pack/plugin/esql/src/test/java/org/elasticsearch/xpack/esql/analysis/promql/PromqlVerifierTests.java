@@ -69,9 +69,7 @@ public class PromqlVerifierTests extends ESTestCase {
     private final TestAnalyzer mixedTsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY)
-        .minimumTransportVersion(
-            TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS)
-        );
+        .minimumTransportVersion(TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ENABLE_TSMETADATA_FN));
 
     public void testPredictLinearArguments() {
         tsdb.error(
@@ -611,9 +609,7 @@ public class PromqlVerifierTests extends ESTestCase {
         // Only where a node does not know the label container functions.
         TestAnalyzer nativeHistograms = analyzer().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
             .stripErrorPrefix(true)
-            .minimumTransportVersion(
-                TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS)
-            );
+            .minimumTransportVersion(TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ENABLE_TSMETADATA_FN));
         for (String rejected : List.of(
             "histogram_quantile(0.5, sum without (instance) (responseTime))",
             "histogram_fraction(0, 0.2, sum without (instance) (responseTime))"

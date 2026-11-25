@@ -10,17 +10,13 @@ package org.elasticsearch.xpack.esql.into;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -35,15 +31,9 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -51,13 +41,9 @@ import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -147,7 +133,15 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, empty());
     }
 
-    public void testRefreshFailureFailsTheOperator() {
+    private static final String WRITTEN = "INTO ["
+        + DEST
+        + "] wrote [1] documents successfully, only the refresh failed, so they may not be searchable yet: ";
+
+    /**
+     * The rows are stored whatever the refresh does, and a failed query invites a retry that stores them again, so a refresh that
+     * fails is a warning on the stats row, never a failure.
+     */
+    public void testRefreshFailureIsAWarningAndTheStatsAreStillEmitted() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
@@ -156,43 +150,42 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.failRefresh(new IndexNotFoundException(DEST));
         assertTrue(blocked.listener().isDone());
         assertFalse(driverContext.hasPendingAsyncActions());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(e.getMessage(), containsString("INTO [" + DEST + "] wrote [1] documents but the refresh failed"));
-        assertThat(e.getCause(), instanceOf(IndexNotFoundException.class));
-        assertFalse(op.isFinished());
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+        assertTrue(op.isFinished());
+        assertThat(warnings(), equalTo(List.of(WRITTEN + "no such index [" + DEST + "]")));
     }
 
-    public void testForbiddenRefreshExplainsDocumentsWereWritten() {
+    public void testForbiddenRefreshWarningExplainsThePrivilege() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(4L, 4L).toPage(blockFactory));
         op.finish();
 
         client.failRefresh(new ElasticsearchSecurityException("action [indices:admin/refresh] is unauthorized", RestStatus.FORBIDDEN));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(4L, 4L)));
         assertThat(
-            e.getMessage(),
+            warnings(),
             equalTo(
-                "INTO ["
-                    + DEST
-                    + "] wrote [4] documents but the refresh failed: action [indices:admin/refresh] is unauthorized"
-                    + " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
+                List.of(
+                    "INTO ["
+                        + DEST
+                        + "] wrote [4] documents successfully, only the refresh failed, so they may not be searchable yet: "
+                        + "action [indices:admin/refresh] is unauthorized"
+                        + " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
+                )
             )
         );
     }
 
-    public void testShardFailuresFailTheRefresh() {
+    public void testShardFailureIsAWarningWithItsUnderlyingMessage() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
 
-        IllegalStateException shardClosed = new IllegalStateException("shard is closed");
-        client.answerRefresh(new BroadcastResponse(2, 1, 1, List.of(shardFailure(shardClosed))));
+        // The wrapper that broadcast replication puts around a shard failure has no message of its own
+        client.answerRefresh(new BroadcastResponse(2, 1, 1, List.of(shardFailure(new IllegalStateException("shard is closed")))));
         assertFalse(driverContext.hasPendingAsyncActions());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat(e.getMessage(), containsString("wrote [1] documents but the refresh failed"));
-        assertThat(ExceptionsHelper.unwrapCause(e.getCause()), instanceOf(IllegalStateException.class));
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+        assertThat(warnings(), equalTo(List.of(WRITTEN + "shard is closed")));
     }
 
     public void testClosedMemberOfAnAliasIsSkippedOnARetry() {
@@ -212,6 +205,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.answerRefresh();
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+        assertThat(warnings(), empty());
     }
 
     public void testClosedShardDuringTheRefreshIsNotRetried() {
@@ -224,90 +218,55 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(closed))));
         assertThat(client.refreshes, empty());
         assertFalse(driverContext.hasPendingAsyncActions());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat(ExceptionsHelper.unwrapCause(e.getCause()), instanceOf(IndexClosedException.class));
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+        assertThat(warnings(), equalTo(List.of(WRITTEN + "closed")));
     }
 
-    public void testShardFailureIsReportedWithItsUnderlyingCause() {
+    public void testRefreshIsOnlyRetriedForAClosedMember() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
 
-        IndexClosedException closed = new IndexClosedException(new Index(DEST, "uuid"));
-        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(closed))));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat(e.getMessage(), equalTo("INTO [" + DEST + "] wrote [1] documents but the refresh failed: closed"));
-        assertThat(e.getCause(), sameInstance(closed));
-        // The wrapper said which shard it was, and the error says so itself
-        assertThat(e.getShardId(), equalTo(new ShardId(DEST, "uuid", 0)));
+        client.failRefresh(new IndexNotFoundException(DEST));
+        assertThat(client.refreshes, empty());
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
     }
 
-    /**
-     * A failure that has no index or shard of its own, such as the rejection of a replica, must still say which shard it was in the
-     * response, and its root cause must be the error that says the documents were written, not the empty wrapper around it.
-     */
-    @SuppressWarnings("unchecked")
-    public void testSerializedShardFailureHasTheMessageAndTheShard() throws IOException {
+    public void testRefreshThatReachedNoShardIsAWarning() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
 
-        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(new IllegalStateException("replica rejected")))));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-
-        String message = "INTO [" + DEST + "] wrote [1] documents but the refresh failed: replica rejected";
-        Map<String, Object> error = errorBody(e);
-        assertThat(error.get("reason"), equalTo(message));
-        assertThat(error.get("index"), equalTo(DEST));
-        assertThat(error.get("shard"), equalTo("0"));
-        Map<String, Object> rootCause = ((List<Map<String, Object>>) error.get("root_cause")).getFirst();
-        assertThat(rootCause.get("reason"), equalTo(message));
-        assertThat(rootCause.get("shard"), equalTo("0"));
+        // The primary was not available, which broadcast replication counts in the total but records as neither a success nor a failure
+        client.answerRefresh(new BroadcastResponse(2, 0, 0, List.of()));
+        assertFalse(driverContext.hasPendingAsyncActions());
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+        assertThat(warnings(), equalTo(List.of(WRITTEN + "no shard of the destination was refreshed")));
     }
 
-    /**
-     * The root cause is what actually went wrong, which is how Elasticsearch reports a failure that wraps another one. The message that
-     * the documents were written and the shard are on the error itself.
-     */
-    @SuppressWarnings("unchecked")
-    public void testSerializedRootCauseOfAShardFailureIsTheFailureItself() throws IOException {
+    public void testRefreshOfAnUnderReplicatedDestinationSucceeds() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
 
-        CircuitBreakingException breaker = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
-        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(breaker))));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-
-        Map<String, Object> error = errorBody(e);
-        assertThat(error.get("reason"), equalTo("INTO [" + DEST + "] wrote [1] documents but the refresh failed: [parent] Data too large"));
-        assertThat(error.get("index"), equalTo(DEST));
-        assertThat(error.get("shard"), equalTo("0"));
-        Map<String, Object> rootCause = ((List<Map<String, Object>>) error.get("root_cause")).getFirst();
-        assertThat(rootCause.get("type"), equalTo("circuit_breaking_exception"));
-        assertThat(rootCause.get("reason"), equalTo("[parent] Data too large"));
+        // An unassigned replica is in the total but not among the successes, which is normal on a yellow cluster
+        client.answerRefresh(new BroadcastResponse(2, 1, 0, List.of()));
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+        assertThat(warnings(), empty());
     }
 
     /**
-     * Which node refused, and its transport address, are internal details: the response, with or without {@code error_trace}, must
-     * not carry them, and the failure must not attach the wrappers that hold them, which would repeat the cause chain.
+     * Which node refused, and its transport address, are internal details: the warning, which every caller receives, must not carry
+     * them. The cluster admin gets them from the log instead.
      */
-    public void testResponseDoesNotDiscloseTheRemoteNode() throws IOException {
+    public void testWarningDoesNotDiscloseTheRemoteNode() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
 
         client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remoteBreaker()))));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-
-        assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
-        assertThat(e.getSuppressed(), emptyArray());
-        for (boolean errorTrace : new boolean[] { false, true }) {
-            String body = errorBody(e, errorTrace).toString();
-            assertThat(body, not(containsString("node-b")));
-            assertThat(body, not(containsString("127.0.0.1")));
-            assertThat(body, not(containsString("CIRCULAR REFERENCE")));
-        }
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+        assertThat(warnings(), equalTo(List.of(WRITTEN + "[parent] Data too large")));
     }
 
     /** The node that refused is what the cluster admin needs, so it goes to the log, with the whole failure. */
@@ -326,13 +285,13 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
                 )
             );
             client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remoteBreaker()))));
-            expectThrows(ElasticsearchStatusException.class, op::getOutput);
+            assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
             mockLog.assertAllExpectationsMatched();
         }
     }
 
-    /** A cause chain can be cyclic, and describing it for the log must still end, or the failure never reaches the query. */
-    public void testCyclicCauseChainDoesNotBlockTheFailure() {
+    /** A cause chain can be cyclic, and describing it for the log must still end, or the refresh never settles. */
+    public void testCyclicCauseChainDoesNotBlockTheOperator() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
@@ -352,8 +311,8 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         other[0] = new RuntimeException("second", first);
         client.failRefresh(new ElasticsearchException("refresh failed", first));
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat(e.getMessage(), containsString("refresh failed"));
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+        assertThat(warnings(), equalTo(List.of(WRITTEN + "refresh failed")));
     }
 
     private static RemoteTransportException remoteBreaker() {
@@ -361,38 +320,9 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         return new RemoteTransportException("[node-b][127.0.0.1:9300][indices:admin/refresh[s][r]]", breaker);
     }
 
-    public void testRefreshIsOnlyRetriedForAClosedMember() {
-        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
-        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
-        op.finish();
-
-        client.failRefresh(new IndexNotFoundException(DEST));
-        assertThat(client.refreshes, empty());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat("an action-level failure is its own cause, so there is nothing to keep apart", e.getSuppressed(), emptyArray());
-    }
-
-    public void testRefreshThatReachedNoShardFails() {
-        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
-        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
-        op.finish();
-
-        // The primary was not available, which broadcast replication counts in the total but records as neither a success nor a failure
-        client.answerRefresh(new BroadcastResponse(2, 0, 0, List.of()));
-        assertFalse(driverContext.hasPendingAsyncActions());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        assertThat(e.getMessage(), containsString("wrote [1] documents but the refresh failed"));
-    }
-
-    public void testRefreshOfAnUnderReplicatedDestinationSucceeds() {
-        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
-        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
-        op.finish();
-
-        // An unassigned replica is in the total but not among the successes, which is normal on a yellow cluster
-        client.answerRefresh(new BroadcastResponse(2, 1, 0, List.of()));
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+    private List<String> warnings() {
+        driverContext.finish();
+        return driverContext.warnings();
     }
 
     public void testRefreshRunsWithTheCallersThreadContext() {
@@ -415,27 +345,6 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, hasSize(1));
         client.answerRefresh();
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
-    }
-
-    /** The body of the error response, as the REST layer renders it. */
-    private static Map<String, Object> errorBody(Exception e) throws IOException {
-        return errorBody(e, false);
-    }
-
-    /** The body of the error response, with the stack trace that {@code error_trace=true} adds if asked for. */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> errorBody(Exception e, boolean errorTrace) throws IOException {
-        ToXContent.Params params = new ToXContent.MapParams(
-            Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, Boolean.toString(errorTrace == false))
-        );
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
-            ElasticsearchException.generateFailureXContent(builder, params, e, true);
-            builder.endObject();
-            return (Map<String, Object>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON)
-                .v2()
-                .get("error");
-        }
     }
 
     /** A shard failure as broadcast replication reports it: wrapped in an exception that has no message of its own. */

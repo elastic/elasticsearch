@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -26,11 +26,12 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * {@code INTO} under real security. Writing the rows needs the {@code write} index privilege, but refreshing the destination
@@ -78,36 +79,47 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         );
     }
 
-    public void testWriterWithoutMaintenanceKeepsTheRowsButFailsTheRefresh() throws IOException {
-        ResponseException e = expectThrows(ResponseException.class, () -> runInto("into_writer", ""));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    /**
+     * The rows are stored, so the query succeeds. A failure would invite a retry that stores them again, so the refresh that the
+     * caller may not do is a warning, which says that the rows were written and only the refresh failed.
+     */
+    public void testWriterWithoutMaintenanceKeepsTheRowsAndWarnsThatTheRefreshFailed() throws IOException {
+        Response response = runInto("into_writer", "");
+        assertSummary(response);
         assertThat(
-            errorReason(e),
-            containsString("INTO [into-dest] wrote [2] documents but the refresh failed: action [indices:admin/refresh] is unauthorized")
+            warning(response),
+            containsString(
+                "INTO [into-dest] wrote [2] documents successfully, only the refresh failed, so they may not be searchable yet: "
+                    + "action [indices:admin/refresh] is unauthorized"
+            )
         );
-        assertThat(errorReason(e), containsString("refreshing requires the [maintenance] privilege on the destination"));
-        assertThat(errorReason(e), containsString("use \"refresh\": false to skip it"));
+        assertThat(warning(response), containsString("refreshing requires the [maintenance] privilege on the destination"));
+        // The header escapes the quotes of the option, so only what follows it is matched
+        assertThat(warning(response), containsString(": false to skip it"));
 
-        // The failed refresh does not undo the write.
+        assertThat("the refresh did not happen", countDestination(), equalTo(0L));
         refreshDestination();
         assertThat(countDestination(), equalTo(2L));
     }
 
     /**
      * The refresh action is allowed for this user, on an index that is not the destination, so the action-level check passes. The
-     * destination must then be refused, not silently dropped from the refresh with the rows left unsearchable.
+     * destination must then be refused, not silently dropped from the refresh with the rows left unsearchable and no warning.
      */
     public void testMaintenanceOnAnotherIndexDoesNotRefreshTheDestination() throws IOException {
-        ResponseException e = expectThrows(ResponseException.class, () -> runInto("into_maintainer_elsewhere", ""));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(errorReason(e), containsString("INTO [into-dest] wrote [2] documents but the refresh failed"));
+        Response response = runInto("into_maintainer_elsewhere", "");
+        assertSummary(response);
+        assertThat(warning(response), containsString("INTO [into-dest] wrote [2] documents successfully, only the refresh failed"));
 
+        assertThat("the refresh did not happen", countDestination(), equalTo(0L));
         refreshDestination();
         assertThat(countDestination(), equalTo(2L));
     }
 
     public void testWriterWithoutMaintenanceCanSkipTheRefresh() throws IOException {
-        assertSummary(runInto("into_writer", " WITH {\"refresh\": false}"));
+        Response response = runInto("into_writer", " WITH {\"refresh\": false}");
+        assertSummary(response);
+        assertThat("skipping the refresh is not a failure to warn about", response.getWarnings(), empty());
 
         assertThat("not searchable until something refreshes the destination", countDestination(), equalTo(0L));
         refreshDestination();
@@ -115,7 +127,9 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     }
 
     public void testWriterWithMaintenanceSeesTheRowsWhenTheQueryReturns() throws IOException {
-        assertSummary(runInto("into_maintainer", ""));
+        Response response = runInto("into_maintainer", "");
+        assertSummary(response);
+        assertThat(response.getWarnings(), empty());
 
         assertThat("INTO refreshed the destination", countDestination(), equalTo(2L));
     }
@@ -124,7 +138,9 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         String query = "ROW k = [\"a\", \"b\"] | MV_EXPAND k | INTO " + DESTINATION + options;
         Request request = new Request("POST", "_query");
         request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("query", query).endObject()));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(WarningsHandler.PERMISSIVE)
+        );
         return client().performRequest(request);
     }
 
@@ -133,10 +149,9 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         assertThat(entityAsMap(response).get("values"), equalTo(List.of(List.of(2, 2))));
     }
 
-    @SuppressWarnings("unchecked")
-    private static String errorReason(ResponseException e) throws IOException {
-        Map<String, Object> error = (Map<String, Object>) entityAsMap(e.getResponse()).get("error");
-        return (String) error.get("reason");
+    private static String warning(Response response) {
+        assertThat(response.getWarnings(), hasSize(1));
+        return response.getWarnings().getFirst();
     }
 
     private static void refreshDestination() throws IOException {

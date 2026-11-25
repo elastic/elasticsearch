@@ -142,11 +142,9 @@ public final class IntoMergeStatsOperator implements Operator {
     private long createdSum;
     private boolean finished;
     private boolean outputEmitted;
-    // Set once a refresh is sent; done when it settles. Its failure is kept in refreshFailure.
+    // Set once a refresh is sent; done when it settles. A failure is a warning of the driver context.
     @Nullable
     private SubscribableListener<Void> refreshing;
-    @Nullable
-    private volatile ElasticsearchStatusException refreshFailure;
 
     private IntoMergeStatsOperator(DriverContext driverContext, @Nullable Refresher refresher) {
         this.driverContext = driverContext;
@@ -196,30 +194,27 @@ public final class IntoMergeStatsOperator implements Operator {
         }));
     }
 
+    /**
+     * A refresh that fails is a warning, not a failure of the query: the rows are stored whatever the refresh does, and a failed query
+     * invites a retry, which stores them again when their ids are generated.
+     */
     private void recordRefreshFailure(Exception cause) {
-        // Broadcast replication wraps the failure of a shard in an exception that has no message of its own, but does say which shard
-        // it was, and a failure from another node is wrapped again with the details of that node. The message, the status and the cause
-        // are those of what they wrap, so that the root cause of the response is what actually went wrong. The shard goes on the error
-        // itself.
+        // Broadcast replication wraps the failure of a shard in an exception that has no message of its own, and a failure from another
+        // node is wrapped again with the details of that node, which are internal. The warning says what actually went wrong, and the
+        // cluster admin gets the wrappers, with the whole failure, from the log.
         Throwable underlying = ExceptionsHelper.unwrapCause(cause);
-        RestStatus status = ExceptionsHelper.status(underlying);
-        String hint = status == RestStatus.FORBIDDEN
+        String hint = ExceptionsHelper.status(underlying) == RestStatus.FORBIDDEN
             ? " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
             : "";
-        ElasticsearchStatusException failure = new ElasticsearchStatusException(
-            "INTO [{}] wrote [{}] documents but the refresh failed: {}{}",
-            status,
-            underlying,
-            refresher.destination(),
-            createdSum,
-            underlying.getMessage(),
-            hint
+        driverContext.addWarning(
+            Strings.format(
+                "INTO [%s] wrote [%d] documents successfully, only the refresh failed, so they may not be searchable yet: %s%s",
+                refresher.destination(),
+                createdSum,
+                underlying.getMessage(),
+                hint
+            )
         );
-        if (cause instanceof ElasticsearchException wrapper && wrapper.getShardId() != null) {
-            failure.setShard(wrapper.getShardId());
-        }
-        // The wrappers say which node refused, an internal detail that the response must not carry, not even in its stack trace, and
-        // attaching them would repeat the cause chain. The cluster admin gets them, with the whole failure, from the log.
         logger.warn(
             () -> Strings.format(
                 "INTO [%s] wrote [%d] documents but the refresh failed: %s",
@@ -229,7 +224,6 @@ public final class IntoMergeStatsOperator implements Operator {
             ),
             cause
         );
-        refreshFailure = failure;
     }
 
     /** The failure and what it wraps, outermost first, which is where the node that refused is named. */
@@ -266,9 +260,6 @@ public final class IntoMergeStatsOperator implements Operator {
     public Page getOutput() {
         if (finished == false || refreshPending()) {
             return null;
-        }
-        if (refreshFailure != null) {
-            throw refreshFailure;
         }
         outputEmitted = true;
         return new IntoStats(totalSum, createdSum).toPage(blockFactory);

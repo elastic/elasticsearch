@@ -106,9 +106,10 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
-     * Rejects a reload that removes a password this node needs while the cluster uses a key: the active one, which it wraps the key
-     * with, or the one its on-disk copy of the key is wrapped with, which it needs to read the key back after a restart. The latter
-     * is checked by decrypting the copy, {@code canReadCopy}, so that a reload can still correct a wrong password.
+     * Rejects a reload that removes a password this node needs: the active one, which it wraps the key with, or the one its on-disk copy
+     * of the key is wrapped with, which it needs to read the key back after a restart. The latter is checked by decrypting the copy,
+     * {@code canReadCopy}, so that a reload can still correct a wrong password. The active one is kept even before the cluster has a key,
+     * since the master installs one once every node has reported that it can persist it. A restart can still remove it.
      */
     static void validateReload(
         boolean currentCanWrap,
@@ -121,10 +122,11 @@ final class ProjectEncryptionKeyPasswordSettings {
             String failure = wrapForGatewayFailure(updated);
             if (failure != null) {
                 throw new IllegalArgumentException(
-                    "cannot reload cluster state encryption settings: the cluster uses a cluster state encryption key, and with the"
-                        + " reloaded settings this node could no longer persist cluster state ("
+                    "cannot reload cluster state encryption settings: with the reloaded settings this node could no longer persist the"
+                        + " cluster state encryption key ("
                         + failure
-                        + "); keeping the previous settings"
+                        + "); keeping the previous settings. To remove the password, update the keystore and restart the node; once the"
+                        + " cluster has a key, the node cannot rejoin without one"
                 );
             }
         }

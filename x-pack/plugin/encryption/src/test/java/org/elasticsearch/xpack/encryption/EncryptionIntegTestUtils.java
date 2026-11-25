@@ -56,14 +56,15 @@ public final class EncryptionIntegTestUtils {
             }""", version, secrets);
     }
 
-    /** The joining node rejects the cluster's join validation, and logs the reason the master sends back. */
+    /** The joining node logs the reason it can't join, whether it rejected the join validation itself or the master rejected the join. */
     public static final class JoinRejectedExpectation implements MockLog.LoggingExpectation {
         private final CountDownLatch seen = new CountDownLatch(1);
 
         @Override
         public void match(LogEvent event) {
             for (Throwable t = event.getThrown(); t != null; t = t.getCause()) {
-                if (t.getMessage() != null && t.getMessage().contains("this node cannot join the cluster")) {
+                if (t.getMessage() != null
+                    && t.getMessage().contains("cannot join the cluster: the cluster uses a cluster state encryption key")) {
                     seen.countDown();
                 }
             }

@@ -250,9 +250,10 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
             false
         );
 
-        HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
+        HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(HealthStatus.GREEN, result.status());
         assertEquals(ProjectEncryptionKeyHealthIndicatorService.GREEN_HEALTHY, result.symptom());
+        assertFalse(detailsMap(result).containsKey("key_on_disk"));
     }
 
     /** The elected master holds no key: red if any handler holds encrypted data, which can't be decrypted until the key is back. */

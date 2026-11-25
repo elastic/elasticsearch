@@ -333,13 +333,8 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
      */
     @Nullable
     static ProjectEncryptionKeyMetadata unwrapGatewayKeys(String activeKeyId, PekEncryption pekEncryption) {
-        GatewayCopy copy = gatewayCopyFor(activeKeyId, pekEncryption);
+        GatewayCopy copy = pekEncryption.gatewayKeys().copyFor(activeKeyId);
         return copy == null ? null : unwrap(copy, pekEncryption);
-    }
-
-    @Nullable
-    private static GatewayCopy gatewayCopyFor(@Nullable String activeKeyId, PekEncryption pekEncryption) {
-        return pekEncryption.gatewayKeys().copyFor(activeKeyId);
     }
 
     static String generateKeyId() {
@@ -456,7 +451,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
         if (unwrapFailureReason != null) {
             // a copy for a different active key would roll the key set back if this node were later elected master
-            GatewayCopy copy = gatewayCopyFor(activeKeyId, pekEncryption);
+            GatewayCopy copy = pekEncryption.gatewayKeys().copyFor(activeKeyId);
             if (copy == null) {
                 setGatewayCopy(null);
                 return emptyGatewayChunk();

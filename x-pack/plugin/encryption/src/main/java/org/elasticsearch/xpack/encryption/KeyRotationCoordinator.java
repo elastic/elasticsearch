@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.encryption;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
@@ -96,6 +98,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     // how long the master waits for nodes to answer whether they can persist the key, and before asking again while some can't
     static final TimeValue PERSIST_CHECK_INTERVAL = TimeValue.timeValueSeconds(10);
+
+    // the version that added join request attributes, in the same change as the readiness check
+    static final TransportVersion CAN_PERSIST_KEY_CHECK = TransportVersion.fromName("join_request_attributes");
 
     /**
      * How frequently the project encryption key is rotated. {@link TimeValue#ZERO} disables rotation.
@@ -179,6 +184,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final AtomicReference<Set<String>> nodesWithoutPEKPassword = new AtomicReference<>();
     // likewise for the nodes that didn't answer the check
     private final AtomicReference<Set<String>> nodesNotAnswering = new AtomicReference<>();
+    // likewise for the nodes on a version that can't answer it
+    private final AtomicReference<Set<String>> nodesOnOlderVersion = new AtomicReference<>();
     // one restore attempt per secure settings snapshot while master, since only a reload can make this node's copy readable
     private final AtomicReference<Settings> lastRestoreAttempt = new AtomicReference<>();
     // the keys this master unwrapped from its copy on disk, restored once every node that persists cluster state can wrap them
@@ -276,6 +283,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         keysToRestore.set(null);
         nodesWithoutPEKPassword.set(null);
         nodesNotAnswering.set(null);
+        nodesOnOlderVersion.set(null);
         stopSchedule();
     }
 
@@ -321,7 +329,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private void reconcileKey(ClusterState state) {
         var metadata = getCurrentMetadata(state);
         String activePasswordId = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(settingsSupplier.get());
-        // First install
         if (metadata == null) {
             if (activePasswordId != null
                 && featureService.clusterHasFeature(state, ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE)) {
@@ -337,6 +344,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         keysToRestore.set(null);
         nodesWithoutPEKPassword.set(null);
         nodesNotAnswering.set(null);
+        nodesOnOlderVersion.set(null);
         if (activePasswordId != null && activePasswordId.equals(metadata.getPasswordId()) == false) {
             schedulePasswordIdChange(metadata, activePasswordId);
         }
@@ -556,11 +564,30 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         persistCheckRecheck.set(false);
-        DiscoveryNode[] nodes = state.nodes()
+        List<DiscoveryNode> persisting = state.nodes()
             .getAllNodes()
             .stream()
             .filter(node -> PasswordPekEncryption.persistsClusterState(node.getRoles(), stateless))
-            .toArray(DiscoveryNode[]::new);
+            .toList();
+        // they don't know the action, and a node that receives an unknown action fails an assertion
+        Set<String> olderNodes = persisting.stream()
+            .filter(node -> canAnswerPersistCheck(state, node) == false)
+            .map(DiscoveryNode::getName)
+            .collect(Collectors.toCollection(TreeSet::new));
+        if (olderNodes.isEmpty() == false) {
+            if (olderNodes.equals(nodesOnOlderVersion.getAndSet(olderNodes)) == false) {
+                logger.warn(
+                    "project encryption key not {} yet: nodes {} are on a version that can't report whether they can persist it."
+                        + " Upgrade them",
+                    operation,
+                    olderNodes
+                );
+            }
+            schedulePersistCheckRetry();
+            return;
+        }
+        nodesOnOlderVersion.set(null);
+        DiscoveryNode[] nodes = persisting.toArray(DiscoveryNode[]::new);
 
         ActionListener<TransportNodesCanPersistKeyAction.Response> listener = ActionListener.wrap(
             response -> onPersistCheckResponse(state, response, operation, onReady),
@@ -593,6 +620,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         nodesWithoutPEKPassword.set(null);
         nodesNotAnswering.set(null);
+        nodesOnOlderVersion.set(null);
         try {
             onReady.accept(ready);
         } catch (Exception e) {
@@ -635,7 +663,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (notAnswering.isEmpty() == false && notAnswering.equals(previouslyNotAnswering) == false) {
             logger.warn(
                 "project encryption key not {} yet: nodes {} did not report whether they can persist it. Check that they are reachable"
-                    + " from the elected master and see their logs",
+                    + " from the elected master, and see their logs",
                 operation,
                 notAnswering
             );
@@ -647,6 +675,12 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
                 response.failures()
             );
         }
+    }
+
+    /** Returns whether {@code node} is on a version with {@link TransportNodesCanPersistKeyAction}. */
+    static boolean canAnswerPersistCheck(ClusterState state, DiscoveryNode node) {
+        CompatibilityVersions versions = state.compatibilityVersions().get(node.getId());
+        return versions == null || versions.transportVersion().supports(CAN_PERSIST_KEY_CHECK);
     }
 
     /** Returns whether every node in {@code state} that persists cluster state is among {@code readyNodeIds}, by ephemeral id. */
@@ -722,7 +756,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         Settings settings = settingsSupplier.get();
-        // No settings changed so nothing to restore
+        // the unwrap was already tried with these settings
         if (settings == lastRestoreAttempt.getAndSet(settings)) {
             return;
         }

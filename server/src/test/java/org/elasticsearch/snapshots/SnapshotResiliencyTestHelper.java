@@ -56,6 +56,7 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
+import org.elasticsearch.cluster.coordination.JoinAttributes;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
@@ -1402,6 +1403,7 @@ public class SnapshotResiliencyTestHelper {
                     hostsResolver -> nodes.values().stream().filter(n -> n.node.isMasterNode()).map(n -> n.node.getAddress()).toList(),
                     clusterService.getClusterApplierService(),
                     Collections.emptyList(),
+                    JoinAttributes.NONE,
                     LuceneTestCase.random(),
                     rerouteService,
                     createElectionStrategy(),

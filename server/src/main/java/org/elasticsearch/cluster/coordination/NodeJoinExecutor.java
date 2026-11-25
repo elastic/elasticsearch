@@ -74,6 +74,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     private final RerouteService rerouteService;
     private final FeatureService featureService;
     private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
+    private final Collection<JoinAttributesValidator> joinAttributesValidators;
 
     public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService, FeatureService featureService) {
         this(allocationService, rerouteService, featureService, Function.identity());
@@ -85,10 +86,21 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         FeatureService featureService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
     ) {
+        this(allocationService, rerouteService, featureService, maybeReconfigureAfterMasterElection, List.of());
+    }
+
+    public NodeJoinExecutor(
+        AllocationService allocationService,
+        RerouteService rerouteService,
+        FeatureService featureService,
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
+        Collection<JoinAttributesValidator> joinAttributesValidators
+    ) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
         this.featureService = featureService;
         this.maybeReconfigureAfterMasterElection = maybeReconfigureAfterMasterElection;
+        this.joinAttributesValidators = List.copyOf(joinAttributesValidators);
     }
 
     @Override
@@ -194,6 +206,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                             node.getMaxIndexVersion(),
                             initialState.getMetadata()
                         );
+                        for (JoinAttributesValidator validator : joinAttributesValidators) {
+                            validator.validate(node, nodeJoinTask.joinAttributes(), initialState);
+                        }
 
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);

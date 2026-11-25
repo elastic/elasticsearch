@@ -15,6 +15,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.JoinAttributes;
+import org.elasticsearch.cluster.coordination.JoinAttributesValidator;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
@@ -112,6 +114,7 @@ public class DiscoveryModule extends AbstractModule {
         ClusterService clusterService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
+        final List<JoinAttributesValidator> joinAttributesValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
         hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
@@ -129,6 +132,10 @@ public class DiscoveryModule extends AbstractModule {
             BiConsumer<DiscoveryNode, ClusterState> joinValidator = plugin.getJoinValidator();
             if (joinValidator != null) {
                 joinValidators.add(joinValidator);
+            }
+            JoinAttributesValidator joinAttributesValidator = plugin.getJoinAttributesValidator();
+            if (joinAttributesValidator != null) {
+                joinAttributesValidators.add(joinAttributesValidator);
             }
             plugin.getElectionStrategies().forEach((key, value) -> {
                 if (electionStrategies.put(key, value) != null) {
@@ -187,6 +194,7 @@ public class DiscoveryModule extends AbstractModule {
                 seedHostsProvider,
                 clusterApplier,
                 joinValidators,
+                new JoinAttributes(() -> collectJoinAttributes(clusterCoordinationPlugins), joinAttributesValidators),
                 new Random(Randomness.get().nextLong()),
                 rerouteService,
                 electionStrategy,
@@ -226,6 +234,19 @@ public class DiscoveryModule extends AbstractModule {
         }
 
         return new Reconfigurator(settings, clusterSettings);
+    }
+
+    // visible for testing
+    static Map<String, String> collectJoinAttributes(List<ClusterCoordinationPlugin> clusterCoordinationPlugins) {
+        Map<String, String> attributes = new HashMap<>();
+        for (ClusterCoordinationPlugin plugin : clusterCoordinationPlugins) {
+            plugin.getJoinAttributes().forEach((key, value) -> {
+                if (attributes.putIfAbsent(key, value) != null) {
+                    throw new IllegalStateException("join attribute [" + key + "] is set by more than one plugin");
+                }
+            });
+        }
+        return Map.copyOf(attributes);
     }
 
     // visible for testing

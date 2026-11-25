@@ -19,6 +19,7 @@ import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
@@ -90,6 +91,60 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         reload(joining, passwordSettings());
         ensureStableCluster(2);
         assertBusy(() -> assertEquals(HealthStatus.GREEN, health(joining).status()));
+    }
+
+    /**
+     * Before the cluster has a key, a node that can persist one can't reload its password away, since the master may install a key as
+     * soon as the node has reported that it can persist it. A restart still removes the password.
+     */
+    public void testPasswordCannotBeReloadedAwayBeforeKeyIsInstalled() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+        // the master has no password, so it doesn't install a key
+        reload(dataNode, passwordSettings());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reload(dataNode, Settings.EMPTY));
+        assertThat(e.getMessage(), containsString("keeping the previous settings"));
+
+        internalCluster().restartNode(dataNode);
+        ensureStableCluster(2);
+        reload(dataNode, Settings.EMPTY);
+        assertThat(pekOn(master), nullValue());
+    }
+
+    /**
+     * The only node without a password restarts, so the master installs the key while it is away. The master rejects it when it rejoins,
+     * although its join validation can use a state cached from before the install.
+     */
+    public void testNodeThatRestartsWhileKeyIsInstalledCannotRejoinWithoutPassword() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        ensureStableCluster(1);
+        // joins an elected master, which caches the state it validates the join against
+        String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+        reload(master, passwordSettings());
+
+        try (MockLog mockLog = MockLog.capture(JoinHelper.class)) {
+            mockLog.addExpectation(new EncryptionIntegTestUtils.JoinRejectedExpectation());
+            internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
+                    assertBusy(() -> assertThat(pekOn(master), notNullValue()), 30, TimeUnit.SECONDS);
+                    return Settings.EMPTY;
+                }
+
+                @Override
+                public boolean validateClusterForming() {
+                    return false;
+                }
+            });
+            mockLog.awaitAllExpectationsMatched();
+        }
+        assertEquals(1, internalCluster().clusterService(master).state().nodes().size());
+
+        reload(dataNode, passwordSettings());
+        ensureStableCluster(2);
     }
 
     /**

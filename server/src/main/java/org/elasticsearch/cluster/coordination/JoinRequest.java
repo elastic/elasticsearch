@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,11 +16,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
 public class JoinRequest extends AbstractTransportRequest {
+
+    static final TransportVersion JOIN_REQUEST_ATTRIBUTES = TransportVersion.fromName("join_request_attributes");
 
     /**
      * The sending (i.e. joining) node.
@@ -51,6 +55,11 @@ public class JoinRequest extends AbstractTransportRequest {
      */
     private final Optional<Join> optionalJoin;
 
+    /**
+     * Facts about the sending node from plugins, computed when the request is sent, for the {@link JoinAttributesValidator}s on the master.
+     */
+    private final Map<String, String> joinAttributes;
+
     public JoinRequest(
         DiscoveryNode sourceNode,
         CompatibilityVersions compatibilityVersions,
@@ -58,12 +67,24 @@ public class JoinRequest extends AbstractTransportRequest {
         long minimumTerm,
         Optional<Join> optionalJoin
     ) {
+        this(sourceNode, compatibilityVersions, features, minimumTerm, optionalJoin, Map.of());
+    }
+
+    public JoinRequest(
+        DiscoveryNode sourceNode,
+        CompatibilityVersions compatibilityVersions,
+        Set<String> features,
+        long minimumTerm,
+        Optional<Join> optionalJoin,
+        Map<String, String> joinAttributes
+    ) {
         assert optionalJoin.isPresent() == false || optionalJoin.get().votingNode().equals(sourceNode);
         this.sourceNode = sourceNode;
         this.compatibilityVersions = compatibilityVersions;
         this.features = features;
         this.minimumTerm = minimumTerm;
         this.optionalJoin = optionalJoin;
+        this.joinAttributes = Objects.requireNonNull(joinAttributes);
     }
 
     public JoinRequest(StreamInput in) throws IOException {
@@ -73,6 +94,11 @@ public class JoinRequest extends AbstractTransportRequest {
         features = in.readCollectionAsSet(StreamInput::readString);
         minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
+        if (in.getTransportVersion().supports(JOIN_REQUEST_ATTRIBUTES)) {
+            joinAttributes = in.readImmutableMap(StreamInput::readString);
+        } else {
+            joinAttributes = Map.of();
+        }
     }
 
     @Override
@@ -83,6 +109,9 @@ public class JoinRequest extends AbstractTransportRequest {
         out.writeCollection(features, StreamOutput::writeString);
         out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
+        if (out.getTransportVersion().supports(JOIN_REQUEST_ATTRIBUTES)) {
+            out.writeMap(joinAttributes, StreamOutput::writeString);
+        }
     }
 
     public DiscoveryNode getSourceNode() {
@@ -112,6 +141,10 @@ public class JoinRequest extends AbstractTransportRequest {
         return optionalJoin;
     }
 
+    public Map<String, String> getJoinAttributes() {
+        return joinAttributes;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -123,12 +156,13 @@ public class JoinRequest extends AbstractTransportRequest {
         if (sourceNode.equals(that.sourceNode) == false) return false;
         if (compatibilityVersions.equals(that.compatibilityVersions) == false) return false;
         if (features.equals(that.features) == false) return false;
-        return optionalJoin.equals(that.optionalJoin);
+        if (optionalJoin.equals(that.optionalJoin) == false) return false;
+        return joinAttributes.equals(that.joinAttributes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, compatibilityVersions, features, minimumTerm, optionalJoin);
+        return Objects.hash(sourceNode, compatibilityVersions, features, minimumTerm, optionalJoin, joinAttributes);
     }
 
     @Override
@@ -144,6 +178,8 @@ public class JoinRequest extends AbstractTransportRequest {
             + minimumTerm
             + ", optionalJoin="
             + optionalJoin
+            + ", joinAttributes="
+            + joinAttributes
             + '}';
     }
 }

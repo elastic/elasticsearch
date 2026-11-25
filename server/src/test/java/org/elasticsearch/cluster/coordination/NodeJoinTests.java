@@ -235,6 +235,7 @@ public class NodeJoinTests extends ESTestCase {
             r -> emptyList(),
             new NoOpClusterApplier(),
             Collections.emptyList(),
+            JoinAttributes.NONE,
             random,
             (s, p, r) -> {},
             ElectionStrategy.DEFAULT_INSTANCE,

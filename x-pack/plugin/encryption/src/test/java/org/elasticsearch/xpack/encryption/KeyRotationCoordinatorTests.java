@@ -38,6 +38,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
@@ -383,7 +384,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
 
-    /** A node that doesn't answer the readiness check, such as one on an older version, blocks the install, and is named once. */
+    /** A node that doesn't answer the readiness check blocks the install, and is named once. */
     public void testInstallWaitsForEveryNodeToAnswer() {
         ClusterState state = clusterStateWith(null, true);
         setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
@@ -410,6 +411,39 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         answers = node -> true;
         lastScheduledRetry().run();
         verify(taskQueue).submitTask(eq("install-project-encryption-key"), isA(KeyRotationCoordinator.InstallKeyTask.class), any());
+    }
+
+    /**
+     * A node on a version without the readiness check isn't asked, since a node that receives an unknown action fails an assertion. The
+     * master names it and waits for it to be upgraded.
+     */
+    public void testInstallWaitsForNodesOnOlderVersionsWithoutAskingThem() {
+        ClusterState state = ClusterState.builder(clusterStateWith(null, true))
+            .putCompatibilityVersions(
+                "other",
+                TransportVersionUtils.getPreviousVersion(KeyRotationCoordinator.CAN_PERSIST_KEY_CHECK),
+                Map.of()
+            )
+            .build();
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
+
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation(
+                "names the node",
+                KeyRotationCoordinator.class.getName(),
+                Level.WARN,
+                "project encryption key not installed yet: nodes [other] are on a version that can't report whether they can persist it*"
+            )
+        );
+        MockLog.assertThatLogger(
+            () -> lastScheduledRetry().run(),
+            KeyRotationCoordinator.class,
+            new MockLog.UnseenEventExpectation("not repeated", KeyRotationCoordinator.class.getName(), Level.WARN, "*on a version*")
+        );
+        verify(client, never()).execute(any(), any(), any());
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
     }
 
     private Runnable lastScheduledRetry() {

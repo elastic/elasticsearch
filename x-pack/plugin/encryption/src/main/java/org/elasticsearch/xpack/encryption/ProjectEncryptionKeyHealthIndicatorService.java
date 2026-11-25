@@ -245,9 +245,11 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         details.put("state", serviceState.displayValue());
         details.put("encryption_required", pekService.isEncryptionRequired());
         details.put("active_password_id", activePasswordId == null ? "(unset)" : activePasswordId);
-        details.put("key_on_disk", pekEncryption.gatewayKeys().holdsKeys());
-        putIfNotNull(details, "can_read_key_on_disk", pekEncryption.canReadGatewayKeys());
-        putIfNotNull(details, "key_on_disk_password_id", pekEncryption.gatewayKeys().passwordId());
+        if (persistsClusterState) {
+            details.put("key_on_disk", pekEncryption.gatewayKeys().holdsKeys());
+            putIfNotNull(details, "can_read_key_on_disk", pekEncryption.canReadGatewayKeys());
+            putIfNotNull(details, "key_on_disk_password_id", pekEncryption.gatewayKeys().passwordId());
+        }
         if (waitingFor.isEmpty() == false) {
             details.put("nodes_without_password", waitingFor);
         }

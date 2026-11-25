@@ -15,6 +15,7 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.TimeStampVector;
@@ -100,6 +101,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -1875,6 +1877,49 @@ public class ArrowResponseTests extends ESTestCase {
         try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
             compareEsqlAndArrow(testCase, root);
             assertListLayout((ListVector) root.getVector("some-field"), 0, 2, 2, 3);
+        }
+    }
+
+    public void testAsNullIgnoresListWrapping() throws IOException {
+        for (DataType type : List.of(DataType.NULL, DataType.UNSUPPORTED)) {
+            BlockArrowFormatter formatter = ArrowResponse.ESQL_FORMATTERS.get(type);
+            BitSet nulls = new BitSet(2);
+            nulls.set(0, 2);
+            DoubleBlock block = blockFactory.newDoubleArrayBlock(
+                new double[] { 0.0, 0.0 },
+                2,
+                new int[] { 0, 1, 2 },
+                nulls,
+                randomFrom(Block.MvOrdering.values())
+            );
+            assertTrue(block.mayHaveMultivaluedFields());
+            assertTrue(block.areAllValuesNull());
+            assertFalse(formatter.isMultivalued("null_col", block));
+
+            expectThrows(
+                AssertionError.class,
+                () -> formatter.convert(block, true, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>())
+            );
+
+            try (
+                block;
+                ArrowResponse response = new ArrowResponse(List.of(new ArrowResponse.Column(type, "null_col")), List.of(new Page(block)));
+                ReleasableBytesReference bytes = serializeBlocksDirectly(response);
+                ArrowStreamReader reader = new ArrowStreamReader(bytes.streamInput(), ALLOCATOR);
+                VectorSchemaRoot root = reader.getVectorSchemaRoot()
+            ) {
+                assertTrue(reader.loadNextBatch());
+                FieldVector vector = root.getVector("null_col");
+                assertThat(vector, instanceOf(NullVector.class));
+                Field schemaField = root.getSchema().findField("null_col");
+                assertEquals(Types.MinorType.NULL.getType(), schemaField.getType());
+                assertEquals(type.outputType(), schemaField.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+                assertEquals(2, vector.getValueCount());
+                assertEquals(2, vector.getNullCount());
+                assertTrue(vector.isNull(0));
+                assertTrue(vector.isNull(1));
+                assertFalse(reader.loadNextBatch());
+            }
         }
     }
 

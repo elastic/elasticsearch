@@ -28,8 +28,8 @@ public class ArrowFormat implements MediaType {
     @Override
     public Set<HeaderValue> headerValues() {
         return Set.of(
-            new HeaderValue(CONTENT_TYPE, Map.of("header", "present|absent")),
-            new HeaderValue(VENDOR_CONTENT_TYPE, Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN))
+            new HeaderValue(CONTENT_TYPE, Map.of()),
+            new HeaderValue(VENDOR_CONTENT_TYPE, Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN))
         );
     }
 }

@@ -46,9 +46,17 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.ToDoubleFunction;
 
-public abstract class BlockArrowFormatter {
+/**
+ * Base class for stateless formatters that serialize ES|QL {@link Block}s into Arrow IPC record-batch buffers.
+ * <p>
+ * Formatters avoid Arrow off-heap allocation by pairing size-only dummy {@link ArrowBuf}s (used by Arrow's
+ * {@code MessageSerializer} to compute IPC metadata offsets) with deferred {@link BufWriter} closures that stream
+ * block bytes directly into the HTTP response buffer. Any temporary resources created during conversion are registered
+ * in {@code releasables} and closed once the batch has been written.
+ */
+abstract class BlockArrowFormatter {
 
-    public static final String ESQL_TYPE_METADATA = "elastic:type";
+    static final String ESQL_TYPE_METADATA = "elastic:type";
 
     private final FieldType fieldType;
 
@@ -222,10 +230,10 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, asList);
 
-            bufs.add(dummyArrowBuf(vectorByteSize(block, asList)));
+            long byteSize = (long) Double.BYTES * arrowValueCount(block, asList);
+            bufs.add(dummyArrowBuf(byteSize));
             bufWriters.add(out -> {
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = arrowValueCount(block, asList);
                 for (int position = 0; position < block.getPositionCount(); position++) {
                     if (block.isNull(position)) {
                         if (asList == false) {
@@ -239,12 +247,8 @@ public abstract class BlockArrowFormatter {
                         out.writeDoubleLE(block.getDouble(valueIndex));
                     }
                 }
-                return (long) count * Double.BYTES;
+                return byteSize;
             });
-        }
-
-        private static int vectorByteSize(DoubleBlock b, boolean asList) {
-            return Double.BYTES * arrowValueCount(b, asList);
         }
     }
 
@@ -274,10 +278,10 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, asList);
 
-            bufs.add(dummyArrowBuf(vectorByteSize(block, asList)));
+            long byteSize = (long) Integer.BYTES * arrowValueCount(block, asList);
+            bufs.add(dummyArrowBuf(byteSize));
             bufWriters.add(out -> {
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = arrowValueCount(block, asList);
                 for (int position = 0; position < block.getPositionCount(); position++) {
                     if (block.isNull(position)) {
                         if (asList == false) {
@@ -291,12 +295,8 @@ public abstract class BlockArrowFormatter {
                         out.writeIntLE(block.getInt(valueIndex));
                     }
                 }
-                return (long) count * Integer.BYTES;
+                return byteSize;
             });
-        }
-
-        private static int vectorByteSize(Block b, boolean asList) {
-            return Integer.BYTES * arrowValueCount(b, asList);
         }
     }
 
@@ -329,10 +329,10 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, asList);
 
-            bufs.add(dummyArrowBuf(vectorByteSize(block, asList)));
+            long byteSize = (long) Long.BYTES * arrowValueCount(block, asList);
+            bufs.add(dummyArrowBuf(byteSize));
             bufWriters.add(out -> {
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = arrowValueCount(block, asList);
                 for (int position = 0; position < block.getPositionCount(); position++) {
                     if (block.isNull(position)) {
                         if (asList == false) {
@@ -346,16 +346,12 @@ public abstract class BlockArrowFormatter {
                         out.writeLongLE(arrowValue(block.getLong(valueIndex)));
                     }
                 }
-                return (long) count * Long.BYTES;
+                return byteSize;
             });
         }
 
         protected long arrowValue(long blockValue) {
             return blockValue;
-        }
-
-        private static int vectorByteSize(LongBlock b, boolean asList) {
-            return Long.BYTES * arrowValueCount(b, asList);
         }
     }
 
@@ -399,7 +395,7 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, asList);
 
-            bufs.add(dummyArrowBuf(vectorByteSize(block, asList)));
+            bufs.add(dummyArrowBuf(bitSetLength(arrowValueCount(block, asList))));
             bufWriters.add(out -> {
                 int count = arrowValueCount(block, asList);
                 BitSet bits = new BitSet();
@@ -424,12 +420,8 @@ public abstract class BlockArrowFormatter {
                     }
                 }
 
-                return BlockArrowFormatter.writeBitSet(out, bits, count);
+                return writeBitSet(out, bits, count);
             });
-        }
-
-        private static int vectorByteSize(BooleanBlock b, boolean asList) {
-            return BlockArrowFormatter.bitSetLength(arrowValueCount(b, asList));
         }
     }
 
@@ -464,25 +456,21 @@ public abstract class BlockArrowFormatter {
             accumulateVectorValidity(bufs, bufWriters, block, asList);
 
             // Offsets vector
-            bufs.add(dummyArrowBuf(offsetvectorByteSize(block, asList)));
+            bufs.add(dummyArrowBuf(offsetVectorByteSize(block, asList)));
 
             bufWriters.add(out -> writeOffsets(out, block, asList));
 
             // Data vector
-            bufs.add(BlockArrowFormatter.dummyArrowBuf(dataVectorByteSize(block)));
+            bufs.add(dummyArrowBuf(dataVectorByteSize(block)));
 
             bufWriters.add(out -> writeData(out, block));
         }
 
-        protected BytesRef getBytesRef(BytesRefBlock block, int valueIndex, BytesRef scratch) {
-            return block.getBytesRef(valueIndex, scratch);
+        private static long offsetVectorByteSize(BytesRefBlock block, boolean asList) {
+            return (long) Integer.BYTES * (arrowValueCount(block, asList) + 1L);
         }
 
-        private static int offsetvectorByteSize(BytesRefBlock block, boolean asList) {
-            return Integer.BYTES * (arrowValueCount(block, asList) + 1);
-        }
-
-        private long writeOffsets(RecyclerBytesStreamOutput out, BytesRefBlock block, boolean asList) throws IOException {
+        private static long writeOffsets(RecyclerBytesStreamOutput out, BytesRefBlock block, boolean asList) throws IOException {
             // TODO could we "just" get the memory of the array and dump it?
             BytesRef scratch = new BytesRef();
             int offset = 0;
@@ -499,14 +487,14 @@ public abstract class BlockArrowFormatter {
                 for (int valueIndex = start; valueIndex < end; valueIndex++) {
                     // FIXME: add a ByteRefsVector.getLength(position): there are some cases
                     // where getBytesRef will allocate, which isn't needed here.
-                    offset += getBytesRef(block, valueIndex, scratch).length;
+                    offset = Math.addExact(offset, block.getBytesRef(valueIndex, scratch).length);
                     out.writeIntLE(offset);
                 }
             }
-            return offsetvectorByteSize(block, asList);
+            return offsetVectorByteSize(block, asList);
         }
 
-        private long writeData(RecyclerBytesStreamOutput out, BytesRefBlock block) throws IOException {
+        private static long writeData(RecyclerBytesStreamOutput out, BytesRefBlock block) throws IOException {
             // TODO could we "just" get the memory of the array and dump it?
             BytesRef scratch = new BytesRef();
             long startPosition = out.position();
@@ -517,22 +505,26 @@ public abstract class BlockArrowFormatter {
                 int start = block.getFirstValueIndex(position);
                 int end = start + block.getValueCount(position);
                 for (int valueIndex = start; valueIndex < end; valueIndex++) {
-                    BytesRef value = getBytesRef(block, valueIndex, scratch);
+                    BytesRef value = block.getBytesRef(valueIndex, scratch);
                     out.write(value.bytes, value.offset, value.length);
                 }
             }
             return out.position() - startPosition;
         }
 
-        private int dataVectorByteSize(BytesRefBlock block) {
+        private static long dataVectorByteSize(BytesRefBlock block) {
             // TODO we can probably get the length from the vector without all this sum
             int length = 0;
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
+                if (block.isNull(position)) {
+                    continue;
+                }
                 int start = block.getFirstValueIndex(position);
                 int end = start + block.getValueCount(position);
                 for (int valueIndex = start; valueIndex < end; valueIndex++) {
-                    length += getBytesRef(block, valueIndex, scratch).length;
+                    // Arrow's 32-bit offsets cap the data buffer at Integer.MAX_VALUE bytes.
+                    length = Math.addExact(length, block.getBytesRef(valueIndex, scratch).length);
                 }
             }
             return length;
@@ -661,18 +653,6 @@ public abstract class BlockArrowFormatter {
                 bytes = valueConverter.apply(bytes, scratch);
             }
             builder.appendBytesRef(bytes);
-        }
-    }
-
-    public static class AsVarChar extends BytesReFormatter {
-        public AsVarChar(DataType esqlType) {
-            super(esqlType, Types.MinorType.VARCHAR);
-        }
-    }
-
-    public static class AsVarBinary extends BytesReFormatter {
-        public AsVarBinary(DataType esqlType) {
-            super(esqlType, Types.MinorType.VARBINARY);
         }
     }
 
@@ -1006,6 +986,7 @@ public abstract class BlockArrowFormatter {
             List<BufWriter> bufWriters,
             List<Releasable> releasables
         ) {
+            assert asList == false : "aggregate_metric_double columns cannot be encoded as Arrow lists";
             AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
             int positions = block.getPositionCount();
             if (summaryMayBeNull(aggregate)) {
@@ -1080,6 +1061,7 @@ public abstract class BlockArrowFormatter {
             List<BufWriter> bufWriters,
             List<Releasable> releasables
         ) {
+            assert asList == false : "tdigest columns cannot be encoded as Arrow lists";
             TDigestBlock block = (TDigestBlock) b;
             int positions = block.getPositionCount();
             int[] offsets = centroidOffsets(block);
@@ -1154,8 +1136,7 @@ public abstract class BlockArrowFormatter {
         ) {
             int positions = block.getPositionCount();
             if (absentCount == 0) {
-                bufs.add(dummyArrowBuf(0));
-                bufWriters.add(out -> 0);
+                addEmptyValidity(bufs, bufWriters);
             } else {
                 bufs.add(dummyArrowBuf(bitSetLength(positions)));
                 bufWriters.add(out -> {
@@ -1534,10 +1515,7 @@ public abstract class BlockArrowFormatter {
             bufs.add(dummyArrowBuf(bytes));
             bufWriters.add(out -> {
                 if (subBlock.areAllValuesNull()) {
-                    for (int item = 0; item < items; item++) {
-                        out.writeDoubleLE(0);
-                    }
-                    return bytes;
+                    return writeZeroes(out, bytes);
                 }
                 for (int index : indexes) {
                     if (index < 0 || subBlock.isNull(index)) {
@@ -1644,11 +1622,7 @@ public abstract class BlockArrowFormatter {
             }
             return indexes;
         }
-        int items = 0;
-        for (int position = 0; position < positions; position++) {
-            items = Math.addExact(items, block.getValueCount(position));
-        }
-        int[] indexes = new int[items];
+        int[] indexes = new int[block.getTotalValueCount()];
         int item = 0;
         for (int position = 0; position < positions; position++) {
             int first = block.getFirstValueIndex(position);
@@ -1656,6 +1630,7 @@ public abstract class BlockArrowFormatter {
                 indexes[item++] = first + i;
             }
         }
+        assert item == indexes.length;
         return indexes;
     }
 
@@ -1701,39 +1676,38 @@ public abstract class BlockArrowFormatter {
         @Override
         public void convert(
             Block b,
-            boolean multivalued,
+            boolean asList,
             List<ArrowFieldNode> nodes,
             List<ArrowBuf> bufs,
             List<BufWriter> bufWriters,
             List<Releasable> releasables
         ) {
-            addSimpleFieldNodes(b, multivalued, nodes);
-            int valueCount = arrowValueCount(b, multivalued);
+            addSimpleFieldNodes(b, asList, nodes);
+            int valueCount = arrowValueCount(b, asList);
             for (int i = 0; i < Component.values().length; i++) {
                 nodes.add(new ArrowFieldNode(valueCount, 0));
             }
-            if (multivalued) {
+            if (asList) {
                 addListOffsets(bufs, bufWriters, b);
             }
             // Struct validity. Empty if in a list, as the list carries the nulls.
-            accumulateVectorValidity(bufs, bufWriters, b, multivalued);
+            accumulateVectorValidity(bufs, bufWriters, b, asList);
 
             for (Component component : Component.values()) {
                 // Non-nullable child: empty validity buffer
-                bufs.add(dummyArrowBuf(0));
-                bufWriters.add(out -> 0);
+                addEmptyValidity(bufs, bufWriters);
 
-                int byteCount = arrowValueCount(b, multivalued) * component.width;
+                long byteCount = (long) valueCount * component.width;
                 bufs.add(dummyArrowBuf(byteCount));
                 bufWriters.add(out -> {
                     if (b.areAllValuesNull()) {
-                        // ConstantNullBlock is not a LongBlock
+                        // Fast path: all values are null, write zeroed child slots directly
                         return writeZeroes(out, byteCount);
                     }
                     LongBlock block = (LongBlock) b;
                     for (int position = 0; position < block.getPositionCount(); position++) {
                         if (block.isNull(position)) {
-                            if (multivalued == false) {
+                            if (asList == false) {
                                 writeComponent(out, component, 0L);
                             }
                             continue;
@@ -1758,9 +1732,17 @@ public abstract class BlockArrowFormatter {
         }
     }
 
+    /**
+     * Conversion of {@code null} and {@code unsupported} columns to Arrow {@code Null} vectors (no data buffers).
+     */
     public static class AsNull extends BlockArrowFormatter {
         public AsNull(DataType esqlType) {
             super(esqlType, Types.MinorType.NULL);
+        }
+
+        @Override
+        public boolean isMultivalued(String columnName, Block block) {
+            return false;
         }
 
         @Override
@@ -1772,32 +1754,32 @@ public abstract class BlockArrowFormatter {
             List<BufWriter> bufWriters,
             List<Releasable> releasables
         ) {
-            addSimpleFieldNodes(block, asList, nodes);
+            assert asList == false : "Null columns cannot be encoded as Arrow lists";
+            addSimpleFieldNodes(block, false, nodes);
             // Null vector in arrow has no associated buffers
             // See https://arrow.apache.org/docs/format/Columnar.html#null-layout
         }
     }
 
     // Create a dummy ArrowBuf used for size accounting purposes.
-    private static ArrowBuf dummyArrowBuf(long size) {
+    protected static ArrowBuf dummyArrowBuf(long size) {
         return new ArrowBuf(null, null, 0, 0).writerIndex(size);
     }
 
     // Length in bytes of a validity buffer
-    private static int bitSetLength(int totalValues) {
-        return (totalValues + 7) / 8;
+    protected static int bitSetLength(int totalValues) {
+        return (int) ((totalValues + 7L) / 8);
     }
 
-    private static int arrowValueCount(Block block, boolean asList) {
+    protected static int arrowValueCount(Block block, boolean asList) {
         return asList ? block.getTotalValueCount() : block.getPositionCount();
     }
 
-    private static void accumulateVectorValidity(List<ArrowBuf> bufs, List<BufWriter> bufWriters, Block b, boolean asList) {
+    protected static void accumulateVectorValidity(List<ArrowBuf> bufs, List<BufWriter> bufWriters, Block b, boolean asList) {
         // For list encoding, validities are output in the parent Arrow List buffer. The values themselves do not contain nulls.
         if (asList || b.mayHaveNulls() == false) {
             // Arrow IPC allows a compact form for "all true" validities using an empty buffer.
-            bufs.add(dummyArrowBuf(0));
-            bufWriters.add(w -> 0);
+            addEmptyValidity(bufs, bufWriters);
             return;
         }
 
@@ -1807,44 +1789,28 @@ public abstract class BlockArrowFormatter {
             if (b.areAllValuesNull()) {
                 return writeAllFalseValidity(out, valueCount);
             } else {
-                return writeValidities(out, b, valueCount);
+                return writeValidities(out, b);
             }
         });
     }
 
-    private static long writeAllTrueValidity(RecyclerBytesStreamOutput out, int valueCount) {
-        int allOnesCount = valueCount / 8;
-        for (int i = 0; i < allOnesCount; i++) {
-            out.writeByte((byte) 0xff);
-        }
-        int remaining = valueCount % 8;
-        if (remaining == 0) {
-            return allOnesCount;
-        }
-        out.writeByte((byte) ((1 << remaining) - 1));
-        return allOnesCount + 1;
+    protected static long writeAllFalseValidity(RecyclerBytesStreamOutput out, int valueCount) {
+        return writeZeroes(out, bitSetLength(valueCount));
     }
 
-    private static long writeAllFalseValidity(RecyclerBytesStreamOutput out, int valueCount) {
-        int count = bitSetLength(valueCount);
-        for (int i = 0; i < count; i++) {
-            out.writeByte((byte) 0x00);
-        }
-        return count;
-    }
-
-    private static long writeValidities(RecyclerBytesStreamOutput out, Block block, int valueCount) {
-        BitSet bits = new BitSet(valueCount);
-        for (int i = 0; i < block.getPositionCount(); i++) {
+    protected static long writeValidities(RecyclerBytesStreamOutput out, Block block) {
+        int positionCount = block.getPositionCount();
+        BitSet bits = new BitSet(positionCount);
+        for (int i = 0; i < positionCount; i++) {
             // isNull uses position indices, not value indices.
             if (block.isNull(i) == false) {
                 bits.set(i);
             }
         }
-        return writeBitSet(out, bits, valueCount);
+        return writeBitSet(out, bits, positionCount);
     }
 
-    private static long writeBitSet(RecyclerBytesStreamOutput out, BitSet bits, int bitCount) {
+    protected static long writeBitSet(RecyclerBytesStreamOutput out, BitSet bits, int bitCount) {
         byte[] bytes = bits.toByteArray();
         out.writeBytes(bytes, 0, bytes.length);
 
@@ -1856,26 +1822,26 @@ public abstract class BlockArrowFormatter {
         return expectedLength;
     }
 
-    private static long writeZeroes(RecyclerBytesStreamOutput out, int byteCount) {
-        for (int i = 0; i < byteCount; i++) {
+    protected static long writeZeroes(RecyclerBytesStreamOutput out, long byteCount) {
+        for (long i = 0; i < byteCount; i++) {
             out.writeByte((byte) 0);
         }
         return byteCount;
     }
 
-    private static void addListOffsets(List<ArrowBuf> bufs, List<BufWriter> bufWriters, Block block) {
+    protected static void addListOffsets(List<ArrowBuf> bufs, List<BufWriter> bufWriters, Block block) {
         // Add validity buffer
         accumulateVectorValidity(bufs, bufWriters, block, false);
 
         // Add offsets buffer
-        int bufferLen = Integer.BYTES * (block.getPositionCount() + 1);
+        long bufferLen = (long) Integer.BYTES * (block.getPositionCount() + 1L);
 
         bufs.add(dummyArrowBuf(bufferLen));
         bufWriters.add(out -> {
             int offset = 0;
             out.writeIntLE(offset);
             for (int position = 0; position < block.getPositionCount(); position++) {
-                offset += block.getValueCount(position);
+                offset = Math.addExact(offset, block.getValueCount(position));
                 out.writeIntLE(offset);
             }
 

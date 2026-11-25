@@ -71,6 +71,20 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
         });
     }
 
+    /**
+     * Wraps {@code policy} so that merges never materialize the synthetic {@code _id}, without pruning anything.
+     * Index writers that write synthetic id segments outside of the engine need this, as the engine's merge policy
+     * is what otherwise keeps the synthetic id reader away from merges.
+     */
+    public static MergePolicy skipSyntheticIdOnMerge(MergePolicy policy) {
+        return new OneMergeWrappingMergePolicy(policy, toWrap -> new OneMerge(toWrap.segments) {
+            @Override
+            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
+                return unwrapSyntheticIdStoredFieldsReader(toWrap.wrapForMerge(reader));
+            }
+        });
+    }
+
     private static CodecReader wrapReader(
         String pruneStoredFieldName,
         String pruneNumericDVFieldName,

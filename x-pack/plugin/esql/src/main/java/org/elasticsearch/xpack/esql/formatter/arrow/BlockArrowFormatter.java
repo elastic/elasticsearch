@@ -526,6 +526,16 @@ public abstract class BlockArrowFormatter {
             this.valueConverter = valueConverter;
         }
 
+        protected TransformedBytesRef(
+            DataType esqlType,
+            Types.MinorType minorType,
+            Map<String, String> extraMetadata,
+            BiFunction<BytesRef, BytesRef, BytesRef> valueConverter
+        ) {
+            super(esqlType, minorType, extraMetadata);
+            this.valueConverter = valueConverter;
+        }
+
         @Override
         public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             BytesRefBlock transformed = transformValues((BytesRefBlock) b);
@@ -544,7 +554,11 @@ public abstract class BlockArrowFormatter {
                     int start = block.getFirstValueIndex(position);
                     int end = start + block.getValueCount(position);
                     if (end - start == 1) {
-                        convertAndAppend(builder, block, start, scratch);
+                        if (emptyAsNull() && block.getBytesRef(start, scratch).length == 0) {
+                            builder.appendNull();
+                        } else {
+                            convertAndAppend(builder, block, start, scratch);
+                        }
                         continue;
                     }
                     builder.beginPositionEntry();
@@ -555,6 +569,14 @@ public abstract class BlockArrowFormatter {
                 }
                 return builder.build();
             }
+        }
+
+        /**
+         * Whether zero-length single values must be emitted as null rather than passed through unconverted. Needed when an
+         * empty value isn't valid for the target type (e.g. {@code arrow.json}).
+         */
+        protected boolean emptyAsNull() {
+            return false;
         }
 
         private void convertAndAppend(BytesRefBlock.Builder builder, BytesRefBlock block, int valueIndex, BytesRef scratch) {
@@ -575,6 +597,38 @@ public abstract class BlockArrowFormatter {
     public static class AsVarBinary extends BytesReFormatter {
         public AsVarBinary(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
+        }
+    }
+
+    /**
+     * Values stored as xcontent in a {@code BytesRefBlock}, converted to JSON text and exposed as a variable-size string vector
+     * tagged with the <a href="https://arrow.apache.org/docs/format/CanonicalExtensions.html#json">{@code arrow.json}</a>
+     * Arrow extension type.
+     */
+    public static class AsJson extends TransformedBytesRef {
+        public static final String ARROW_JSON = "arrow.json";
+
+        public AsJson(DataType esqlType) {
+            super(
+                esqlType,
+                Types.MinorType.VARCHAR,
+                Map.of(
+                    ExtensionType.EXTENSION_METADATA_KEY_NAME,
+                    ARROW_JSON,
+                    // From https://arrow.apache.org/docs/format/CanonicalExtensions.html#json
+                    // "Metadata is either an empty string or a JSON string with an empty object. In the future, additional fields may be
+                    // added, but they are not required to interpret the array."
+                    ExtensionType.EXTENSION_METADATA_KEY_METADATA,
+                    ""
+                ),
+                ValueConversions::sourceToJson
+            );
+        }
+
+        /** An empty string isn't valid JSON, so it is exposed as null. */
+        @Override
+        protected boolean emptyAsNull() {
+            return true;
         }
     }
 
@@ -607,6 +661,8 @@ public abstract class BlockArrowFormatter {
             };
             var metadata = new HashMap<String, String>();
             metadata.put(ExtensionType.EXTENSION_METADATA_KEY_NAME, GEOARROW_WKB);
+            // From https://geoarrow.org/extension-types.html
+            // "If all metadata keys are omitted, the ARROW:extension:metadata should also be omitted"
             if (geographic) {
                 metadata.put(ExtensionType.EXTENSION_METADATA_KEY_METADATA, GEO_CRS_METADATA);
             }
@@ -969,17 +1025,9 @@ public abstract class BlockArrowFormatter {
                     new Field("min", doubleType, null),
                     new Field("max", doubleType, null),
                     new Field("sum", doubleType, null),
-                    listField("centroids", Types.MinorType.FLOAT8),
-                    listField("counts", Types.MinorType.BIGINT)
+                    nonNullableListField("centroids", Types.MinorType.FLOAT8),
+                    nonNullableListField("counts", Types.MinorType.BIGINT)
                 )
-            );
-        }
-
-        private static Field listField(String name, Types.MinorType itemType) {
-            return new Field(
-                name,
-                new FieldType(false, Types.MinorType.LIST.getType(), null),
-                List.of(new Field("$data$", new FieldType(false, itemType.getType(), null), null))
             );
         }
 
@@ -1105,32 +1153,10 @@ public abstract class BlockArrowFormatter {
             CentroidWriter itemWriter
         ) {
             int positions = block.getPositionCount();
-            int centroids = offsets[positions];
-
-            // List validity
-            bufs.add(dummyArrowBuf(0));
-            bufWriters.add(out -> 0);
-
-            // List offsets
-            long offsetsLen = (long) Integer.BYTES * (positions + 1);
-            bufs.add(dummyArrowBuf(offsetsLen));
-            bufWriters.add(out -> {
-                for (int offset : offsets) {
-                    out.writeIntLE(offset);
-                }
-                return offsetsLen;
-            });
-
-            // Values validity
-            bufs.add(dummyArrowBuf(0));
-            bufWriters.add(out -> 0);
-
-            // Values
-            long valuesLen = (long) centroids * itemBytes;
-            bufs.add(dummyArrowBuf(valuesLen));
-            bufWriters.add(out -> {
+            addNonNullableListBuffers(bufs, bufWriters, offsets, itemBytes, out -> {
                 TDigestHolder scratch = new TDigestHolder();
                 EncodedTDigest decoder = new EncodedTDigest();
+                long bytes = 0;
                 for (int position = 0; position < positions; position++) {
                     if (block.isNull(position)) {
                         continue;
@@ -1143,11 +1169,165 @@ public abstract class BlockArrowFormatter {
                     var it = decoder.centroidIterator();
                     while (it.next()) {
                         itemWriter.write(out, it);
+                        bytes += itemBytes;
                     }
                 }
-                return valuesLen;
+                return bytes;
             });
         }
+    }
+
+    /**
+     * Classic histograms store bucket upper-limit values and counts using the {@link EncodedTDigest} binary format.
+     * Preserve their values and counts as two parallel Arrow lists; an empty histogram remains a valid struct with empty
+     * lists, distinct from a null histogram.
+     */
+    public static class AsHistogram extends BlockArrowFormatter {
+        public AsHistogram(DataType esqlType) {
+            super(esqlType, Types.MinorType.STRUCT);
+        }
+
+        @Override
+        public Field arrowField(String name) {
+            return new Field(
+                name,
+                super.arrowField(name).getFieldType(),
+                List.of(nonNullableListField("values", Types.MinorType.FLOAT8), nonNullableListField("counts", Types.MinorType.BIGINT))
+            );
+        }
+
+        @Override
+        public void addFieldNodes(Block block, boolean asList, List<ArrowFieldNode> nodes) {
+            int[] indexes = itemIndexes(block, asList);
+            int items = indexes.length;
+            int values = offsets((BytesRefBlock) block, indexes)[items];
+            if (asList) {
+                nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
+                nodes.add(new ArrowFieldNode(items, 0));
+            } else {
+                nodes.add(new ArrowFieldNode(items, nullValuesCount(block)));
+            }
+            nodes.add(new ArrowFieldNode(items, 0));
+            nodes.add(new ArrowFieldNode(values, 0));
+            nodes.add(new ArrowFieldNode(items, 0));
+            nodes.add(new ArrowFieldNode(values, 0));
+        }
+
+        @Override
+        public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+            BytesRefBlock block = (BytesRefBlock) b;
+            int[] indexes = itemIndexes(block, asList);
+            int[] offsets = offsets(block, indexes);
+            if (asList) {
+                addListOffsets(bufs, bufWriters, block);
+            }
+            accumulateVectorValidity(bufs, bufWriters, block, asList);
+            addNonNullableListBuffers(bufs, bufWriters, offsets, Double.BYTES, out -> writeBuckets(block, indexes, out, true));
+            addNonNullableListBuffers(bufs, bufWriters, offsets, Long.BYTES, out -> writeBuckets(block, indexes, out, false));
+        }
+
+        private static int[] offsets(BytesRefBlock block, int[] indexes) {
+            int[] offsets = new int[indexes.length + 1];
+            EncodedTDigest decoder = new EncodedTDigest();
+            BytesRef scratch = new BytesRef();
+            long count = 0;
+            for (int item = 0; item < indexes.length; item++) {
+                if (indexes[item] >= 0) {
+                    decoder.reset(block.getBytesRef(indexes[item], scratch));
+                    count += decoder.centroidCount();
+                }
+                offsets[item + 1] = Math.toIntExact(count);
+            }
+            return offsets;
+        }
+
+        private static long writeBuckets(BytesRefBlock block, int[] indexes, RecyclerBytesStreamOutput out, boolean values)
+            throws IOException {
+            EncodedTDigest decoder = new EncodedTDigest();
+            BytesRef scratch = new BytesRef();
+            long bytes = 0;
+            for (int index : indexes) {
+                if (index < 0) {
+                    continue;
+                }
+                decoder.reset(block.getBytesRef(index, scratch));
+                var it = decoder.centroidIterator();
+                while (it.next()) {
+                    if (values) {
+                        out.writeDoubleLE(it.currentMean());
+                        bytes += Double.BYTES;
+                    } else {
+                        out.writeLongLE(it.currentCount());
+                        bytes += Long.BYTES;
+                    }
+                }
+            }
+            return bytes;
+        }
+    }
+
+    private static Field nonNullableListField(String name, Types.MinorType itemType) {
+        return new Field(
+            name,
+            new FieldType(false, Types.MinorType.LIST.getType(), null),
+            List.of(new Field("$data$", new FieldType(false, itemType.getType(), null), null))
+        );
+    }
+
+    private static void addEmptyValidity(List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        bufs.add(dummyArrowBuf(0));
+        bufWriters.add(out -> 0);
+    }
+
+    private static void addNonNullableListBuffers(
+        List<ArrowBuf> bufs,
+        List<BufWriter> bufWriters,
+        int[] offsets,
+        int itemBytes,
+        BufWriter valuesWriter
+    ) {
+        addEmptyValidity(bufs, bufWriters);
+        long offsetsBytes = (long) offsets.length * Integer.BYTES;
+        bufs.add(dummyArrowBuf(offsetsBytes));
+        bufWriters.add(out -> {
+            for (int offset : offsets) {
+                out.writeIntLE(offset);
+            }
+            return offsetsBytes;
+        });
+        addEmptyValidity(bufs, bufWriters);
+        long valuesBytes = (long) offsets[offsets.length - 1] * itemBytes;
+        bufs.add(dummyArrowBuf(valuesBytes));
+        bufWriters.add(out -> {
+            long written = valuesWriter.write(out);
+            assert written == valuesBytes : "Expected " + valuesBytes + " bytes, wrote " + written;
+            return written;
+        });
+    }
+
+    /** Maps Arrow struct items to block value indexes, skipping null positions when a column is multivalued. */
+    private static int[] itemIndexes(Block block, boolean asList) {
+        int positions = block.getPositionCount();
+        if (asList == false) {
+            int[] indexes = new int[positions];
+            for (int position = 0; position < positions; position++) {
+                indexes[position] = block.isNull(position) ? -1 : block.getFirstValueIndex(position);
+            }
+            return indexes;
+        }
+        int items = 0;
+        for (int position = 0; position < positions; position++) {
+            items = Math.addExact(items, block.getValueCount(position));
+        }
+        int[] indexes = new int[items];
+        int item = 0;
+        for (int position = 0; position < positions; position++) {
+            int first = block.getFirstValueIndex(position);
+            for (int i = 0; i < block.getValueCount(position); i++) {
+                indexes[item++] = first + i;
+            }
+        }
+        return indexes;
     }
 
     /**

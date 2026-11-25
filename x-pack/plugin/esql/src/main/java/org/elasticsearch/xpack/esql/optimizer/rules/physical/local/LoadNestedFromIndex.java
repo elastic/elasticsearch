@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -24,9 +25,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * {@code NESTED_EXPAND} reads each parent's child documents through the parent's {@code _doc}. This keeps {@code _doc}
- * through the projections below it, which would otherwise drop it as unused, and through the commands that would replace
- * it with a column of the query also named {@code _doc}.
+ * Nested reads use each parent's child documents through the parent's {@code _doc}. This keeps {@code _doc} through the
+ * projections below a {@code NESTED_EXPAND} or a {@code NESTED_ANY} predicate, which would otherwise drop it as unused,
+ * and through the commands that would replace it with a column of the query also named {@code _doc}.
  */
 public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerRule<PhysicalPlan> {
     /** The name for {@code _doc} where a column of the query takes its own, made unique by {@link #carriedDocName}. */
@@ -34,12 +35,30 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
 
     @Override
     protected PhysicalPlan rule(PhysicalPlan plan) {
-        if (plan instanceof NestedExpandExec == false) {
-            return plan;
+        if (plan instanceof NestedExpandExec) {
+            UnaryExec unary = (UnaryExec) plan;
+            PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
+            return child == unary.child() ? plan : unary.replaceChild(child);
         }
-        UnaryExec unary = (UnaryExec) plan;
-        PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
-        return child == unary.child() ? plan : unary.replaceChild(child);
+        if (plan instanceof UnaryExec unary && NestedPredicate.usedBy(unary)) {
+            PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
+            if (child == unary.child()) {
+                return plan;
+            }
+            PhysicalPlan replaced = unary.replaceChild(child);
+            // The predicate reads _doc from its input page. The operator's output is that page, so drop _doc above it.
+            if (doc(replaced) == null) {
+                return replaced;
+            }
+            List<NamedExpression> projections = new ArrayList<>();
+            for (Attribute attribute : replaced.output()) {
+                if (EsQueryExec.isDocAttribute(attribute) == false) {
+                    projections.add(attribute);
+                }
+            }
+            return new ProjectExec(replaced.source(), replaced, projections);
+        }
+        return plan;
     }
 
     /**

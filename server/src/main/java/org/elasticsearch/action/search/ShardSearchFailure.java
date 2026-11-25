@@ -32,8 +32,6 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     public static final String INDEX_FIELD = "index";
     public static final String SHARD_FIELD = "shard";
 
-    public static final ShardSearchFailure[] EMPTY_ARRAY = new ShardSearchFailure[0];
-
     private SearchShardTarget shardTarget;
 
     ShardSearchFailure(StreamInput in) throws IOException {

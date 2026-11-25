@@ -24,12 +24,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -54,7 +56,8 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExist
  *
  * <p>The rule also leaves the plan untouched when the query has a column named {@code _unmapped_fields} of its own, at any
  * node: a mapped or demand-loaded field, an {@code EVAL} or {@code RENAME} target, an {@code ENRICH} or {@code LOOKUP JOIN}
- * field. The query's column wins, and a warning says so. Adding the
+ * field. The query's column wins, and a warning says so, unless the query has no relation that reads {@code _source}, as a lone
+ * {@code ROW}, where renaming the column would not get any unmapped field. Adding the
  * {@link UnmappedFieldsAttribute} next to it would not work, since {@code EVAL} shadows by name and union and fork branches line
  * their columns up by name.
  *
@@ -63,8 +66,8 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExist
  * from another branch, the view contributes nulls to it, like any branch that cannot surface it.
  *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
- * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
- * name is excluded from {@code _unmapped_fields}. Extra fields that a branch does not keep (literal
+ * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, and the key stays in
+ * {@code _unmapped_fields}, as for any other name the query uses. Extra fields that a branch does not keep (literal
  * {@code KEEP}, {@code STATS}) are not loaded there; such a branch contributes nulls to the merge's
  * {@code _unmapped_fields} so the coordinator can still return extras from siblings.
  *
@@ -94,13 +97,16 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         if (hasColumnNamedLikeUnmappedFields(plan)) {
             // Warn even if no unmapped field could have been returned anyway, e.g. after an exact KEEP: the column of that name is
-            // then the query's own, which is not what a user reading its name expects.
-            context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+            // then the query's own, which is not what a user reading its name expects. But not for a query with no relation that reads
+            // _source, as a lone ROW: the warning says to rename the column to get the unmapped fields, and there are none to get.
+            if (hasRelationThatReadsSource(plan)) {
+                context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+            }
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         LogicalPlan result;
-        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractInSubqueryJoin)) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         } else if (pattern.isNone()) {
             // Exact KEEP/STATS above a merge must not stamp or pass _unmapped_fields through: replaceChild on a
@@ -146,6 +152,17 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
+     * Whether the query has an index that could supply unmapped fields: not a lookup index, nor a view, which has no {@code _source}.
+     * A view body is not looked into, and neither is its root, which {@link ViewUtils#anyMatchOutsideViews} would test: a view defined
+     * as {@code FROM test} is not a source of the query because its body is one.
+     */
+    private static boolean hasRelationThatReadsSource(LogicalPlan plan) {
+        boolean[] found = { false };
+        ViewUtils.forEachOutsideViews(plan, p -> found[0] |= p instanceof EsRelation esr && esr.indexMode() != IndexMode.LOOKUP);
+        return found[0];
+    }
+
+    /**
      * Whether the query has a column named like {@code _unmapped_fields} of its own, at any node. A view contributes the column it
      * outputs, not whatever its body had along the way.
      */
@@ -160,20 +177,24 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * Computes the {@link UnmappedFieldsPattern} describing which additional (currently unmapped)
      * source fields would survive to the output of {@code plan}.
      * <p>
-     * Two things restrict the pattern. KEEP/DROP (as {@link ResolvingProject}) contribute the
-     * include/exclude patterns they were written with: each one adds a single OR group, while
-     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And every name that any
-     * node in the plan outputs is excluded: a mapped field, a name the query introduced (EVAL's aliases,
-     * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so returning a
-     * source field of that name in {@code _unmapped_fields} as well would collide with them.
+     * Only KEEP and DROP (as {@link ResolvingProject}) restrict the pattern: they contribute the include/exclude patterns they were
+     * written with, each one adding a single OR group, while {@link UnmappedFieldsPattern#intersect} applies AND across chained
+     * commands. DROP removes what it matches everywhere, columns and keys.
      * <p>
-     * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent (no include restriction beyond
-     * excluding its output names); branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
-     * this for each child. Other non-unary plans fall back to {@link UnmappedFieldsPattern#ALL}; those queries are rejected by the
-     * {@code Verifier}'s {@code LOAD_ALL} command allow-list.
+     * Nothing else does. A column is a name, and it leaves the keys of the unmapped fields as they are, whatever the column is: a field
+     * that some index maps (which is not a key of the documents of an index that does not), a field that the query names and that is
+     * loaded for it, or one that a command adds or shadows (an EVAL alias, a RENAME target, an ENRICH or LOOKUP JOIN field). The unmapped
+     * fields hold what the documents had, as the keys of a {@code flattened} field do when a query names them, and RENAME renames
+     * columns, not keys.
+     * <p>
+     * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent; branch-local
+     * {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing this for each child. Other non-unary plans fall
+     * back to {@link UnmappedFieldsPattern#ALL}; those queries are rejected by the {@code Verifier}'s {@code LOAD_ALL} command
+     * allow-list.
      */
     private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
-        if (plan instanceof Aggregate) {
+        // These replace the columns of their input with their own, so no unmapped field can reach their output.
+        if (plan instanceof Aggregate || plan instanceof MetricsInfo || plan instanceof TsInfo) {
             return UnmappedFieldsPattern.NONE;
         }
         UnmappedFieldsPattern fromChild = switch (plan) {
@@ -187,14 +208,13 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             case Join join -> computeUnmappedFieldsToKeep(join.left());
             default -> UnmappedFieldsPattern.ALL;
         };
-        UnmappedFieldsPattern restricted = plan instanceof ResolvingProject project
-            ? project.unmappedFieldsPattern().intersect(fromChild)
-            : fromChild;
-        return restricted.withAdditionalExcludes(Expressions.names(plan.output()));
+        // Nothing but KEEP and DROP restricts the keys: a column, whether a mapped field, one the query names or one that a command adds,
+        // is a name of its own and leaves the keys of the unmapped fields as they are, as it does for the keys of a flattened field.
+        return plan instanceof ResolvingProject project ? project.unmappedFieldsPattern().intersect(fromChild) : fromChild;
     }
 
     /**
-     * No {@link MergePlan} or {@link AbstractSubqueryJoin} in the plan: one pattern for the whole query,
+     * No {@link MergePlan} or {@link AbstractInSubqueryJoin} in the plan: one pattern for the whole query,
      * stamped onto every non-LOOKUP {@link EsRelation} in a single {@code transformUp}.
      */
     private static LogicalPlan stampAll(LogicalPlan plan) {
@@ -204,7 +224,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
 
     /**
      * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is
-     * n-ary: each branch is annotated with its own pattern. {@link AbstractSubqueryJoin} is binary: join
+     * n-ary: each branch is annotated with its own pattern. {@link AbstractInSubqueryJoin} is binary: join
      * output is the left side. The right is an independently executed key subquery, so it is annotated
      * with {@link UnmappedFieldsPattern#NONE} rather than its own KEEP pattern, otherwise
      * {@code _unmapped_fields} becomes an extra output column after IN arity was already accepted.
@@ -227,7 +247,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             }
             return merge.replaceChildren(newChildren);
         }
-        if (plan instanceof AbstractSubqueryJoin join) {
+        if (plan instanceof AbstractInSubqueryJoin join) {
             return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), UnmappedFieldsPattern.NONE));
         }
         if (pattern.isNone()) {
@@ -236,7 +256,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractInSubqueryJoin)) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());

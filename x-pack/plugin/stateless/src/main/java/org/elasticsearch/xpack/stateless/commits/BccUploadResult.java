@@ -10,45 +10,26 @@ package org.elasticsearch.xpack.stateless.commits;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-import java.util.List;
-
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Outcome of a {@link BatchedCompoundCommitUploadTask}, including per-attempt upload phase timings.
+ * Outcome of a {@link BatchedCompoundCommitUploadTask}, with the timing of the attempt that uploaded the commit.
+ *
+ * @param batchedCompoundCommit the uploaded commit
+ * @param totalUploadTimeMs     the time from the creation of the upload task until the commit was uploaded, including the failed
+ *                              attempts, the delays between them and, on the first attempt, the cache warming
+ * @param timing                the timing of the successful attempt
  */
-public record BccUploadResult(BatchedCompoundCommit batchedCompoundCommit, long totalUploadTimeMs, List<BccUploadAttemptTiming> attempts) {
-
-    public int uploadAttempts() {
-        return attempts.size();
-    }
-
-    public long totalGenerationQueueWaitMs() {
-        return attempts.stream().mapToLong(BccUploadAttemptTiming::generationQueueWaitMs).sum();
-    }
-
-    public long totalObjectStoreQueueWaitMs() {
-        return attempts.stream().mapToLong(BccUploadAttemptTiming::objectStoreQueueWaitMs).sum();
-    }
+public record BccUploadResult(BatchedCompoundCommit batchedCompoundCommit, long totalUploadTimeMs, BccUploadAttemptTiming timing) {
 
     /**
-     * Upload throughput in mebibytes per second for the last (successful) attempt.
-     */
-    public double uploadThroughputMiBPerSec() {
-        if (attempts.isEmpty()) {
-            return 0.0;
-        }
-        return attempts.get(attempts.size() - 1).uploadThroughputMiBPerSec();
-    }
-
-    /**
-     * Timings for one upload attempt (one {@link BatchedCompoundCommitUploadTask#tryAction} that reached the object store).
+     * Timing of the upload attempt that reached the object store and succeeded.
      *
-     * @param attempt                  1-based attempt number within the upload task
-     * @param generationQueueWaitMs    time waiting for earlier BCC uploads on the same shard before calling the object store
-     * @param objectStoreQueueWaitMs   time waiting in the object-store upload task runner before IO starts
-     * @param uploadIoMs               time spent in the object-store upload IO
-     * @param bccSizeBytes             total VBCC size uploaded
+     * @param attempt                1-based attempt number within the upload task, which is the number of attempts of the upload
+     * @param generationQueueWaitMs  time waiting for earlier BCC uploads on the same shard before calling the object store
+     * @param objectStoreQueueWaitMs time waiting in the object-store upload task runner before IO starts
+     * @param uploadIoMs             time spent in the object-store upload IO
+     * @param bccSizeBytes           total VBCC size uploaded
      */
     public record BccUploadAttemptTiming(
         int attempt,
@@ -80,9 +61,5 @@ public record BccUploadResult(BatchedCompoundCommit batchedCompoundCommit, long 
                 uploadThroughputMiBPerSec()
             );
         }
-    }
-
-    public String attemptsToLogString() {
-        return attempts.stream().map(BccUploadAttemptTiming::toLogString).reduce((a, b) -> a + "; " + b).orElse("none");
     }
 }

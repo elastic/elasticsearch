@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -303,7 +304,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     }
 
     /**
-     * Removes the skipped settings from the selected indices and the component and index templates.
+     * Removes the skipped settings from the selected indices and the component, index, and legacy index templates.
+     *
      * @param project The project to modify
      * @param indexNames The names of the indexes whose settings need to be filtered
      * @param skipTheseDeprecatedSettings The settings that will be removed from cluster metadata and the index metadata of all the
@@ -369,6 +371,19 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                             )
                     )
                     .build()
+            );
+        }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+        projectBuilder.templates(project.templates().entrySet().stream().map(entry -> {
+            String templateName = entry.getKey();
+            IndexTemplateMetadata template = entry.getValue();
+            if (template.settings().isEmpty()) {
+                return Tuple.tuple(templateName, template);
+            }
+            return Tuple.tuple(
+                templateName,
+                new IndexTemplateMetadata.Builder(template).settings(
+                    template.settings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
+                ).build()
             );
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
 

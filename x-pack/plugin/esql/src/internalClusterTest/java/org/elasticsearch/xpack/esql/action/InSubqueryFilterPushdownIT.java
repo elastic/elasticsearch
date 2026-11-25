@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 
@@ -73,6 +74,14 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(VersionFieldPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey(), -1)
+            .build();
     }
 
     public void testManyValuesOnIndexedFieldArePushedToLucene() {

@@ -432,7 +432,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             });
         }
         try {
-            expectThrows(Exception.class, () -> run("FROM " + RETRY_SOURCE + " | KEEP k | INTO " + DESTINATION).close());
+            // The writer takes a whole page before it looks at the size of its bulk, so all rows in one page are one bulk, and there
+            // would be no second one to fail. The randomized pragmas can pick a page of any size, so pick a small one.
+            EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + RETRY_SOURCE + " | KEEP k | INTO " + DESTINATION);
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), 10).build()));
+            request.acceptedPragmaRisks(true);
+            expectThrows(Exception.class, () -> run(request).close());
             assertThat("the second bulk was reached", bulks.get(), greaterThan(1));
             assertThat(dataNodeRequests.get(), equalTo(1));
         } finally {

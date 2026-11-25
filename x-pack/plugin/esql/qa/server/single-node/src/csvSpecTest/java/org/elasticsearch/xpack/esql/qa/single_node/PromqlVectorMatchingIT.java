@@ -144,6 +144,10 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
      * one-to-one match or of {@code group_left}, and two on the left matching one right series one-to-one.
      */
     public void testManyToManyMatchingFails() throws IOException {
+        assumeTrue(
+            "PromQL label container functions are required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.capabilityName()))
+        );
         assertPromqlError("PROMQL index=k8s step=10m result=(network.eth0.tx * on (cluster) network.eth0.rx)", "found a duplicate row");
         assertPromqlError(
             "PROMQL index=k8s step=10m result=(network.eth0.tx / on (cluster) group_left network.eth0.rx)",
@@ -161,6 +165,10 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
      * the opaque side is the "one" side, and its series sharing a signature fail the query, as in Prometheus.
      */
     public void testIgnoringLabellessVsOpaque() throws IOException {
+        assumeTrue(
+            "PromQL label container functions are required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.capabilityName()))
+        );
         assumeTrue(
             "opaque operands match on their label containers",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH.capabilityName()))

@@ -244,7 +244,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
                         Literal.keyword(source, context.labelName(name)),
                         derived.toAttribute(),
                         context.labelPath(name),
-                        context.passthroughPaths()
+                        context.roots()
                     );
                     packings.add(new Alias(source, packing.name(), written));
                 }

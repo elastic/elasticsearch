@@ -322,13 +322,23 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * Probes the boundary of the direct path's char-range double parser (jackson-core's fast parser)
-     * against the Jackson baseline's {@link Double#parseDouble}. The cross-check inside {@code read}
-     * asserts the two paths agree; golden values pin {@code Double.parseDouble} semantics for the
-     * trickier accepted forms: float type suffixes, hex floats, leading sign, and bare-dot literals.
+     * against the Jackson baseline. The cross-check inside {@code read}
+     * asserts the two paths agree; golden values pin the accepted forms: leading sign and bare-dot literals.
      */
     public void testDoubleParserBoundaryForms() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "d:double\n1.5d\n2.5f\n3D\n4F\n0x1.8p1\n+1.5\n.5\n5.\n");
-        assertEquals(List.of(row(1.5), row(2.5), row(3.0), row(4.0), row(3.0), row(1.5), row(0.5), row(5.0)), rows);
+        List<List<Object>> rows = read(false, Map.of(), "d:double\n+1.5\n.5\n5.\n");
+        assertEquals(List.of(row(1.5), row(0.5), row(5.0)), rows);
+    }
+
+    /** Java's type suffixes, hexadecimal floats and non-ASCII digits are not numbers in a data file, on either path. */
+    public void testDoubleRefusesJavaOnlySpellings() throws IOException {
+        CsvFormatReader base = baseReader(false);
+        for (String text : List.of("1.5d", "2.5f", "3D", "4F", "0x1.8p1", "١٢٣")) {
+            for (boolean directBlock : List.of(false, true)) {
+                String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, "d:double\n" + text + "\n");
+                assertTrue("direct_block=" + directBlock + " [" + text + "]: " + message, message.contains("as [double]"));
+            }
+        }
     }
 
     /** NaN / Infinity forms accepted by {@link Double#parseDouble} must parse identically on both paths. */

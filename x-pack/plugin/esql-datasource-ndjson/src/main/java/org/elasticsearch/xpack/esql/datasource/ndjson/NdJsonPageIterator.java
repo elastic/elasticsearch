@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -224,6 +225,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         long statsStripeSize,
         boolean statsFileFinal,
         StripeColumnScope statsColumnScope,
+        @Nullable StripeStatsSink statsStripeSink,
         @Nullable Consumer<String> warningSink
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
@@ -248,7 +250,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             ? statsStripeSize
             : -1L;
         this.statsFileFinal = statsFileFinal;
-        this.stripeHarvester = this.statsStripeSize > 0 ? new StripeStatsHarvester(this.statsStripeSize, statsFileFinal) : null;
+        this.stripeHarvester = this.statsStripeSize > 0
+            ? new StripeStatsHarvester(this.statsStripeSize, statsFileFinal, statsStripeSink)
+            : null;
         InputStream inputStream = object.newStream();
         NdJsonRecordSplitter recordSplitter = new NdJsonRecordSplitter(maxRecordBytes);
         // File-global byte offset of the first byte the decoder will read. When this split starts

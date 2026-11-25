@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.ElementType;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 /**
  * Specialized query class for retrieving statistics about the underlying data and not the actual documents.
@@ -42,7 +44,12 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
 
     public record BasicStat(String name, StatsType type, QueryBuilder query) implements Stat {
         public QueryBuilder filter(QueryBuilder sourceQuery) {
-            return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query)).boost(0.0f);
+            if (query == null) {
+                return sourceQuery;
+            }
+            QueryBuilder combined = Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query));
+            // The source query comes back as is when it already requires this one. It belongs to the plan, so boost a copy.
+            return (combined == sourceQuery ? boolQuery().filter(sourceQuery) : combined).boost(0.0f);
         }
 
         @Override
@@ -63,6 +70,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
             return List.of(switch (queryBuilderAndTags.getFirst().tags().getFirst()) {
                 case Integer i -> ElementType.INT;
                 case Long l -> ElementType.LONG;
+                case BytesRef b -> ElementType.BYTES_REF;
                 default -> throw new IllegalStateException(
                     "Unsupported tag type in ByStat: " + queryBuilderAndTags.getFirst().tags().getFirst()
                 );

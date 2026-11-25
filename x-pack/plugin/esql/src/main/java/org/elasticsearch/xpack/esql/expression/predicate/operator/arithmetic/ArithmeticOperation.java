@@ -36,9 +36,11 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            dataType = commonType(left().dataType(), right().dataType());
+        DataType type = dataType;
+        if (type == null) {
+            type = commonType(left().dataType(), right().dataType());
+            dataType = type;
         }
-        return dataType;
+        return type;
     }
 }

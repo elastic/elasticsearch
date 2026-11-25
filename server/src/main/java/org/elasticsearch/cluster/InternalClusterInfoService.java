@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
@@ -98,8 +99,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.Dynamic,
         Property.NodeScope
     );
-
     private volatile boolean diskThresholdEnabled;
+    private volatile boolean snapshotRestoreAllocationEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
     private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
     private volatile TimeValue updateFrequency;
@@ -156,6 +157,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
+        clusterSettings.initializeAndWatchIfRegistered(
+            SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            this::setSnapshotRestoreAllocationEnabled
+        );
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
@@ -165,6 +170,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
         this.diskThresholdEnabled = diskThresholdEnabled;
+    }
+
+    private void setSnapshotRestoreAllocationEnabled(boolean snapshotRestoreAllocationEnabled) {
+        this.snapshotRestoreAllocationEnabled = snapshotRestoreAllocationEnabled;
     }
 
     private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
@@ -226,6 +235,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
+        private final boolean collectStoreStats = diskThresholdEnabled || snapshotRestoreAllocationEnabled;
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 
@@ -237,8 +247,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || needIndicesStatsForShardWriteLoads());
-                fetchNodeStats(diskThresholdEnabled);
+                maybeFetchIndicesStats(collectStoreStats || needIndicesStatsForShardWriteLoads());
+                fetchNodeStats(collectStoreStats);
                 fetchEstimatedHeapUsage();
                 maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 fetchCacheUsageAndCommitments();
@@ -375,7 +385,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchIndicesStats() {
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
-            if (diskThresholdEnabled) {
+            if (collectStoreStats) {
                 // This returns the shard sizes on disk
                 indicesStatsRequest.store(true);
             }

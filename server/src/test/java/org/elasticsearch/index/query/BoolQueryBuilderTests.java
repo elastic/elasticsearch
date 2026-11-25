@@ -11,16 +11,19 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -205,6 +208,25 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.mustNot(null));
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.filter(null));
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.should(null));
+    }
+
+    public void testTooManyClausesAtBuildTime() throws IOException {
+        int origMaxClauseCount = IndexSearcher.getMaxClauseCount();
+        int maxClauses = 4;
+        IndexSearcher.setMaxClauseCount(maxClauses);
+        try {
+            BoolQueryBuilder bool = new BoolQueryBuilder();
+            for (int i = 0; i < maxClauses + 1; i++) {
+                bool.should(termQuery(KEYWORD_FIELD_NAME, "term" + i));
+            }
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> bool.toQuery(createSearchExecutionContext()));
+            assertThat(e.getCause(), instanceOf(IndexSearcher.TooManyNestedClauses.class));
+            assertThat(e.getMessage(), containsString("too many nested clauses"));
+            assertThat(e.getMessage(), containsString("maxClauseCount is set to " + maxClauses));
+            assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        } finally {
+            IndexSearcher.setMaxClauseCount(origMaxClauseCount);
+        }
     }
 
     // https://github.com/elastic/elasticsearch/issues/7240

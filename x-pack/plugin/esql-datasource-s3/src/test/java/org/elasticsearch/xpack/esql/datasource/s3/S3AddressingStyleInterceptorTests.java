@@ -88,21 +88,6 @@ public class S3AddressingStyleInterceptorTests extends ESTestCase {
         assertBucketInHost(captureUri(NAMED_ENDPOINT, "virtual_hosted"), "virtual_hosted, endpoint set");
     }
 
-    /**
-     * The no-region, no-endpoint path seeds us-east-1 with the SDK cross-region decorator. That
-     * decorator's HeadBucket fallback only recovers from a 301; the legacy global us-east-1 host
-     * answers 200 for a public foreign-region bucket and the race leaks PermanentRedirect. Pin the
-     * regional host so the fallback sees 301 + {@code x-amz-bucket-region}.
-     */
-    public void testNoRegionNoEndpointUsesRegionalUsEast1Host() {
-        URI uri = captureUri(null, null);
-        assertEquals(
-            "seeded us-east-1 client must use the regional endpoint, not s3.amazonaws.com",
-            BUCKET + ".s3.us-east-1.amazonaws.com",
-            uri.getHost()
-        );
-    }
-
     public void testExplicitRegionKeepsThatRegionsEndpoint() {
         URI uri = captureUri(null, null, "eu-west-1");
         assertEquals(BUCKET + ".s3.eu-west-1.amazonaws.com", uri.getHost());

@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.SearchContext;
@@ -122,7 +121,7 @@ public class WildcardAutomatonBreakerIT extends ESIntegTestCase {
         usedAfterQueryExecuted.set(-1);
         constructionMemoryAfterQueryExecuted.set(-1);
         final long automatonBytes = automaton.ramBytesUsed();
-        final long baseline = requestBreakerUsed();
+        final long baseline = getRequestBreakerUsed();
         assertThat(baseline, equalTo(0L));
 
         assertResponse(prepareSearch("test").setQuery(query), response -> {
@@ -134,14 +133,6 @@ public class WildcardAutomatonBreakerIT extends ESIntegTestCase {
         assertThat(usedAfterQueryExecuted.get(), greaterThanOrEqualTo(baseline + automatonBytes));
         // Releasing the search context hands everything back. Putting assertBusy on it just in case some other thread
         // doesn't release in time.
-        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(baseline)), 5, TimeUnit.SECONDS);
-    }
-
-    private static long requestBreakerUsed() {
-        long used = 0;
-        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
-            used += service.getBreaker(CircuitBreaker.REQUEST).getUsed();
-        }
-        return used;
+        assertBusy(() -> assertThat(getRequestBreakerUsed(), equalTo(baseline)), 5, TimeUnit.SECONDS);
     }
 }

@@ -33,14 +33,8 @@ class NativeLibraryCollectionPluginFuncTest extends AbstractGradleInternalPlugin
 
     def setup() {
         buildFile << """
-        import org.gradle.api.artifacts.type.ArtifactTypeDefinition
-
-        configurations.resolvable('collected') {
-          extendsFrom(configurations.${NativeLibraryCollectionPlugin.PROJECTS_CONFIGURATION})
-          attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-        }
         tasks.register('collect', Copy) {
-          from configurations.collected
+          from configurations.${NativeLibraryCollectionPlugin.ALL_LIBRARIES_CONFIGURATION}
           into layout.buildDirectory.dir('platform')
         }
         """

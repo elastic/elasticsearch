@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166834
+summary: Apply _file.* LIKE at listing time
+type: enhancement

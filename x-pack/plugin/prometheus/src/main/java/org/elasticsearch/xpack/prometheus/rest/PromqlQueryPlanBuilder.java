@@ -126,7 +126,7 @@ class PromqlQueryPlanBuilder {
         );
 
         PromqlParser promqlParser = new PromqlParser();
-        LogicalPlan promqlPlan = promqlParser.createStatement(query, startLiteral, endLiteral, 0, 0);
+        LogicalPlan promqlPlan = promqlParser.createStatement(query, startLiteral, endLiteral, 1, 0);
         // A string literal is a result of its own type: an instant query returns it as is, a range query rejects it
         // (Prometheus: "invalid expression type "string" for range query"); no statement runs for it.
         if (promqlPlan instanceof LiteralSelector literal && DataType.isString(literal.literal().dataType())) {

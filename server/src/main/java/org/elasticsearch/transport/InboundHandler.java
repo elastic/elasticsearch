@@ -12,6 +12,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -346,6 +347,14 @@ public class InboundHandler {
             }
         } catch (Exception e) {
             sendErrorResponse(action, transportChannel, e);
+        } catch (Throwable t) {
+            // The sender still gets a failure response, which releases the decoded-bytes and in-flight charges, before the
+            // error keeps propagating since it may be fatal.
+            sendErrorResponse(action, transportChannel, new ElasticsearchException(t));
+            if (t instanceof Error error) {
+                throw error;
+            }
+            throw new AssertionError(t);
         } finally {
             if (message != null) {
                 message.close();
@@ -367,7 +376,15 @@ public class InboundHandler {
             reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    doHandleRequest(reg, request, channel);
+                    try {
+                        doHandleRequest(reg, request, channel);
+                    } catch (Throwable t) {
+                        sendErrorResponse(reg.getAction(), channel, new ElasticsearchException(t));
+                        if (t instanceof Error error) {
+                            throw error;
+                        }
+                        throw new AssertionError(t);
+                    }
                 }
 
                 @Override

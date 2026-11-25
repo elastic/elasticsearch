@@ -776,6 +776,81 @@ public class InboundHandlerTests extends ESTestCase {
     }
 
     /**
+     * A handler that throws an {@link OutOfMemoryError} propagates the error, and the failure response is still sent to the
+     * sender, releasing the decoded-bytes charge and the in-flight charge instead of leaking them into the request breaker.
+     */
+    public void testDecodedRequestBytesReleasedWhenHandlingThrowsError() throws Exception {
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        handler = createInboundHandler(false);
+        final long decodedBytes = between(1, 2 * (int) DecodedRequestBytes.CHUNK_BYTES);
+        final AtomicBoolean inFlightReleased = new AtomicBoolean();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            assertNotNull(in.chargeDecodedBytes(decodedBytes, "test"));
+            return request;
+        }, taskManager, (request, channel, task) -> {
+            throw new OutOfMemoryError("expected error from the request handler");
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE, false, true));
+        final CapturingResponseHandler responseHandler = readingResponseHandler();
+        final long requestId = responseHandlers.add(responseHandler, null, action).requestId();
+
+        final AtomicReference<OutOfMemoryError> errorCaptor = new AtomicReference<>();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            try {
+                handler.inboundMessage(channel, requestMessage(action, requestId, out, () -> inFlightReleased.set(true)));
+            } catch (OutOfMemoryError e) {
+                errorCaptor.set(e);
+            }
+        }
+        assertThat("error propagates to the caller", errorCaptor.get(), instanceOf(OutOfMemoryError.class));
+        assertThat("released when the failure response is sent", requestBreaker.getUsed(), equalTo(0L));
+        assertTrue("released with the in-flight charge", inFlightReleased.get());
+        handler.inboundMessage(channel, replyMessage(requestId, true));
+        assertThat(responseHandler.exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
+        assertThat(responseHandler.exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
+    }
+
+    /**
+     * A forked handler that throws an {@link OutOfMemoryError} propagates the error, and the failure response is still sent
+     * to the sender, releasing the decoded-bytes charge and the in-flight charge instead of leaking them into the breaker.
+     */
+    public void testDecodedRequestBytesReleasedWhenForkedHandlingThrowsError() throws Exception {
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        handler = createInboundHandler(false);
+        final long decodedBytes = between(1, 2 * (int) DecodedRequestBytes.CHUNK_BYTES);
+        final AtomicBoolean inFlightReleased = new AtomicBoolean();
+        final List<Runnable> forked = new ArrayList<>();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            assertNotNull(in.chargeDecodedBytes(decodedBytes, "test"));
+            return request;
+        }, taskManager, (request, channel, task) -> {
+            throw new OutOfMemoryError("expected error from the request handler");
+        }, forked::add, false, true));
+        final CapturingResponseHandler responseHandler = readingResponseHandler();
+        final long requestId = responseHandlers.add(responseHandler, null, action).requestId();
+
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            handler.inboundMessage(channel, requestMessage(action, requestId, out, () -> inFlightReleased.set(true)));
+        }
+        assertThat("held while waiting for the executor", requestBreaker.getUsed(), equalTo(decodedBytes));
+        assertFalse("not released before the handler runs", inFlightReleased.get());
+        final AtomicReference<OutOfMemoryError> errorCaptor = new AtomicReference<>();
+        try {
+            forked.getFirst().run();
+        } catch (OutOfMemoryError e) {
+            errorCaptor.set(e);
+        }
+        assertThat("error propagates out of the forked handler", errorCaptor.get(), instanceOf(OutOfMemoryError.class));
+        assertThat("released when the failure response is sent", requestBreaker.getUsed(), equalTo(0L));
+        assertTrue("released with the in-flight charge", inFlightReleased.get());
+        handler.inboundMessage(channel, replyMessage(requestId, true));
+        assertThat(responseHandler.exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
+        assertThat(responseHandler.exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
+    }
+    /**
      * The breaker is checked each time a request's charges reach a chunk, and once more after the request is read, not on every charge.
      */
     public void testDecodedRequestBytesCheckedPerChunkAndOnceRead() throws Exception {

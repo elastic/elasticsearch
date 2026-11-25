@@ -30,11 +30,15 @@ import java.util.NoSuchElementException;
 import static org.elasticsearch.xpack.esql.datasources.glob.GlobExpander.doExpandGlob;
 
 /**
- * {@code expand} declines a listing bound whenever any hint is present, so the truncated-then-filtered empty return
- * is only reachable through {@link GlobExpander#doExpandGlob}.
+ * {@code expand} declines a listing bound whenever any hint is present, so this path is only reachable
+ * through {@link GlobExpander#doExpandGlob}.
  */
 public class ClosedRangeTruncationTests extends ESTestCase {
 
+    /**
+     * Closed-range (value-filter) rejects do not consume {@code maxFiles}. Ten out-of-range years with
+     * bound 3 drain the whole listing and keep one schema anchor instead of a truncated empty set.
+     */
     public void testClosedRangeOnTruncatedListingStaysTruncatedWhenEmpty() throws IOException {
         List<StorageEntry> entries = new ArrayList<>();
         for (int year = 1990; year < 2000; year++) {
@@ -59,8 +63,9 @@ public class ClosedRangeTruncationTests extends ESTestCase {
             PlanningMemory.NONE
         );
 
-        assertEquals(0, result.fileCount());
-        assertTrue(result.isTruncated());
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertFalse(result.isTruncated());
     }
 
     private static final class FixedListing implements StorageProvider {

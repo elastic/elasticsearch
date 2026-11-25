@@ -48,8 +48,9 @@ public class FillNullGeneratorTests extends ESTestCase {
 
     public void testValueTargetedFillWithoutNullsPassesValidation() {
         CommandDescription command = valueTargeted("a");
-        List<List<Object>> before = List.of(Arrays.asList(null, "x"), Arrays.asList(5, "y"));
-        List<List<Object>> after = List.of(Arrays.asList(0, "x"), Arrays.asList(5, "y"));
+        // Column "b" was not targeted, so a null left in it must not fail validation.
+        List<List<Object>> before = List.of(Arrays.asList(null, null), Arrays.asList(5, "y"));
+        List<List<Object>> after = List.of(Arrays.asList(0, null), Arrays.asList(5, "y"));
 
         ValidationResult result = FillNullGenerator.INSTANCE.validateOutput(List.of(), command, SCHEMA, before, SCHEMA, after);
 

@@ -30,13 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.XPackField;
 
-<<<<<<< HEAD
-import java.util.Objects;
-=======
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
-
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 
 public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateListener, ClusterStateListener {
@@ -88,14 +81,10 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-<<<<<<< HEAD
         hasIngestGeoIpMetadata = event.state().metadata().custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
         final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
             && event.changedCustomMetadataSet().contains(INGEST_GEOIP_CUSTOM_METADATA_TYPE);
-        final boolean masterNodeChanged = Objects.equals(
-            event.state().nodes().getMasterNode(),
-            event.previousState().nodes().getMasterNode()
-        ) == false;
+        final boolean masterNodeChanged = event.masterChanged();
         /*
          * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState if this cluster change
          * event involved the modification of custom geoip metadata OR a master node change
@@ -103,24 +92,6 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         if (ingestGeoIpCustomMetaChangedInEvent || (masterNodeChanged && hasIngestGeoIpMetadata)) {
             maybeUpdateTaskState(event.state());
         }
-=======
-        final boolean masterNodeChanged = event.masterChanged();
-        final boolean isLocalNodeMaster = event.state().nodes().isLocalNodeElectedMaster();
-        event.state().metadata().projects().values().forEach(projectMetadata -> {
-            ProjectId projectId = projectMetadata.id();
-            final boolean hasMetadata = projectMetadata.custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
-            hasIngestGeoIpMetadata.put(projectId, hasMetadata);
-            final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
-                && event.customMetadataChanged(projectId, INGEST_GEOIP_CUSTOM_METADATA_TYPE);
-            /*
-             * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState
-             * if this cluster change event involved the modification of custom geoip metadata OR a master node change
-             */
-            if (ingestGeoIpCustomMetaChangedInEvent || (masterNodeChanged && hasIngestGeoIpMetadata.getOrDefault(projectId, false))) {
-                maybeUpdateTaskState(projectId, isLocalNodeMaster);
-            }
-        });
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
     }
 
     private void maybeUpdateTaskState(ClusterState state) {

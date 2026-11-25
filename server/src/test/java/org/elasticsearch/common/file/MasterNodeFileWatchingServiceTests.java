@@ -30,12 +30,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
-<<<<<<< HEAD
-=======
 import java.util.concurrent.Semaphore;
-import java.util.function.Consumer;
-import java.util.stream.Stream;
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -99,11 +94,7 @@ public class MasterNodeFileWatchingServiceTests extends ESTestCase {
     /// failed to commit.
     public void testReElectionInNewTermRestartsWatcher() {
         final var processed = new Semaphore(0);
-        fileChangedCallback = file -> {
-            if (file.equals(watchedFile)) {
-                processed.release();
-            }
-        };
+        fileChangedCallback = processed::release;
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))

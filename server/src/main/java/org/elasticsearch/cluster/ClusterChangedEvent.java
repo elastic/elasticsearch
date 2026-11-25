@@ -115,8 +115,6 @@ public class ClusterChangedEvent {
         return state.metadata() != previousState.metadata();
     }
 
-<<<<<<< HEAD
-=======
     /// Returns `true` if the master node changed in this cluster state update. This includes the case of the same node being re-elected in
     /// a new term: nodes need not have applied a state with no master in between.
     public boolean masterChanged() {
@@ -137,7 +135,6 @@ public class ClusterChangedEvent {
         return state.clusterRecovered() && previousState.clusterRecovered() == false;
     }
 
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
     /**
      * Returns a set of custom meta data types when any custom metadata for the cluster has changed
      * between the previous cluster state and the new cluster state. custom meta data types are

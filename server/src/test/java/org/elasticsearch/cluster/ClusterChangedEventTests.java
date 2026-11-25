@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.ClusterChangedEventUtils;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -100,8 +101,6 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertFalse("local node should not be master", event.localNodeMaster());
     }
 
-<<<<<<< HEAD
-=======
     /// Tests that [ClusterChangedEvent#masterChanged] detects changes to the master node ID or term.
     public void testMasterChanged() {
         final ClusterState base = createState(3, randomBoolean(), initialIndices);
@@ -194,7 +193,6 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertFalse(new ClusterChangedEvent("_na_", notRecovered, recovered).clusterJustRecovered());
     }
 
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
     /**
      * Test that the indices created and indices deleted lists between two cluster states
      * are correct when there is a change in indices added and deleted.  Also tests metadata

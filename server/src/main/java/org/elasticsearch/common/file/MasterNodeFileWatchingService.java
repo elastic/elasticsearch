@@ -66,11 +66,6 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
         if (clusterState.nodes().isLocalNodeElectedMaster()
             && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
             synchronized (this) {
-<<<<<<< HEAD
-                if (watching() || active == false) {
-                    refreshExistingFileStateIfNeeded(clusterState);
-                    return;
-=======
                 if (active == false) {
                     return;
                 }
@@ -84,7 +79,6 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
                         refreshExistingFileStateIfNeeded(clusterState);
                         return;
                     }
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
                 }
                 startWatcher();
             }

@@ -155,29 +155,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 }
             }
 
-<<<<<<< HEAD
-            String previousMasterNodeId = event.previousState().nodes().getMasterNodeId();
-            String currentMasterNodeId = event.state().nodes().getMasterNodeId();
-            if (currentMasterNodeId != null && currentMasterNodeId.equals(previousMasterNodeId) == false) {
-=======
-            if (snapshotShardContextFactory.supportsRelocationDuringSnapshot() && event.metadataChanged()) {
-                final var deletedIndices = event.indicesDeleted();
-                // Abort local shard snapshot tracking for deleted indices. This is needed only when shard snapshot
-                // and primary shard can run on different nodes. The abort itself does not differentiate between
-                // local or remote shards so that local shards are aborted again in beforeIndexShardClosed. It's OK
-                // since abortIfNotCompleted is guaranteed to be only once.
-                if (deletedIndices.isEmpty() == false) {
-                    abortSnapshotsForDeletedIndices(Set.copyOf(deletedIndices));
-                }
-            }
-
-            if (isLocalNodeAddingShutdown) {
-                // Any active snapshots would have been signalled to pause in the previous code block.
-                snapshotShutdownProgressTracker.onClusterStatePausingSetForAllShardSnapshots();
-            }
-
             if (event.state().nodes().getMasterNodeId() != null && event.masterChanged()) {
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
                 // Clear request deduplicator since we need to send all requests that were potentially not handled by the previous
                 // master again
                 remoteFailedRequestDeduplicator.clear();

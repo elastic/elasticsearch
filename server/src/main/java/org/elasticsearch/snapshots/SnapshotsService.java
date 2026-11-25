@@ -656,7 +656,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
                 SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
-                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                final boolean newMaster = event.localNodeIsNewMaster();
                 processExternalChanges(
                     newMaster || SnapshotsServiceUtils.removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     snapshotsInProgress.nodeIdsForRemovalChanged(SnapshotsInProgress.get(event.previousState()))
@@ -2187,58 +2187,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     @Override
-<<<<<<< HEAD
     protected void doStart() {
         assert this.updateSnapshotStatusHandler != null;
         assert transportService.getRequestHandler(UPDATE_SNAPSHOT_STATUS_ACTION_NAME) != null;
-=======
-    public void applyClusterState(ClusterChangedEvent event) {
-        try {
-            if (event.localNodeMaster()) {
-                // We don't remove old master when master flips anymore. So, we need to check for change in master
-                SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(event.state());
-                final boolean newMaster = event.localNodeIsNewMaster();
-                externalChangesBatcher.processExternalChanges(
-                    newMaster || SnapshotsServiceUtils.removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
-                    snapshotsInProgress.nodeIdsForRemovalChanged(SnapshotsInProgress.get(event.previousState()))
-                        || (event.routingTableChanged() && SnapshotsServiceUtils.waitingShardsNeedUpdate(snapshotsInProgress, event))
-                );
-
-                if (newMaster
-                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false) {
-                    updateNodeIdsToRemoveQueue.submitTask(
-                        "SnapshotsService#updateNodeIdsToRemove",
-                        new UpdateNodeIdsForRemovalTask(),
-                        null
-                    );
-                }
-            } else if (snapshotFinalizationListeners.isEmpty() == false || snapshotDeletionListeners.isEmpty() == false) {
-                // Fail all local listeners on master failure. In principle, we could keep these listeners until we apply a state that
-                // has a different master, allowing to preserve these listeners across a brief re-election. But this gets kinda complicated
-                // as we may never fully join the different master, but then get elected again, and the latest cluster state may not match
-                // our pending listeners any more.
-
-                // BUG (see #165373): this might not be enough, we can still technically register listeners on the master-service thread
-                // after failing them here on the cluster applier thread. Usually we'll apply another cluster state update here and go down
-                // this branch again, or else become master again without any intervening updates, but in rare cases we can still leak them.
-                failAllListenersOnMasterFailOver(new NotMasterException("no longer master"));
-            }
-
-            // Clean up any now-obsolete deletion-start batchers
-            synchronized (snapshotDeletionStartBatchers) {
-                snapshotDeletionStartBatchers.keySet().removeAll(event.projectDelta().removed());
-                for (var perProjectDeletionStartBatchers : snapshotDeletionStartBatchers.entrySet()) {
-                    perProjectDeletionStartBatchers.getValue()
-                        .keySet()
-                        .retainAll(repositoriesService.getProjectRepositories(perProjectDeletionStartBatchers.getKey()).keySet());
-                }
-            }
-        } catch (Exception e) {
-            assert false : new AssertionError(e);
-            logger.warn("Failed to update snapshot state ", e);
-        }
-        assert assertConsistentWithClusterState(event.state());
->>>>>>> f88eae50e4ac (Detect re-election without no-master state (#166747))
     }
 
     @Override

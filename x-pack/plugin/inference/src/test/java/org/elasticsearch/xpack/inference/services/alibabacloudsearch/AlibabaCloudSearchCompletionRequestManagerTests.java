@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.xpack.inference.external.http.sender.TimedListenerTests.createTimedListener;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -49,7 +50,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
 
         ExecutorService mockExecutorService = mock(ExecutorService.class);
         var requestManager = createRequestManagerWithMockExecutor(mockExecutorService);
-        requestManager.execute(inputs, mockSender, () -> false, listener);
+        requestManager.execute(inputs, mockSender, createTimedListener(listener));
 
         ArgumentCaptor<ExecutableInferenceRequest> captor = ArgumentCaptor.forClass(ExecutableInferenceRequest.class);
         verify(mockExecutorService).execute(captor.capture());
@@ -65,7 +66,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
         var requestManager = createRequestManagerWithMockExecutor(mock(ExecutorService.class));
-        requestManager.execute(inputs, mockSender, () -> false, listener);
+        requestManager.execute(inputs, mockSender, createTimedListener(listener));
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -81,7 +82,7 @@ public class AlibabaCloudSearchCompletionRequestManagerTests extends ESTestCase 
         var requestManager = createRequestManagerWithMockExecutor(mock(ExecutorService.class));
         var thrownException = expectThrows(
             IllegalArgumentException.class,
-            () -> requestManager.execute(inputs, mockSender, () -> false, listener)
+            () -> requestManager.execute(inputs, mockSender, createTimedListener(listener))
         );
 
         assertThat(thrownException.getMessage(), containsString("Unable to convert inference inputs type"));

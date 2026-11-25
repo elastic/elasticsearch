@@ -68,10 +68,11 @@ public class ReindexFromRemoteCircuitBreakerIT extends ESSingleNodeTestCase {
             .put(super.nodeSettings())
             .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "*:*")
             // Sized above the version-lookup (~600 B) and open-PIT (~700 B) responses — both are
-            // immediately released — but below the fetch[source] charge (~100 KiB for 5 × 20 KiB
+            // immediately released — and above the parsed search request, which stays charged until
+            // its response is sent, but below the fetch[source] charge (~100 KiB for 5 × 20 KiB
             // random-alpha docs) so the breaker trips during FetchPhase before the search response
             // is returned.
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5kb")
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "32kb")
             .build();
     }
 

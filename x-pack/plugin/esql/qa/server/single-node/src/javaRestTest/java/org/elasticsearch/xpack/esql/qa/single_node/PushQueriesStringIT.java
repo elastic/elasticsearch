@@ -953,10 +953,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
                 "index": {
                   %mode"number_of_shards": 1
                 }
-              }""".replace(
-            "%mode",
-            type == Type.UNMAPPED_CONTAINER ? "\"mode\": \"columnar\", \"mapping.flattened_unmapped_fields.enabled\": true, " : ""
-        );
+              }""".replace("%mode", type == Type.UNMAPPED_CONTAINER ? "\"mode\": \"columnar\", " : "");
         json += switch (type) {
             case AUTO -> "";
             case CONSTANT_KEYWORD -> justType();
@@ -994,11 +991,11 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     /**
-     * Maps {@code foo} only. A columnar index keeps the other fields in its {@code _unmapped} field, and any other index keeps them in
-     * {@code _source} with {@code dynamic: false}.
+     * Maps {@code foo} only. A columnar index with {@code dynamic: flattened} keeps the other fields in its {@code _unmapped} field, and
+     * any other index keeps them in {@code _source} with {@code dynamic: false}.
      */
     private String onlyFoo(boolean container) {
-        String dynamic = container ? "" : "\"dynamic\": false,";
+        String dynamic = container ? "\"dynamic\": \"flattened\"," : "\"dynamic\": false,";
         return """
             ,
             "mappings": {
@@ -1080,7 +1077,8 @@ public class PushQueriesStringIT extends ESRestTestCase {
         name = TO_NAME.matcher(name).replaceAll("");
         if (name.equals("LuceneSourceOperator")) {
             MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))
-                .entry("status", matchesMap().entry("processed_queries", List.of(query)).extraOk());
+                .entry("status", matchesMap().entry("processed_queries", List.of(query)).extraOk())
+                .extraOk();
             assertMap(o, expectedOp);
         }
         return name;
@@ -1107,9 +1105,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         if (type == Type.UNMAPPED_CONTAINER) {
             assumeTrue(
                 "the _unmapped field of a columnar index",
-                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes", "flattened_unmapped_fields")).orElse(
-                    false
-                )
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes", "dynamic_flattened")).orElse(false)
             );
         }
     }

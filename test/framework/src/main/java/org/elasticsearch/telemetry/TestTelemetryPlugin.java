@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
@@ -94,6 +95,7 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public final TelemetryProvider getTelemetryProvider(
+        ThreadContext threadContext,
         Environment environment,
         List<TelemetryLoggingFilterProvider> filterProviders,
         TelemetryLogResourceProvider logResourceProvider

@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -135,7 +136,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
         CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))));
-        Mapping merged = mapperService.mergeMappings(mergeWith, reason, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(mergeWith, reason, Long.MAX_VALUE).mapping();
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
@@ -335,7 +336,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertEquals("mapper [obj.my.field] cannot be changed from type [keyword] to [long]", exception.getMessage());
 
         // Passes on template merging.
-        Mapping merged = mapperService.mergeMappings(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE).mapping();
         assertThat(((ObjectMapper) merged.getRoot().getMapper("obj")).getMapper("my.field"), instanceOf(NumberFieldMapper.class));
     }
 
@@ -449,7 +450,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testExplicitDefaultSubobjects() throws Exception {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", true)));
-        assertEquals("{\"_doc\":{\"subobjects\":true}}", Strings.toString(mapperService.mappingLookup().getMapping()));
+        assertEquals("{\"_doc\":{\"subobjects\":true}}", mapperService.documentMapper().mappingSource().string());
     }
 
     public void testSubobjectsFalseRootWithInnerObject() throws IOException {
@@ -900,6 +901,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             })));
             assertThat(e.getMessage(), containsString("dynamic [runtime] is not supported in strict columnar mode"));
         }
+    }
+
+    /**
+     * Without the feature flag, as in release builds, {@code dynamic: flattened} is parsed as a boolean like any other unknown value, so
+     * the error doesn't name it, even on a strict columnar index.
+     */
+    public void testDynamicFlattenedIsNotBooleanWithoutFeatureFlag() {
+        assumeFalse("flattened_unmapped_fields must be disabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.field("dynamic", "flattened")))
+        );
+        assertThat(e.getMessage(), containsString("Could not convert [dynamic.dynamic] to boolean"));
     }
 
     public void testColumnarModesRejectSyntheticSourceKeepOnObject() {

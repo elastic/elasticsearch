@@ -21,7 +21,9 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -55,7 +57,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -133,6 +137,97 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexAnalyzers a = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, settingsA);
         IndexAnalyzers b = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, settingsB);
         assertSame(a.getDefaultIndexAnalyzer(), b.getDefaultIndexAnalyzer());
+    }
+
+    private ClusterSettings watchSharing(Settings nodeSettings) {
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        nonEmptyRegistry.watchSharingSetting(clusterSettings);
+        return clusterSettings;
+    }
+
+    private static Settings sharingDisabled() {
+        return Settings.builder().put(AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING.getKey(), false).build();
+    }
+
+    private IndexAnalyzers buildSharedRecipeIndex(String name) throws IOException {
+        Settings recipe = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase")
+            .build();
+        return nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings(name, recipe));
+    }
+
+    private IndexAnalyzers buildSharedNormalizerIndex(String name) throws IOException {
+        Settings recipe = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.normalizer.my_norm.type", "custom")
+            .putList("index.analysis.normalizer.my_norm.filter", "reverse")
+            .build();
+        return nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings(name, recipe));
+    }
+
+    /** Hatch off stops sharing for subsequently built indices; back on resumes it. */
+    public void testSharingEscapeHatch() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        ClusterSettings clusterSettings = watchSharing(Settings.EMPTY);
+
+        clusterSettings.applySettings(sharingDisabled());
+        IndexAnalyzers a = buildSharedRecipeIndex("a");
+        IndexAnalyzers b = buildSharedRecipeIndex("b");
+        assertNotSame(a.get("my_analyzer").analyzer(), b.get("my_analyzer").analyzer());
+
+        clusterSettings.applySettings(Settings.EMPTY);
+        IndexAnalyzers c = buildSharedRecipeIndex("c");
+        IndexAnalyzers d = buildSharedRecipeIndex("d");
+        assertSame(c.get("my_analyzer").analyzer(), d.get("my_analyzer").analyzer());
+        IOUtils.close(a, b, c, d);
+    }
+
+    /** The setting is honored from node settings (elasticsearch.yml) at watch time, before any dynamic update. */
+    public void testSharingDisabledViaNodeSettings() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        watchSharing(sharingDisabled());
+        IndexAnalyzers a = buildSharedRecipeIndex("a");
+        IndexAnalyzers b = buildSharedRecipeIndex("b");
+        assertNotSame(a.get("my_analyzer").analyzer(), b.get("my_analyzer").analyzer());
+        IOUtils.close(a, b);
+    }
+
+    /** The escape hatch also gates the normalizer caches (keyword and whitespace variants), including eviction. */
+    public void testNormalizerSharingEscapeHatch() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        ClusterSettings clusterSettings = watchSharing(Settings.EMPTY);
+
+        clusterSettings.applySettings(sharingDisabled());
+        IndexAnalyzers a = buildSharedNormalizerIndex("a");
+        IndexAnalyzers b = buildSharedNormalizerIndex("b");
+        assertNotSame(a.getNormalizer("my_norm").analyzer(), b.getNormalizer("my_norm").analyzer());
+        assertNotSame(a.getWhitespaceNormalizer("my_norm").analyzer(), b.getWhitespaceNormalizer("my_norm").analyzer());
+
+        clusterSettings.applySettings(Settings.EMPTY);
+        IndexAnalyzers c = buildSharedNormalizerIndex("c");
+        IndexAnalyzers d = buildSharedNormalizerIndex("d");
+        assertSame(c.getNormalizer("my_norm").analyzer(), d.getNormalizer("my_norm").analyzer());
+        assertSame(c.getWhitespaceNormalizer("my_norm").analyzer(), d.getWhitespaceNormalizer("my_norm").analyzer());
+        assertThat(nonEmptyRegistry.normalizerCacheSize(), greaterThan(0));
+
+        clusterSettings.applySettings(sharingDisabled());
+        IOUtils.close(a, b, c, d);
+        assertEquals(0, nonEmptyRegistry.normalizerCacheSize());
+    }
+
+    /** The release handle is captured at build time, so analyzers shared before the hatch flips off still evict on close. */
+    public void testSharedAnalyzerReleaseAfterHatchDisabled() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        ClusterSettings clusterSettings = watchSharing(Settings.EMPTY);
+        IndexAnalyzers a = buildSharedRecipeIndex("a");
+        IndexAnalyzers b = buildSharedRecipeIndex("b");
+        assertSame(a.get("my_analyzer").analyzer(), b.get("my_analyzer").analyzer());
+
+        clusterSettings.applySettings(sharingDisabled());
+        IOUtils.close(a, b);
+        assertEquals(0, nonEmptyRegistry.analyzerCacheSize());
     }
 
     /**
@@ -704,5 +799,27 @@ public class AnalysisRegistryTests extends ESTestCase {
 
         registry.close();
         verify(mock).close();
+    }
+
+    /** {@code split_queries_on_whitespace} uses the whitespace variant of the built-in {@code lowercase} normalizer. */
+    public void testLowercaseNormalizerWhitespaceVariantSplits() throws IOException {
+        try (
+            IndexAnalyzers ia = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettingsOfCurrentVersion(Settings.builder()))
+        ) {
+            assertTokenStreamContents(ia.getNormalizer("lowercase").tokenStream("f", "FoO BaR"), new String[] { "foo bar" });
+            assertTokenStreamContents(ia.getWhitespaceNormalizer("lowercase").tokenStream("f", "FoO BaR"), new String[] { "foo", "bar" });
+        }
+    }
+
+    /**
+     * The keyword and whitespace variants are cached and released separately when analyzers are shared, so they must never
+     * wrap the same analyzer instance: releasing one would close the other.
+     */
+    public void testLowercaseNormalizerVariantsAreDistinctInstances() throws IOException {
+        try (
+            IndexAnalyzers ia = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettingsOfCurrentVersion(Settings.builder()))
+        ) {
+            assertNotSame(ia.getNormalizer("lowercase").analyzer(), ia.getWhitespaceNormalizer("lowercase").analyzer());
+        }
     }
 }

@@ -54,7 +54,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -105,7 +105,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
+        private final Parameter<String> indexOptions = patternTextIndexOptions();
         private final Parameter<NamedAnalyzer> analyzer;
         private final Parameter<Boolean> disableTemplating;
         private final IndexVersion indexCreatedVersion;
@@ -130,7 +130,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
             this.indexSettings = indexSettings;
-            this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
+            this.analyzer = analyzerParam(name);
             this.disableTemplating = disableTemplatingParameter(indexSettings);
             this.indexCreatedVersion = indexCreatedVersion;
             this.useBinaryDocValuesForRawText = useBinaryDocValuesForRawText;
@@ -166,8 +166,8 @@ public class PatternTextFieldMapper extends FieldMapper {
             return indexOptions == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS ? Defaults.FIELD_TYPE_POSITIONS : Defaults.FIELD_TYPE_DOCS;
         }
 
-        private static Parameter<String> patternTextIndexOptions(Function<FieldMapper, String> initializer) {
-            return Parameter.stringParam("index_options", false, initializer, "docs").addValidator(v -> {
+        private static Parameter<String> patternTextIndexOptions() {
+            return Parameter.stringParam("index_options", false, "docs").addValidator(v -> {
                 switch (v) {
                     case "positions":
                     case "docs":
@@ -180,7 +180,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             });
         }
 
-        private static Parameter<NamedAnalyzer> analyzerParam(String name, Function<FieldMapper, NamedAnalyzer> initializer) {
+        private static Parameter<NamedAnalyzer> analyzerParam(String name) {
             return new Parameter<>("analyzer", false, () -> DelimiterAnalyzer.INSTANCE, (n, c, o) -> {
                 String analyzerName = o.toString();
                 switch (analyzerName) {
@@ -193,7 +193,7 @@ public class PatternTextFieldMapper extends FieldMapper {
                             "unsupported analyzer [" + analyzerName + "] for field [" + name + "], supported analyzers are [standard, log]"
                         );
                 }
-            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+            }, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
         }
 
         /**
@@ -205,12 +205,7 @@ public class PatternTextFieldMapper extends FieldMapper {
          */
         private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
             boolean forceDisable = DISABLE_TEMPLATING_SETTING.get(indexSettings.getSettings());
-            return Parameter.boolParam(
-                "disable_templating",
-                false,
-                m -> ((PatternTextFieldMapper) m).fieldType().disableTemplating(),
-                forceDisable
-            ).addValidator(value -> {
+            return Parameter.boolParam("disable_templating", false, forceDisable).addValidator(value -> {
                 if (value == false && forceDisable) {
                     throw new MapperParsingException(
                         "value [false] for mapping parameter [disable_templating] contradicts value [true] for index setting ["
@@ -243,13 +238,9 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser(Builder::new);
 
-    private final IndexVersion indexCreatedVersion;
     private final NamedAnalyzer analyzer;
-    private final IndexSettings indexSettings;
-    private final String indexOptions;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
-    private final FieldType templateIdFieldType;
     private final boolean useBinaryDocValueArgs;
     private final boolean useBinaryDocValuesForRawText;
 
@@ -265,12 +256,8 @@ public class PatternTextFieldMapper extends FieldMapper {
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
-        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.analyzer = builder.analyzer.get();
-        this.indexSettings = builder.indexSettings;
-        this.indexOptions = builder.indexOptions.getValue();
         this.templateIdMapper = templateIdMapper;
-        this.templateIdFieldType = templateIdMapper.luceneFieldType();
         this.useBinaryDocValueArgs = builder.useBinaryDocValuesForArgsColumn();
         this.useBinaryDocValuesForRawText = builder.useBinaryDocValuesForRawText;
     }
@@ -278,12 +265,6 @@ public class PatternTextFieldMapper extends FieldMapper {
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), analyzer);
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, fieldType().isWithinMultiField(), useBinaryDocValuesForRawText)
-            .init(this);
     }
 
     @Override
@@ -367,7 +348,7 @@ public class PatternTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings settings) {
+    protected boolean doSupportsColumnarParse(IndexSettings settings, Set<String> relativeKeys) {
         return useBinaryDocValueArgs            // only the binary-doc-values args encoding is handled
             && useBinaryDocValuesForRawText     // always true in columnar mode; required for correctness
             && fieldType().isWithinMultiField() == false;
@@ -502,7 +483,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             }
 
             if (fieldType().disableTemplating() == false) {
-                addOwnedColumn(ctx, templateIdBuilder, docCount, fieldType().templateIdFieldName(), templateIdFieldType);
+                addOwnedColumn(ctx, templateIdBuilder, docCount, fieldType().templateIdFieldName(), templateIdMapper.luceneFieldType());
             }
 
             if (templateBuilder != null) {

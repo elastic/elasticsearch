@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_OrderBy[[Order[language_code{r}#0,ASC,LAST]]]
+  \_BranchPlan[[top_langs=SUBQUERY, null=INDEX]]
+    |_Project[[language_name{f}#1, language_code{f}#2]]
+    | \_Filter[language_code{f}#2 > 1[INTEGER]]
+    |   \_EsRelation[languages][language_code{f}#2, language_name{f}#1]
+    \_EsRelation[languages][language_code{f}#3, language_name{f}#4]

@@ -54,7 +54,7 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
         finish();
         BooleanVector vector;
         if (valueCount == 1) {
-            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes).asVector();
+            vector = blockFactory.newConstantBooleanVector(values[0], 1, estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);

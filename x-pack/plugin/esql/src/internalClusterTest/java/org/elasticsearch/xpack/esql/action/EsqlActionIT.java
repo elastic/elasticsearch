@@ -135,6 +135,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
@@ -147,6 +148,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     private static final int EXPLAIN_COL_ROLE = explainColIndex("role");
     private static final int EXPLAIN_COL_TYPE = explainColIndex("type");
     private static final int EXPLAIN_COL_PLAN = explainColIndex("plan");
+    private static final int EXPLAIN_COL_PLAN_JSON = explainColIndex("plan_json");
 
     private static int explainColIndex(String name) {
         for (int i = 0; i < Explain.OUTPUT_ATTRIBUTES.size(); i++) {
@@ -876,6 +878,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 )
         );
         ensureYellow(indexName);
+        Index index = resolveIndex(indexName);
+        List<IndexShard> shards = new ArrayList<>();
+        for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = indicesService.indexService(index);
+            if (indexService != null) {
+                indexService.forEach(shards::add);
+            }
+        }
+        assertThat(shards, hasSize(numShards));
         AtomicLong totalValues = new AtomicLong();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean stopped = new AtomicBoolean();
@@ -903,25 +914,21 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         indexingThread.start();
         try {
             logger.info("--> waiting for shards to have pending refresh");
-            Index index = resolveIndex(indexName);
             latch.countDown();
             assertBusy(() -> {
-                int pendingRefreshes = 0;
-                for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-                    IndexService indexService = indicesService.indexService(index);
-                    if (indexService != null) {
-                        for (IndexShard shard : indexService) {
-                            if (shard.hasRefreshPending()) {
-                                pendingRefreshes++;
-                            }
-                        }
-                    }
+                for (IndexShard shard : shards) {
+                    assertTrue("shard " + shard.shardId() + " doesn't have a pending refresh", shard.hasRefreshPending());
                 }
-                assertThat("shards don't have any pending refresh", pendingRefreshes, equalTo(numShards));
             }, 30, TimeUnit.SECONDS);
         } finally {
             stopped.set(true);
             indexingThread.join();
+        }
+        // A scheduled refresh that ran while a write was in flight may have recorded a pending location that does not
+        // cover that write, so record the pending location again now that every write has been acknowledged.
+        for (IndexShard shard : shards) {
+            assertFalse(safeAwait(shard::scheduledRefresh));
+            assertTrue(shard.hasRefreshPending());
         }
         try (EsqlQueryResponse results = run("from test_refresh | stats s = sum(value)")) {
             logger.info(results);
@@ -2441,6 +2448,50 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMaxBinaryOperatorsPerExpressionSetting() {
+        String query = "row x = 1 + 1 + 1 | keep x";
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getKey(), 1));
+        try {
+            var e = expectThrows(ParsingException.class, () -> runParsedOnTheNode(query));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "exceeded the maximum number of binary operators allowed between commas or pipes (1), "
+                        + "set by the [esql.query.max_binary_operators_per_expression] cluster setting"
+                )
+            );
+            // raising the setting makes the same query work, without restarting anything
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getKey(), 2));
+            try (EsqlQueryResponse results = runParsedOnTheNode(query)) {
+                assertThat(getValuesList(results), equalTo(List.of(List.of(3))));
+            }
+        } finally {
+            clearPersistentSettings(EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION);
+        }
+    }
+
+    public void testMaxParenthesesCountSetting() {
+        String query = "row x = abs(abs(-1)) | keep x";
+        // the parser allows half of the parentheses, so two function calls need a count of four
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.getKey(), 2));
+        try {
+            var e = expectThrows(ParsingException.class, () -> runParsedOnTheNode(query));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "exceeded the maximum number of left parentheses allowed in an expression (1), "
+                        + "which is half of the [esql.query.max_parentheses_count] cluster setting"
+                )
+            );
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.getKey(), 4));
+            try (EsqlQueryResponse results = runParsedOnTheNode(query)) {
+                assertThat(getValuesList(results), equalTo(List.of(List.of(1))));
+            }
+        } finally {
+            clearPersistentSettings(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT);
+        }
+    }
+
     public void testMaxFillNullFieldsSettingWithView() {
         assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
         assumeTrue("Views require the capability to be enabled", VIEWS_IN_CLUSTER_STATE.isEnabled());
@@ -2756,6 +2807,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Runs the query on the node, like {@link #run(String)} but never as a pre-built statement. {@link #run(EsqlQueryRequest)} randomly
+     * parses the query in the test with the default flags, which would skip the limits the cluster settings configure on the node.
+     */
+    private EsqlQueryResponse runParsedOnTheNode(String query) {
+        return client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query).pragmas(randomPragmas()))
+            .actionGet(DEFAULT_REQUEST_TIMEOUT);
+    }
+
     private void clearPersistentSettings(Setting<?>... settings) {
         Settings.Builder clearedSettings = Settings.builder();
 
@@ -2810,7 +2870,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         new ColumnInfoImpl("node", "keyword", null),
                         new ColumnInfoImpl("role", "keyword", null),
                         new ColumnInfoImpl("type", "keyword", null),
-                        new ColumnInfoImpl("plan", "keyword", null)
+                        new ColumnInfoImpl("plan", "keyword", null),
+                        new ColumnInfoImpl("plan_json", "keyword", null)
                     )
                 )
             );
@@ -2901,7 +2962,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         return operators;
     }
 
-    public void testExplainSimple() {
+    public void testExplainSimple() throws IOException {
         assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
         try (EsqlQueryResponse results = run("EXPLAIN (ROW x = 1)")) {
             // Verify the columns are correct
@@ -2913,7 +2974,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         new ColumnInfoImpl("node", "keyword", null),
                         new ColumnInfoImpl("role", "keyword", null),
                         new ColumnInfoImpl("type", "keyword", null),
-                        new ColumnInfoImpl("plan", "keyword", null)
+                        new ColumnInfoImpl("plan", "keyword", null),
+                        new ColumnInfoImpl("plan_json", "keyword", null)
                     )
                 )
             );
@@ -2921,6 +2983,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             // Verify we have rows with plan information (ROW doesn't need data nodes)
             List<List<Object>> values = getValuesList(results);
             assertThat(values.size(), greaterThanOrEqualTo(3));
+            String planJson = (String) values.get(0).get(EXPLAIN_COL_PLAN_JSON);
+            try (var parser = createParser(JsonXContent.jsonXContent, planJson)) {
+                Map<String, Object> parsed = parser.map();
+                assertThat(parsed.get("type"), notNullValue());
+                assertThat(parsed.get("children") instanceof List, is(true));
+            }
 
             // The node column must contain an actual node name for local-cluster rows.
             // Remote-cluster rows (cluster != "") are excluded: this test has no CCS setup.

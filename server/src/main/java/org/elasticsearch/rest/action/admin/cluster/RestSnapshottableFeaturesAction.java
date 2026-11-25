@@ -20,12 +20,17 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestSnapshottableFeaturesAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM);
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_features"));
@@ -34,6 +39,11 @@ public class RestSnapshottableFeaturesAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "get_snapshottable_features";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

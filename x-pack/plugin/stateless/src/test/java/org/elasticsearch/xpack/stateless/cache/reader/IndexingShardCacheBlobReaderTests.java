@@ -26,6 +26,7 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -83,7 +84,7 @@ public class IndexingShardCacheBlobReaderTests extends ESTestCase {
                     assertThat(
                         completingThread.getName(),
                         EsExecutors.executorName(completingThread),
-                        equalTo(StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
+                        equalTo(StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL)
                     );
                     ll.onFailure(e);
                 })
@@ -171,7 +172,7 @@ public class IndexingShardCacheBlobReaderTests extends ESTestCase {
             reader,
             () -> null,
             copiedBytes -> {},
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
         final List<SparseFileTracker.Gap> gaps = List.of(mockGap(0L, pageSize), mockGap(secondGapStart, rangeEnd));
         try (var streamFactory = sequentialRangeMissingHandler.sharedInputStreamFactory(gaps)) {

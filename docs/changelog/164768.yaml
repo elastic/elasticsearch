@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164768
+summary: Decode `date_nanos` and `unsigned_long` bounds of a top N after the source
+type: bug

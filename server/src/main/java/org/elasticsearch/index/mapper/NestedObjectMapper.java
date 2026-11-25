@@ -132,6 +132,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 );
             }
             final String fullPath = context.buildFullName(leafName());
+            rejectIncludeInParentOrRootInStrictColumnar(fullPath);
             final String nestedTypePath = nestedTypePath(fullPath);
             if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ARRAYS) {
                 throw new MapperException(
@@ -176,8 +177,55 @@ public class NestedObjectMapper extends ObjectMapper {
             }
         }
 
+        /**
+         * Copying nested fields into the parent or root stores the same data twice, which strict columnar modes avoid. It also breaks
+         * fields that write a single binary doc value per document: two nested objects would add two such values to the parent.
+         * Older indices keep accepting the parameters so their mappings still parse on recovery.
+         */
+        private void rejectIncludeInParentOrRootInStrictColumnar(String fullPath) {
+            if ((includeInParent.value() || includeInRoot.value())
+                && indexSettings != null
+                && indexSettings.getMode().isStrictColumnar()
+                && indexCreatedVersion.onOrAfter(IndexVersions.COLUMNAR_REJECTS_NESTED_INCLUDE_IN_PARENT)) {
+                throw new IllegalArgumentException(
+                    "[include_in_parent] and [include_in_root] are not supported for nested field ["
+                        + fullPath
+                        + "] in index mode ["
+                        + indexSettings.getMode()
+                        + "]"
+                );
+            }
+        }
+
         private String nestedTypePath(String fullPath) {
             return indexCreatedVersion.before(IndexVersions.V_8_0_0) ? "__" + fullPath : fullPath;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(leafName());
+            builder.field("type", CONTENT_TYPE);
+            // Only an explicit override is serialized; the inherited default is re-derived from the root on parse.
+            if (subobjects.explicit()) {
+                builder.field("subobjects", subobjects.value() == Subobjects.ENABLED);
+            }
+            if (includeInParent.explicit() && includeInParent.value()) {
+                builder.field("include_in_parent", includeInParent.value());
+            }
+            if (includeInRoot.value()) {
+                builder.field("include_in_root", includeInRoot.value());
+            }
+            if (dynamic != null) {
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
+            }
+            if (enabled.value() != Defaults.ENABLED) {
+                builder.field("enabled", enabled.value());
+            }
+            if (sourceKeepMode.isPresent()) {
+                builder.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, sourceKeepMode.get());
+            }
+            serializeChildren(builder, params);
+            return builder.endObject();
         }
 
         @Override
@@ -390,33 +438,6 @@ public class NestedObjectMapper extends ObjectMapper {
             bitsetProducer,
             indexSettings
         );
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(leafName());
-        builder.field("type", CONTENT_TYPE);
-        // Only an explicit override is serialized; the inherited default is re-derived from the root on parse.
-        if (subobjects.explicit()) {
-            builder.field("subobjects", subobjects.value() == Subobjects.ENABLED);
-        }
-        if (includeInParent.explicit() && includeInParent.value()) {
-            builder.field("include_in_parent", includeInParent.value());
-        }
-        if (includeInRoot.value()) {
-            builder.field("include_in_root", includeInRoot.value());
-        }
-        if (dynamic != null) {
-            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
-        }
-        if (isEnabled() != Defaults.ENABLED) {
-            builder.field("enabled", enabled.value());
-        }
-        if (sourceKeepMode.isPresent()) {
-            builder.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, sourceKeepMode.get());
-        }
-        serializeMappers(builder, params);
-        return builder.endObject();
     }
 
     /** Groups the patches {@code patchLoader} produces per nested document, reported against this object's path. */

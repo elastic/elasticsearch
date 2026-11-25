@@ -12,6 +12,7 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -34,6 +35,10 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  *       Kept native rather than pre-serialized so the "native in-memory" invariant above also holds for
  *       ARRAY; it is only flattened to {@code child_kind(1) | child_values} bytes at the wire boundary in
  *       {@link EscfBatch}.</li>
+ *   <li>{@code lexicalForms} — for DOUBLE, an optional native STRING column with one row per document
+ *       holding the client's spelling of each value whose
+ *       canonical {@code Double.toString} rendering differs from it, zero-length where it does not;
+ *       {@code null} for every other kind and for a DOUBLE column in which no value has a stored spelling.</li>
  * </ul>
  */
 public record EscfColumnData(
@@ -44,7 +49,8 @@ public record EscfColumnData(
     BytesRef typeVector,
     int[] offsets,
     BytesReference data,
-    EscfColumnData child
+    EscfColumnData child,
+    EscfColumnData lexicalForms
 ) implements Releasable {
 
     /**
@@ -55,31 +61,42 @@ public record EscfColumnData(
      */
     @Override
     public void close() {
-        Releasables.close(data instanceof Releasable releasable ? releasable : null, child);
+        Releasables.close(data instanceof Releasable releasable ? releasable : null, child, lexicalForms);
     }
 
     /** LONG or DOUBLE: a dense 8-byte-per-document value payload; no offsets or type vector. */
     static EscfColumnData ofFixed64(byte kind, int docCount, FixedBitSet validity, BytesReference data) {
-        return new EscfColumnData(kind, docCount, validity, null, null, null, data, null);
+        return new EscfColumnData(kind, docCount, validity, null, null, null, data, null, null);
+    }
+
+    /**
+     * DOUBLE with stored spellings: the dense 8-byte payload plus {@code lexicalForms}, a native STRING column with
+     * one row per document holding the spelling of each value whose canonical rendering differs from it (zero-length
+     * otherwise); {@code null} when no value has one, which is then the same as {@link #ofFixed64}.
+     */
+    static EscfColumnData ofDouble(int docCount, FixedBitSet validity, BytesReference data, @Nullable EscfColumnData lexicalForms) {
+        assert lexicalForms == null || (lexicalForms.kind() == EscfColumnKind.STRING && lexicalForms.docCount() == docCount)
+            : "lexical forms must be a STRING column with one row per value";
+        return new EscfColumnData(EscfColumnKind.DOUBLE, docCount, validity, null, null, null, data, null, lexicalForms);
     }
 
     /** BOOL: the value bitset directly; no byte payload. */
     static EscfColumnData ofBool(int docCount, FixedBitSet validity, FixedBitSet values) {
-        return new EscfColumnData(EscfColumnKind.BOOL, docCount, validity, values, null, null, null, null);
+        return new EscfColumnData(EscfColumnKind.BOOL, docCount, validity, values, null, null, null, null, null);
     }
 
     /** STRING or BINARY: an offset vector plus a dense byte payload. */
     static EscfColumnData ofVarWidth(byte kind, int docCount, FixedBitSet validity, int[] offsets, BytesReference data) {
-        return new EscfColumnData(kind, docCount, validity, null, null, offsets, data, null);
+        return new EscfColumnData(kind, docCount, validity, null, null, offsets, data, null, null);
     }
 
     /** ARRAY: per-row element-range offsets over a native primitive {@code child} sub-column. */
     static EscfColumnData ofArray(int docCount, FixedBitSet validity, int[] offsets, EscfColumnData child) {
-        return new EscfColumnData(EscfColumnKind.ARRAY, docCount, validity, null, null, offsets, null, child);
+        return new EscfColumnData(EscfColumnKind.ARRAY, docCount, validity, null, null, offsets, null, child, null);
     }
 
     /** UNION: a per-document type vector, an offset vector, and a dense value payload. */
     static EscfColumnData ofUnion(int docCount, FixedBitSet validity, BytesRef typeVector, int[] offsets, BytesReference data) {
-        return new EscfColumnData(EscfColumnKind.UNION, docCount, validity, null, typeVector, offsets, data, null);
+        return new EscfColumnData(EscfColumnKind.UNION, docCount, validity, null, typeVector, offsets, data, null, null);
     }
 }

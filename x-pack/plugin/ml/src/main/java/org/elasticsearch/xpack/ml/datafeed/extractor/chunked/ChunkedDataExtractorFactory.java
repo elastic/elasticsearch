@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 
 import java.util.Objects;
 
@@ -41,18 +42,25 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     @Override
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
+        long alignedStart = alignStart(timeAligner, start);
         // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
         long alignedEnd = timeAligner.alignToFloor(end);
+        boolean hasEsqlQuery = datafeedConfig.getEsqlQuery() != null;
+        // DSL ceils start and floors end, so a window inside one histogram bucket inverts and is treated as empty.
+        assert hasEsqlQuery == false || alignedStart <= alignedEnd
+            : "window start [" + alignedStart + "] is after end [" + alignedEnd + "]";
+        boolean injectsEsqlRowLimit = hasEsqlQuery && EsqlDataExtractor.injectsRowLimit(datafeedConfig.getEsqlQuery());
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),
-            alignStart(timeAligner, start),
+            alignedStart,
             alignedEnd,
             datafeedConfig.getChunkingConfig().getTimeSpan(),
             timeAligner,
             datafeedConfig.hasAggregations(),
             datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null,
-            datafeedConfig.getEsqlQuery() != null
+            hasEsqlQuery,
+            injectsEsqlRowLimit
         );
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
     }
@@ -84,7 +92,8 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             // dropping or duplicating data.
             return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis(xContentRegistry));
         }
-        if (datafeedConfig.getEsqlQuery() != null) {
+        if (EsqlDataExtractor.emitsBucketTimes(datafeedConfig.getEsqlQuery())) {
+            // Raw rows keep source timestamps, so their windows need no grid; flooring a resume start would re-read posted rows.
             return newIntervalTimeAligner(datafeedConfig.getGroupingInterval().millis());
         }
         return newIdentityTimeAligner();

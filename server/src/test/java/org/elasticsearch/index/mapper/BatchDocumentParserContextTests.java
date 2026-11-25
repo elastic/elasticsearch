@@ -22,7 +22,7 @@ public class BatchDocumentParserContextTests extends MapperServiceTestCase {
     private BatchDocumentParserContext newContext() throws IOException {
         MapperService ms = createMapperService(mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
         SourceToParse source = new SourceToParse("id1", new BytesArray("{}"), XContentType.JSON);
-        return new BatchDocumentParserContext(ms.mappingLookup(), ms.parserContext(), source);
+        return new BatchDocumentParserContext(ms.mappingLookup(), ms.parserContext(), source, ms::parseStoredMappings);
     }
 
     public void testDocAndRootDocAreSame() throws IOException {
@@ -56,7 +56,12 @@ public class BatchDocumentParserContextTests extends MapperServiceTestCase {
     public void testMappingLookupIsInjected() throws IOException {
         MapperService ms = createMapperService(mapping(b -> b.startObject("host").field("type", "keyword").endObject()));
         SourceToParse source = new SourceToParse("id1", new BytesArray("{}"), XContentType.JSON);
-        BatchDocumentParserContext ctx = new BatchDocumentParserContext(ms.mappingLookup(), ms.parserContext(), source);
+        BatchDocumentParserContext ctx = new BatchDocumentParserContext(
+            ms.mappingLookup(),
+            ms.parserContext(),
+            source,
+            ms::parseStoredMappings
+        );
         assertSame(ms.mappingLookup(), ctx.mappingLookup());
     }
 

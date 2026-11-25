@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -20,7 +21,7 @@ import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import java.util.Map;
 import java.util.Optional;
 
-public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
+public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> {
 
     public static final String SETTINGS_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "settings.";
     /**
@@ -29,13 +30,24 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
      */
     public static final String VIEW_SETTINGS_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "view_settings";
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
+    /**
+     * The bounds of the {@code @timestamp} range the request filter asks for, with date math resolved against the query's now. Absent
+     * unless the filter has a range with both bounds. Logged as dates rather than as a length so that the length, the age of the data,
+     * or whether the range is in the past can all be derived.
+     */
+    public static final String TIME_RANGE_FILTER_FROM_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "time_range_filter.from";
+    public static final String TIME_RANGE_FILTER_TO_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "time_range_filter.to";
 
     @Override
-    public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(EsqlCaptureContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery())
             .field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
+        context.getRequestedTimeRange().ifPresent(range -> {
+            msg.field(TIME_RANGE_FILTER_FROM_FIELD, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(range.start()));
+            msg.field(TIME_RANGE_FILTER_TO_FIELD, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(range.end()));
+        });
         context.getQueryProfile().ifPresent(profile -> {
             for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
@@ -82,6 +94,9 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
             msg.field(PROFILE_PREFIX + "read_cpu_nanos", rollup.readCpuNanos());
             msg.field(PROFILE_PREFIX + "cpu_nanos", rollup.cpuNanos());
             msg.field(PROFILE_PREFIX + "driver_nanos", rollup.driverNanos());
+            msg.field(PROFILE_PREFIX + "search_load_nanos", rollup.searchLoad().loadNanos());
+            msg.field(PROFILE_PREFIX + "search_cpu_nanos", rollup.searchLoad().cpuNanos());
+            msg.field(PROFILE_PREFIX + "search_waiting_nanos", rollup.searchLoad().waitingNanos());
         });
         var clusters = context.getClusters();
         var remotes = context.getRemoteClusterAliases(clusters);

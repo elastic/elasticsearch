@@ -58,7 +58,7 @@ public final class RandomEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock boundBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (boundBlock.isNull(p)) {
           result.appendNull();
@@ -80,7 +80,7 @@ public final class RandomEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector boundVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int bound = boundVector.getInt(p);
         result.appendInt(p, Random.process(bound));

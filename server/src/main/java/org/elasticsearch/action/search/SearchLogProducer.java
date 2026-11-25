@@ -14,21 +14,25 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 
 import java.util.Arrays;
 import java.util.Optional;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 
-public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> {
+public class SearchLogProducer implements ActivityLogProducer<SearchCaptureContext> {
 
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
     public static final String QUERY_FIELD_HAS_AGGREGATIONS = ES_QUERY_FIELDS_PREFIX + "has_aggregations";
     public static final String QUERY_FIELD_SEARCH_HITS = ES_QUERY_FIELDS_PREFIX + "dsl.total_count";
     public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "dsl.total_count_partial";
+    public static final String QUERY_FIELD_SEARCH_LOAD = ES_QUERY_FIELDS_PREFIX + SearchLoadMetrics.LOAD_NANOS_KEY;
+    public static final String QUERY_FIELD_SEARCH_CPU = ES_QUERY_FIELDS_PREFIX + SearchLoadMetrics.CPU_NANOS_KEY;
+    public static final String QUERY_FIELD_SEARCH_WAITING = ES_QUERY_FIELDS_PREFIX + SearchLoadMetrics.WAITING_NANOS_KEY;
 
     @Override
-    public Optional<ESLogMessage> produce(SearchLogContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(SearchCaptureContext context, ActionLoggingFields additionalFields) {
         if (Arrays.equals(NEVER_MATCH, context.getIndexNames())) {
             // Exclude no-match pattern searches, there's not much use in them
             return Optional.empty();
@@ -46,6 +50,13 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
             if (totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
                 msg.field(QUERY_FIELD_SEARCH_HITS_GTE, true);
             }
+        }
+
+        var searchLoad = context.getSearchLoad();
+        if (searchLoad != null) {
+            msg.field(QUERY_FIELD_SEARCH_LOAD, searchLoad.loadNanos());
+            msg.field(QUERY_FIELD_SEARCH_CPU, searchLoad.cpuNanos());
+            msg.field(QUERY_FIELD_SEARCH_WAITING, searchLoad.waitingNanos());
         }
 
         var clusters = context.getClusters();

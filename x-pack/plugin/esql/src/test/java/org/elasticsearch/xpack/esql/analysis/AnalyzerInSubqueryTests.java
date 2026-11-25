@@ -9,34 +9,44 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -590,6 +600,182 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
 
     private void errorWithIncompatible(String query, Matcher<String> messageMatcher) {
         analyzer().addEmployees().addIndex("employees_incompatible", "mapping-default-incompatible.json").error(query, messageMatcher);
+    }
+
+    /**
+     * The subquery's STATS must not hide the union-typed fields of the main query from the cast that follows the IN.
+     */
+    public void testUnionTypeCastAfterInSubqueryWithStats() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastAfterInSubqueryIsNotLoadedBySubquery() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM employees | KEEP last_name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastAfterNotInSubqueryWithStats() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name NOT IN (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastAfterInSubqueryInDisjunctionWithStats() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name) OR id::keyword == "1"
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastsInsideAndAfterInSubqueryStayInTheirScope() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM union_index* | STATS c = COUNT(*) BY k = id::integer | EVAL k = k::keyword | KEEP k)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of("$$id$converted_to$integer"));
+    }
+
+    public void testUnionTypeCastAfterInSubqueryDoesNotWidenSubqueryKeep() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM union_index* | EVAL k = id::integer | KEEP name)
+            | EVAL id_string = id::keyword
+            """);
+
+        List<AbstractInSubqueryJoin> joins = new ArrayList<>();
+        plan.forEachDown(AbstractInSubqueryJoin.class, joins::add);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().right().output().stream().map(Attribute::name).toList(), equalTo(List.of("name")));
+    }
+
+    /**
+     * The second cast of {@code id} inside the subquery reuses the field the first cast created, so no new field is generated to
+     * carry through the {@code KEEP} between them. The reference above the {@code KEEP} must still be bound within the subquery.
+     */
+    public void testReusedUnionTypeCastInsideInSubqueryIsCarriedThroughKeep() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (
+                FROM union_index*
+                | EVAL a = id::integer
+                | KEEP id, name
+                | EVAL b = id::integer
+                | WHERE b > 0 AND name IN (FROM employees | KEEP last_name)
+                | KEEP name)
+            | EVAL id_string = id::keyword
+            """);
+
+        Failures failures = new Failures();
+        plan.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
+        assertThat(failures.toString(), failures.hasFailures(), equalTo(false));
+    }
+
+    // LET named subqueries are substituted into the plan before analysis, so an IN over a named subquery must scope union types like an
+    // inline one.
+
+    public void testUnionTypeCastAfterInLetBindingWithStats() {
+        LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
+            LET names = (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name);
+            FROM union_index*
+            | WHERE name IN (FROM names)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastAfterInLetBindingIsNotLoadedByBinding() {
+        LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
+            LET names = (FROM employees | KEEP last_name);
+            FROM union_index*
+            | WHERE name IN (FROM names)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastsInsideLetBindingAndAfterInStayInTheirScope() {
+        LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
+            LET ks = (FROM union_index* | STATS c = COUNT(*) BY k = id::integer | EVAL k = k::keyword | KEEP k);
+            FROM union_index*
+            | WHERE name IN (FROM ks)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of("$$id$converted_to$integer"));
+    }
+
+    /**
+     * Only possible with {@code LET}: the same subquery body is the source of both the main query and the IN subquery.
+     */
+    public void testUnionTypeCastAfterInWithLetBindingOnBothSides() {
+        LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
+            LET u = (FROM union_index* | KEEP id, name);
+            FROM u
+            | WHERE name IN (FROM u | STATS c = COUNT(*) BY name | KEEP name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    /**
+     * Resolves the {@code LET} named subqueries before view and IN-subquery resolution and analysis, as {@code EsqlSession} does.
+     */
+    private static LogicalPlan letQuery(TestAnalyzer analyzer, String query) {
+        assumeTrue("Requires LET", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        EsqlStatement statement = TEST_PARSER.createStatement(query);
+        LogicalPlan plan = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
+        return analyzer.buildAnalyzer().analyze(analyzer.resolveViewsAndInSubqueries(plan));
+    }
+
+    private static DataType outputType(LogicalPlan plan, String name) {
+        return plan.output().stream().filter(attribute -> attribute.name().equals(name)).findFirst().orElseThrow().dataType();
+    }
+
+    private static void assertConvertedFields(LogicalPlan plan, List<String> mainQueryFields, List<String> subqueryFields) {
+        List<AbstractInSubqueryJoin> joins = new ArrayList<>();
+        plan.forEachDown(AbstractInSubqueryJoin.class, joins::add);
+        assertThat(joins, hasSize(1));
+        assertThat(convertedFields(joins.getFirst().left()), equalTo(mainQueryFields));
+        assertThat(convertedFields(joins.getFirst().right()), equalTo(subqueryFields));
+    }
+
+    private static List<String> convertedFields(LogicalPlan plan) {
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat(relations, hasSize(1));
+        return relations.getFirst().output().stream().map(Attribute::name).filter(name -> name.contains("$converted_to$")).toList();
     }
 
     private static IndexResolution unionIndexResolution() {

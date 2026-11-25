@@ -29,6 +29,7 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
@@ -84,6 +85,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -117,11 +119,13 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static software.amazon.awssdk.http.HttpStatusCode.REQUEST_TIMEOUT;
 import static software.amazon.awssdk.http.HttpStatusCode.SERVICE_UNAVAILABLE;
@@ -958,6 +962,64 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(expectedNumberOfBatches));
     }
 
+    /**
+     * Deleting a container lists its contents and deletes exactly the listed blobs: the container's own path is not a blob, so it must
+     * not be included in any delete request.
+     */
+    public void testDeleteContainerDeletesOnlyListedBlobs() throws IOException {
+        final var containerPath = BlobPath.EMPTY.add(randomIdentifier());
+        final var containerKey = containerPath.buildAsString();
+        final var blobContainer = createBlobContainer(0, null, null, true, null, null, null, containerPath);
+
+        final var keys = randomList(1, 10, () -> containerKey + randomIdentifier());
+        final var firstPageSize = between(0, keys.size()); // 0 means first page is not truncated
+        final var deletedKeys = Collections.synchronizedList(new ArrayList<>());
+
+        @SuppressForbidden(reason = "use a http server")
+        class ListAndDeleteHandler implements HttpHandler {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                final String responseBody;
+                if (isMultiDeleteRequest(exchange)) {
+                    final var requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                    final var result = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><DeleteResult>");
+                    Pattern.compile("<Key>([^<]*)</Key>").matcher(requestBody).results().forEach(match -> {
+                        deletedKeys.add(match.group(1));
+                        result.append("<Deleted><Key>").append(match.group(1)).append("</Key></Deleted>");
+                    });
+                    responseBody = result.append("</DeleteResult>").toString();
+                } else {
+                    final var result = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><ListBucketResult>");
+                    final var rawQuery = exchange.getRequestURI().getRawQuery();
+                    assertThat(rawQuery, not(containsString("delimiter")));
+                    final List<String> pageKeys;
+                    if (firstPageSize == 0 || rawQuery.contains("continuation-token=")) {
+                        result.append("<IsTruncated>false</IsTruncated>");
+                        pageKeys = keys.subList(firstPageSize, keys.size());
+                    } else {
+                        result.append("<IsTruncated>true</IsTruncated><NextContinuationToken>page-2</NextContinuationToken>");
+                        pageKeys = keys.subList(0, firstPageSize);
+                    }
+                    for (final var key : pageKeys) {
+                        result.append("<Contents><Key>").append(key).append("</Key><Size>1</Size></Contents>");
+                    }
+                    responseBody = result.append("</ListBucketResult>").toString();
+                }
+                final byte[] response = responseBody.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                exchange.getResponseBody().write(response);
+                exchange.close();
+            }
+        }
+        httpServer.createContext("/", new ListAndDeleteHandler());
+
+        blobContainer.delete(randomPurpose());
+
+        assertThat(deletedKeys, equalTo(keys));
+        assertThat(deletedKeys, not(hasItem(containerKey)));
+    }
+
     public void testDeleteObjectsOmitsContentMd5ByDefault() throws IOException {
         final var deleteRequest = sendDeleteRequest(false);
         assertNull(deleteRequest.contentMd5());
@@ -1561,14 +1623,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
 
             // Read the rest of the stream, it should throw because the contents changed
-            String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
+            var exception = assertThrows(BlobVersionMismatchException.class, () -> readFully(inputStream));
             assertThat(
-                message,
+                exception.getMessage(),
+                matchesRegex("blob \\[" + container.path().buildAsString() + key + "] version \\[\\S+] is no longer available: .*")
+            );
+            assertThat(
+                exception.getCause().getMessage(),
                 matchesRegex(
-                    "Blob object \\["
-                        + container.path().buildAsString()
-                        + key
-                        + "] with ETag \\[\\S+] unavailable on resume: At least one of the pre-conditions you specified did not hold "
+                    "At least one of the pre-conditions you specified did not hold "
                         + "\\(Service: S3, Status Code: 412, Request ID: test-request-id\\) \\(SDK Attempt Count: 1\\)"
                 )
             );

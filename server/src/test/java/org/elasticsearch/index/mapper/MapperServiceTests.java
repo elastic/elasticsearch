@@ -25,6 +25,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -32,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +56,22 @@ public class MapperServiceTests extends MapperServiceTestCase {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new FeatureProbeFieldMapper.Plugin());
+    }
+
+    /**
+     * A mapping restored from a legacy index can carry parameters the parser accepts and ignores, such as {@code include_in_all}.
+     * What the mapper service keeps as the mapping source is written from what the builder holds, so they are gone from it.
+     */
+    public void testMappingSourceDropsParametersTheParserIgnores() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        mapperService.merge("_doc", new CompressedXContent("""
+            { "_doc": { "include_in_all": true, "properties": { "field": { "type": "keyword" } } } }
+            """), MergeReason.MAPPING_RECOVERY);
+
+        String source = mapperService.documentMapper().mappingSource().string();
+        assertThat(source, not(containsString("include_in_all")));
+        assertThat(source, containsString("keyword"));
+        assertWarnings("[include_in_all] is deprecated, the _all field have been removed in this version");
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
@@ -126,6 +144,149 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNull(lookup.isPassthrough("keyword"));
         assertNull(lookup.isPassthrough("host.name"));
         assertNull(lookup.isPassthrough("unknown"));
+    }
+
+    /** A field with {@code multi_value=false}, including with {@code on_failure=ignore}, is statically single-valued. */
+    public void testIsSingleValueGuaranteed() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
+                b.startObject(type + "_single").field("type", type).field("multi_value", false);
+                b.endObject();
+                b.startObject(type + "_multi").field("type", type).endObject();
+            }
+            b.startObject("keyword_ignore").field("type", "keyword").field("multi_value", false).field("on_failure", "ignore").endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
+            assertTrue(type, isStaticallySingleValued(lookup, type + "_single"));
+            assertFalse(type, isStaticallySingleValued(lookup, type + "_multi"));
+        }
+        // MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue checks that block loaders do not expose the diverted
+        // value.
+        assertTrue(isStaticallySingleValued(lookup, "keyword_ignore"));
+        assertFalse(isStaticallySingleValued(lookup, "unknown"));
+
+        MapperService standard = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
+        assertFalse(isStaticallySingleValued(standard.mappingLookup(), "field"));
+    }
+
+    private static boolean isStaticallySingleValued(MappingLookup lookup, String field) {
+        MappedFieldType fieldType = lookup.getFieldType(field);
+        return fieldType != null && fieldType.isStaticallySingleValued();
+    }
+
+    public void testIsSingleValueGuaranteedFromIndexSetting() throws IOException {
+        Settings columnarSingleValue = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+        MapperService mapperService = createMapperService(columnarSingleValue, mapping(b -> {
+            b.startObject("plain").field("type", "keyword").endObject();
+            b.startObject("override").field("type", "keyword").field("multi_value", true).endObject();
+        }));
+        assertTrue(isStaticallySingleValued(mapperService.mappingLookup(), "plain"));
+        assertFalse(isStaticallySingleValued(mapperService.mappingLookup(), "override"));
+    }
+
+    /**
+     * {@code multi_value=false} is only accepted in strict columnar index modes, which reject {@code copy_to}, so no {@code copy_to}
+     * can feed such a field. If that changes, test that a {@code copy_to} into a {@code multi_value=false} field rejects a second
+     * value, because the single-value guarantee relies on it.
+     */
+    public void testMultiValueFalseCannotBeCombinedWithCopyTo() {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(columnar, mapping(b -> {
+            b.startObject("src").field("type", "keyword").field("copy_to", "target").endObject();
+            b.startObject("target").field("type", "keyword").field("multi_value", false).endObject();
+        })));
+        assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [src]"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("target").field("type", "keyword").field("multi_value", false).endObject();
+        })));
+        assertThat(e.getMessage(), containsString("parameter [multi_value] can only be used in columnar index modes"));
+    }
+
+    /**
+     * An array of objects gives a field one value per object, so a {@code multi_value=false} field rejects it, for object and nested
+     * parents.
+     */
+    public void testMultiValueFalseRejectsArrayOfObjects() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        for (String parentType : List.of("object", "nested")) {
+            DocumentMapper mapper = createMapperService(columnar, mapping(b -> {
+                b.startObject("parent").field("type", parentType).startObject("properties");
+                b.startObject("child").field("type", "keyword").field("multi_value", false).endObject();
+                b.endObject().endObject();
+            })).documentMapper();
+
+            mapper.parse(source(b -> b.startObject("parent").field("child", "1").endObject()));
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+                b.startArray("parent");
+                b.startObject().field("child", "1").endObject();
+                b.startObject().field("child", "2").endObject();
+                b.endArray();
+            })));
+            assertThat(
+                parentType,
+                e.getCause().getMessage(),
+                containsString("Field [parent.child] is configured with [multi_value=false] but encountered multiple values")
+            );
+        }
+    }
+
+    /**
+     * An alias has the guarantee of its target: it is reported when the target is, and not when the target is not.
+     */
+    public void testStaticallySingleValuedThroughAlias() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            b.startObject("single").field("type", "keyword").field("multi_value", false).endObject();
+            b.startObject("multi").field("type", "keyword").endObject();
+            b.startObject("single_alias").field("type", "alias").field("path", "single").endObject();
+            b.startObject("multi_alias").field("type", "alias").field("path", "multi").endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertTrue(isStaticallySingleValued(lookup, "single_alias"));
+        assertFalse(isStaticallySingleValued(lookup, "multi_alias"));
+    }
+
+    /**
+     * A runtime field in a field caps request replaces the field type of the mapped field with the same name. Its values do not
+     * come from the mapper, so a field type that is not the mapper's own is not guaranteed, even under the same name.
+     */
+    public void testFieldTypeOfShadowingRuntimeFieldIsNotStaticallySingleValued() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(
+            columnar,
+            mapping(b -> b.startObject("field").field("type", "keyword").field("multi_value", false).endObject())
+        );
+        MappingLookup lookup = mapperService.mappingLookup();
+        MappedFieldType mapped = lookup.getFieldType("field");
+        assertTrue(mapped.isStaticallySingleValued());
+
+        MappedFieldType shadowing = new KeywordFieldMapper.KeywordFieldType("field");
+        assertNotSame(mapped, shadowing);
+        assertFalse(shadowing.isStaticallySingleValued());
+    }
+
+    /**
+     * A multi-field reads its own {@code multi_value} parameter, so a single-valued parent does not make its sub-field single-valued.
+     */
+    public void testSingleValueGuaranteeOfMultiField() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            b.startObject("parent").field("type", "keyword").field("multi_value", false);
+            b.startObject("fields");
+            b.startObject("plain").field("type", "keyword").endObject();
+            b.startObject("single").field("type", "keyword").field("multi_value", false).endObject();
+            b.endObject().endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertTrue(isStaticallySingleValued(lookup, "parent"));
+        assertFalse(isStaticallySingleValued(lookup, "parent.plain"));
+        assertTrue(isStaticallySingleValued(lookup, "parent.single"));
     }
 
     public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {
@@ -593,7 +754,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 boolean isSliceOnlyField = builtIn.equals(SliceKeyFieldMapper.NAME);
                 boolean isSliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
                 boolean isAbsentUnmappedSink = builtIn.equals(FlattenedFieldMapper.UNMAPPED_SINK_NAME)
-                    && mapperService.getIndexSettings().isFlattenedUnmappedFieldsEnabled() == false;
+                    && UnmappedSinkFieldMapper.isEnabled(mapperService.getIndexSettings()) == false;
 
                 if ((isTimeSeriesField && isTimeSeriesMode == false)
                     || (isSliceOnlyField && isSliceEnabled == false)
@@ -726,7 +887,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         // check that with the resulting mappings a new document has the previously merged field indexed properly
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("""
@@ -1071,7 +1232,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
     }
 
     public void testSameTypeMerge() throws IOException {
@@ -1173,7 +1334,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
     }
 
     public void testNestedContradictingProperties() throws IOException {
@@ -1358,7 +1519,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         mapperService = createMapperService(mapping(b -> {}));
         mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
@@ -1489,7 +1650,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
     }
 
     public void testPropertiesFieldSingleChildMerge() throws IOException {
@@ -1543,7 +1704,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         Mapper propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
         assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
@@ -1572,7 +1733,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
         assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
@@ -1662,7 +1823,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""", Strings.toString(parsedMapping(mapperService), true, true));
 
         Mapper propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
         assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
@@ -2240,12 +2401,12 @@ public class MapperServiceTests extends MapperServiceTestCase {
         final MapperService mapperServiceBulk = createMapperService(mapping(b -> {}));
         // simulates multiple component templates being merged in a composable index template
         mapperServiceBulk.merge("_doc", mappingSources, MergeReason.INDEX_TEMPLATE);
-        assertEquals(expected, Strings.toString(mapperServiceBulk.documentMapper().mapping(), true, true));
+        assertEquals(expected, Strings.toString(parsedMapping(mapperServiceBulk), true, true));
 
         MapperService mapperServiceSequential = createMapperService(mapping(b -> {}));
         // simulates a series of mapping updates
         mappingSources.forEach(m -> mapperServiceSequential.merge("_doc", m, MergeReason.INDEX_TEMPLATE));
-        assertEquals(expected, Strings.toString(mapperServiceSequential.documentMapper().mapping(), true, true));
+        assertEquals(expected, Strings.toString(parsedMapping(mapperServiceSequential), true, true));
     }
 
     public void testColumnarModesRejectSyntheticSourceKeepOnField() {
@@ -2327,5 +2488,249 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 )
             );
         }
+    }
+
+    public void testRecoveredMappingIgnoresDepthLimitLoweredAfterwards() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(mapping(b -> {
+            b.startObject("obj").startObject("properties");
+            b.startObject("leaf").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        })));
+
+        DocumentMapper recovered = mapperService.merge("_doc", source, MergeReason.MAPPING_RECOVERY);
+        assertNotNull(recovered.mappers().getMapper("obj.leaf"));
+    }
+
+    private static XContentBuilder deepDynamicTemplateMapping(int depth) throws IOException {
+        return topMapping(b -> {
+            b.startArray("dynamic_templates").startObject().startObject("deep");
+            b.field("match", "deep_*");
+            b.startObject("mapping").field("type", "object");
+            for (int i = 0; i < depth; i++) {
+                b.startObject("properties").startObject("o" + i).field("type", "object");
+            }
+            for (int i = 0; i < depth; i++) {
+                b.endObject().endObject();
+            }
+            b.endObject().endObject().endObject().endArray();
+        });
+    }
+
+    public void testDynamicTemplateDepthLimitEnforcedOnUpdate() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        expectThrows(MapperParsingException.class, () -> mapperService.merge("_doc", source, MergeReason.MAPPING_UPDATE));
+    }
+
+    public void testDynamicTemplateDepthLimitEnforcedOnIndexTemplate() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        expectThrows(MapperParsingException.class, () -> mapperService.merge("_doc", source, MergeReason.INDEX_TEMPLATE));
+    }
+
+    public void testDynamicTemplateDepthLimitIgnoredOnRecovery() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        assertNotNull(mapperService.merge("_doc", source, MergeReason.MAPPING_RECOVERY));
+    }
+
+    public void testDynamicTemplateAtDocumentTimeUsesLatestNestedLimit() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates").startObject().startObject("nested");
+            b.field("match", "nested_*");
+            b.startObject("mapping").field("type", "nested").endObject();
+            b.endObject().endObject().endArray();
+        }));
+        mapperService.documentMapper().parse(source(b -> b.startObject("nested_a").endObject()));
+
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        Settings lowered = Settings.builder()
+            .put(indexSettings.getSettings())
+            .put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0)
+            .build();
+        assertTrue(indexSettings.updateIndexMetadata(IndexMetadata.builder(indexSettings.getIndexMetadata()).settings(lowered).build()));
+
+        expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.startObject("nested_b").endObject()))
+        );
+    }
+
+    private static CompressedXContent compressed(String json) throws IOException {
+        return CompressedXContent.fromJSON(json);
+    }
+
+    private static String randomAdditiveUpdate() {
+        String parent = randomBoolean() ? "" : "obj" + randomIntBetween(0, 3) + ".";
+        String type = randomFrom("keyword", "long", "text", "boolean");
+        String name = parent + "f" + randomIntBetween(0, 12);
+        return "{\"properties\":{\"" + name + "\":{\"type\":\"" + type + "\"}}}";
+    }
+
+    public void testMergeDynamicMappingUpdatesEqualsSequentialMerge() throws IOException {
+        for (int iter = 0; iter < 5; iter++) {
+            MapperService sequential = createMapperService(mapping(b -> b.startObject("seed").field("type", "keyword").endObject()));
+            MapperService batched = createMapperService(mapping(b -> b.startObject("seed").field("type", "keyword").endObject()));
+            List<CompressedXContent> sources = new ArrayList<>();
+            for (int i = randomIntBetween(1, 15); i > 0; i--) {
+                sources.add(compressed(randomAdditiveUpdate()));
+            }
+            for (CompressedXContent source : sources) {
+                sequential.merge(MapperService.SINGLE_MAPPING_NAME, source, MergeReason.MAPPING_AUTO_UPDATE);
+            }
+            DocumentMapper result = batched.mergeDynamicMappingUpdates(sources);
+            assertSame(result, batched.documentMapper());
+            assertEquals(sequential.documentMapper().mappingSource(), batched.documentMapper().mappingSource());
+            Map<String, MappedFieldType> expected = sequential.mappingLookup().fieldTypesLookup().getFullNameToFieldType();
+            Map<String, MappedFieldType> actual = batched.mappingLookup().fieldTypesLookup().getFullNameToFieldType();
+            assertEquals(expected.keySet(), actual.keySet());
+        }
+    }
+
+    public void testMergeDynamicMappingUpdatesNoopGroupPreservesMapping() throws IOException {
+        MapperService service = createMapperService(mapping(b -> b.startObject("existing").field("type", "keyword").endObject()));
+        CompressedXContent before = service.documentMapper().mappingSource();
+        DocumentMapper result = service.mergeDynamicMappingUpdates(
+            List.of(
+                compressed("{\"properties\":{\"existing\":{\"type\":\"keyword\"}}}"),
+                compressed("{\"properties\":{\"existing\":{\"type\":\"long\"}}}")
+            )
+        );
+        assertSame(result, service.documentMapper());
+        assertEquals(before, result.mappingSource());
+        assertEquals("keyword", service.fieldType("existing").typeName());
+    }
+
+    public void testMergeDynamicMappingUpdatesFieldTypeConflictFirstWinsUnderAutoUpdate() throws IOException {
+        MapperService sequential = createMapperService(mapping(b -> b.startObject("existing").field("type", "long").endObject()));
+        MapperService batched = createMapperService(mapping(b -> b.startObject("existing").field("type", "long").endObject()));
+        List<CompressedXContent> sources = List.of(
+            compressed("{\"properties\":{\"existing\":{\"type\":\"keyword\"},\"fresh\":{\"type\":\"long\"}}}"),
+            compressed("{\"properties\":{\"fresh\":{\"type\":\"keyword\"}}}")
+        );
+        for (CompressedXContent source : sources) {
+            sequential.merge(MapperService.SINGLE_MAPPING_NAME, source, MergeReason.MAPPING_AUTO_UPDATE);
+        }
+        batched.mergeDynamicMappingUpdates(sources);
+        assertEquals(sequential.documentMapper().mappingSource(), batched.documentMapper().mappingSource());
+        assertEquals("long", batched.fieldType("existing").typeName());
+        assertEquals("long", batched.fieldType("fresh").typeName());
+    }
+
+    public void testMergeDynamicMappingUpdatesObjectVsFieldConflictLeavesServiceUnchanged() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("existing").field("type", "keyword").endObject()));
+        CompressedXContent before = mapperService.documentMapper().mappingSource();
+        List<CompressedXContent> sources = List.of(
+            compressed("{\"properties\":{\"added\":{\"type\":\"long\"}}}"),
+            compressed("{\"properties\":{\"existing\":{\"type\":\"object\",\"properties\":{\"sub\":{\"type\":\"long\"}}}}}")
+        );
+        expectThrows(IllegalArgumentException.class, () -> mapperService.mergeDynamicMappingUpdates(sources));
+        assertEquals(before, mapperService.documentMapper().mappingSource());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sources.get(1), MergeReason.MAPPING_AUTO_UPDATE)
+        );
+    }
+
+    public void testMergeDynamicMappingUpdatesTotalFieldsLimitLeavesServiceUnchanged() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> b.startObject("a").field("type", "long").endObject()));
+        CompressedXContent before = mapperService.documentMapper().mappingSource();
+        List<CompressedXContent> sources = List.of(
+            compressed("{\"properties\":{\"b\":{\"type\":\"long\"}}}"),
+            compressed("{\"properties\":{\"c\":{\"type\":\"long\"}}}"),
+            compressed("{\"properties\":{\"d\":{\"type\":\"long\"}}}")
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapperService.mergeDynamicMappingUpdates(sources));
+        assertThat(e.getMessage(), containsString("Limit of total fields [3] has been exceeded"));
+        assertEquals(before, mapperService.documentMapper().mappingSource());
+    }
+
+    public void testMergeDynamicMappingUpdatesInvalidSourceLeavesServiceUnchanged() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("a").field("type", "long").endObject()));
+        CompressedXContent before = mapperService.documentMapper().mappingSource();
+        List<CompressedXContent> sources = List.of(
+            compressed("{\"properties\":{\"b\":{\"type\":\"long\"}}}"),
+            compressed("{\"properties\":{\"c\":{\"type\":\"no_such_type\"}}}"),
+            compressed("{\"properties\":{\"d\":{\"type\":\"long\"}}}")
+        );
+        expectThrows(MapperParsingException.class, () -> mapperService.mergeDynamicMappingUpdates(sources));
+        assertEquals(before, mapperService.documentMapper().mappingSource());
+    }
+
+    public void testMergeDynamicMappingUpdatesWithoutExistingMapping() throws IOException {
+        MapperService sequential = createMapperService(getVersion(), Settings.EMPTY, () -> true);
+        MapperService batched = createMapperService(getVersion(), Settings.EMPTY, () -> true);
+        assertNull(batched.documentMapper());
+        List<CompressedXContent> sources = List.of(
+            compressed("{\"properties\":{\"a\":{\"type\":\"long\"}}}"),
+            compressed("{\"properties\":{\"b\":{\"type\":\"keyword\"}}}")
+        );
+        for (CompressedXContent source : sources) {
+            sequential.merge(MapperService.SINGLE_MAPPING_NAME, source, MergeReason.MAPPING_AUTO_UPDATE);
+        }
+        batched.mergeDynamicMappingUpdates(sources);
+        assertEquals(sequential.documentMapper().mappingSource(), batched.documentMapper().mappingSource());
+        assertEquals("long", batched.fieldType("a").typeName());
+        assertEquals("keyword", batched.fieldType("b").typeName());
+    }
+
+    public void testMergeDynamicMappingUpdatesNestedFieldsLimitWithoutExistingMapping() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 2).build();
+        MapperService mapperService = createMapperService(getVersion(), settings, () -> true);
+        List<CompressedXContent> sources = List.of(
+            compressed("{\"properties\":{\"n1\":{\"type\":\"nested\"},\"n2\":{\"type\":\"nested\"}}}"),
+            compressed("{\"properties\":{\"n3\":{\"type\":\"nested\"},\"n4\":{\"type\":\"nested\"}}}")
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapperService.mergeDynamicMappingUpdates(sources));
+        assertThat(e.getMessage(), containsString("Limit of nested fields [2] has been exceeded"));
+        assertNull(mapperService.documentMapper());
+    }
+
+    public void testMergeDynamicMappingUpdatesCountsNestedDescendants() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 1).build();
+        List<CompressedXContent> sources = List.of(
+            compressed("{\"properties\":{\"o\":{\"properties\":{\"n\":{\"type\":\"nested\"}}}}}"),
+            compressed("{\"properties\":{\"n2\":{\"type\":\"nested\"}}}")
+        );
+        for (boolean existingMapping : List.of(false, true)) {
+            MapperService batched = createMapperService(getVersion(), settings, () -> true);
+            MapperService sequential = createMapperService(getVersion(), settings, () -> true);
+            if (existingMapping) {
+                CompressedXContent initial = compressed("{\"properties\":{\"seed\":{\"type\":\"keyword\"}}}");
+                batched.merge(MapperService.SINGLE_MAPPING_NAME, initial, MergeReason.MAPPING_UPDATE);
+                sequential.merge(MapperService.SINGLE_MAPPING_NAME, initial, MergeReason.MAPPING_UPDATE);
+            }
+            DocumentMapper before = batched.documentMapper();
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> batched.mergeDynamicMappingUpdates(sources));
+            assertThat(e.getMessage(), containsString("Limit of nested fields [1] has been exceeded"));
+            assertSame(before, batched.documentMapper());
+
+            sequential.merge(MapperService.SINGLE_MAPPING_NAME, sources.getFirst(), MergeReason.MAPPING_AUTO_UPDATE);
+            expectThrows(
+                MapperParsingException.class,
+                () -> sequential.merge(MapperService.SINGLE_MAPPING_NAME, sources.getLast(), MergeReason.MAPPING_AUTO_UPDATE)
+            );
+            assertEquals(1, sequential.mappingLookup().nestedLookup().getNestedMappers().size());
+        }
+    }
+
+    public void testRecoveryIgnoresNestedFieldsLimit() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 1).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> b.startObject("n0").field("type", "nested").endObject()));
+        List<CompressedXContent> sources = List.of(
+            compressed("{\"properties\":{\"n1\":{\"type\":\"nested\"}}}"),
+            compressed("{\"properties\":{\"n2\":{\"type\":\"nested\"}}}")
+        );
+        for (CompressedXContent source : sources) {
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, source, MergeReason.MAPPING_RECOVERY);
+        }
+        assertTrue(mapperService.mappingLookup().objectMappers().containsKey("n1"));
+        assertTrue(mapperService.mappingLookup().objectMappers().containsKey("n2"));
     }
 }

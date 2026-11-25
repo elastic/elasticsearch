@@ -91,6 +91,19 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         );
     }
 
+    public void testNanosStringValues() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date_nanos").endObject()),
+            columnarSettings(),
+            batch(
+                "ISO timestamp and quoted epoch millis",
+                1L,
+                doc("d1", 1L, "{\"f\":\"2024-01-15T12:00:00.123456789+02:00\"}"),
+                doc("d2", 2L, "{\"f\":\"1700000000123\"}")
+            )
+        );
+    }
+
     public void testLongEpochMillis() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "date").endObject()),
@@ -147,6 +160,15 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
                 doc("d2", 2L, "{}"),
                 doc("d3", 3L, "{\"f\":\"2024-12-31\"}")
             )
+        );
+    }
+
+    public void testOverlappingStringFormatsUseFirstMatch() throws IOException {
+        // The first format reads this as February 3, and the second as March 2.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("format", "uuuu-dd-MM||yyyy-MM-dd").endObject()),
+            columnarSettings(),
+            batch("overlapping string formats", 1L, doc("d1", 1L, "{\"f\":\"2024-03-02\"}"))
         );
     }
 
@@ -448,6 +470,18 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         );
         assertThat(ex.getCause().getMessage(), containsString("encoded offsets of field [f.offsets] are too large to store"));
         assertThat(ex.getCause().getMessage(), containsString("cannot be preserved in [_ignored_source]"));
+    }
+
+    /**
+     * A nullability=false field missing from a document goes in _ignored under on_failure=ignore, as on the row path, and the batch path
+     * keeps the batch. A null would pack the column as a UNION, which this mapper refuses, so such a batch falls back instead.
+     */
+    public void testRequiredFieldMissingIsIgnored() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch("missing", 1L, doc("d1", 1L, "{\"f\":" + randomLongBetween(0, 4102444800000L) + "}"), doc("d2", 2L, "{}"))
+        );
     }
 
     public void testDateParentWithKeywordSubField() throws IOException {

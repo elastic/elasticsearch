@@ -26,4 +26,5 @@ public class PlanTimeProfileTests extends ESTestCase {
                 {"logical_optimization_nanos":1,"physical_optimization_nanos":2,"reduction_nanos":3}"""));
         }
     }
+
 }

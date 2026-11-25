@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -352,7 +353,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
 
     /**
      * All view subplans in a single {@link BranchPlan} are wrapped independently, each bound against that subplan's
-     * own output schema. A field present in one view but absent in another binds to {@code NULL} in the second.
+     * own output schema. A field present in one view but absent in another binds to the second's null fill of the merge column.
      */
     public void testMultipleViewSubplansAreEachWrapped() {
         Attribute y = attr("y", DataType.INTEGER);
@@ -371,8 +372,51 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
 
         // viewA has field y → bound to the attribute → real filter
         assertThat(viewChild(result, "viewA"), instanceOf(Filter.class));
-        // viewB does not have field y → bound to NULL → FALSE under term → still a Filter (non-trivial condition)
+        // viewB does not have field y → bound to its null fill of y → still a Filter (non-trivial condition)
         assertThat(viewChild(result, "viewB"), instanceOf(Filter.class));
+    }
+
+    /**
+     * A view branch that does not produce one of the merge's columns is filtered as the merge will align it: the field binds to a
+     * null fill typed like the merge column, which the rewrite adds below the {@link Filter} so the condition has a producer. Binding
+     * to the typed fill rather than an untyped {@code NULL} keeps the type-dependent translation decisions the same whether the
+     * branch is already aligned or not.
+     */
+    public void testFieldMissingFromViewBranchBindsToTypedNullFill() {
+        Attribute y = attr("y", DataType.INTEGER);
+        Attribute z = attr("z", DataType.LONG);
+        LogicalPlan view = viewSubplan("myView", y);
+        LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
+        map.put("myView", view);
+        BranchPlan vua = new BranchPlan(Source.EMPTY, map, Map.of("myView", BranchIdentity.view("myView")), List.of(y, z));
+
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("z", 42), CONFIG, CURRENT);
+
+        Filter filter = as(viewChild(result, "myView"), Filter.class);
+        Eval fills = as(filter.child(), Eval.class);
+        assertThat(fills.child(), sameInstance(view));
+        assertThat(fills.fields().size(), equalTo(1));
+        Alias fill = fills.fields().getFirst();
+        assertThat(fill.name(), equalTo("z"));
+        assertThat(fill.child(), equalTo(new Literal(Source.EMPTY, null, DataType.LONG)));
+        MvContains condition = as(filter.condition(), MvContains.class);
+        assertThat(condition.children().get(0), equalTo(fill.toAttribute()));
+        assertThat(((BranchPlan) result).output(), equalTo(vua.output()));
+    }
+
+    /**
+     * A view branch that does not produce one of the merge's columns is left alone when the filter does not need to be installed.
+     */
+    public void testMatchAllFilterLeavesUnalignedViewBranchAlone() {
+        Attribute y = attr("y", DataType.INTEGER);
+        Attribute z = attr("z", DataType.LONG);
+        LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
+        map.put("myView", viewSubplan("myView", y));
+        BranchPlan vua = new BranchPlan(Source.EMPTY, map, Map.of("myView", BranchIdentity.view("myView")), List.of(y, z));
+
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.matchAllQuery(), CONFIG, CURRENT);
+
+        assertThat(result, sameInstance(vua));
     }
 
     // --- unsupported constructs are dropped with a warning ---

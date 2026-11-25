@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.Unit;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -33,13 +35,14 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 
-public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport {
+public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport, UnitAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
     public static final String OP_NAME = "Add";
 
@@ -208,13 +211,13 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
-    static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
+    public static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
         return asMillis(asDateTime(datetime, zoneId).plus(temporalAmount));
     }
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
-    static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
+    public static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
         try {
             return DateUtils.toLong(Instant.from(asDateTime(DateUtils.toInstant(dateNanos), zoneId).plus(temporalAmount)));
@@ -271,4 +274,9 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Add::addDenseVectorElements, OP_NAME);
         }
     };
+
+    @Override
+    public Unit unit(Function<Expression, Unit> unitOf) {
+        return Unit.sameUnit(left(), right(), unitOf);
+    }
 }

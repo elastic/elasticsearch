@@ -826,6 +826,7 @@ public class RecoverySourceHandler {
                 requestFuture.addListener(sendRequestListener);
 
                 trackOutstandingRequest(requestFuture);
+                // restoreFileFromSnapshot never throws and always completes its listener
                 recoveryTarget.restoreFileFromSnapshot(
                     snapshotFilesToRecover.repository(),
                     snapshotFilesToRecover.indexId(),

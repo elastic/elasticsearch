@@ -34,8 +34,10 @@ import java.util.List;
  * predicate and builds row ranges from surviving pages. Logical operators compose these
  * ranges via set operations: AND → intersect, OR → union. The logical {@code NOT}
  * conservatively returns all rows because complement of page-level ranges would drop rows
- * from mixed pages. Leaf {@code NotEq} is handled directly: pages with min == max == value
- * can be pruned because every row on such a page fails {@code != value}.
+ * from mixed pages. Leaf {@code NotEq} is handled directly for non-DOUBLE columns: pages
+ * with min == max == value can be pruned because every row on such a page fails
+ * {@code != value}. DOUBLE pages are never pruned that way: Parquet min/max omit NaN, so
+ * a {@code 5.0..5.0} page can still hold a NaN row that satisfies {@code != 5.0}.
  *
  * <p>Comparisons never use {@link Comparable#compareTo} directly: for an unsigned physical
  * column (e.g. a Parquet {@code uint32} widened to ESQL {@code LONG} — ),
@@ -55,6 +57,18 @@ import java.util.List;
  * pages with partial matches.
  */
 final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowRanges> {
+
+    /**
+     * Page min/max for DOUBLE must treat {@code -0.0} and {@code 0.0} as equal, matching ES|QL's
+     * IEEE operators. {@link Double#compare} ranks {@code -0.0} below {@code 0.0}, which would
+     * prune a {@code -0.0..-0.0} page for {@code == 0.0} and {@code >= 0.0}.
+     */
+    private static final Comparator<Double> IEEE_DOUBLE_BOUNDS = (a, b) -> {
+        if (a == 0.0 && b == 0.0) {
+            return 0;
+        }
+        return Double.compare(a, b);
+    };
 
     private final PreloadedRowGroupMetadata metadata;
     private final int rowGroupOrdinal;
@@ -106,6 +120,12 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
     public <T extends Comparable<T>> RowRanges visit(Operators.NotEq<T> notEq) {
         T value = notEq.getValue();
         if (value == null) {
+            return all();
+        }
+        // Parquet min/max skip NaN. A DOUBLE page with min == max == literal can still hold
+        // NaN rows, and NaN != literal is true. Pruning it would drop those rows; keep every
+        // DOUBLE page and let late-mat / FilterExec drop the rest.
+        if (value instanceof Double) {
             return all();
         }
         // A page survives NotEq(value) unless every non-null value on the page equals `value`,
@@ -282,6 +302,9 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
         }
         if (unsigned && columnType == Long.class) {
             return (Comparator<T>) (Comparator<Long>) Long::compareUnsigned;
+        }
+        if (columnType == Double.class) {
+            return (Comparator<T>) IEEE_DOUBLE_BOUNDS;
         }
         return Comparator.naturalOrder();
     }

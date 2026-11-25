@@ -27,11 +27,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1110,6 +1114,36 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     public void testShouldRetryShardRestoringException() {
         // Its FORBIDDEN status must not be treated as fatal: the shard becomes available once the restore completes.
         assertTrue(ShardFollowNodeTask.shouldRetry(new ShardRestoringException("leader_index", randomUUID())));
+    }
+
+    /**
+     * Failures that mean the remote cluster cannot currently be reached are retried, including a DNS failure while resolving a
+     * configured seed or proxy address.
+     */
+    public void testShouldRetryRemoteUnavailableException() {
+        final String remoteCluster = "leader";
+        assertTrue(ShardFollowNodeTask.shouldRetry(new NoSuchRemoteClusterException(remoteCluster)));
+        assertTrue(ShardFollowNodeTask.shouldRetry(new NoSeedNodeLeftException("no seed node left for cluster: [" + remoteCluster + "]")));
+        assertTrue(ShardFollowNodeTask.shouldRetry(new ConnectTransportException(null, "unable to connect to [" + remoteCluster + "]")));
+        assertTrue(
+            ShardFollowNodeTask.shouldRetry(
+                new IllegalArgumentException("unknown host [" + remoteCluster + "]", new UnknownHostException(remoteCluster))
+            )
+        );
+        assertTrue(
+            ShardFollowNodeTask.shouldRetry(
+                new ElasticsearchException(
+                    new IllegalArgumentException("unknown host [" + remoteCluster + "]", new UnknownHostException(remoteCluster))
+                )
+            )
+        );
+        assertTrue(
+            ShardFollowNodeTask.shouldRetry(
+                new IllegalStateException("Unable to open any connections to remote cluster [" + remoteCluster + "]")
+            )
+        );
+        // A different illegal-argument failure is still fatal.
+        assertFalse(ShardFollowNodeTask.shouldRetry(new IllegalArgumentException("failed to parse port")));
     }
 
     public void testComputeDelay() {

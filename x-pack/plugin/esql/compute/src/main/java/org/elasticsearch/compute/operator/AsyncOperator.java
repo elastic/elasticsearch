@@ -45,7 +45,10 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     private static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = TransportVersion.fromName("esql_profile_async_nanos");
 
-    private volatile SubscribableListener<Void> blockedFuture;
+    /**
+     * Guarded by {@code this}.
+     */
+    private SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Fetched> buffers = ConcurrentCollections.newConcurrentMap();
     private final FailureCollector failureCollector = new FailureCollector();
@@ -152,15 +155,15 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     }
 
     private void notifyIfBlocked() {
-        if (blockedFuture != null) {
-            final SubscribableListener<Void> future;
-            synchronized (this) {
-                future = blockedFuture;
-                this.blockedFuture = null;
-            }
-            if (future != null) {
-                future.onResponse(null);
-            }
+        final SubscribableListener<Void> future;
+        // Under the lock, like isBlocked: either it sees the result, or this sees its future. Read outside the lock, the
+        // future could still be null while isBlocked, which missed the result, was about to create it.
+        synchronized (this) {
+            future = blockedFuture;
+            this.blockedFuture = null;
+        }
+        if (future != null) {
+            future.onResponse(null);
         }
     }
 
@@ -185,7 +188,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public final void close() {
-        finish();
+        // not finish(): a subclass reacts there to the end of its input, which a closing operator never saw
+        finished = true;
         closed = true;
         discardResults();
         responseHeadersCollector.finish();
@@ -278,6 +282,16 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             "async_operator",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, status, params) -> {
+            builder.startObject();
+            status.innerToXContent(builder);
+            return builder.endObject();
+        })
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_completed", ProfileSchema.integer())
+            .build();
 
         final long receivedPages;
         final long completedPages;
@@ -327,9 +341,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            innerToXContent(builder);
-            return builder.endObject();
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         protected final XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {

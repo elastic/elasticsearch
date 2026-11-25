@@ -57,6 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -66,6 +67,8 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
+    private static final long INCOMPLETE_CHUNK_AUDIT_INTERVAL_MS = TimeValue.timeValueHours(24).millis();
+    private static final long NO_INCOMPLETE_CHUNK_AUDIT = -1L;
 
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
@@ -94,9 +97,12 @@ class DatafeedJob {
     private volatile long lastDataCheckTimeMs;
     private volatile Tuple<String, Annotation> lastDataCheckAnnotationWithId;
     private volatile Long lastEndTimeMs;
+    private final LongUnaryOperator lastEndTimeForRecord;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
+    // Re-audit persistent truncation at most once per day so operators are reminded without flooding the audit log.
+    private volatile long lastIncompleteChunkAuditMs = NO_INCOMPLETE_CHUNK_AUDIT;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
     @Nullable
@@ -123,7 +129,8 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        CrossClusterSearchStats crossClusterSearchStats
+        CrossClusterSearchStats crossClusterSearchStats,
+        LongUnaryOperator lastEndTimeForRecord
     ) {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
@@ -142,7 +149,11 @@ class DatafeedJob {
         this.maxEmptySearches = maxEmptySearches;
         this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
         this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
-        long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
+        this.lastEndTimeForRecord = Objects.requireNonNull(lastEndTimeForRecord);
+        long lastEndTime = Math.max(
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs >= 0 ? lastEndTimeForRecord.applyAsLong(latestRecordTimeMs) : latestRecordTimeMs
+        );
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
         }
@@ -534,7 +545,7 @@ class DatafeedJob {
                     recordCount += counts.getProcessedRecordCount();
                     haveEverSeenData |= (recordCount > 0);
                     if (counts.getLatestRecordTimeStamp() != null) {
-                        lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
+                        lastEndTimeMs = lastEndTimeForRecord.applyAsLong(counts.getLatestRecordTimeStamp().getTime());
                     }
                 }
             }
@@ -554,6 +565,8 @@ class DatafeedJob {
 
             CrossClusterSearchStats.ScopeChangeResult scopeChange = updateCrossClusterSearchStats(linkedClusterStates);
 
+            Optional<SearchInterval> incompleteSearchInterval = dataExtractor.getIncompleteSearchInterval();
+
             // We can now throw any stored error as we have updated time.
             if (error != null) {
                 throw error;
@@ -572,6 +585,24 @@ class DatafeedJob {
                     handleFieldConflictsAfterScopeChange(scopeChange);
                     checkForAnomaliesAfterScopeChange(scopeChange);
                 }
+
+                // Only after post and flush succeeded, so an error path never reports the interval as skipped. A cancelled
+                // run is excluded: its end-time advance is not guaranteed, so it makes no claim about skipped intervals.
+                // Stop, cancel, or isolate before this block neither audits nor resets the episode flag, so the next
+                // truncated cycle may WARN again. Resetting on a non-claim cycle would duplicate WARNs.
+                if (dataExtractor.isCancelled() == false) {
+                    if (incompleteSearchInterval.isPresent() == false) {
+                        lastIncompleteChunkAuditMs = NO_INCOMPLETE_CHUNK_AUDIT;
+                    } else {
+                        long now = currentTimeSupplier.get();
+                        if (lastIncompleteChunkAuditMs < 0 || now - lastIncompleteChunkAuditMs >= INCOMPLETE_CHUNK_AUDIT_INTERVAL_MS) {
+                            lastIncompleteChunkAuditMs = now;
+                            notifyIncompleteEsqlChunk(incompleteSearchInterval.get());
+                        } else {
+                            LOGGER.debug("[{}] ES|QL chunk still incomplete for {}", jobId, incompleteSearchInterval.get());
+                        }
+                    }
+                }
             }
 
             if (recordCount == 0) {
@@ -582,6 +613,20 @@ class DatafeedJob {
             dataExtractor.destroy();
             activeDataExtractor = null;
         }
+    }
+
+    /**
+     * Audits an extraction that ended on a chunk truncated at the row limit. The window has been posted and flushed and
+     * lastEndTimeMs has moved past it, so the rows beyond the limit are never extracted again. The user must be told.
+     */
+    private void notifyIncompleteEsqlChunk(SearchInterval interval) {
+        String message = Messages.getMessage(
+            Messages.DATAFEED_ESQL_INCOMPLETE_CHUNK,
+            Instant.ofEpochMilli(interval.startMs()),
+            Instant.ofEpochMilli(interval.endMs())
+        );
+        LOGGER.warn("[{}] {}", jobId, message);
+        auditor.warning(jobId, message);
     }
 
     private void cancelActiveExtractor() {

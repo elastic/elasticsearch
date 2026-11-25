@@ -211,7 +211,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             assertNull(mapperService.fieldType("another_field"));
             assertEquals("""
                 {"_doc":{"runtime":{"field":{"type":"long"}},\
-                "properties":{"concrete":{"type":"keyword"}}}}""", Strings.toString(mapperService.documentMapper().mapping().getRoot()));
+                "properties":{"concrete":{"type":"keyword"}}}}""", mapperService.documentMapper().mappingSource().string());
         }
     }
 
@@ -783,11 +783,11 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             }));
 
             // Serialize the mapping to a string
-            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+            String mappingJson1 = mapperService.documentMapper().mappingSource().string();
 
             // Re-parse and re-serialize — must be identical (idempotence)
             MapperService mapperService2 = createMapperService(settings, mappingJson1);
-            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            String mappingJson2 = mapperService2.documentMapper().mappingSource().string();
             assertEquals("prefix_properties must survive round-trip serialization for " + indexMode, mappingJson1, mappingJson2);
 
             // The stored mapping must contain prefix_properties in the expected prefix-keyed shape
@@ -896,11 +896,11 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }));
 
-            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+            String mappingJson1 = mapperService.documentMapper().mappingSource().string();
 
             // Re-parse and re-serialize — must be identical
             MapperService mapperService2 = createMapperService(settings, mappingJson1);
-            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            String mappingJson2 = mapperService2.documentMapper().mappingSource().string();
             assertEquals("prefix_properties passthrough must survive round-trip for " + indexMode, mappingJson1, mappingJson2);
 
             // The stored mapping must contain prefix_properties in the prefix-keyed shape
@@ -957,11 +957,11 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 b.startObject("resource").field("enabled", false).endObject();
             }));
 
-            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+            String mappingJson1 = mapperService.documentMapper().mappingSource().string();
 
             // Re-parse and re-serialize — must be identical (idempotence)
             MapperService mapperService2 = createMapperService(settings, mappingJson1);
-            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            String mappingJson2 = mapperService2.documentMapper().mappingSource().string();
             assertEquals("prefix_properties.enabled must survive round-trip for " + indexMode, mappingJson1, mappingJson2);
 
             // The stored mapping must contain prefix_properties with the enabled facet
@@ -1006,11 +1006,11 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 b.startObject("disabled").field("enabled", false).endObject();
             }));
 
-            String mappingJson = Strings.toString(mapperService.documentMapper().mapping());
+            String mappingJson = mapperService.documentMapper().mappingSource().string();
 
             // Round-trip must be identical
             MapperService mapperService2 = createMapperService(settings, mappingJson);
-            assertEquals(mappingJson, Strings.toString(mapperService2.documentMapper().mapping()));
+            assertEquals(mappingJson, mapperService2.documentMapper().mappingSource().string());
 
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
             assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());

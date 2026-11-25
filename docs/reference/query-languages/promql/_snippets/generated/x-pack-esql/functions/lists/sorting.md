@@ -3,5 +3,11 @@
 :::{include} ../sort.md
 :::
 
+:::{include} ../sort_by_label.md
+:::
+
+:::{include} ../sort_by_label_desc.md
+:::
+
 :::{include} ../sort_desc.md
 :::

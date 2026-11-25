@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -64,7 +65,19 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         }
     }
 
+    @Override
+    protected boolean assertConsumesSupportedParams(Set<String> supported, RestRequest request) {
+        // if "help" is specified, nothing else is consumed - that's ok
+        return request.paramAsBoolean("help", false) || super.assertConsumesSupportedParams(supported, request);
+    }
+
     static Set<String> RESPONSE_PARAMS = Set.of("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s");
+
+    /**
+     * The query parameters every cat API accepts. {@code help} is read by {@link #prepareRequest}, and the others format the table in
+     * {@link RestTable}. Subclasses add their own parameters to this set.
+     */
+    static final Set<String> COMMON_QUERY_PARAMETERS = Sets.addToCopy(RESPONSE_PARAMS, "help");
 
     @Override
     protected Set<String> responseParams() {

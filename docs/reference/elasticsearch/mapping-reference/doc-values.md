@@ -49,7 +49,9 @@ PUT my-index-000001
 For all fields that support them, `doc_values` are turned on by default. If you're certain you don't need to sort or aggregate on a field, or access its value from a script, you can turn off `doc_values` in order to save disk space.
 
 ::::{note}
-You cannot turn off doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields, or for fields in a [`columnar`](/reference/elasticsearch/columnar/index.md) index.
+You cannot turn off doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields.
+
+{applies_to}`stack: preview 9.7` In [columnar index modes](/reference/elasticsearch/columnar/index.md), doc values are always on. {{es}} ignores `doc_values: false` and `doc_values: true`, does not store them in the mapping, and returns a deprecation warning for `doc_values: false`. `GET <index>/_mapping` does not show the parameter. Columnar indices created before 9.7 reject `doc_values: false` on a root field.
 
 In some field types, such as [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md), doc values appear in API responses but can't be configured. Turning `doc_values` on or off for these fields might result in an error or have no effect.
 ::::

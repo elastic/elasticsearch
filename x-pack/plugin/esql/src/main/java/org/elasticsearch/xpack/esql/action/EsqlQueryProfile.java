@@ -11,14 +11,18 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,6 +50,43 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String RESOLUTION_BYTES_READ = "external_resolution_bytes_read";
     public static final String RESOLUTION_REQUESTS = "external_resolution_requests";
     public static final String SPLIT_DISCOVERY_PROBES = "split_discovery_probes";
+
+    private static final Map<String, Object> NULLABLE_TIME_SPAN = ProfileSchema.nullable(TimeSpan.PROFILE_SCHEMA.schema());
+
+    public static final ProfileSchema<EsqlQueryProfile> PROFILE_SCHEMA = ProfileSchema.fragment(
+        EsqlQueryProfile.class,
+        EsqlQueryProfile::toXContent
+    )
+        .required(QUERY, NULLABLE_TIME_SPAN)
+        .required(PLANNING, NULLABLE_TIME_SPAN)
+        .required(PARSING, NULLABLE_TIME_SPAN)
+        .required(VIEW_RESOLUTION, NULLABLE_TIME_SPAN)
+        .required(DATASET_RESOLUTION, NULLABLE_TIME_SPAN)
+        .required(PRE_ANALYSIS, NULLABLE_TIME_SPAN)
+        .required(INDICES_RESOLUTION, NULLABLE_TIME_SPAN)
+        .required(ENRICH_RESOLUTION, NULLABLE_TIME_SPAN)
+        .required(INFERENCE_RESOLUTION, NULLABLE_TIME_SPAN)
+        .required(ANALYSIS, NULLABLE_TIME_SPAN)
+        .required(PLANNING_CPU, ProfileSchema.integer())
+        .required("field_caps_calls", ProfileSchema.integer())
+        .optional("files_scanned", ProfileSchema.integer())
+        .optional("splits_scanned", ProfileSchema.integer())
+        .optional("bytes_scanned", ProfileSchema.integer())
+        .required(
+            "unmapped_fields",
+            ProfileSchema.enumeration(
+                Arrays.stream(UnmappedResolution.values()).map(value -> value.name().toLowerCase(Locale.ROOT)).toArray()
+            )
+        )
+        .optional("external_warm_aggregates", ProfileSchema.integer())
+        .optional(SPLIT_DISCOVERY, ProfileSchema.integer())
+        .optional(SPLIT_DISCOVERY_CPU, ProfileSchema.integer())
+        .optional(PLANNING_BYTES_READ, ProfileSchema.integer())
+        .optional(PLANNING_REQUESTS, ProfileSchema.integer())
+        .optional(RESOLUTION_BYTES_READ, ProfileSchema.integer())
+        .optional(RESOLUTION_REQUESTS, ProfileSchema.integer())
+        .optional(SPLIT_DISCOVERY_PROBES, ProfileSchema.integer())
+        .build();
 
     /** Time elapsed since start of query till the final result rendering */
     private final TimeSpanMarker totalMarker;
@@ -870,62 +911,67 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (TimeSpanMarker timeSpanMarker : timeSpanMarkers()) {
+        return PROFILE_SCHEMA.write(builder, this, params);
+    }
+
+    private static XContentBuilder toXContent(XContentBuilder builder, EsqlQueryProfile profile, ToXContent.Params params)
+        throws IOException {
+        for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {
             builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan());
         }
         // Always emitted, like field_caps_calls: planning runs for every query, and a > 0 guard would make strict
         // profile matchers flaky where thread CPU time is coarse or unsupported.
-        builder.field(PLANNING_CPU, planningCpuNanos.get());
-        builder.field("field_caps_calls", fieldCapsCalls.get());
+        builder.field(PLANNING_CPU, profile.planningCpuNanos.get());
+        builder.field("field_caps_calls", profile.fieldCapsCalls.get());
         // Only emit external scan accounting for queries that actually scanned an external source.
         // files_scanned and bytes_scanned are source-specific; omit them when the source cannot
         // report them (e.g. connector sources like Arrow Flight have no file or byte accounting).
-        int splits = splitsScanned.get();
+        int splits = profile.splitsScanned.get();
         if (splits > 0) {
-            int files = filesScanned.get();
+            int files = profile.filesScanned.get();
             if (files > 0) {
                 builder.field("files_scanned", files);
             }
             builder.field("splits_scanned", splits);
-            long bytes = bytesScanned.get();
+            long bytes = profile.bytesScanned.get();
             if (bytes > 0) {
                 builder.field("bytes_scanned", bytes);
             }
         }
-        builder.field("unmapped_fields", unmappedResolution.name().toLowerCase(Locale.ROOT));
+        builder.field("unmapped_fields", profile.unmappedResolution.name().toLowerCase(Locale.ROOT));
         // The affirmative warm signal: emitted only when at least one external aggregate was served from
         // statistics with the scan short-circuited away. Its presence (with the scan counters above
         // absent/zero) is what distinguishes a warm short-circuit from a cold scan without inferring from
         // latency.
-        int warm = externalWarmAggregates.get();
+        int warm = profile.externalWarmAggregates.get();
         if (warm > 0) {
             builder.field("external_warm_aggregates", warm);
         }
-        long splitDiscovery = splitDiscoveryNanos.get();
+        long splitDiscovery = profile.splitDiscoveryNanos.get();
         if (splitDiscovery > 0) {
             builder.field(SPLIT_DISCOVERY, splitDiscovery);
         }
-        long splitDiscoveryCpu = splitDiscoveryCpuNanos.get();
+        long splitDiscoveryCpu = profile.splitDiscoveryCpuNanos.get();
         if (splitDiscoveryCpu > 0) {
             builder.field(SPLIT_DISCOVERY_CPU, splitDiscoveryCpu);
         }
-        long planningBytes = externalPlanningBytesRead.get();
+        long planningBytes = profile.externalPlanningBytesRead.get();
         if (planningBytes > 0) {
             builder.field(PLANNING_BYTES_READ, planningBytes);
         }
-        long planningRequests = externalPlanningRequests.get();
+        long planningRequests = profile.externalPlanningRequests.get();
         if (planningRequests > 0) {
             builder.field(PLANNING_REQUESTS, planningRequests);
         }
-        long resolutionBytes = externalResolutionBytesRead.get();
+        long resolutionBytes = profile.externalResolutionBytesRead.get();
         if (resolutionBytes > 0) {
             builder.field(RESOLUTION_BYTES_READ, resolutionBytes);
         }
-        long resolutionRequests = externalResolutionRequests.get();
+        long resolutionRequests = profile.externalResolutionRequests.get();
         if (resolutionRequests > 0) {
             builder.field(RESOLUTION_REQUESTS, resolutionRequests);
         }
-        int probes = splitDiscoveryProbes.get();
+        int probes = profile.splitDiscoveryProbes.get();
         if (probes > 0) {
             builder.field(SPLIT_DISCOVERY_PROBES, probes);
         }

@@ -419,6 +419,57 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
+    public void testDeepCopy() {
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        final boolean fewValues = randomBoolean();
+        final int count = fewValues ? randomIntBetween(0, 20) : randomIntBetween(0, 6000);
+        final boolean fixedLength = randomBoolean();
+        final int fixed = randomIntBetween(0, 40);
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            final int length;
+            if (fixedLength) {
+                length = fixed;
+            } else if (fewValues && randomInt(4) == 0) {
+                length = randomBoolean() ? randomIntBetween(pageSize - 2, pageSize + 2) : randomIntBetween(0, pageSize * 2);
+            } else {
+                length = randomIntBetween(0, 40);
+            }
+            values.add(new BytesRef(randomByteArrayOfLength(length)));
+        }
+        final long byteHint = randomBoolean() ? 0 : randomIntBetween(1, 1000);
+        try (BytesRefArray array = new BytesRefArray(randomIntBetween(0, count + 1), mockBigArrays(), byteHint)) {
+            values.forEach(array::append);
+            try (BytesRefArray copy = array.deepCopy()) {
+                assertThat(copy.size(), equalTo((long) values.size()));
+                assertThat(copy.totalBytes(), equalTo(array.totalBytes()));
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < values.size(); i++) {
+                    assertThat(copy.get(i, scratch), equalTo(values.get(i)));
+                }
+
+                // The copy must not share storage with the original.
+                array.truncateTo(0);
+                array.append(new BytesRef("changed"));
+                for (int i = 0; i < values.size(); i++) {
+                    assertThat(copy.get(i, scratch), equalTo(values.get(i)));
+                }
+
+                // The copy must stay appendable.
+                final List<BytesRef> extra = new ArrayList<>();
+                final int extraCount = randomIntBetween(1, 50);
+                for (int i = 0; i < extraCount; i++) {
+                    BytesRef v = new BytesRef(randomByteArrayOfLength(randomIntBetween(0, 40)));
+                    extra.add(v);
+                    copy.append(v);
+                }
+                for (int i = 0; i < extra.size(); i++) {
+                    assertThat(copy.get(values.size() + i, scratch), equalTo(extra.get(i)));
+                }
+            }
+        }
+    }
+
     public void testTruncateThenAppend() {
         int total = randomIntBetween(2, 50);
         int kept = randomIntBetween(0, total - 1);

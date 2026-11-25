@@ -40,7 +40,7 @@ public class CompletionExec extends InferenceExec {
     private final Attribute targetField;
     private final MapExpression taskSettings;
     private final TimeValue timeout;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public CompletionExec(
         Source source,

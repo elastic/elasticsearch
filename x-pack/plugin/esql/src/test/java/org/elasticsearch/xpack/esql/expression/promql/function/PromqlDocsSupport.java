@@ -14,6 +14,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
 import java.nio.file.Path;
@@ -435,10 +436,9 @@ public final class PromqlDocsSupport {
 
     /**
      * Builds the per-function {@code applies_to} badge from the function's declared
-     * {@link PromqlFunctionDefinition#stack() stack availability}. Serverless availability is omitted on purpose:
-     * implemented PromQL functions are generally available in serverless, which is declared once in the docs page
-     * frontmatter rather than repeated on every function. Fails fast if a registered function has not declared its
-     * availability, so adding a function to the registry without a {@code stack(...)} entry breaks doc generation.
+     * {@link PromqlFunctionDefinition#stack() stack availability}. Fails fast if a registered function has not declared
+     * its availability, so adding a function to the registry without a {@code stack(...)} entry breaks doc generation.
+     * See {@link #stackBadge}.
      */
     private static String appliesToBadge(PromqlFunctionDefinition def) {
         if (def.stack().isEmpty()) {
@@ -466,11 +466,20 @@ public final class PromqlDocsSupport {
         return stackBadge(opDef.stack());
     }
 
-    /** Renders a {@code stack:} {@code applies_to} badge from a list of stack-availability entries. */
+    /**
+     * Renders an {@code applies_to} badge from a list of stack-availability entries. A list that includes GA leaves
+     * serverless availability to the docs page frontmatter. A preview-only list is preview on serverless as well, so
+     * the badge also includes {@code serverless: preview}.
+     */
     private static String stackBadge(List<PromqlFunctionDefinition.StackAvailability> stack) {
-        return "{applies_to}`stack: "
+        String badge = "{applies_to}`stack: "
             + stack.stream().map(PromqlFunctionDefinition.StackAvailability::appliesTo).collect(Collectors.joining(", "))
             + "`";
+        boolean generallyAvailable = stack.stream().anyMatch(availability -> availability.lifecycle() == FunctionAppliesToLifecycle.GA);
+        if (generallyAvailable == false) {
+            badge += " {applies_to}`serverless: preview`";
+        }
+        return badge;
     }
 
     /**

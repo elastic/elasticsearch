@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 161271
+summary: Fix Bedrock chat streaming when a response includes reasoning content
+type: bug

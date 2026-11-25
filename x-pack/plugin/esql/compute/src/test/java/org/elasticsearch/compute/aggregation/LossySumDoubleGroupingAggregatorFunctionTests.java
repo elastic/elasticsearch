@@ -20,12 +20,12 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
 
-public class LossySumDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class LossySumDoubleGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongDoubleTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
+            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomIntBetween(0, 1024) / 1024.0))
         );
     }
 

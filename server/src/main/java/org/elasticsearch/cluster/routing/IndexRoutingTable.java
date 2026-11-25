@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.ReshardSplitRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -169,6 +170,32 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 + " is a primary that is recovering from a known allocation id but has no corresponding "
                                 + "entry in the in-sync allocation set "
                                 + inSyncAllocationIds
+                        );
+                    }
+                }
+
+                if (shardRouting.recoverySource() instanceof ReshardSplitRecoverySource reshardSplitRecoverySource) {
+                    final IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+                    if (IndexReshardingMetadata.isSplitTarget(shardRouting.shardId(), reshardingMetadata) == false) {
+                        throw new IllegalStateException(
+                            "shard routing "
+                                + shardRouting
+                                + " has a reshard split recovery source but is not a split target in the resharding metadata "
+                                + reshardingMetadata
+                        );
+                    }
+                    final ShardId expectedSourceShardId = new ShardId(
+                        shardRouting.index(),
+                        reshardingMetadata.getSplit().sourceShard(shardRouting.id())
+                    );
+                    if (reshardSplitRecoverySource.getSourceShardId().equals(expectedSourceShardId) == false) {
+                        throw new IllegalStateException(
+                            "shard routing "
+                                + shardRouting
+                                + " has a reshard split recovery source with source shard "
+                                + reshardSplitRecoverySource.getSourceShardId()
+                                + " but the resharding metadata expects source shard "
+                                + expectedSourceShardId
                         );
                     }
                 }

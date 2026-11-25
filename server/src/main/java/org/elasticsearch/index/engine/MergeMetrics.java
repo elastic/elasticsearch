@@ -138,9 +138,17 @@ public class MergeMetrics {
             MetricAttributes.errorType(error)
         );
         mergeFailures.incrementBy(1, attributes);
-        if (ExceptionsHelper.unwrapCausesAndSuppressed(error, MergeMetrics::isFromBlobStoreClient).isPresent()) {
+        if (isBlobStoreClientFailure(error)) {
             mergeBlobStoreTransientFailures.incrementBy(1, attributes);
         }
+    }
+
+    /**
+     * Whether the failure, or any of its causes or suppressed exceptions, came from a blob store client. See
+     * {@link #BLOB_STORE_CLIENT_PACKAGES}.
+     */
+    static boolean isBlobStoreClientFailure(Throwable error) {
+        return ExceptionsHelper.unwrapCausesAndSuppressed(error, MergeMetrics::isFromBlobStoreClient).isPresent();
     }
 
     private static boolean isFromBlobStoreClient(Throwable t) {

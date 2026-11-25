@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 
@@ -63,7 +62,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.field("script", "serializer_test");
             b.endObject();
         }));
-        assertThat(Strings.toString(mapper.mapping()), containsString("""
+        assertThat(mapper.mappingSource().string(), containsString("""
             "script":{"source":"serializer_test","lang":"painless"}"""));
     }
 

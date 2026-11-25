@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -17,12 +16,12 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchRerankRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.response.AlibabaCloudSearchRerankResponseEntity;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class AlibabaCloudSearchRerankRequestManager extends AlibabaCloudSearchRequestManager {
     private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchRerankRequestManager.class);
@@ -62,8 +61,7 @@ public class AlibabaCloudSearchRerankRequestManager extends AlibabaCloudSearchRe
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         var rerankInput = inferenceInputs.castTo(QueryAndDocsInputs.class);
         AlibabaCloudSearchRerankRequest request = new AlibabaCloudSearchRerankRequest(
@@ -75,6 +73,6 @@ public class AlibabaCloudSearchRerankRequestManager extends AlibabaCloudSearchRe
             model
         );
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, timedListener));
     }
 }

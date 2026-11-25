@@ -1,0 +1,2 @@
+FROM employees
+| WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000) | KEEP emp_no)

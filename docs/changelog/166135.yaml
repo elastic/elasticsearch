@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166135
+summary: Add a cluster setting for the fetch phase
+type: enhancement

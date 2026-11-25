@@ -30,6 +30,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
@@ -103,6 +104,7 @@ public abstract class DockerBuildTask extends DefaultTask {
             params.getDockerExecutable().set(dockerExecutable);
             params.getOciImageLayout().set(getOciImageLayout());
             params.getBuildContexts().set(getBuildContexts());
+            params.getSourceDateEpoch().set(getSourceDateEpoch());
         });
     }
 
@@ -189,6 +191,16 @@ public abstract class DockerBuildTask extends DefaultTask {
     @Optional
     public abstract MapProperty<String, String> getBuildContexts();
 
+    /**
+     * When set, rewrites all timestamps in the layers of the image, and its creation date, to this value in seconds
+     * since the epoch. Layers otherwise contain timestamps that differ from build to build, so without a build cache
+     * identical content gets different layer digests and registries cannot deduplicate it. The value must be
+     * constant for layers to be identical across commits.
+     */
+    @Input
+    @Optional
+    public abstract Property<Long> getSourceDateEpoch();
+
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
@@ -238,6 +250,8 @@ public abstract class DockerBuildTask extends DefaultTask {
 
             final List<String> tags = parameters.getTags().get();
             final boolean isCrossPlatform = isCrossPlatform();
+            final boolean rewriteTimestamps = parameters.getSourceDateEpoch().isPresent();
+            final String rewriteTimestampOption = rewriteTimestamps ? ",rewrite-timestamp=true" : "";
 
             if (parameters.getPull().get()) {
                 // Besides explicitly declared base images, also make sure digest-pinned images referenced in the
@@ -278,8 +292,17 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
 
+                if (rewriteTimestamps) {
+                    spec.args("--build-arg", "SOURCE_DATE_EPOCH=" + parameters.getSourceDateEpoch().get());
+                }
+
                 if (parameters.getPush().getOrElse(false)) {
-                    spec.args("--push");
+                    if (rewriteTimestamps) {
+                        // --push is shorthand for --output type=image,push=true, but only the exporter accepts options
+                        spec.args("--output", "type=image,push=true" + rewriteTimestampOption);
+                    } else {
+                        spec.args("--push");
+                    }
                 } else if (parameters.getPlatforms().get().size() == 1) {
                     if (isCrossPlatform && parameters.getOciImageLayout().isPresent()) {
                         // Load the image into the daemon (see the --load comment below) and additionally
@@ -288,10 +311,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // named build context. This is required with the docker-container buildx driver,
                         // whose isolated image store cannot see daemon images in FROM instructions.
                         // Multiple --output flags require buildx >= 0.13.
-                        spec.args("--output", "type=docker");
+                        spec.args("--output", daemonExporterSpec(rewriteTimestamps, isCrossPlatform));
                         spec.args(
                             "--output",
-                            "type=oci,tar=false,dest=" + parameters.getOciImageLayout().get().getAsFile().getAbsolutePath()
+                            "type=oci,tar=false,dest="
+                                + parameters.getOciImageLayout().get().getAsFile().getAbsolutePath()
+                                + rewriteTimestampOption
                         );
                     } else {
                         // Add --load to ensure the image ends up in the local Docker daemon as a
@@ -303,7 +328,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // "no such object". It also prevents issues with newer Docker versions
                         // (23.0+) that may create manifest lists even for single-platform builds
                         // when BuildKit is enabled.
-                        spec.args("--load");
+                        if (rewriteTimestamps) {
+                            // --load is shorthand for --output type=docker, but only the exporter accepts options
+                            spec.args("--output", daemonExporterSpec(true, isCrossPlatform));
+                        } else {
+                            spec.args("--load");
+                        }
                     }
                 }
             });
@@ -356,6 +386,48 @@ public abstract class DockerBuildTask extends DefaultTask {
                 .anyMatch(any -> any.equals(Architecture.current().dockerPlatform) == false);
         }
 
+        private String daemonExporterSpec(boolean rewriteTimestamps, boolean isCrossPlatform) {
+            return DockerExporter.daemonSpec(
+                rewriteTimestamps,
+                isCrossPlatform,
+                System.getenv("BUILDX_BUILDER"),
+                this::buildxInspect,
+                () -> dockerOutput("info", "--format", "{{ .DriverStatus }}")
+            );
+        }
+
+        private String buildxInspect() {
+            final var stdout = new ByteArrayOutputStream();
+            final var stderr = new ByteArrayOutputStream();
+            final var result = execOperations.exec(spec -> {
+                maybeConfigureDockerConfig(spec);
+                spec.setExecutable(getParameters().getDockerExecutable().get());
+                spec.args("buildx", "inspect");
+                spec.setStandardOutput(stdout);
+                spec.setErrorOutput(stderr);
+                spec.setIgnoreExitValue(true);
+            });
+            if (result.getExitValue() != 0) {
+                throw new GradleException(
+                    "Failed to inspect the selected docker buildx builder to choose the image exporter: " + stderr.toString().trim()
+                );
+            }
+            return stdout.toString();
+        }
+
+        /** The stdout of the docker command, or {@code null} if it failed. */
+        private String dockerOutput(String... args) {
+            final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+            final ExecResult result = execOperations.exec(spec -> {
+                maybeConfigureDockerConfig(spec);
+                spec.setExecutable(getParameters().getDockerExecutable().get());
+                spec.args((Object[]) args);
+                spec.setStandardOutput(stdout);
+                spec.setIgnoreExitValue(true);
+            });
+            return result.getExitValue() == 0 ? stdout.toString() : null;
+        }
+
         private String getImageChecksum(String imageTag) {
             final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
             String docker = getParameters().getDockerExecutable().get();
@@ -394,5 +466,7 @@ public abstract class DockerBuildTask extends DefaultTask {
         DirectoryProperty getOciImageLayout();
 
         MapProperty<String, String> getBuildContexts();
+
+        Property<Long> getSourceDateEpoch();
     }
 }

@@ -241,13 +241,7 @@ public class InboundAggregator implements Releasable {
         if (currentHeader.isHandshake() == false && currentHeader.isError() == false) {
             reservingResponseHandler = responseHandlerFunction.apply(currentHeader.getRequestId());
             if (reservingResponseHandler == null) {
-                shortCircuit(
-                    new TransportException(
-                        "no response handler for request ["
-                            + currentHeader.getRequestId()
-                            + "], the request may have timed out or the connection to the node may have closed"
-                    )
-                );
+                shortCircuit(noResponseHandler());
             }
         }
     }
@@ -290,6 +284,10 @@ public class InboundAggregator implements Releasable {
         if (reservingResponseHandler == null) {
             return true;
         }
+        if (responseHandlerFunction.apply(currentHeader.getRequestId()) == null) {
+            shortCircuit(noResponseHandler());
+            return false;
+        }
         final Releasable reservation;
         try {
             reservation = reservingResponseHandler.reserveResponseBytes(bytes);
@@ -303,6 +301,14 @@ public class InboundAggregator implements Releasable {
             breakerControl.addReservation(reservation);
         }
         return true;
+    }
+
+    private TransportException noResponseHandler() {
+        return new TransportException(
+            "no response handler for request ["
+                + currentHeader.getRequestId()
+                + "], the request may have timed out or the connection to the node may have closed"
+        );
     }
 
     /**

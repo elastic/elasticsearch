@@ -217,16 +217,18 @@ public class ListTasksBreakerIT extends ESIntegTestCase {
         final Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
         final PlainActionFuture<Response> future = new PlainActionFuture<>();
-        final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
+        try {
+            final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
-        safeAwait(held.get());
-        assertBusy(() -> assertThat(inFlightBreaker(coordinator).getUsed(), greaterThan(usedBefore[nodes.indexOf(coordinator)])));
+            safeAwait(held.get());
+            assertBusy(() -> assertThat(inFlightBreaker(coordinator).getUsed(), greaterThan(usedBefore[nodes.indexOf(coordinator)])));
 
-        cancellable.cancel();
-        assertAllCancellableTasksAreCancelled(TransportListTasksAction.TYPE.name());
-        assertBusy(() -> assertThat(inFlightBreaker(coordinator).getUsed(), equalTo(usedBefore[nodes.indexOf(coordinator)])));
-
-        releaseNodeRequests();
+            cancellable.cancel();
+            assertAllCancellableTasksAreCancelled(TransportListTasksAction.TYPE.name());
+            assertBusy(() -> assertThat(inFlightBreaker(coordinator).getUsed(), equalTo(usedBefore[nodes.indexOf(coordinator)])));
+        } finally {
+            releaseNodeRequests();
+        }
         expectThrows(CancellationException.class, future::actionGet);
         assertNoListTasksRunning(nodes);
         assertUsedBytesAre(nodes, usedBefore);

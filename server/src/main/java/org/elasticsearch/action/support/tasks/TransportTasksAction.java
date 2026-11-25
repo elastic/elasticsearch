@@ -90,14 +90,24 @@ public abstract class TransportTasksAction<
         transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
     }
 
+    /**
+     * Whether the replies of the other nodes are charged to the in-flight requests breaker, and so can fail a node when there is no room
+     * for them. An action that has to work under memory pressure, such as cancelling tasks, returns {@code false}.
+     */
+    protected boolean nodeRepliesCanTripCircuitBreaker() {
+        return true;
+    }
+
     @Override
     protected void doExecute(Task task, TasksRequest request, ActionListener<TasksResponse> listener) {
         final var discoveryNodes = clusterService.state().nodes();
         final String[] nodeIds = resolveNodes(request, discoveryNodes);
-        final CircuitBreaker breaker = Objects.requireNonNullElseGet(
-            transportService.getInFlightRequestsBreaker(),
-            () -> new NoopCircuitBreaker(NODE_RESPONSE_BREAKER_LABEL)
-        );
+        final CircuitBreaker breaker = nodeRepliesCanTripCircuitBreaker()
+            ? Objects.requireNonNullElseGet(
+                transportService.getInFlightRequestsBreaker(),
+                () -> new NoopCircuitBreaker(NODE_RESPONSE_BREAKER_LABEL)
+            )
+            : new NoopCircuitBreaker(NODE_RESPONSE_BREAKER_LABEL);
         final RetainedReplyBytes retainedReplyBytes = new RetainedReplyBytes(breaker);
         if (task instanceof CancellableTask cancellableTask) {
             cancellableTask.addListener(retainedReplyBytes::close);
@@ -213,7 +223,7 @@ public abstract class TransportTasksAction<
         }
 
         synchronized void charge(long bytes) {
-            if (closed) {
+            if (closed || bytes == 0) {
                 return;
             }
             breaker.addEstimateBytesAndMaybeBreak(bytes, NODE_RESPONSE_BREAKER_LABEL);

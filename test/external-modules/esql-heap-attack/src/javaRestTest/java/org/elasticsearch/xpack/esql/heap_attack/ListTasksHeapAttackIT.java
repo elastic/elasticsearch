@@ -24,12 +24,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -56,91 +59,109 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
     }
 
     public void testListingTheTasksOfManyNodesDoesNotExhaustTheHeapOfTheCoordinatingNode() throws Exception {
-        createPausableIndex();
-        blockPauseField();
-        List<String> asyncIds = new ArrayList<>();
         String coordinatingAddress = cluster.getHttpAddresses().split(",")[0];
         int portSeparator = coordinatingAddress.lastIndexOf(':');
         String host = coordinatingAddress.substring(0, portSeparator).replace("[", "").replace("]", "");
         int port = Integer.parseInt(coordinatingAddress.substring(portSeparator + 1));
+        List<String> asyncIds = new ArrayList<>();
         ExecutorService executor = Executors.newFixedThreadPool(CLIENTS);
         try (RestClient coordinatingClient = buildClient(restClientSettings(), new HttpHost[] { new HttpHost(host, port, "http") })) {
-            for (int i = 0; i < HELD_QUERIES; i++) {
-                asyncIds.add(submitAsyncQuery(queryWithLongLiteral("q" + i + "-" + "€".repeat(LITERAL_LENGTH))));
-            }
-            logger.info("--> submitted {} held queries", HELD_QUERIES);
-            AtomicInteger listed = new AtomicInteger();
-            AtomicInteger tripped = new AtomicInteger();
-            AtomicInteger failed = new AtomicInteger();
-            List<Future<?>> calls = new ArrayList<>();
-            for (int c = 0; c < CLIENTS; c++) {
-                calls.add(executor.submit(() -> {
-                    for (int call = 0; call < CALLS_PER_CLIENT; call++) {
-                        try {
-                            if (listTasksTrips(coordinatingClient)) {
-                                tripped.incrementAndGet();
-                            } else {
-                                listed.incrementAndGet();
+            createPausableIndex(coordinatingNodeId(coordinatingClient));
+            blockPauseField();
+            try {
+                final long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(3);
+                for (int i = 0; i < HELD_QUERIES; i++) {
+                    asyncIds.add(submitAsyncQuery(queryWithLongLiteral("q" + i + "-" + "€".repeat(LITERAL_LENGTH))));
+                }
+                logger.info("--> submitted {} held queries", HELD_QUERIES);
+                AtomicInteger listed = new AtomicInteger();
+                AtomicInteger tripped = new AtomicInteger();
+                AtomicInteger failed = new AtomicInteger();
+                Queue<String> unexpectedNodeFailures = new ConcurrentLinkedQueue<>();
+                List<Future<?>> calls = new ArrayList<>();
+                for (int c = 0; c < CLIENTS; c++) {
+                    calls.add(executor.submit(() -> {
+                        for (int call = 0; call < CALLS_PER_CLIENT; call++) {
+                            try {
+                                if (listTasksTrips(coordinatingClient, unexpectedNodeFailures)) {
+                                    tripped.incrementAndGet();
+                                } else {
+                                    listed.incrementAndGet();
+                                }
+                            } catch (IOException e) {
+                                logger.info("--> listing failed: {}", e.toString());
+                                failed.incrementAndGet();
                             }
-                        } catch (IOException e) {
-                            logger.info("--> listing failed: {}", e.toString());
-                            failed.incrementAndGet();
                         }
-                    }
-                    return null;
-                }));
-            }
-            for (Future<?> call : calls) {
-                call.get(10, TimeUnit.MINUTES);
-            }
-            logger.info("--> listed={} tripped={} failed={}", listed.get(), tripped.get(), failed.get());
-            assertThat("listings that failed because the coordinating node is gone or in trouble", failed.get(), equalTo(0));
-            Request health = new Request("GET", "/_cluster/health");
-            health.addParameter("filter_path", "number_of_nodes");
-            assertThat(
-                "nodes left in the cluster, some ran out of memory",
-                entityAsMap(client().performRequest(health)).get("number_of_nodes"),
-                equalTo(NODES)
-            );
-            assertThat("listings that tripped a circuit breaker", tripped.get(), greaterThan(0));
-        } finally {
-            executor.shutdownNow();
-            unblockPauseField();
-            for (String id : asyncIds) {
-                deleteAsyncQuery(id);
-            }
-            for (String id : asyncIds) {
-                ensureAsyncQueryCompleted(id);
+                        return null;
+                    }));
+                }
+                for (Future<?> call : calls) {
+                    call.get(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+                }
+                logger.info("--> listed={} tripped={} failed={}", listed.get(), tripped.get(), failed.get());
+                assertThat("listings that failed because the coordinating node is gone or in trouble", failed.get(), equalTo(0));
+                assertThat("node failures other than a trip of the breaker on the replies", unexpectedNodeFailures, empty());
+                Request health = new Request("GET", "/_cluster/health");
+                health.addParameter("filter_path", "number_of_nodes");
+                assertThat(
+                    "nodes left in the cluster, some ran out of memory",
+                    entityAsMap(client().performRequest(health)).get("number_of_nodes"),
+                    equalTo(NODES)
+                );
+                assertThat("listings that tripped the breaker on the replies", tripped.get(), greaterThan(0));
+            } finally {
+                executor.shutdownNow();
+                unblockPauseField();
+                for (String id : asyncIds) {
+                    deleteAsyncQuery(id);
+                }
+                for (String id : asyncIds) {
+                    ensureAsyncQueryCompleted(id);
+                }
             }
         }
     }
 
-    private boolean listTasksTrips(RestClient coordinatingClient) throws IOException {
+    private String coordinatingNodeId(RestClient coordinatingClient) throws IOException {
+        Request request = new Request("GET", "/_nodes/_local");
+        request.addParameter("filter_path", "nodes.*.name");
+        Map<?, ?> nodes = (Map<?, ?>) entityAsMap(coordinatingClient.performRequest(request)).get("nodes");
+        return nodes.keySet().iterator().next().toString();
+    }
+
+    private boolean listTasksTrips(RestClient coordinatingClient, Queue<String> unexpectedNodeFailures) throws IOException {
         Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
         request.addParameter("actions", "*esql*");
         request.addParameter("filter_path", "node_failures");
-        try {
-            Map<String, Object> response = entityAsMap(coordinatingClient.performRequest(request));
-            List<?> nodeFailures = (List<?>) response.get("node_failures");
-            return nodeFailures != null
-                && nodeFailures.stream()
-                    .anyMatch(f -> "circuit_breaking_exception".equals(XContentMapValues.extractValue("caused_by.type", (Map<?, ?>) f)));
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_TOO_MANY_REQUESTS) {
-                return true;
-            }
-            throw e;
+        Map<String, Object> response = entityAsMap(coordinatingClient.performRequest(request));
+        List<?> nodeFailures = (List<?>) response.get("node_failures");
+        if (nodeFailures == null) {
+            return false;
         }
+        boolean tripped = false;
+        for (Object failure : nodeFailures) {
+            Map<?, ?> cause = (Map<?, ?>) XContentMapValues.extractValue("caused_by", (Map<?, ?>) failure);
+            if (cause != null
+                && "circuit_breaking_exception".equals(cause.get("type"))
+                && String.valueOf(cause.get("reason")).contains("<node_tasks_response>")) {
+                tripped = true;
+            } else {
+                unexpectedNodeFailures.add(failure.toString());
+            }
+        }
+        return tripped;
     }
 
-    private void createPausableIndex() throws IOException {
+    private void createPausableIndex(String coordinatingNodeId) throws IOException {
         Request createIndex = new Request("PUT", "/pause_test");
         createIndex.setJsonEntity("""
             {
                 "settings": {
                     "number_of_shards": 1,
-                    "number_of_replicas": 0
+                    "number_of_replicas": 0,
+                    "index.routing.allocation.exclude._id": "%s"
                 },
                 "mappings": {
                     "runtime": {
@@ -158,7 +179,7 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
                         }
                     }
                 }
-            }""");
+            }""".formatted(coordinatingNodeId));
         client().performRequest(createIndex);
         Request bulk = new Request("POST", "/pause_test/_bulk?refresh=true");
         StringBuilder body = new StringBuilder();

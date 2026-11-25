@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Listing the tasks of a cluster whose nodes hold many queries with long descriptions: each node replies with the descriptions of its own
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHelpers {
 
     private static final int LITERAL_LENGTH = 900_000;
-    private static final int HELD_QUERIES = 14;
+    private static final int HELD_QUERIES = 8;
     private static final int LIST_CALLS = 5;
     private static final String COORDINATING_NODE_LIMIT = "30mb";
 
@@ -66,9 +67,16 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
                 asyncIds.add(submitAsyncQuery(queryWithLongLiteral("q" + i + "-" + "\u20ac".repeat(LITERAL_LENGTH))));
             }
 
+            for (String nodeId : remoteNodeIds(coordinatingClient)) {
+                assertFalse(
+                    "the reply of node [" + nodeId + "] alone must fit",
+                    listTasksTripsCoordinatingNodeBreaker(coordinatingClient, nodeId)
+                );
+            }
+
             int tripped = 0;
             for (int call = 0; call < LIST_CALLS; call++) {
-                if (listTasksTripsCoordinatingNodeBreaker(coordinatingClient)) {
+                if (listTasksTripsCoordinatingNodeBreaker(coordinatingClient, null)) {
                     tripped++;
                 }
             }
@@ -84,8 +92,30 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
         }
     }
 
-    private boolean listTasksTripsCoordinatingNodeBreaker(RestClient coordinatingClient) throws IOException {
+    private List<String> remoteNodeIds(RestClient coordinatingClient) throws IOException {
+        Request local = new Request("GET", "/_nodes/_local");
+        local.addParameter("filter_path", "nodes.*.name");
+        String coordinatingNodeId = ((Map<?, ?>) entityAsMap(coordinatingClient.performRequest(local)).get("nodes")).keySet()
+            .iterator()
+            .next()
+            .toString();
+        Request all = new Request("GET", "/_nodes");
+        all.addParameter("filter_path", "nodes.*.name");
+        List<String> remote = new ArrayList<>();
+        for (Object nodeId : ((Map<?, ?>) entityAsMap(client().performRequest(all)).get("nodes")).keySet()) {
+            if (nodeId.toString().equals(coordinatingNodeId) == false) {
+                remote.add(nodeId.toString());
+            }
+        }
+        assertThat(remote, hasSize(2));
+        return remote;
+    }
+
+    private boolean listTasksTripsCoordinatingNodeBreaker(RestClient coordinatingClient, String nodeId) throws IOException {
         Request request = new Request("GET", "/_tasks");
+        if (nodeId != null) {
+            request.addParameter("nodes", nodeId);
+        }
         request.addParameter("detailed", "true");
         request.addParameter("actions", "*esql*");
         request.addParameter("filter_path", "node_failures");

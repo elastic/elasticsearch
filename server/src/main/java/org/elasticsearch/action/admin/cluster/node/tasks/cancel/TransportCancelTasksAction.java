@@ -64,6 +64,11 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     @Override
+    protected boolean nodeRepliesCanTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected ListTasksResponse newResponse(
         CancelTasksRequest request,
         List<TaskInfo> tasks,

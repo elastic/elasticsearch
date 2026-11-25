@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
@@ -546,6 +547,33 @@ public class InboundAggregatorTests extends ESTestCase {
         final byte response = TransportStatus.setResponse((byte) 0);
         assertNotReserved(requestId, TransportStatus.setHandshake(response));
         assertNotReserved(requestId, TransportStatus.setError(response));
+    }
+
+    public void testResponseHandlerRemovedWhileResponseArrivesReleasesWhatWasReserved() throws IOException {
+        final long requestId = randomNonNegativeLong();
+        final ReservingResponseHandler responseHandler = new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1)));
+        final AtomicReference<TransportResponseHandler<?>> registered = new AtomicReference<>(responseHandler);
+        aggregator = new InboundAggregator(() -> circuitBreaker, action -> true, id -> id == requestId ? registered.get() : null);
+
+        startAggregatingResponse(requestId, TransportStatus.setResponse((byte) 0));
+        final ReleasableBytesReference fragment1 = fragment(between(1, 100));
+        aggregator.aggregate(fragment1);
+        fragment1.close();
+        assertTrue(fragment1.hasReferences());
+        assertThat(responseHandler.breaker.getUsed(), greaterThan(0L));
+
+        // As when the request times out after the header arrived
+        registered.set(null);
+        final ReleasableBytesReference fragment2 = fragment(between(1, 100));
+        aggregator.aggregate(fragment2);
+        fragment2.close();
+        assertFalse(fragment1.hasReferences());
+        assertFalse(fragment2.hasReferences());
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
+        try (InboundMessage aggregated = aggregator.finishAggregation()) {
+            assertTrue(aggregated.isShortCircuit());
+            assertThat(aggregated.getException(), instanceOf(TransportException.class));
+        }
     }
 
     public void testResponseWithoutHandlerIsDroppedAsItArrives() throws IOException {

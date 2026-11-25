@@ -986,6 +986,43 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(0, future.get().failureCount());
     }
 
+    public void testNodeRepliesAreNotChargedWhenTheyCannotTripTheBreaker() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch checkLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        final TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
+        for (int i = 0; i < testNodes.length; i++) {
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected boolean nodeRepliesCanTripCircuitBreaker() {
+                    return false;
+                }
+
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    listener.onResponse(new TestTaskResponse("x".repeat(Math.toIntExact(IN_FLIGHT_LIMIT.getBytes()) * 4)));
+                }
+            };
+        }
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], request);
+
+        assertThat(response.tasks, hasSize(nodesCount));
+        assertThat(response.getNodeFailures(), hasSize(0));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+
+        checkLatch.countDown();
+        assertEquals(0, future.get().failureCount());
+    }
+
     public void testNodeReplyReservationReleasedAfterSuccessfulReply() throws Exception {
         final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
         final CountDownLatch checkLatch = new CountDownLatch(1);

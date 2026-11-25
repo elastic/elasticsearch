@@ -548,7 +548,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             return false;
         }
 
-        boolean masterChanged = event.isNewMaster();
+        boolean masterChanged = event.localNodeIsNewMaster();
 
         if (persistentTasksChanged(event)
             || event.nodesChanged()

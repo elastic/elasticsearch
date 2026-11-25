@@ -106,7 +106,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
         }
 
         boolean scheduleExpiration = false;
-        if (event.isNewMaster()) {
+        if (event.localNodeIsNewMaster()) {
             for (var projectId : event.state().metadata().projects().keySet()) {
                 var blockedIndices = getIndicesWithRefreshBlock(event.state(), projectId);
                 if (blockedIndices.isEmpty()) {

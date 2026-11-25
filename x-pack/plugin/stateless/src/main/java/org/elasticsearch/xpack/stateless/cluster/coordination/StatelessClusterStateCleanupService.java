@@ -116,7 +116,7 @@ public class StatelessClusterStateCleanupService implements ClusterStateListener
         }
 
         // The local node has become master, a cleanup task should be scheduled to remove old cluster state.
-        if (event.isNewMaster()) {
+        if (event.localNodeIsNewMaster()) {
             scheduleCleanup = true;
         }
 

@@ -324,7 +324,7 @@ public class IndexLifecycleService
         // listeners that depend on what happened in the master listener
         final boolean prevIsMaster = this.isMaster;
         // NB also treat a re-election in a new term as becoming master, even if there was no intervening no-master state
-        if (event.isNewMaster() || prevIsMaster != event.localNodeMaster()) {
+        if (event.localNodeIsNewMaster() || prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
                 // we weren't the master, and now we are

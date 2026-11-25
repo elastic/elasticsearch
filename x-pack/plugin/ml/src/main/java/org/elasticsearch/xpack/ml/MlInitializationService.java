@@ -159,7 +159,7 @@ public final class MlInitializationService implements ClusterStateListener {
         }
 
         final boolean prevIsMaster = this.isMaster;
-        if (event.isNewMaster() || prevIsMaster != event.localNodeMaster()) {
+        if (event.localNodeIsNewMaster() || prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
                 if (prevIsMaster) {

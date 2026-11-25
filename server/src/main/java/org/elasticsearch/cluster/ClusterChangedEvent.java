@@ -137,7 +137,7 @@ public class ClusterChangedEvent {
     /// Returns `true` if this cluster state update is the first one after the local node was elected master. This includes the case of the
     /// same node being re-elected in a new term: it need not have applied a state with no master before applying the new election-winning
     /// state.
-    public boolean isNewMaster() {
+    public boolean localNodeIsNewMaster() {
         return state.nodes().isLocalNodeElectedMaster() && masterChanged();
     }
 

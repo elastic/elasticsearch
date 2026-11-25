@@ -203,10 +203,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -2291,23 +2293,45 @@ public class EsqlSession {
     }
 
     /**
-     * The names that the index resolver turns into key fields of the indices: all the names of the query, or with map types only
-     * those of view bodies. {@code SET map_types} does not reach into a view, so a view body reads keys as it does without the
-     * setting; in the caller's query a key is read from its map, see {@code MapKeys}.
+     * The names that the index resolver turns into key fields of the indices: the names the query uses.
+     * <p>
+     * With map types, a name of the caller's query is also asked for under the name it had before each {@code RENAME} above it:
+     * for {@code RENAME attrs AS a | WHERE a.foo == "x"} the shards answer {@code attrs.foo}, and the rename carries that child
+     * column to {@code a.foo}, see {@code MapKeys}. This only adds names. A name that is added without need is a child that
+     * nothing reads, and it is hidden.
      */
     private static Set<String> namesOfKeyFields(LogicalPlan parsed, Configuration configuration) {
+        Set<String> names = FieldNameUtils.namedFields(parsed);
         if (mapTypes(configuration) == false) {
-            return FieldNameUtils.namedFields(parsed);
+            return names;
         }
-        Set<String> names = new HashSet<>();
-        parsed.forEachDown(BranchPlan.class, branch -> {
-            for (int i = 0; i < branch.children().size(); i++) {
-                if (branch.isViewBranch(i)) {
-                    names.addAll(FieldNameUtils.namedFields(branch.children().get(i)));
+        Map<String, String> renames = new HashMap<>();
+        ViewUtils.forEachOutsideViews(parsed, node -> {
+            if (node instanceof Rename rename) {
+                for (Alias renaming : rename.renamings()) {
+                    if (renaming.child() instanceof UnresolvedAttribute ua && ua instanceof UnresolvedPattern == false) {
+                        renames.put(renaming.name() + ".", ua.name() + ".");
+                    }
                 }
             }
         });
-        return names;
+        if (renames.isEmpty()) {
+            return names;
+        }
+        Set<String> result = new HashSet<>(names);
+        Deque<String> pending = new ArrayDeque<>(names);
+        while (pending.isEmpty() == false) {
+            String name = pending.pop();
+            for (Map.Entry<String, String> rename : renames.entrySet()) {
+                if (name.startsWith(rename.getKey())) {
+                    String before = rename.getValue() + name.substring(rename.getKey().length());
+                    if (result.add(before)) {
+                        pending.push(before);
+                    }
+                }
+            }
+        }
+        return result;
     }
 
     static PreAnalysisResult addFilterFieldNames(PreAnalysisResult result, QueryBuilder requestFilter, Configuration configuration) {

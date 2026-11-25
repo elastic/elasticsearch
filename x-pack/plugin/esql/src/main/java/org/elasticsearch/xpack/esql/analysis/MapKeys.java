@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -17,16 +20,19 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FlattenedKeyEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 
 import java.util.ArrayList;
@@ -62,8 +68,9 @@ import java.util.Set;
  *     index and {@code attrs.foo} in another), each row reads {@code attrs.foo.bar} from the nearest map it has: the result is the
  *     union of both. A row can only have both maps when the nearer one was written under the other later, and then the nearer one
  *     has replaced what was under its name (rule 3).</li>
- *     <li><b>A key of a map in scope wins over {@code unmapped_fields}.</b> {@code nullify} and {@code load} decide only what no map
- *     and no column answers.</li>
+ *     <li><b>{@code unmapped_fields} decides only what no map answers.</b> For a map from {@code FROM} the shards answer the name,
+ *     so a key of one index sits beside the value another index maps or, under {@code load}, has in {@code _source}: that is one
+ *     column. For a map with no index behind it the key is read from the value, and wins over {@code nullify} and {@code load}.</li>
  * </ol>
  * A new command gets all of this by declaring its output: rule 3 compares what a command puts out with what it took in, and
  * rules 1, 2 and 4 are applied where names are resolved. Do not add handling for maps to a command.
@@ -136,16 +143,39 @@ public final class MapKeys {
         return ua instanceof UnresolvedPattern == false && ua.qualifier() == null && ua.name().indexOf('.') > 0;
     }
 
+    /**
+     * Rule 1: what the name {@code name} reads from the output of {@code input}, or {@code null} if no map answers it.
+     * <ul>
+     *     <li>The child column of that name that the source of the map provides, where there is one: {@code FROM} resolves the
+     *     names the query uses per shard, so the column holds a key of one index beside the mapped or loaded values of another.
+     *     It is hidden, see {@link #hideKeys}.</li>
+     *     <li>Otherwise the key in the value of the map, for a map with no index behind it: the output of a view, of a join or an
+     *     enrich, or of an aggregate.</li>
+     * </ul>
+     * Either way the map has to be in the output, and no projection may have excluded the name (rule 4).
+     */
     private static Expression read(String name, LogicalPlan input, Source source) {
+        Attribute hidden = null;
         List<Attribute> maps = new ArrayList<>();
         for (Attribute column : input.output()) {
             if (column.name().equals(name)) {
-                return null;
-            }
-            if (isMap(column.dataType()) && name.startsWith(column.name() + ".") && isOpen(input, column, name)) {
+                if (column.synthetic() == false) {
+                    // a column of that name: it is resolved like any column, not here
+                    return null;
+                }
+                hidden = column;
+            } else if (isMap(column.dataType()) && name.startsWith(column.name() + ".")) {
                 maps.add(column);
             }
         }
+        if (maps.isEmpty()) {
+            // a key needs its map
+            return null;
+        }
+        if (hidden != null && isOpen(input, hidden, name)) {
+            return hidden;
+        }
+        maps.removeIf(map -> isOpen(input, map, name) == false);
         if (maps.isEmpty()) {
             return null;
         }
@@ -160,7 +190,87 @@ public final class MapKeys {
         }
         return read;
     }
-        return keyReads.size() == 1 ? keyReads.get(0) : new Coalesce(source, keyReads.get(0), keyReads.subList(1, keyReads.size()));
+
+    /**
+     * Rule 2 at the source: the key fields that {@code FROM} resolved for the names the query uses are children of their map, not
+     * columns. They are marked synthetic, which the analyzer already has the machinery for: name resolution and wildcards do not
+     * see a synthetic attribute, and the output of the query does not contain it. Only {@link #read} resolves a name to one, and a
+     * command that takes it as a column makes a column of it. View bodies are left alone: the setting does not reach into a view.
+     */
+    static LogicalPlan hideKeys(LogicalPlan plan) {
+        return ViewUtils.transformUpOutsideViews(plan, node -> {
+            if (node instanceof EsRelation == false) {
+                return node;
+            }
+            EsRelation relation = (EsRelation) node;
+            if (relation.indexMode() == IndexMode.LOOKUP) {
+                return node;
+            }
+            List<Attribute> output = relation.output();
+            List<Attribute> hidden = new ArrayList<>(output.size());
+            boolean changed = false;
+            for (Attribute attribute : output) {
+                if (attribute instanceof FieldAttribute key && key.synthetic() == false && FlattenedKeyEsField.isKey(key.field())) {
+                    FieldAttribute child = new FieldAttribute(
+                        key.source(),
+                        key.parentName(),
+                        key.qualifier(),
+                        key.name(),
+                        key.field(),
+                        key.nullable(),
+                        key.id(),
+                        true
+                    );
+                    // A synthetic attribute reads the field its parent and field name spell; hide the key only if that is its name
+                    if (child.fieldName().string().equals(key.name())) {
+                        hidden.add(child);
+                        changed = true;
+                        continue;
+                    }
+                }
+                hidden.add(attribute);
+            }
+            return changed ? relation.withAttributes(hidden) : relation;
+        });
+    }
+
+    /**
+     * Rule 4 for a {@code KEEP}: its patterns are taken literally for the hidden children too. A pattern does not see a hidden
+     * attribute, so those that the patterns of the {@code KEEP} match are added to what it resolved to, and they stay hidden.
+     */
+    static List<NamedExpression> keepHiddenKeys(
+        List<? extends NamedExpression> written,
+        List<Attribute> input,
+        List<NamedExpression> resolved
+    ) {
+        UnmappedFieldsPattern pattern = null;
+        List<NamedExpression> result = null;
+        Set<NameId> kept = null;
+        for (Attribute attribute : input) {
+            if (isHiddenKey(attribute) == false) {
+                continue;
+            }
+            if (pattern == null) {
+                pattern = UnmappedFieldsPattern.forKeep(written);
+                kept = new HashSet<>();
+                for (NamedExpression expression : resolved) {
+                    if (expression.resolved()) {
+                        kept.add(expression.id());
+                    }
+                }
+            }
+            if (kept.contains(attribute.id()) == false && pattern.matches(attribute.name())) {
+                if (result == null) {
+                    result = new ArrayList<>(resolved);
+                }
+                result.add(attribute);
+            }
+        }
+        return result == null ? resolved : result;
+    }
+
+    private static boolean isHiddenKey(Attribute attribute) {
+        return attribute.synthetic() && attribute.name().indexOf('.') > 0 && attribute.name().startsWith("$$") == false;
     }
 
     /**
@@ -278,7 +388,8 @@ public final class MapKeys {
                 String oldPrefix = prefixOf(column.name(), renamedMaps.keySet());
                 if (oldPrefix != null) {
                     String newName = renamedMaps.get(oldPrefix) + column.name().substring(oldPrefix.length());
-                    result.add(new Alias(column.source(), newName, column));
+                    // a hidden child stays hidden under its new name
+                    result.add(new Alias(column.source(), newName, column, null, column.synthetic()));
                     continue;
                 }
             }

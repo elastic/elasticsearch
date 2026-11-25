@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FlattenedKeyEsField;
 import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
@@ -634,11 +635,12 @@ public class IndexResolver {
         }
 
         // For each field name, store a list of the field caps responses from each index
+        Set<String> keyNames = fieldsInfo.keyNames();
         var collectedFieldCaps = collectFieldCaps(
             fieldsInfo.caps,
             trackUnmappedFieldIndices,
             fieldsInfo.objectsAreNotLeaves(),
-            fieldsInfo.keyNames(),
+            keyNames,
             fieldsInfo.nestedScope()
         );
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
@@ -695,6 +697,10 @@ public class IndexResolver {
                     firstUnsupportedParent.getName(),
                     new HashMap<>()
                 );
+            if (field.getClass() == KeywordEsField.class && keyNames.contains(fullName)) {
+                // Lets the analyzer tell a key from a mapped field of the same name, see FlattenedKeyEsField
+                field = new FlattenedKeyEsField((KeywordEsField) field);
+            }
             if (trackUnmappedFieldIndices) {
                 Set<String> mappedIndices = collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of());
                 field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices, indexDedupCache);

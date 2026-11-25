@@ -1815,6 +1815,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.mapTypes()) {
+                // The keys that FROM resolved are children of their maps, not columns, before any name is resolved against them
+                plan = MapKeys.hideKeys(plan);
+            }
             if (context.viewSettings().isEmpty()) {
                 return super.apply(plan, context);
             }
@@ -3420,7 +3424,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     new ResolvingProject.Command(
                         ResolvingProject.Kind.KEEP,
                         keep.projections(),
-                        inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmatchedPatterns)
+                        inputAttributes -> mapTypes
+                            ? MapKeys.keepHiddenKeys(
+                                keep.projections(),
+                                inputAttributes,
+                                keepResolver(keep.projections(), inputAttributes, unmatchedPatterns)
+                            )
+                            : keepResolver(keep.projections(), inputAttributes, unmatchedPatterns)
                     )
                 );
             }

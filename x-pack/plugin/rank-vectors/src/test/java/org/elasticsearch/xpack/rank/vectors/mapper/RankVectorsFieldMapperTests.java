@@ -231,6 +231,50 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     public void testAggregatableConsistency() {}
 
+    /**
+     * A field that a dynamic template creates has no dimensions either, and learns them from the document that creates it, which is
+     * before the field is part of the stored mapping.
+     */
+    public void testDimensionsOfAFieldFromADynamicTemplate() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("vectors");
+            b.field("match", "vec*");
+            b.startObject("mapping").field("type", "rank_vectors").endObject();
+            b.endObject().endObject();
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startArray("vec");
+            b.startArray().value(1.0f).value(2.0f).value(3.0f).endArray();
+            b.endArray();
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
+
+        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("\"dims\":3"));
+    }
+
+    /**
+     * Each vector of a document tells the field its dimensions, and they must agree before any of them is fixed in the mapping.
+     */
+    public void testVectorsOfDifferentLengthsInNestedObjectsAreRejected() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("vec").field("type", "rank_vectors").endObject();
+            b.endObject().endObject();
+        }));
+
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
+            b.startArray("n");
+            b.startObject().startArray("vec").startArray().value(1.0f).value(2.0f).endArray().endArray().endObject();
+            b.startObject().startArray("vec").startArray().value(1.0f).value(2.0f).value(3.0f).endArray().endArray().endObject();
+            b.endArray();
+        })));
+        assertThat(e.getCause().getMessage(), containsString("different dimensions"));
+    }
+
     public void testDims() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {

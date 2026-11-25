@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -45,7 +46,8 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         AggregateMetricDoubleNativeSupport,
         SurrogateExpression,
         TimestampAware,
-        ToAggregator {
+        ToAggregator,
+        UnitAware.Unitless {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountOverTime.class)
         .ternary(CountOverTime::new)
         .name("count_over_time");

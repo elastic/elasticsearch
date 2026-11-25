@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -76,6 +77,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1431,6 +1433,40 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyTrue() {
+        assertTopDocsStatsMergeEarlyTermination(true, true, true);
+        assertTopDocsStatsMergeEarlyTermination(true, false, true);
+        assertTopDocsStatsMergeEarlyTermination(true, null, true);
+        assertTopDocsStatsMergeEarlyTermination(false, true, true);
+        assertTopDocsStatsMergeEarlyTermination(null, true, true);
+    }
+
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyFalse() {
+        assertTopDocsStatsMergeEarlyTermination(false, false, false);
+        assertTopDocsStatsMergeEarlyTermination(null, false, false);
+        assertTopDocsStatsMergeEarlyTermination(false, null, false);
+    }
+
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyNull() {
+        assertTopDocsStatsMergeEarlyTermination(null, null, null);
+    }
+
+    private void assertTopDocsStatsMergeEarlyTermination(Boolean first, Boolean second, Boolean expected) {
+        TopDocsStats accumulated = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        accumulated.terminatedEarly = first;
+        TopDocsStats batch = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        batch.terminatedEarly = second;
+        accumulated.add(batch);
+
+        assertEquals("merging termination flags " + first + " then " + second, expected, accumulated.terminatedEarly);
+
+        // The ordinary shard-result overload must agree with the batched overload, including empty results.
+        TopDocsStats unbatched = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        unbatched.terminatedEarly = first;
+        unbatched.add(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN), false, second);
+        assertEquals(expected, unbatched.terminatedEarly);
+    }
+
     public void testMergeWithPartialFetchResults() {
         int nShards = 3;
         int hitsPerShard = 5;
@@ -1592,6 +1628,46 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         Collections.shuffle(results, random());
         assertNull(SearchPhaseController.mergeTopDocs(results, 10, randomIntBetween(0, 10)));
+    }
+
+    /**
+     * Sorting on a field that is mapped in some indices only, with an {@code unmapped_type} that differs from the mapped type:
+     * the shards of the other indices return docs with null sort values and a STRING placeholder sort type.
+     */
+    public void testMergeTopDocsWithUnmappedSortFieldPlaceholder() {
+        SortField mappedSortField = new SortField("field", SortField.Type.DOUBLE);
+        TopFieldDocs mappedShard = new TopFieldDocs(
+            new TotalHits(2, Relation.EQUAL_TO),
+            new FieldDoc[] { new FieldDoc(0, Float.NaN, new Object[] { 3.14 }), new FieldDoc(1, Float.NaN, new Object[] { 5.0 }) },
+            new SortField[] { mappedSortField }
+        );
+        SortField placeholderSortField = new SortField(
+            SearchExecutionContext.ANONYMOUS_FIELD_NAME,
+            SortField.Type.STRING,
+            false,
+            SortField.STRING_LAST
+        );
+
+        // the unmapped docs are sorted after the docs that have a value, wherever the shards come in the list, and with pagination
+        for (boolean placeholderFirst : new boolean[] { true, false }) {
+            TopFieldDocs placeholderShard = new TopFieldDocs(
+                new TotalHits(2, Relation.EQUAL_TO),
+                new FieldDoc[] { new FieldDoc(10, Float.NaN, new Object[] { null }), new FieldDoc(11, Float.NaN, new Object[] { null }) },
+                new SortField[] { placeholderSortField }
+            );
+            List<TopDocs> results = placeholderFirst ? List.of(placeholderShard, mappedShard) : List.of(mappedShard, placeholderShard);
+
+            TopDocs merged = SearchPhaseController.mergeTopDocs(results, 10, 0);
+            assertThat(Arrays.stream(merged.scoreDocs).map(scoreDoc -> scoreDoc.doc).toList(), equalTo(List.of(0, 1, 10, 11)));
+        }
+
+        TopFieldDocs placeholderShard = new TopFieldDocs(
+            new TotalHits(2, Relation.EQUAL_TO),
+            new FieldDoc[] { new FieldDoc(10, Float.NaN, new Object[] { null }), new FieldDoc(11, Float.NaN, new Object[] { null }) },
+            new SortField[] { placeholderSortField }
+        );
+        TopDocs page = SearchPhaseController.mergeTopDocs(List.of(placeholderShard, mappedShard), 2, 1);
+        assertThat(Arrays.stream(page.scoreDocs).map(scoreDoc -> scoreDoc.doc).toList(), equalTo(List.of(1, 10)));
     }
 
     public void testMergeOmitsCompletionOptionsWithoutFetchResults() {

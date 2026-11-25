@@ -11,6 +11,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -88,7 +89,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      *
      * @param in       reader to filter
      * @param filter   fields to filter.
-     * @param isMapped whether a field is mapped or not.
+     * @param isMapped whether a field is mapped or not. Keys of a field with dynamic keys (e.g. a flattened field) must not count as
+     *                 mapped, so that the companions such a field writes follow its FLS decision.
      */
     public static DirectoryReader wrap(
         DirectoryReader in,
@@ -194,22 +196,29 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 name = storedValueFallbackCompanionParent(fi.getName());
             }
 
-            // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
-            // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
-            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists as a field in the
-            // underlying index, so a user field that merely ends with the suffix but has no such parent is unaffected.
-            if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
-                String parent = name.substring(0, name.length() - FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX.length());
-                if (in.getFieldInfos().fieldInfo(parent) != null) {
+            // Resolved before .offsets, so that the counts of a flattened field's binary .offsets sidecar (<field>.offsets.counts) follow
+            // the sidecar too.
+            String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+            if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
+                String parent = stripSuffix(name, countsSuffix);
+                if (parent.isEmpty() == false && companionParentExists(in.getFieldInfos(), parent, isMapped)) {
                     name = parent;
                 }
             }
 
-            String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-            if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
-                String parent = name.substring(0, name.length() - countsSuffix.length());
-                if (parent.isEmpty() == false && in.getFieldInfos().fieldInfo(parent) != null) {
-                    name = parent;
+            // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
+            // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
+            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists, so a user field that
+            // merely ends with the suffix but has no such parent is unaffected.
+            if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                String parent = stripSuffix(name, FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
+                if (companionParentExists(in.getFieldInfos(), parent, isMapped)) {
+                    // Only a flattened field writes its offsets as binary doc values, and they point into its keyed values rather than
+                    // into the field itself, so they follow <field>._keyed. The doc values type is checked rather than whether the keyed
+                    // values exist, as a segment made only of arrays of nulls has offsets but no keyed values.
+                    FieldInfo offsets = in.getFieldInfos().fieldInfo(name);
+                    boolean flattened = offsets != null && offsets.getDocValuesType() == DocValuesType.BINARY;
+                    name = flattened ? parent + FlattenedFieldMapper.KEYED_FIELD_SUFFIX : parent;
                 }
             }
 
@@ -272,6 +281,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             return stripSuffix(fieldName, onFailure);
         }
 
+        // A flattened field keeps the values that trip ignore_above in a <field>._keyed._ignored companion. Its .offsets point into these
+        // as well as into the keyed values, so both must follow the keyed values' FLS decision.
+        String keyedIgnored = FlattenedFieldMapper.KEYED_IGNORED_VALUES_FIELD_SUFFIX;
+        if (fieldName.endsWith(keyedIgnored + counts)) {
+            return stripSuffix(fieldName, keyedIgnored + counts) + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+        }
+        if (fieldName.endsWith(keyedIgnored)) {
+            return stripSuffix(fieldName, keyedIgnored) + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+        }
+
         // A columnar geo_shape field stores its normalized geometries in a <field>.source_geometry companion so synthetic source
         // can be rebuilt
         if (fieldName.endsWith(AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX)) {
@@ -279,6 +298,15 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         return fieldName;
+    }
+
+    /**
+     * Whether {@code parent} exists, so that a field named {@code parent + suffix} is its companion. The mapping is checked as well as the
+     * segment: a companion can be written without its parent (e.g. a document whose array holds only nulls), so a segment made only of
+     * such documents has the companion but not the parent. The segment is still checked for parents that are not mapped field types.
+     */
+    private static boolean companionParentExists(FieldInfos fieldInfos, String parent, Function<String, Boolean> isMapped) {
+        return isMapped.apply(parent) || fieldInfos.fieldInfo(parent) != null;
     }
 
     private static String stripSuffix(String value, String suffix) {

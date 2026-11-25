@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +38,7 @@ import java.util.Map;
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -119,6 +121,19 @@ public class BlockLoaderTestRunner {
         return this;
     }
 
+    private ParsedDocument emptyDocument(long timestamp) {
+        if (mapperService == null) {
+            throw new IllegalStateException("need to set mapperService");
+        }
+        Map<String, Object> emptyPayloadDoc = Map.of(
+            "@timestamp",
+            timestamp,
+            BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD,
+            mapDoc().get(BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD)
+        );
+        return parseDocument(emptyPayloadDoc);
+    }
+
     /**
      * The document being parsed.
      */
@@ -130,24 +145,29 @@ public class BlockLoaderTestRunner {
             if (mapperService == null) {
                 throw new IllegalStateException("need to set mapperService");
             }
-            try {
-                var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapDoc);
-                var source = new SourceToParse(
-                    "1",
-                    new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
-                    null,
-                    Map.of(),
-                    Map.of(),
-                    XContentMeteringParserDecorator.NOOP,
-                    null
-                );
-                doc = mapperService.documentMapper().parse(source);
-                return doc;
-            } catch (IOException e) {
-                throw new RuntimeException("shouldn't be possible", e);
-            }
+            doc = parseDocument(mapDoc);
+            return doc;
         }
         throw new IllegalStateException("need to set doc");
+    }
+
+    private ParsedDocument parseDocument(Map<String, Object> docToParse) {
+        try {
+            var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(docToParse);
+            var source = new SourceToParse(
+                // In Time series the _id is derived from document
+                params.indexMode() == IndexMode.TIME_SERIES ? null : "1",
+                new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
+                params.indexMode() == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(randomInt()) : null,
+                Map.of(),
+                Map.of(),
+                XContentMeteringParserDecorator.NOOP,
+                null
+            );
+            return mapperService.documentMapper().parse(source);
+        } catch (IOException e) {
+            throw new RuntimeException("shouldn't be possible", e);
+        }
     }
 
     /**
@@ -172,6 +192,10 @@ public class BlockLoaderTestRunner {
     private static Map<String, Object> decorateWithRequiredFields(Map<String, Object> document, IndexMode indexMode) {
         if (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.LOGSDB_COLUMNAR) {
             document.putIfAbsent("@timestamp", ESTestCase.randomMillisUpToYear9999());
+        }
+        if (indexMode == IndexMode.TIME_SERIES) {
+            document.putIfAbsent("@timestamp", ESTestCase.randomMillisUpToYear9999());
+            document.putIfAbsent(BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD, ESTestCase.randomAlphanumericOfLength(10));
         }
         return document;
     }
@@ -202,14 +226,32 @@ public class BlockLoaderTestRunner {
             throw new IllegalStateException("need to set fieldName");
         }
         try (Directory directory = newDirectory()) {
+            // disable index checks on directory close, this is needed
+            // for time_series which use synthetic ids. The synthetic ids doesn't
+            // have postings and CheckIndex would fail because docfreq is 0.
+            final boolean syntheticId = mapperService.getIndexSettings().useTimeSeriesSyntheticId();
+            if (syntheticId) {
+                if (directory instanceof BaseDirectoryWrapper directoryWrapper) {
+                    directoryWrapper.setCheckIndexOnClose(false);
+                }
+            }
+
             RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory);
 
             LuceneDocument doc = this.document().rootDoc();
 
-            boolean sortedIndex = mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort();
-            if (sortedIndex) {
+            final boolean singleDocument = syntheticId == false && mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort();
+            if (singleDocument) {
                 // NOTE: an index sort reorders documents, so the real document cannot be kept between empty ones; it is the only one.
                 iw.addDocument(doc);
+            } else if (syntheticId) {
+                // The index is sorted by _tsid asc, @timestamp desc, so the empty docs get the same
+                // dimension and a later/earlier timestamp than the real doc: after sorting the real
+                // doc is still doc id 1.
+                long timestamp = ((Number) mapDoc().get("@timestamp")).longValue();
+                LuceneDocument firstEmpty = emptyDocument(timestamp + 1).rootDoc();
+                LuceneDocument lastEmpty = emptyDocument(timestamp - 1).rootDoc();
+                iw.addDocuments(List.of(firstEmpty, doc, lastEmpty));
             } else {
                 /*
                  * Add three documents with doc id 0, 1, 2. The real document is 1.
@@ -222,7 +264,7 @@ public class BlockLoaderTestRunner {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 MapperServiceTestCase.assertDocValuesWrittenAsMapped(mapperService, reader);
                 LeafReaderContext context = reader.leaves().getFirst();
-                return load(createBlockLoader(fieldName), context, sortedIndex ? 0 : 1);
+                return load(createBlockLoader(fieldName), context, singleDocument ? 0 : 1);
             }
         }
     }

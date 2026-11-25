@@ -109,7 +109,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -678,7 +678,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 indexShard.shardId(),
                 bcc.primaryTermAndGeneration().primaryTerm()
             );
-            final var blobName = BatchedCompoundCommit.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
+            final var blobName = BccBlob.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
 
             final var cc = bcc.lastCompoundCommit();
             assert cc.hollow();
@@ -741,7 +741,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 long position,
                 long length
             ) throws IOException {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (BccBlob.startsWithBlobPrefix(blobName)) {
                     logger.debug("--> reading BCC {} at position {} for length {}", blobName, position, length);
                     bccAccesses.incrementAndGet();
                 }
@@ -869,7 +869,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 Settings.builder().put("index.routing.allocation.exclude._name", clusterInfo.indexNodeB),
                 clusterInfo.indexName
             );
-            internalCluster().awaitNodeVacated(clusterInfo.indexName, clusterInfo.indexNodeB);
+            // The test plugin parks node B's shard closes (see closeShard in TestStatelessPluginCatchUnhollow) and releases them
+            // only in the finally block, so wait on the routing table alone.
+            internalCluster().awaitNodesInclude(clusterInfo.indexName, nodes -> nodes.contains(clusterInfo.indexNodeB) == false);
             ensureGreen(clusterInfo.indexName);
 
             // All shard closes on node B are held before removing their ingestion blockers
@@ -3627,7 +3629,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 long position,
                 long length
             ) throws IOException {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
+                if (BccBlob.startsWithBlobPrefix(blobName)) {
                     logger.info("--> {} reading BCC {} at position {} for length {}", indexNode, blobName, position, length);
                     bccAccesses.incrementAndGet();
                 }

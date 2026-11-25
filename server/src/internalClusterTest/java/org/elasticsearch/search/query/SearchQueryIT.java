@@ -68,6 +68,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -118,7 +119,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -622,8 +623,8 @@ public class SearchQueryIT extends ESIntegTestCase {
         Matcher<String> reasonMatcher = containsString("NumberFormatException: For input string: \"value1\"");
         try {
             assertResponse(prepareSearch().setQuery(builder), response -> {
-                ShardSearchFailure[] shardFailures = response.getShardFailures();
-                assertThat("Expected shard failures, got none", shardFailures, not(emptyArray()));
+                List<ShardSearchFailure> shardFailures = response.getShardFailures();
+                assertThat("Expected shard failures, got none", shardFailures, not(empty()));
                 for (ShardSearchFailure shardSearchFailure : shardFailures) {
                     assertThat(shardSearchFailure.status(), equalTo(RestStatus.BAD_REQUEST));
                     assertThat(shardSearchFailure.reason(), reasonMatcher);
@@ -632,7 +633,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            ShardSearchFailure[] shardFailures = e.shardFailures();
+            List<ShardSearchFailure> shardFailures = e.shardFailures();
             for (ShardSearchFailure shardSearchFailure : shardFailures) {
                 assertThat(shardSearchFailure.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);

@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -63,10 +64,19 @@ public final class DocumentParser {
 
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
+    private final Function<Map<String, Object>, MappingBuilder> mappingBuilder;
 
-    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
+    /**
+     * @param mappingBuilder parses the decoded root object of a mapping that is already stored, for updating its fields
+     */
+    DocumentParser(
+        XContentParserConfiguration parserConfiguration,
+        MappingParserContext mappingParserContext,
+        Function<Map<String, Object>, MappingBuilder> mappingBuilder
+    ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
+        this.mappingBuilder = mappingBuilder;
     }
 
     /**
@@ -91,7 +101,8 @@ public final class DocumentParser {
                 mappingLookup,
                 mappingParserContext,
                 source,
-                sourceObject.parser(parserConfiguration)
+                sourceObject.parser(parserConfiguration),
+                mappingBuilder
             )
         ) {
             context = ctx;
@@ -1032,11 +1043,6 @@ public final class DocumentParser {
             }
 
             @Override
-            public Builder getMergeBuilder() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             protected String contentType() {
                 throw new UnsupportedOperationException();
             }
@@ -1095,14 +1101,16 @@ public final class DocumentParser {
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            XContentParser parser
+            XContentParser parser,
+            Function<Map<String, Object>, MappingBuilder> mappingBuilder
         ) throws IOException {
             super(
                 mappingLookup,
                 mappingParserContext,
                 source,
                 mappingLookup.getMapping().getRoot(),
-                ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+                ObjectMapper.Dynamic.getRootDynamic(mappingLookup),
+                mappingBuilder
             );
             IndexSettings indexSettings = mappingParserContext.getIndexSettings();
             BytesRef tsid = source.tsid();

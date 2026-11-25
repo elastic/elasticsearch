@@ -11,10 +11,10 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -35,23 +35,21 @@ class ShardChangesObserver implements RoutingChangesObserver {
 
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> PRIMARY_ATTRIBUTES = buildAttributesByReason(true);
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> REPLICA_ATTRIBUTES = buildAttributesByReason(false);
-    // Pre-calculate attributes for the most common move reasons
-    static final Map<String, Map<String, Object>> PRIMARY_RELOCATION_ATTRIBUTES = buildRelocationAttributes(true);
-    static final Map<String, Map<String, Object>> REPLICA_RELOCATION_ATTRIBUTES = buildRelocationAttributes(false);
 
     private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary) {
         return Arrays.stream(UnassignedInfo.Reason.values())
             .collect(Collectors.toUnmodifiableMap(r -> r, r -> Map.of("es_shard_primary", primary, "es_shard_reason", r.name())));
     }
 
-    private static Map<String, Map<String, Object>> buildRelocationAttributes(boolean primary) {
+    // Relocations are rare and the telemetry client builds its own attributes from this map on every call, so it is not worth caching
+    private static Map<String, Object> relocationAttributes(MoveReason reason, boolean primary) {
         return Map.of(
-            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
-            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.REBALANCE.reason(), "es_shard_primary", primary),
-            BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason(),
-            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason(), "es_shard_primary", primary),
-            BalancedShardsAllocator.MoveType.NOT_PREFERRED.reason(),
-            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.NOT_PREFERRED.reason(), "es_shard_primary", primary)
+            "es_relocation_reason",
+            reason.type().reason(),
+            "es_can_remain_decider",
+            reason.canRemainDecider() == null ? "missing" : reason.canRemainDecider(),
+            "es_shard_primary",
+            primary
         );
     }
 
@@ -123,23 +121,15 @@ class ShardChangesObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
+    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {
         logger.debug(
             "{} is relocating ({}) from [{}] to [{}]",
             shardIdentifier(startedShard),
-            reason,
+            reason.type().reason(),
             startedShard.currentNodeId(),
             targetRelocatingShard.currentNodeId()
         );
         relocationStartedCounter.incrementBy(1, relocationAttributes(reason, startedShard.primary()));
-    }
-
-    private static Map<String, Object> relocationAttributes(String reason, boolean primary) {
-        final var attrs = (primary ? PRIMARY_RELOCATION_ATTRIBUTES : REPLICA_RELOCATION_ATTRIBUTES).get(reason);
-        if (attrs != null) {
-            return attrs;
-        }
-        return Map.of("es_relocation_reason", reason, "es_shard_primary", primary);
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * A failure during a reduce phase (when receiving results from several shards, and reducing them
@@ -23,7 +24,7 @@ import java.io.IOException;
  */
 public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 
-    public ReduceSearchPhaseException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
+    public ReduceSearchPhaseException(String phaseName, String msg, Throwable cause, List<ShardSearchFailure> shardFailures) {
         super(phaseName, "[reduce] " + msg, cause, shardFailures);
     }
 
@@ -33,8 +34,8 @@ public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 
     @Override
     public RestStatus status() {
-        final ShardSearchFailure[] shardFailures = shardFailures();
-        if (shardFailures.length == 0) {
+        List<ShardSearchFailure> shardFailures = shardFailures();
+        if (shardFailures.isEmpty()) {
             return getCause() == null ? RestStatus.INTERNAL_SERVER_ERROR : ExceptionsHelper.status(getCause());
         }
         return super.status();

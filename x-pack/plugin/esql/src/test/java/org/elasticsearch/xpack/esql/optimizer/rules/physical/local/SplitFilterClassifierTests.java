@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -475,6 +477,26 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(0, compareValues(1.5, 1.5));
     }
 
+    public void testCompareValuesSignedZeros() {
+        assertEquals(0, compareValues(-0.0, 0.0));
+        assertEquals(0, compareValues(0.0, -0.0));
+    }
+
+    public void testEqualsKeepsOppositeSignZero() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
+        assertEquals(MATCH, classify(equalsOf(score, of(0.0)), negZero));
+        assertEquals(MATCH, classify(greaterThanOrEqualOf(score, of(0.0)), negZero));
+        assertEquals(MISS, classify(greaterThanOf(score, of(0.0)), negZero));
+    }
+
+    public void testInLeavesOppositeSignZeroUnknown() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
+        assertEquals(AMBIGUOUS, classify(in(score, of(0.0)), negZero));
+        assertEquals(MATCH, classify(in(score, of(-0.0)), negZero));
+    }
+
     public void testCompareValuesNull() {
         assertEquals(Integer.MIN_VALUE, compareValues(null, 10L));
         assertEquals(Integer.MIN_VALUE, compareValues(10L, null));
@@ -501,6 +523,40 @@ public class SplitFilterClassifierTests extends ESTestCase {
         builder.min(col, min);
         builder.max(col, max);
         return builder.build();
+    }
+
+    // --- mv_in_range ---
+
+    public void testMvInRangeMissBelow() {
+        assertEquals(MISS, classify(mvInRange(5L, 9L), STATS_10_20));
+    }
+
+    public void testMvInRangeMissAbove() {
+        assertEquals(MISS, classify(mvInRange(21L, 30L), STATS_10_20));
+    }
+
+    public void testMvInRangeMissExclusiveLowerOnMax() {
+        // [10,20] vs (20, 30] — max sits on the excluded lower bound.
+        assertEquals(MISS, classify(mvInRange(20L, 30L, false, true), STATS_10_20));
+    }
+
+    public void testMvInRangeAmbiguousOverlap() {
+        assertEquals(AMBIGUOUS, classify(mvInRange(15L, 25L), STATS_10_20));
+    }
+
+    public void testMvInRangeMatchContained() {
+        assertEquals(MATCH, classify(mvInRange(5L, 25L), STATS_10_20));
+    }
+
+    public void testMvInRangeAllNullIsMiss() {
+        var stats = colStats(COL, 10L, 20L, 100L, 100L);
+        assertEquals(MISS, classify(mvInRange(5L, 25L), stats));
+    }
+
+    public void testMvInRangeMultivaluedStillMissesWhenDisjoint() {
+        SplitStats mv = colStats(COL, 10L, 20L, 100L, 0L, 150L);
+        assertEquals(MISS, classify(mvInRange(30L, 40L), mv));
+        assertEquals(AMBIGUOUS, classify(mvInRange(5L, 25L), mv));
     }
 
     public void testComparisonOnMultivaluedColumnIsAmbiguousNotMatch() {
@@ -537,5 +593,27 @@ public class SplitFilterClassifierTests extends ESTestCase {
 
     private static Expression in(Expression value, Literal... list) {
         return new In(Source.EMPTY, value, List.of(list));
+    }
+
+    private static Expression mvInRange(long lower, long upper) {
+        return new MvInRange(Source.EMPTY, AGE, of(lower), of(upper));
+    }
+
+    private static Expression mvInRange(long lower, long upper, boolean includeLower, boolean includeUpper) {
+        return new MvInRange(
+            Source.EMPTY,
+            AGE,
+            of(lower),
+            of(upper),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    Literal.keyword(Source.EMPTY, "include_lower"),
+                    new Literal(Source.EMPTY, includeLower, DataType.BOOLEAN),
+                    Literal.keyword(Source.EMPTY, "include_upper"),
+                    new Literal(Source.EMPTY, includeUpper, DataType.BOOLEAN)
+                )
+            )
+        );
     }
 }

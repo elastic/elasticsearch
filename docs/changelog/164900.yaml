@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 163977
+pr: 164900
+summary: Return 400 instead of 500 when a script enumerates or returns the `doc` or `_fields` lookup
+type: bug

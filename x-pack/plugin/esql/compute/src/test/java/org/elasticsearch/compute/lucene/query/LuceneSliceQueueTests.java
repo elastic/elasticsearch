@@ -30,18 +30,29 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.codec.tsdb.PrefixedPartitionsWriter;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +66,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class LuceneSliceQueueTests extends ESTestCase {
 
@@ -239,6 +252,75 @@ public class LuceneSliceQueueTests extends ESTestCase {
             assertEquals(sliceList.get(12), second);
             assertNull(null, queue.nextSlice(randomFrom(sliceList)));
         }
+    }
+
+    /**
+     * Each shard counts its slices until they are read: a slice is read once the next one is asked for after it, or
+     * once it is given back unfinished.
+     */
+    public void testUnfinishedSlicesPerShard() {
+        var first = new LuceneSourceOperatorTests.MockShardContext(null);
+        var second = new LuceneSourceOperatorTests.MockShardContext(null);
+        LeafReaderContext leaf = new MockLeafReader(100).getContext();
+        List<LuceneSlice> sliceList = new ArrayList<>();
+        for (var shard : List.of(first, first, second)) {
+            sliceList.add(
+                new LuceneSlice(
+                    sliceList.size(),
+                    false,
+                    shard,
+                    List.of(new PartialLeafReaderContext(leaf, 0, 100)),
+                    null,
+                    null,
+                    LuceneSlice.NEVER_BLOCKED
+                )
+            );
+        }
+        LuceneSliceQueue queue = new LuceneSliceQueue(i -> first, sliceList, Map.of());
+        assertThat(first.unfinishedSlices(), equalTo(2));
+        assertThat(second.unfinishedSlices(), equalTo(1));
+
+        LuceneSlice slice = queue.nextSlice(null);
+        assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(3));
+        int read = 0;
+        LuceneSlice next;
+        while ((next = queue.nextSlice(slice)) != null) {
+            read++;
+            assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(3 - read));
+            slice = next;
+        }
+        assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(0));
+
+        LuceneSliceQueue abandoned = new LuceneSliceQueue(i -> first, List.of(sliceList.get(0)), Map.of());
+        assertThat(first.unfinishedSlices(), equalTo(1));
+        abandoned.finished(abandoned.nextSlice(null));
+        assertThat(first.unfinishedSlices(), equalTo(0));
+    }
+
+    /**
+     * Once the last operator reading a queue stops, for example on reaching a limit, the slices nobody took count as read.
+     */
+    public void testSlicesLeftWhenTheLastReaderStopsCountAsRead() {
+        var shard = new LuceneSourceOperatorTests.MockShardContext(null);
+        LeafReaderContext leaf = new MockLeafReader(100).getContext();
+        List<LuceneSlice> sliceList = new ArrayList<>();
+        int numSlices = between(2, 10);
+        for (int i = 0; i < numSlices; i++) {
+            sliceList.add(
+                new LuceneSlice(i, false, shard, List.of(new PartialLeafReaderContext(leaf, 0, 100)), null, null, LuceneSlice.NEVER_BLOCKED)
+            );
+        }
+        LuceneSliceQueue queue = new LuceneSliceQueue(i -> shard, sliceList, Map.of());
+        queue.addReader();
+        queue.addReader();
+        LuceneSlice read = queue.nextSlice(null);
+        queue.finished(read);
+        assertThat(shard.unfinishedSlices(), equalTo(numSlices - 1));
+        queue.removeReader();
+        assertThat(shard.unfinishedSlices(), equalTo(numSlices - 1));
+        queue.removeReader();
+        assertThat(shard.unfinishedSlices(), equalTo(0));
+        assertNull(queue.nextSlice(null));
     }
 
     public void testRandom() throws Exception {
@@ -537,6 +619,45 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
     }
 
+    /**
+     * Rewriting the queries is charged to the shard and to the load of the task that creates the slices, before the pool
+     * charges the task.
+     */
+    public void testCreateSliceChargesTheLoadOfItsTask() throws Exception {
+        EsThreadPoolExecutor pool = EsExecutors.newFixed(
+            "test",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "load"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+        );
+        try (var directory = newDirectory(); var reader = simpleReader(directory, 1, 1)) {
+            var shardContext = new LuceneSourceOperatorTests.MockShardContext(reader);
+            long rewriteNanos = TimeUnit.MILLISECONDS.toNanos(1);
+            QueryLoad queryLoad = new QueryLoad();
+            PlainActionFuture<Long> chargedInTask = new PlainActionFuture<>();
+            pool.execute(ActionRunnable.supply(chargedInTask, () -> {
+                TaskLoadAttribution.attribute(queryLoad.charging((nanos, cpuNanos, finishNanos) -> {}));
+                LuceneSliceQueue.create(new IndexedByShardIdFromList<>(List.of(shardContext)), context -> {
+                    spin(rewriteNanos);
+                    return List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
+                },
+                    DataPartitioning.SEGMENT,
+                    (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SEGMENT,
+                    LuceneOperator.SMALL_INDEX_BOUNDARY,
+                    1,
+                    context -> ScoreMode.COMPLETE
+                );
+                return queryLoad.snapshot().loadNanos();
+            }));
+            assertThat(chargedInTask.get(10, TimeUnit.SECONDS), greaterThanOrEqualTo(rewriteNanos));
+            assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+        } finally {
+            ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        }
+    }
+
     public void testTimeSeriesPartitionerSingleSegment() throws IOException {
         var prefixes = new PartitionedDocValues.PrefixPartitions(3, new int[] { 0, 2, 3 }, new int[] { 0, 100, 300 });
         MultiReader reader = new MultiReader(new MockLeafReader(500, prefixes));
@@ -651,6 +772,76 @@ public class LuceneSliceQueueTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testRandomTimeSeriesPartition() throws IOException {
+        int shift = PrefixedPartitionsWriter.PARTITION_PREFIX_BITS - Byte.SIZE;
+        int maxDocsPerPartition = 50;
+        List<PartitionedDocValues.PrefixPartitions> partitions = new ArrayList<>();
+        List<MockLeafReader> readers = new ArrayList<>();
+        int[] metricDocs = new int[1 << Byte.SIZE];
+        int totalDocs = 0;
+        for (int leaf = between(1, 6); leaf > 0; leaf--) {
+            List<Integer> prefixes = new ArrayList<>();
+            List<Integer> startDocs = new ArrayList<>();
+            int maxDoc = 0;
+            for (int metric : new int[] { 0, 3, 255 }) {
+                if (rarely()) {
+                    continue;
+                }
+                for (int low = between(0, 200); low < 1 << shift; low += between(1, 100)) {
+                    int docs = between(1, maxDocsPerPartition);
+                    prefixes.add((metric << shift) + low);
+                    startDocs.add(maxDoc);
+                    maxDoc += docs;
+                    metricDocs[metric] += docs;
+                }
+            }
+            totalDocs += maxDoc;
+            var leafPartitions = new PartitionedDocValues.PrefixPartitions(
+                prefixes.size(),
+                prefixes.stream().mapToInt(Integer::intValue).toArray(),
+                startDocs.stream().mapToInt(Integer::intValue).toArray()
+            );
+            partitions.add(leafPartitions);
+            readers.add(new MockLeafReader(maxDoc, leafPartitions));
+        }
+        MultiReader reader = new MultiReader(readers.toArray(MockLeafReader[]::new));
+        int taskConcurrency = between(1, 8);
+        int maxDocsPerLeave = between(1, 2000);
+        var slices = new LuceneSliceQueue.TimeSeriesPartitioner().partition(reader.leaves(), taskConcurrency, maxDocsPerLeave);
+        Map<Integer, List<PartialLeafReaderContext>> sliceOfPrefix = new HashMap<>();
+        int previousMetric = -1;
+        int previousDocs = 0;
+        for (List<PartialLeafReaderContext> slice : slices) {
+            int metric = -1;
+            int sliceDocs = 0;
+            for (PartialLeafReaderContext range : slice) {
+                assertThat(range.maxDoc() - range.minDoc(), lessThan(maxDocsPerLeave + maxDocsPerPartition));
+                sliceDocs += range.maxDoc() - range.minDoc();
+                var leafPartitions = partitions.get(range.leafReaderContext().ord);
+                int numPartitions = leafPartitions.numPartitions();
+                for (int i = 0; i < numPartitions; i++) {
+                    int startDoc = leafPartitions.startDocs()[i];
+                    int endDoc = i + 1 < numPartitions ? leafPartitions.startDocs()[i + 1] : range.leafReaderContext().reader().maxDoc();
+                    if (startDoc < range.maxDoc() && endDoc > range.minDoc()) {
+                        int prefix = leafPartitions.prefixes()[i];
+                        assertSame(slice, sliceOfPrefix.computeIfAbsent(prefix, p -> slice));
+                        assertTrue("slice mixes metrics", metric == -1 || metric == prefix >>> shift);
+                        metric = prefix >>> shift;
+                    }
+                }
+            }
+            int docsPerSlice = Math.max(Math.ceilDiv(metricDocs[metric], taskConcurrency), maxDocsPerLeave);
+            assertThat(sliceDocs, lessThan(docsPerSlice + readers.size() * maxDocsPerPartition));
+            if (metric == previousMetric) {
+                assertThat(previousDocs, greaterThanOrEqualTo(maxDocsPerLeave));
+            }
+            previousMetric = metric;
+            previousDocs = sliceDocs;
+            totalDocs -= sliceDocs;
+        }
+        assertThat(totalDocs, equalTo(0));
     }
 
     static class MockLeafReader extends LeafReader {
@@ -831,7 +1022,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
 
         @Override
         public int prefixPartitionBits() {
-            return 1;
+            return PrefixedPartitionsWriter.PARTITION_PREFIX_BITS;
         }
     }
 }

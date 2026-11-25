@@ -55,13 +55,6 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FieldMapper.Builder init(FieldMapper initializer) {
-            assert initializer instanceof PlaceHolderFieldMapper;
-            unknownParams.putAll(((PlaceHolderFieldMapper) initializer).unknownParams);
-            return super.init(initializer);
-        }
-
-        @Override
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             assert incoming instanceof PlaceHolderFieldMapper.Builder;
             unknownParams.putAll(((PlaceHolderFieldMapper.Builder) incoming).unknownParams);
@@ -249,11 +242,6 @@ public class PlaceHolderFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new IllegalArgumentException("can't parse value for placeholder field type");
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new PlaceHolderFieldMapper.Builder(leafName(), typeName()).init(this);
     }
 
     @Override

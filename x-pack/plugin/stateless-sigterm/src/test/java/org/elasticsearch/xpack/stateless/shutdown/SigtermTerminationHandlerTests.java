@@ -275,6 +275,8 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         final TimeValue pollInterval = TimeValue.timeValueMillis(5);
         final TimeValue timeout = timeValueSeconds(10);
         final String nodeId = randomAlphaOfLength(10);
+        // Capture on the test thread, the GetShutdownStatus mock may run on the handler thread.
+        final String reason = getTestName();
 
         // Three polls: migration COMPLETE on the second, plugins ready only on the last.
         // Migration lasts 1 * pollInterval; overall shutdown lasts 2 * pollInterval.
@@ -302,7 +304,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                                 .setNodeId(nodeId)
                                 .setNodeEphemeralId(nodeId)
                                 .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
-                                .setReason(this.getTestName())
+                                .setReason(reason)
                                 .setStartedAtMillis(randomNonNegativeLong())
                                 .setGracePeriod(timeout)
                                 .build(),

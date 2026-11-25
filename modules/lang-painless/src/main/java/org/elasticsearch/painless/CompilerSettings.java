@@ -136,6 +136,9 @@ public final class CompilerSettings {
     /** Record each execution's allocation total. Enables the counter on its own, with no limit enforced. */
     private boolean allocationMetricsEnabled = false;
 
+    /** The script's context, named in the limit breach message. */
+    private String scriptContextName;
+
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
      * in a script before an exception is thrown.  This attempts to prevent infinite loops.  Note if
@@ -241,6 +244,16 @@ public final class CompilerSettings {
     /** @see #allocationMetricsEnabled */
     public void setAllocationMetricsEnabled(boolean allocationMetricsEnabled) {
         this.allocationMetricsEnabled = allocationMetricsEnabled;
+    }
+
+    /** @see #scriptContextName */
+    public String getScriptContextName() {
+        return scriptContextName;
+    }
+
+    /** @see #scriptContextName */
+    public void setScriptContextName(String scriptContextName) {
+        this.scriptContextName = scriptContextName;
     }
 
     /**

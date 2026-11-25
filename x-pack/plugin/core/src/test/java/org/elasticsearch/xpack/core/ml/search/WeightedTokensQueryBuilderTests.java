@@ -76,6 +76,23 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         return builder;
     }
 
+    /**
+     * The query needs a non-null {@link IndexReader}.
+     * Token pruning reads token document frequencies from the reader.
+     */
+    @Override
+    protected IndexReaderManager getIndexReaderManager() {
+        return new IndexReaderManager() {
+            @Override
+            protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {
+                // Index at least one document so we have a freq > 0
+                Document document = new Document();
+                document.add(new FeatureField(RANK_FEATURES_FIELD, "foo", 1.0f));
+                indexWriter.addDocument(document);
+            }
+        };
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(XPackClientPlugin.class, MapperExtrasPlugin.class);

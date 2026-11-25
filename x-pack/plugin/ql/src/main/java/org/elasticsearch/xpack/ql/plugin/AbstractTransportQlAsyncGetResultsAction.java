@@ -7,19 +7,23 @@
 package org.elasticsearch.xpack.ql.plugin;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.ReservingResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
@@ -36,6 +40,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     private final String actionName;
     private final AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> resultsService;
     private final TransportService transportService;
+    private final CircuitBreaker circuitBreaker;
 
     @SuppressWarnings("this-escape")
     public AbstractTransportQlAsyncGetResultsAction(
@@ -47,11 +52,22 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
         Client client,
         ThreadPool threadPool,
         BigArrays bigArrays,
+        CircuitBreakerService circuitBreakerService,
         Class<? extends AsyncTask> asynkTaskClass
     ) {
-        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        // Charges the reply this node serializes for a relayed request until it is written.
+        super(
+            actionName,
+            true,
+            transportService,
+            actionFilters,
+            GetAsyncResultRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         this.actionName = actionName;
         this.transportService = transportService;
+        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.resultsService = createResultsService(
             transportService,
             clusterService,
@@ -115,10 +131,52 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
                 node,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, responseReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                new RelayedResponseHandler<>(listener, responseReader(), circuitBreaker, relayedResponseBreakerLabel())
             );
         }
     }
 
     public abstract Writeable.Reader<Response> responseReader();
+
+    /** Breaker label for a response relayed from the node that runs the query. */
+    protected abstract String relayedResponseBreakerLabel();
+
+    /**
+     * Charges a response relayed from the node that runs the query in two steps. Its serialized bytes are reserved while it arrives, so
+     * one that doesn't fit is rejected before it is read. Once read, the same size is charged again until the listener returns. The REST
+     * listeners of these responses build the whole body before they return, so this covers the response for as long as this node holds
+     * it. The objects read from it can take several times that size. Either trip reaches the listener as the
+     * {@link CircuitBreakingException} itself, which is a 429.
+     */
+    static final class RelayedResponseHandler<Response extends TransportResponse> extends ReservingResponseHandler<Response> {
+        private final CircuitBreaker circuitBreaker;
+        private final String label;
+
+        RelayedResponseHandler(
+            ActionListener<? super Response> listener,
+            Writeable.Reader<Response> reader,
+            CircuitBreaker circuitBreaker,
+            String label
+        ) {
+            super(listener, reader, EsExecutors.DIRECT_EXECUTOR_SERVICE, circuitBreaker, label);
+            this.circuitBreaker = circuitBreaker;
+            this.label = label;
+        }
+
+        @Override
+        public void handleResponse(Response response) {
+            long bytes = reservation.reservedTotal();
+            try {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+            } catch (CircuitBreakingException e) {
+                listener.onFailure(e);
+                return;
+            }
+            try {
+                super.handleResponse(response);
+            } finally {
+                circuitBreaker.addWithoutBreaking(-bytes, label);
+            }
+        }
+    }
 }

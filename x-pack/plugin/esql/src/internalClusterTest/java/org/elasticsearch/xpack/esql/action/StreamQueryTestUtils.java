@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Shared helpers for integration tests that exercise streaming ES|QL execution
- * ({@code POST /_query?streaming=true}).
+ * ({@code POST /_query/stream}).
  */
 public final class StreamQueryTestUtils {
 
@@ -41,14 +41,13 @@ public final class StreamQueryTestUtils {
         CountingStreamSubscriber subscriber,
         boolean dropNullColumns
     ) throws Exception {
-        int batchSize = ESTestCase.randomIntBetween(1, 10);
         AtomicReference<EsqlStreamQueryAction.ResultStream> startRef = new AtomicReference<>();
         ActionFuture<ActionResponse.Empty> future = client.execute(
             EsqlStreamQueryAction.INSTANCE,
             new EsqlStreamQueryRequest(source, ActionListener.wrap(resultStream -> {
                 startRef.set(resultStream);
                 resultStream.publisher().subscribe(subscriber);
-            }, subscriber.failure::set), dropNullColumns, batchSize)
+            }, subscriber.failure::set), dropNullColumns)
         );
         future.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         EsqlStreamQueryAction.ResultStream resultStream = startRef.get();

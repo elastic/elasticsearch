@@ -22,14 +22,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.Unit;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongMultiplyExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 
-public class Mul extends DenseVectorArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport {
+public class Mul extends DenseVectorArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport, UnitAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mul", Mul::new);
     public static final String OP_NAME = "Mul";
 
@@ -186,4 +189,9 @@ public class Mul extends DenseVectorArithmeticOperation implements BinaryCompari
             return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Mul::mulDenseVectorElements, OP_NAME);
         }
     };
+
+    @Override
+    public Unit unit(Function<Expression, Unit> unitOf) {
+        return Unit.multiply(left(), right(), unitOf);
+    }
 }

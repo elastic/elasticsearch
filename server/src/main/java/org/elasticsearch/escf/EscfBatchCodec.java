@@ -35,10 +35,17 @@ import java.util.List;
  * [Schema]        non_leaf_count(u16) { parent(u16) name_len(u16) name }* leaf_count(u16) { parent(u16) name_len(u16) name }*
  * [Column Index]  per leaf: kind(u8) present_flags(u8) base_offset(i32)
  *                 validity_len(i32) typevec_len(i32) offsets_len(i32) data_len(i32)   [= 22 bytes]
- * [Column Data]   per leaf, present fields concatenated: [validity_bitset] [type_vector] [offsets] [data]
+ * [Column Data]   per leaf, present fields concatenated: [validity_bitset] [type_vector] [offsets] [data] [lexical_forms]
  * </pre>
  * {@code present_flags} bit 0 = Arrow-style validity bitset (bit set = present), bit 1 = type vector,
- * bit 2 = offsets; the data field is always present. {@code base_offset} is relative to {@code data_offset}.
+ * bit 2 = offsets, bit 3 = lexical forms; the data field is always present. {@code base_offset} is relative to
+ * {@code data_offset}.
+ *
+ * <p>The lexical forms section is {@code (n + 1)} i32 LE offsets followed by UTF-8 bytes, {@code n} being the
+ * document count of a DOUBLE column. It holds the
+ * client's spelling of each floating-point value whose canonical rendering differs from it, zero-length where it
+ * does not (see {@link EscfColumnData#lexicalForms()}). It needs no length field of its own, its size follows from
+ * its offsets.
  */
 final class EscfBatchCodec {
 
@@ -52,6 +59,7 @@ final class EscfBatchCodec {
     private static final int FLAG_VALIDITY = 0x1;
     private static final int FLAG_TYPE_VECTOR = 0x2;
     private static final int FLAG_OFFSETS = 0x4;
+    private static final int FLAG_LEXICAL_FORMS = 0x8;
 
     private EscfBatchCodec() {}
 
@@ -134,8 +142,25 @@ final class EscfBatchCodec {
                 );
                 default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(kind));
             };
+            if ((flags & FLAG_LEXICAL_FORMS) != 0) {
+                columns[c] = withLexicalForms(columns[c], data, pos + dataLen);
+            }
         }
         return new EscfBatch(schema, docCount, columns, data, releasable);
+    }
+
+    /**
+     * Parses the lexical forms section at {@code lexicalPos} and attaches it to a DOUBLE column.
+     */
+    private static EscfColumnData withLexicalForms(EscfColumnData column, BytesReference data, int lexicalPos) {
+        if (column.kind() != EscfColumnKind.DOUBLE) {
+            throw new IllegalStateException("lexical forms on a column of kind " + EscfColumnKind.name(column.kind()));
+        }
+        final int n = column.docCount();
+        final int[] offsets = bytesToOffsets(data, lexicalPos, n);
+        final BytesReference text = data.slice(lexicalPos + (n + 1) * 4, offsets[n]);
+        final EscfColumnData lexicalForms = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, n, null, offsets, text);
+        return EscfColumnData.ofDouble(n, column.validity(), column.data(), lexicalForms);
     }
 
     static BytesReference serialize(SourceSchema schema, int docCount, EscfColumnData[] columns) {
@@ -152,8 +177,13 @@ final class EscfBatchCodec {
         BytesReference[] typeVecPart = new BytesReference[colCount];
         BytesReference[] offsetsPart = new BytesReference[colCount];
         BytesReference[] dataPart = new BytesReference[colCount];
+        BytesReference[] lexicalPart = new BytesReference[colCount];
         for (int c = 0; c < colCount; c++) {
             EscfColumnData col = columns[c];
+            EscfColumnData lexicalForms = col.lexicalForms();
+            lexicalPart[c] = lexicalForms == null
+                ? null
+                : CompositeBytesReference.of(intArrayToRef(lexicalForms.offsets()), lexicalForms.data());
             absentPart[c] = col.validity() != null ? bitsetToRef(col.validity(), docCount) : null;
             typeVecPart[c] = col.typeVector() != null
                 ? new BytesArray(col.typeVector().bytes, col.typeVector().offset, col.typeVector().length)
@@ -190,6 +220,10 @@ final class EscfBatchCodec {
                 cumDataOffset += offsetsPart[c].length();
             }
             cumDataOffset += dataPart[c].length();
+            if (lexicalPart[c] != null) {
+                f |= FLAG_LEXICAL_FORMS;
+                cumDataOffset += lexicalPart[c].length();
+            }
             flags[c] = f;
         }
         int totalSize = dataOffset + cumDataOffset;
@@ -218,7 +252,7 @@ final class EscfBatchCodec {
             pos += COLUMN_INDEX_ENTRY_SIZE;
         }
 
-        List<BytesReference> parts = new ArrayList<>(1 + colCount * 4);
+        List<BytesReference> parts = new ArrayList<>(1 + colCount * 5);
         parts.add(new BytesArray(header));
         for (int c = 0; c < colCount; c++) {
             if (absentPart[c] != null) {
@@ -231,6 +265,9 @@ final class EscfBatchCodec {
                 parts.add(offsetsPart[c]);
             }
             parts.add(dataPart[c]);
+            if (lexicalPart[c] != null) {
+                parts.add(lexicalPart[c]);
+            }
         }
         return CompositeBytesReference.of(parts.toArray(new BytesReference[0]));
     }

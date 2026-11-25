@@ -325,9 +325,5 @@ public class MappingLookupTests extends ESTestCase {
             return null;
         }
 
-        @Override
-        public Builder getMergeBuilder() {
-            return null;
-        }
     }
 }

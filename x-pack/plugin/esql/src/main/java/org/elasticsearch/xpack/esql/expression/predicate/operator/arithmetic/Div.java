@@ -23,14 +23,17 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.Unit;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport {
+public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport, UnitAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
     public static final String OP_NAME = "Div";
 
@@ -117,10 +120,12 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @Override
     public DataType dataType() {
-        if (type == null) {
-            type = super.dataType();
+        DataType dataType = type;
+        if (dataType == null) {
+            dataType = super.dataType();
+            type = dataType;
         }
-        return type;
+        return dataType;
     }
 
     @Override
@@ -233,4 +238,9 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
         }
     };
+
+    @Override
+    public Unit unit(Function<Expression, Unit> unitOf) {
+        return Unit.divide(left(), right(), unitOf);
+    }
 }

@@ -31,6 +31,8 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -153,6 +156,19 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     protected void metaMapping(XContentBuilder b) throws IOException {
         // We serialize these fields regardless of whether or not they are changed
         b.field("type", "search_as_you_type").field("max_shingle_size", 3).field("doc_values", false);
+    }
+
+    /**
+     * {@code search_as_you_type} defaults {@code doc_values} to false, so the columnar no-op for default-true mappers does not apply:
+     * setting {@code doc_values} is still rejected rather than silently ignored.
+     */
+    public void testColumnarDocValuesParamStillRejected() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "search_as_you_type");
+            b.field("doc_values", true);
+        })));
+        assertThat(e.getMessage(), containsString("Cannot set [doc_values] on field of type [search_as_you_type]"));
     }
 
     public void testIndexing() throws IOException {

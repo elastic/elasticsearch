@@ -35,11 +35,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -51,6 +53,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.scheduling.QueryLoad;
+import org.elasticsearch.search.scheduling.QueryScheduler;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -214,17 +219,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
             }
-            try {
-                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
-            } catch (Exception e) {
-                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
-                logger.debug(
-                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
-                    result.getShardIndex(),
-                    Arrays.toString(topDocs.fields),
-                    e
-                );
-            }
+            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
         super.onShardResult(result);
     }
@@ -535,7 +530,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             super.doRun(shardIndexMap);
             return;
         }
-        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts);
+        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, clusterState);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
         final int numberOfShardsTotal = shardsIts.size();
@@ -757,29 +752,42 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 final CancellableTask cancellableTask = (CancellableTask) task;
                 final int shardCount = request.shards.size();
                 int workers = Math.min(request.searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));
-                final var state = new QueryPerNodeState(
-                    new QueryPhaseResultConsumer(
-                        request.searchRequest,
-                        dependencies.executor,
-                        searchService.getCircuitBreaker(),
-                        searchPhaseController,
-                        cancellableTask::isCancelled,
-                        SearchProgressListener.NOOP,
-                        shardCount,
-                        e -> {
-                            if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
-                                logger.debug("failed to merge on data node", e);
-                            } else {
-                                logger.error("failed to merge on data node", e);
+                // the shards and the reduce of their results charge the query's breaker
+                final QueryScheduler.QueryPart part = searchService.queryPart(task);
+                final QueryPerNodeState state;
+                try {
+                    state = new QueryPerNodeState(
+                        new QueryPhaseResultConsumer(
+                            request.searchRequest,
+                            dependencies.executor,
+                            part.breaker(),
+                            searchPhaseController,
+                            cancellableTask::isCancelled,
+                            SearchProgressListener.NOOP,
+                            shardCount,
+                            e -> {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
+                                    logger.debug("failed to merge on data node", e);
+                                } else {
+                                    logger.error("failed to merge on data node", e);
+                                }
                             }
-                        }
-                    ),
-                    request,
-                    cancellableTask,
-                    channel,
-                    dependencies,
-                    namedWriteableRegistry
-                );
+                        ),
+                        part,
+                        request,
+                        cancellableTask,
+                        channel,
+                        dependencies,
+                        namedWriteableRegistry
+                    );
+                    // merging the results of the shards of the request is work for them, by the docs each matched
+                    List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
+                    var consumer = state.queryPhaseResultConsumer;
+                    consumer.mergeLoad(new QueryLoad().charging(searchService.searchLoad(shardIds, consumer::docsMatched)));
+                } catch (Exception e) {
+                    part.close();
+                    throw e;
+                }
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);
@@ -947,6 +955,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         private final AtomicInteger currentShardIndex = new AtomicInteger();
         private final QueryPhaseResultConsumer queryPhaseResultConsumer;
+        private final QueryScheduler.QueryPart part;
         private final NodeQueryRequest searchRequest;
         private final CancellableTask task;
         private final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
@@ -958,9 +967,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final TransportChannel channel;
         private volatile BottomSortValuesCollector bottomSortCollector;
         private final NamedWriteableRegistry namedWriteableRegistry;
+        /** Start of the time spent building the response that isn't charged yet. */
+        private long mergeStartNanos;
 
         private QueryPerNodeState(
             QueryPhaseResultConsumer queryPhaseResultConsumer,
+            QueryScheduler.QueryPart part,
             NodeQueryRequest searchRequest,
             CancellableTask task,
             TransportChannel channel,
@@ -968,6 +980,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             NamedWriteableRegistry namedWriteableRegistry
         ) {
             this.queryPhaseResultConsumer = queryPhaseResultConsumer;
+            this.part = part;
             this.searchRequest = searchRequest;
             this.trackTotalHitsUpTo = searchRequest.searchRequest.resolveTrackTotalHitsUpTo();
             this.topDocsSize = getTopDocsSize(searchRequest.searchRequest);
@@ -982,8 +995,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             if (countDown.countDown() == false) {
                 return;
             }
-            ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
+            ActionListener<BytesTransportResponse> channelListener = ActionListener.releaseBefore(
+                part,
+                new ChannelActionListener<>(channel)
+            );
             final BytesTransportResponse response;
+            mergeStartNanos = TaskLoadAttribution.startPart();
             try {
                 response = buildResponse();
             } catch (Exception e) {
@@ -994,8 +1011,35 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                chargeMerge();
             }
             ActionListener.respondAndRelease(channelListener, response);
+        }
+
+        /**
+         * Charges building the response to the shards of the request, as it merges their results in the task of the shard that
+         * completed last.
+         */
+        private void chargeMerge() {
+            QueryLoad.Charging mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            if (mergeLoad != null) {
+                long finishNanos = System.nanoTime();
+                TaskLoadAttribution.charge(mergeLoad, finishNanos - mergeStartNanos, finishNanos);
+                mergeStartNanos = finishNanos;
+            }
+        }
+
+        /**
+         * Charges merging the shard results so far and returns its load, reported with one of them.
+         */
+        private DirectoryMetrics chargeMergeSoFar() {
+            QueryLoad.Charging mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            if (mergeLoad != null) {
+                chargeMerge();
+                return SearchLoadMetrics.directoryMetricsOf(mergeLoad.load());
+            }
+            return DirectoryMetrics.EMPTY;
         }
 
         private BytesTransportResponse buildResponse() throws Exception {
@@ -1055,12 +1099,18 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
             final int resultCount = queryPhaseResultConsumer.getNumShards();
+            DirectoryMetrics mergeMetrics = chargeMergeSoFar();
             out.writeVInt(resultCount);
             for (int i = 0; i < resultCount; i++) {
                 var result = queryPhaseResultConsumer.results.get(i);
                 if (result == null) {
                     NodeQueryResponse.writePerShardException(out, shardFailureOrUnknown(i));
                 } else {
+                    // a null result is written without its metrics
+                    if (mergeMetrics.isEmpty() == false && result.queryResult().isNull() == false) {
+                        result.setDirectoryMetrics(result.getDirectoryMetrics().merge(mergeMetrics));
+                        mergeMetrics = DirectoryMetrics.EMPTY;
+                    }
                     // free context id and remove it from the result right away in case we don't need it anymore
                     maybeFreeContext(result, relevantShardIndices, namedWriteableRegistry);
                     NodeQueryResponse.writePerShardResult(out, result);

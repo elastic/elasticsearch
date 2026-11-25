@@ -57,7 +57,7 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
      * A wildcard that matches both a view and a real index, combined with a sibling subquery, used to be rejected: the pattern expanded
      * to a {@code BranchPlan} nested under the subquery's {@code UnionAll}, and nested merges are unexecutable.
      *
-     * <p>View compaction now flattens that nesting — {@code ViewCompaction.rewriteUnionAllsWithNamedSubqueries} inlines a
+     * <p>View compaction now flattens that nesting — {@code ViewCompaction.rewriteUnionAllsWithViewSubqueries} inlines a
      * {@code BranchPlan} child's entries into the enclosing union, producing one flat merge over
      * {@code {airports_view, airports, employees}} — so the three arrangements below all execute and return the union.
      *

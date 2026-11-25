@@ -1,5 +1,0 @@
-area: Infra/REST API
-issues: []
-pr: 164437
-summary: Fix deadlock in `ChunkedZipResponse`
-type: bug

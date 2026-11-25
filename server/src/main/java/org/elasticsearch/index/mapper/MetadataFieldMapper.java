@@ -52,17 +52,12 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      * ignored by the update merge.  Instead, we use an {@link Explicit} object that
      * will serialize its value if it has been configured, no matter what the value is.
      */
-    public static Parameter<Explicit<Boolean>> updateableBoolParam(
-        String name,
-        Function<FieldMapper, Explicit<Boolean>> initializer,
-        boolean defaultValue
-    ) {
+    public static Parameter<Explicit<Boolean>> updateableBoolParam(String name, boolean defaultValue) {
         return new Parameter<>(
             name,
             true,
             defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
             (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
-            initializer,
             (b, n, v) -> b.field(n, v.value()),
             v -> Boolean.toString(v.value())
         );
@@ -218,11 +213,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new ConstantBuilder(this);
-    }
-
     /**
      * A trivial builder for non-configurable metadata field mappers that have no parameters.
      * Wraps a built mapper and returns it unchanged from {@link #build()}.
@@ -275,7 +265,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     /**
      * Called once per batch, before any columnar field mapping, on the columnar bulk batch-mapping
-     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings, Set)}
      * returns {@code true}; mirrors the role of {@link #preParse} in the row-major path, but reads
      * per-document values off {@link BatchMappingContext} and attaches a Lucene column spanning the
      * whole batch via {@link BatchMappingContext#addColumn} rather than adding a per-document
@@ -287,7 +277,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     /**
      * Called once per batch, after all columnar field mapping, on the columnar bulk batch-mapping
-     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings, Set)}
      * returns {@code true}; mirrors the role of {@link #postParse} in the row-major path. Defaults
      * to a no-op.
      */
@@ -301,7 +291,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {
         // This allows some metadata mappers to not block columnar indexing but still force a fall back
         // if we do not supportsColumnarParse on specific fields
-        return supportsColumnarParse(indexSettings);
+        return supportsColumnarParse(indexSettings, Set.of());
     }
 
     @Override

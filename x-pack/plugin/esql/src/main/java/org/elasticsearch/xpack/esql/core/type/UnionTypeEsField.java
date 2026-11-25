@@ -47,8 +47,10 @@ public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeE
     }
 
     /**
-     * Wraps an existing union-type field's per-(index|type) conversions with another conversion expression on top, so the
-     * composite expression first does the original cast then the additional cast.
+     * Replaces an existing union-type field's per-(index|type) conversions with another conversion expression: each conversion is
+     * {@code convertExpression} over the field as the type that conversion reads, <em>not</em> over the previous conversion. So when
+     * the new conversion doesn't convert one of the types, the conversion of that type is {@code null}, whatever the previous
+     * conversion of the type did.
      */
     public abstract UnionTypeEsField rewrapWithCast(Expression convertExpression);
 

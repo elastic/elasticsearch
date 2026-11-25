@@ -270,9 +270,12 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         for (SnapshotFiles snapshot : shardSnapshots) {
             final String snapshotName = snapshot.snapshot();
             if (snapshotNames.add(snapshotName) == false) {
-                // almost impossible but can happen with legacy numbered shard gens, or post-corruption rebuilding, or multiple clusters
+                // Almost impossible but can happen with legacy numbered shard gens, or post-corruption rebuilding, or multiple clusters
                 // taking snapshots at once; the resulting metadata won't be readable because snapshotName is an object key, so we'd best
-                // just not even write it
+                // just not even write it.
+                //
+                // Failing here may leave a partially-written object (e.g. in a FsRepository) but that's ok, nothing is going to read that
+                // object. It will eventually be cleaned up by the next delete operation which touches this shard.
                 throw new IllegalStateException("duplicate snapshot name [" + snapshotName + "]");
             }
             builder.startObject(snapshotName);

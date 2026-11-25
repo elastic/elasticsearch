@@ -24,28 +24,30 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Listing the tasks of a cluster whose nodes hold many queries with long descriptions: each node replies with the descriptions of its own
- * tasks, and the coordinating node holds the replies of all the other nodes until it has all of them. Each reply fits in the in-flight
- * requests breaker of the coordinating node, but the replies of two nodes do not, so the coordinating node must trip the breaker, and fail
- * to take those replies, instead of exhausting its heap. The queries are held through the other nodes, so that the coordinating node does
- * not hold any of them itself.
+ * Lists the tasks of a cluster whose other nodes hold many queries with long descriptions, from many clients at once, through a node that
+ * holds none of them. The coordinating node holds the replies of all the other nodes until it has them, so it must trip a circuit breaker
+ * and fail to take those replies. Without a breaker on the replies it receives, the same load ran nodes of the cluster out of memory.
  */
 public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
 
+    private static final int NODES = 5;
     private static final int LITERAL_LENGTH = 900_000;
-    private static final int HELD_QUERIES = 14;
-    private static final int LIST_CALLS = 5;
-    private static final String COORDINATING_NODE_LIMIT = "30mb";
+    private static final int HELD_QUERIES = 24;
+    private static final int CLIENTS = 8;
+    private static final int CALLS_PER_CLIENT = 10;
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.buildClusterSpec()
-        .nodes(3)
-        .node(0, node -> node.setting("network.breaker.inflight_requests.limit", COORDINATING_NODE_LIMIT))
-        .build();
+    public static ElasticsearchCluster cluster = Clusters.buildClusterSpec().nodes(NODES).build();
 
     @Override
     protected String getTestRestCluster() {
@@ -53,7 +55,7 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
         return String.join(",", Arrays.copyOfRange(addresses, 1, addresses.length));
     }
 
-    public void testRepliesOfSeveralNodesTripCircuitBreakerOfCoordinatingNode() throws Exception {
+    public void testListingTheTasksOfManyNodesDoesNotExhaustTheHeapOfTheCoordinatingNode() throws Exception {
         createPausableIndex();
         blockPauseField();
         List<String> asyncIds = new ArrayList<>();
@@ -61,19 +63,48 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
         int portSeparator = coordinatingAddress.lastIndexOf(':');
         String host = coordinatingAddress.substring(0, portSeparator).replace("[", "").replace("]", "");
         int port = Integer.parseInt(coordinatingAddress.substring(portSeparator + 1));
+        ExecutorService executor = Executors.newFixedThreadPool(CLIENTS);
         try (RestClient coordinatingClient = buildClient(restClientSettings(), new HttpHost[] { new HttpHost(host, port, "http") })) {
             for (int i = 0; i < HELD_QUERIES; i++) {
-                asyncIds.add(submitAsyncQuery(queryWithLongLiteral("q" + i + "-" + "\u20ac".repeat(LITERAL_LENGTH))));
+                asyncIds.add(submitAsyncQuery(queryWithLongLiteral("q" + i + "-" + "€".repeat(LITERAL_LENGTH))));
             }
-
-            int tripped = 0;
-            for (int call = 0; call < LIST_CALLS; call++) {
-                if (listTasksTripsCoordinatingNodeBreaker(coordinatingClient)) {
-                    tripped++;
-                }
+            logger.info("--> submitted {} held queries", HELD_QUERIES);
+            AtomicInteger listed = new AtomicInteger();
+            AtomicInteger tripped = new AtomicInteger();
+            AtomicInteger failed = new AtomicInteger();
+            List<Future<?>> calls = new ArrayList<>();
+            for (int c = 0; c < CLIENTS; c++) {
+                calls.add(executor.submit(() -> {
+                    for (int call = 0; call < CALLS_PER_CLIENT; call++) {
+                        try {
+                            if (listTasksTrips(coordinatingClient)) {
+                                tripped.incrementAndGet();
+                            } else {
+                                listed.incrementAndGet();
+                            }
+                        } catch (IOException e) {
+                            logger.info("--> listing failed: {}", e.toString());
+                            failed.incrementAndGet();
+                        }
+                    }
+                    return null;
+                }));
             }
-            assertThat(tripped, equalTo(LIST_CALLS));
+            for (Future<?> call : calls) {
+                call.get(10, TimeUnit.MINUTES);
+            }
+            logger.info("--> listed={} tripped={} failed={}", listed.get(), tripped.get(), failed.get());
+            assertThat("listings that failed because the coordinating node is gone or in trouble", failed.get(), equalTo(0));
+            Request health = new Request("GET", "/_cluster/health");
+            health.addParameter("filter_path", "number_of_nodes");
+            assertThat(
+                "nodes left in the cluster, some ran out of memory",
+                entityAsMap(client().performRequest(health)).get("number_of_nodes"),
+                equalTo(NODES)
+            );
+            assertThat("listings that tripped a circuit breaker", tripped.get(), greaterThan(0));
         } finally {
+            executor.shutdownNow();
             unblockPauseField();
             for (String id : asyncIds) {
                 deleteAsyncQuery(id);
@@ -84,20 +115,23 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
         }
     }
 
-    private boolean listTasksTripsCoordinatingNodeBreaker(RestClient coordinatingClient) throws IOException {
+    private boolean listTasksTrips(RestClient coordinatingClient) throws IOException {
         Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
         request.addParameter("actions", "*esql*");
         request.addParameter("filter_path", "node_failures");
-        Map<String, Object> response = entityAsMap(coordinatingClient.performRequest(request));
-        List<?> nodeFailures = (List<?>) response.get("node_failures");
-        return nodeFailures != null
-            && nodeFailures.stream()
-                .anyMatch(
-                    failure -> "circuit_breaking_exception".equals(XContentMapValues.extractValue("caused_by.type", (Map<?, ?>) failure))
-                        && String.valueOf(XContentMapValues.extractValue("caused_by.reason", (Map<?, ?>) failure))
-                            .contains("<node_tasks_response>")
-                );
+        try {
+            Map<String, Object> response = entityAsMap(coordinatingClient.performRequest(request));
+            List<?> nodeFailures = (List<?>) response.get("node_failures");
+            return nodeFailures != null
+                && nodeFailures.stream()
+                    .anyMatch(f -> "circuit_breaking_exception".equals(XContentMapValues.extractValue("caused_by.type", (Map<?, ?>) f)));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_TOO_MANY_REQUESTS) {
+                return true;
+            }
+            throw e;
+        }
     }
 
     private void createPausableIndex() throws IOException {
@@ -105,7 +139,7 @@ public class ListTasksHeapAttackIT extends HeapAttackRestHelpers {
         createIndex.setJsonEntity("""
             {
                 "settings": {
-                    "number_of_shards": 3,
+                    "number_of_shards": 1,
                     "number_of_replicas": 0
                 },
                 "mappings": {

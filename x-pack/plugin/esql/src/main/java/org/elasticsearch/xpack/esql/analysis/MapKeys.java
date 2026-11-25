@@ -215,7 +215,8 @@ public final class MapKeys {
     }
 
     /**
-     * Rule 1 and 5 at a union or a {@code FORK}: every branch provides the children that the scope reading the union names. A branch that reads an
+     * Rule 1 and 5 at a union or a {@code FORK}: every branch provides the children that the scope reading the union names.
+     * A branch that reads an
      * index has them from its shards. A branch that only has the map provides the child by reading the key from the value, as a
      * hidden column on top of the branch, so that the union merges the children of its branches by name. Without it the rows of
      * such a branch would be null for a name that another branch answers.
@@ -268,7 +269,8 @@ public final class MapKeys {
 
     /**
      * The names that the sources of the scope {@code scope} are asked for: the dotted names it refers to outside view bodies, and
-     * for each of them the name it had before every {@code RENAME} and every copy ({@code EVAL x = attrs}) of the scope. For {@code RENAME attrs AS a | WHERE a.foo == "x"}
+     * for each of them the name it had before every {@code RENAME} and every copy ({@code EVAL x = attrs}) of the scope.
+     * For {@code RENAME attrs AS a | WHERE a.foo == "x"}
      * the source answers {@code attrs.foo}, and the rename carries that child to {@code a.foo} (rule 3). This only adds names: a
      * name that is asked for without need is a hidden child that nothing reads.
      */

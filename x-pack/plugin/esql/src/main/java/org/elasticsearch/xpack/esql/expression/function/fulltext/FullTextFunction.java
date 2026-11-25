@@ -1024,6 +1024,18 @@ public abstract class FullTextFunction extends Function
                         )
                     );
                 }
+                // A JOIN on a subquery runs on the coordinator too, once the optimizer has replaced it with a hash join.
+                if (isRuntimeSearch() == false && IndependentSubqueryJoin.anyMatchInMainScope(f, SubqueryJoin.class::isInstance)) {
+                    failures.add(
+                        fail(
+                            this,
+                            "[{}] {} cannot be used in a WHERE clause that references both data-side and subquery-side "
+                                + "fields after a JOIN on a subquery",
+                            functionName(),
+                            functionType()
+                        )
+                    );
+                }
                 // The same goes for an ENRICH that runs on the coordinator, e.g. when the filter also needs the fields it adds.
                 // This is also where the filter shared by all the aggregate functions of a STATS ends up. An ENRICH in an IN
                 // subquery doesn't count, that runs on its own.

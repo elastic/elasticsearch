@@ -11,8 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoinLowering;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.Before;
 
@@ -21,8 +23,8 @@ import java.util.EnumSet;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 
 /**
- * Captures the analyzed and logically optimized plans of {@code LEFT OUTER JOIN} on a subquery. The session rejects the join before
- * optimization until it can run (see {@link SubqueryJoin#rejectUntilSupported}); these tests optimize the analyzed plan directly.
+ * Captures the analyzed and logically optimized plans of {@code LEFT OUTER JOIN} on a subquery. The optimized plan has the
+ * {@link HashJoin} that {@link SubqueryJoinLowering} replaces the {@link SubqueryJoin} with.
  */
 public class LogicalPlanOptimizerSubqueryJoinGoldenTests extends GoldenTestCase {
 
@@ -248,5 +250,79 @@ public class LogicalPlanOptimizerSubqueryJoinGoldenTests extends GoldenTestCase 
             | EVAL language_code = null
             | LEFT OUTER JOIN (FROM languages | EVAL other_name = language_name) ON language_code
             """, STAGES);
+    }
+
+    // -- replacement with a hash join --
+
+    /**
+     * Keys are hashed as stored, so numeric keys of different types are cast to their common type: here the left key, an
+     * {@code integer}, to the subquery's {@code long}. The cast key is only for the join, which keeps the left side's own.
+     */
+    public void testCastsLeftKeyToCommonType() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (FROM languages | EVAL language_code = TO_LONG(language_code)) ON language_code
+            """, STAGES);
+    }
+
+    /**
+     * Here the subquery's key is cast, to the left key's {@code double}. The subquery's own key is dropped, since the join's output
+     * doesn't have it.
+     */
+    public void testCastsSubqueryKeyToCommonType() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL language_code = TO_DOUBLE(languages)
+            | LEFT OUTER JOIN (FROM languages) ON language_code
+            """, STAGES);
+    }
+
+    /**
+     * The join runs on the coordinator, so its left side only sends the columns that are read after it, and the keys.
+     */
+    public void testLeftSideSendsOnlyColumnsReadAfterJoin() {
+        runGoldenTest(JOIN_LANGUAGES + "| KEEP emp_no, language_name", STAGES);
+    }
+
+    /**
+     * When nothing reads a column after the join, it keeps one, so that its pages still count their rows.
+     */
+    public void testJoinKeepsOneColumnWhenNoneIsRead() {
+        runGoldenTest(JOIN_LANGUAGES + "| STATS c = COUNT(*)", STAGES);
+    }
+
+    /**
+     * A search on a left column is pushed below the join, to the data nodes.
+     */
+    public void testIndexSearchOnLeftColumnIsPushedBelowJoin() {
+        runGoldenTest(JOIN_LANGUAGES + "| WHERE MATCH(first_name, \"Anna\")", STAGES);
+    }
+
+    /**
+     * A branch of a {@code UNION ALL} lines up with the others by position, so the join in it keeps the columns the branch returns.
+     */
+    public void testJoinInUnionAllBranchKeepsBranchColumns() {
+        runGoldenTest("""
+            FROM (
+                FROM employees
+                | EVAL language_code = languages
+                | LEFT OUTER JOIN (FROM languages) ON language_code
+                | KEEP emp_no, language_name
+              ), (
+                FROM employees
+                | EVAL language_name = first_name
+                | KEEP emp_no, language_name
+              )
+            | KEEP emp_no
+            """, STAGES);
+    }
+
+    /**
+     * Below {@code INLINE STATS}, the left side only sends the columns read after the join too. The stub of {@code INLINE STATS}
+     * lists every column of its input, but doesn't read them: it is replaced with the input itself.
+     */
+    public void testJoinBelowInlineStatsSendsOnlyColumnsReadAfterIt() {
+        runGoldenTest(JOIN_LANGUAGES + "| INLINE STATS c = COUNT(*) BY language_name | KEEP emp_no, c", STAGES);
     }
 }

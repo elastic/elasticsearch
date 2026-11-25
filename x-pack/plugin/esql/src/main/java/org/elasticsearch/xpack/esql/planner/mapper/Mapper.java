@@ -103,7 +103,6 @@ public class Mapper {
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
-        SubqueryJoin.rejectUntilSupported(versionedPlan.inner());
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
         return mapInner(versionedPlan.inner());
@@ -303,6 +302,10 @@ public class Mapper {
                 return new ProjectExec(hashJoin.source(), join, hashJoin.output());
             }
             return MapperUtils.unsupported(bp);
+        }
+        if (bp instanceof SubqueryJoin) {
+            // The optimizer replaces it with a HashJoin. Mapped as a plain join, a subquery on a lookup index would run as a LOOKUP JOIN.
+            throw new IllegalStateException("JOIN on a subquery must be replaced with a hash join before mapping");
         }
         if (bp instanceof Join join) {
             JoinConfig config = join.config();

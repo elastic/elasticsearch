@@ -106,6 +106,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNu
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.PlanFetch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoinLowering;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
@@ -179,6 +181,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         );
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
+        }
+        if (optimized.anyMatch(SubqueryJoin.class::isInstance)) {
+            // Only now, so that verification checks the JOIN on a subquery itself rather than the hash join that runs it.
+            optimized = SubqueryJoinLowering.lower(optimized);
+            optimized.forEachUp(LogicalPlan::setOptimized);
         }
         optimized.setOptimized();
         return optimized;

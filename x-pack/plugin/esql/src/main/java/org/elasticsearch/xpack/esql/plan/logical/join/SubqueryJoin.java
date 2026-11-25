@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -34,9 +33,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  * A {@code JOIN} whose right side is a subquery written by the user, as in {@code FROM a | LEFT OUTER JOIN (FROM b | ...) ON key}.
  * <p>
  * The subquery is an independent query: it runs before the main query and only its result reaches the join, so plan walks that
- * reason about the main query stop at its right side (see {@link IndependentSubqueryJoin}). The coordinator will replace the
- * subquery with its result before the plan is mapped, so this node is never serialized. Until that is implemented,
- * {@link #rejectUntilSupported} rejects it after analysis.
+ * reason about the main query stop at its right side (see {@link IndependentSubqueryJoin}). Once the plan is optimized,
+ * {@link SubqueryJoinLowering} replaces this node with a {@link HashJoin} that the coordinator runs, so it is never serialized.
  * <p>
  * The subquery's columns are {@link Join#makeReference references} in the join's output: they come from the subquery's result,
  * not from an index the main query reads, so rules that look fields up in the main query's indices must not see them as fields.
@@ -57,17 +55,6 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
         Expression joinOnConditions
     ) {
         this(source, left, subquery, new JoinConfig(type, leftFields, rightFields, joinOnConditions));
-    }
-
-    /**
-     * Rejects a plan that holds a {@code JOIN} on a subquery, which nothing can run yet. It runs right after analysis: later,
-     * optimization may have dropped the join, and other subqueries may have run already. The {@code Mapper} runs it too, for plans
-     * that do not come through the session.
-     */
-    public static void rejectUntilSupported(LogicalPlan plan) {
-        plan.forEachDown(SubqueryJoin.class, join -> {
-            throw new VerificationException(List.of(fail(join, "JOIN on a subquery is not supported yet")));
-        });
     }
 
     @Override

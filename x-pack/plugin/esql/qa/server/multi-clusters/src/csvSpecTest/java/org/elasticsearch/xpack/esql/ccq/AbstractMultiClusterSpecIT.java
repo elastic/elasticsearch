@@ -59,6 +59,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_ON_SUBQUERY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
@@ -280,6 +281,10 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         );
         // Tests that do SORT before LOOKUP JOIN - not supported in CCS
         assumeFalse("LOOKUP JOIN after SORT not yet supported in CCS", testName.contains("OnTheCoordinator"));
+        assumeFalse(
+            "JOIN on a subquery not yet supported in CCS",
+            testCase.requiredCapabilities.contains(JOIN_ON_SUBQUERY.capabilityName())
+        );
 
         if (testCase.requiredCapabilities.contains(FORK_V9.capabilityName())) {
             assumeTrue(

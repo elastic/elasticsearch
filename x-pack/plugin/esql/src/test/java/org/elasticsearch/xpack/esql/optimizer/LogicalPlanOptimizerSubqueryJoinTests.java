@@ -14,12 +14,13 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.Before;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Logical optimization of {@code LEFT OUTER JOIN} on a subquery that is rejected. The session rejects the join before optimization
- * until it can run, so these tests optimize the analyzed plan directly. The plans of queries that optimize are captured in
+ * Logical optimization of {@code LEFT OUTER JOIN} on a subquery that is rejected. The plans of queries that optimize are captured in
  * {@link LogicalPlanOptimizerSubqueryJoinGoldenTests}.
  */
 public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOptimizerTests {
@@ -57,10 +58,31 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
         );
     }
 
-    public void testMapperRejectsJoin() {
-        LogicalPlan plan = optimizedJoinPlan(JOIN_LANGUAGES);
-        VerificationException e = expectThrows(VerificationException.class, () -> new Mapper().map(new Versioned<>(plan, minimumVersion)));
-        assertThat(e.getMessage(), containsString("line 3:3: JOIN on a subquery is not supported yet"));
+    /**
+     * An index search runs against the left side's documents, which the join's output no longer carries. A search that the optimizer
+     * can't push below the join, because the same condition reads a subquery column, is rejected.
+     */
+    public void testIndexSearchAboveJoinIsRejected() {
+        for (String search : List.of("MATCH(first_name, \"Anna\")", "first_name : \"Anna\"")) {
+            VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(JOIN_LANGUAGES + """
+                | WHERE %s OR language_name IS NOT NULL
+                """.formatted(search)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "cannot be used in a WHERE clause that references both data-side and subquery-side fields after a JOIN on a subquery"
+                )
+            );
+        }
+    }
+
+    /**
+     * The optimizer replaces the join with a hash join, which is the only join on a subquery the mapper can plan.
+     */
+    public void testMapperRejectsJoinThatWasNotReplaced() {
+        LogicalPlan plan = analyzer().addEmployees("test").addLanguages().query(JOIN_LANGUAGES);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new Mapper().map(new Versioned<>(plan, minimumVersion)));
+        assertThat(e.getMessage(), containsString("JOIN on a subquery must be replaced with a hash join before mapping"));
     }
 
     private LogicalPlan optimizedJoinPlan(String query) {

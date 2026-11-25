@@ -31,9 +31,9 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.matchesPattern;
 
 /**
- * The result of a sub-plan ({@code IN} subquery, {@code INLINE STATS}, PromQL vector match) becomes a local relation of the main
- * plan, capped by {@code esql.intermediate_local_relation_max_size}. An oversized result must fail as soon as the pages collected
- * on the coordinator pass the cap, not after the sub-plan has read its whole input.
+ * The result of a sub-plan ({@code IN} subquery, {@code INLINE STATS}, PromQL vector match, {@code JOIN} on a subquery) becomes a
+ * local relation of the main plan, capped by {@code esql.intermediate_local_relation_max_size}. An oversized result must fail as soon
+ * as the pages collected on the coordinator pass the cap, not after the sub-plan has read its whole input.
  */
 public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
     /**
@@ -150,6 +150,15 @@ public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
         );
         setLimitBelowOnePage();
         assertFailsWhileCollecting("PROMQL index=metrics step=1m ratio=(sum by (host) (cpu) / on (host) sum by (host) (cpu))");
+    }
+
+    /**
+     * The subquery of a {@code JOIN} runs as a sub-plan too, and its result becomes the build side of a hash join.
+     */
+    public void testOversizedJoinSubqueryFailsWhileCollecting() {
+        assumeTrue("requires JOIN on a subquery", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        setLimitBelowOnePage();
+        assertFailsWhileCollecting("FROM test | KEEP foo | LEFT OUTER JOIN (FROM test | EVAL bar = foo | KEEP foo, bar) ON foo");
     }
 
     public void testLimitDoesNotApplyToMainPlan() {

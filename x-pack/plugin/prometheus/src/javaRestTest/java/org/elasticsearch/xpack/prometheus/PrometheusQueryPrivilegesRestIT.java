@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -65,6 +66,20 @@ public class PrometheusQueryPrivilegesRestIT extends AbstractPrometheusRestIT {
             new BasicNameValuePair("start", START),
             new BasicNameValuePair("end", END)
         );
+    }
+
+    /** A string literal selects no series, but its empty exemplars are still only returned to a caller that may run ES|QL. */
+    public void testQueryExemplarsStringLiteral() throws IOException {
+        var params = new NameValuePair[] {
+            new BasicNameValuePair("query", "\"a string\""),
+            new BasicNameValuePair("start", START),
+            new BasicNameValuePair("end", START) };
+        assertThat(status(prometheusGetRequest("/_prometheus/api/v1/query_exemplars", writeApiKey, params)), equalTo(403));
+        var response = ObjectPath.createFromResponse(
+            client().performRequest(prometheusGetRequest("/_prometheus/api/v1/query_exemplars", readApiKey, params))
+        );
+        assertThat(response.evaluate("status"), equalTo("success"));
+        assertThat(response.evaluate("data"), equalTo(List.of()));
     }
 
     public void testSeries() throws IOException {

@@ -879,3 +879,8 @@ tests:
   method: testEvaluatorToString {TestCase=<long>, <integer>, <null>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>, <integer>,
     <integer>, <integer>, <integer>, <integer>}
   issue: https://github.com/elastic/elasticsearch/issues/167376
+- class: org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExecSerializationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testDeeplyNestedFields
+  issue: https://github.com/elastic/elasticsearch/issues/167380

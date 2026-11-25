@@ -178,6 +178,40 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertValidationSucceeds(harness, validation());
     }
 
+    public void testLocalSuccessfulAndRemoteSkippedWithoutDescribeColumnsShouldDeferValidation() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new TestEsqlQueryResponse(
+                describeResponse(
+                    List.of(
+                        new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+                        new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+                    ),
+                    List.of("<no-fields>"),
+                    List.of()
+                )
+            )
+        );
+        assertValidationSucceeds(harness, validation().query("FROM logs-*,east:logs-*"));
+    }
+
+    public void testValidateAtStartGivenLocalSuccessfulAndRemoteSkippedWithoutDescribeColumnsShouldNameSkippedCluster() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new TestEsqlQueryResponse(
+                describeResponse(
+                    List.of(
+                        new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+                        new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+                    ),
+                    List.of("<no-fields>"),
+                    List.of()
+                )
+            )
+        );
+        Exception failure = validateAtStartFailure(harness);
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.getMessage(), containsString("[east]"));
+    }
+
     public void testSkippedRemoteAndLocalClusterWithoutRequiredColumnShouldFailValidation() {
         ValidatorHarness harness = harness().withClusters(
             new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),

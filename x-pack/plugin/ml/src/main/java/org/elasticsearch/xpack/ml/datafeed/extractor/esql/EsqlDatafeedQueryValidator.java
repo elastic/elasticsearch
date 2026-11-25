@@ -247,24 +247,24 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * With {@code skip_unavailable=true}, ES|QL skips an unreachable remote or one that matches no index instead of failing. When
-     * every source is on such a remote, the response has no DESCRIBE rows, and may lack the DESCRIBE columns too. Returns the skipped
-     * or failed clusters, or an empty list when the response has DESCRIBE rows or a cluster that ran the query.
+     * no source can be described, the response has no DESCRIBE rows and only a placeholder column, even if a cluster reports
+     * {@code SUCCESSFUL}. Returns the skipped or failed clusters in that case. Returns an empty list when the response has the DESCRIBE
+     * columns, so that a missing required column is reported as such.
      */
     private static List<String> unavailableClustersWithoutDescription(EsqlQueryResponse response) {
-        if (response.response().rows().iterator().hasNext()) {
+        if (response.response().rows().iterator().hasNext() || hasDescribeColumns(response.response().columns())) {
             return List.of();
         }
-        List<EsqlClusterInfo> clusters = response.response().clusters();
-        // A cluster that ran the query described it, so empty rows then mean the required columns are missing, not that a source is down.
-        boolean anyClusterDescribed = clusters.stream()
-            .anyMatch(c -> c.status() == EsqlClusterInfo.Status.SUCCESSFUL || c.status() == EsqlClusterInfo.Status.PARTIAL);
-        if (anyClusterDescribed) {
-            return List.of();
-        }
-        return clusters.stream()
+        return response.response()
+            .clusters()
+            .stream()
             .filter(c -> c.status() == EsqlClusterInfo.Status.SKIPPED || c.status() == EsqlClusterInfo.Status.FAILED)
             .map(EsqlClusterInfo::clusterAlias)
             .toList();
+    }
+
+    private static boolean hasDescribeColumns(List<? extends ColumnInfo> header) {
+        return header.stream().anyMatch(c -> "name".equals(c.name())) && header.stream().anyMatch(c -> "type".equals(c.name()));
     }
 
     /**

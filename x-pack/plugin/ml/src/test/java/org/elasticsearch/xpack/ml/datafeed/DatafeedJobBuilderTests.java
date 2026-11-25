@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
@@ -53,6 +54,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -428,6 +430,20 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             .build();
 
         datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", null), datafeed);
+    }
+
+    public void testCheckRemoteIndicesAreAvailableGivenDslDatafeedShouldUseConfigIndicesNotTaskIndices() {
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode());
+        DatafeedConfig localDatafeed = new DatafeedConfig.Builder("datafeed1", "job1").setIndices(List.of("local-index")).build();
+        DatafeedConfig remoteDatafeed = new DatafeedConfig.Builder("datafeed1", "job1").setIndices(List.of("east:logs-*")).build();
+
+        // The task holds the indices the master read, which an update may have changed before the config was loaded.
+        datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", List.of("east:logs-*")), localDatafeed);
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", List.of("local-index")), remoteDatafeed)
+        );
+        assertThat(e.getMessage(), containsString("east:logs-*"));
     }
 
     public void testBuildGivenEsqlRemoteSourceAndNoRemoteSearchingShouldFail() throws Exception {

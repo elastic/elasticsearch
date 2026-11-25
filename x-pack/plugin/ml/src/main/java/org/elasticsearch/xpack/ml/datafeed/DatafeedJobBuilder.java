@@ -312,9 +312,9 @@ public class DatafeedJobBuilder {
     // visible for testing
     void checkRemoteIndicesAreAvailable(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
-            // The master stores the sources in the start parameters: the config indices of a DSL datafeed, the probed remote
-            // sources of an ES|QL datafeed. A started datafeed cannot be updated, so they match the config.
-            List<String> sources = task.getDatafeedIndices();
+            // ES|QL sources are not in the config: the master stores the probed remote sources in the start parameters. A DSL datafeed
+            // keeps its loaded config, because an update that races the start may have changed the indices after the master read them.
+            List<String> sources = datafeedConfig.getEsqlQuery() != null ? task.getDatafeedIndices() : datafeedConfig.getIndices();
             if (sources == null) {
                 return;
             }

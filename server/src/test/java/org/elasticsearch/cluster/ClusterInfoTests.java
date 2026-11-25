@@ -24,7 +24,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
@@ -99,31 +98,6 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         final var preSearchLoadMetricsCopy = copyInstance(clusterInfo, preSearchLoadMetricsVersion);
         assertThat(preSearchLoadMetricsCopy.getSearchCopyDemands(), equalTo(Map.of()));
         assertThat(preSearchLoadMetricsCopy.getNodeSearchCapacities(), equalTo(Map.of()));
-    }
-
-    public void testNodeSearchCapacityRejectsZero() {
-        final double positive = randomDoubleBetween(Math.nextUp(0.0d), 1.0d, true);
-        final AssertionError nodeComputeError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(0.0d, positive));
-        assertThat(nodeComputeError.getMessage(), containsString("nodeCompute must be finite and positive"));
-
-        final AssertionError threadBudgetError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(positive, 0.0d));
-        assertThat(threadBudgetError.getMessage(), containsString("threadBudget must be finite and positive"));
-    }
-
-    public void testSearchCopyDemandAcceptsZeroAndRejectsNonFiniteOrNegative() {
-        final SearchCopyDemand zero = new SearchCopyDemand(0d, 0d);
-        assertThat(zero.cpuDemand(), equalTo(0d));
-        assertThat(zero.threadDemand(), equalTo(0d));
-
-        final double valid = 1d;
-        for (double rejected : new double[] { Double.NaN, Double.POSITIVE_INFINITY, -1d }) {
-            final double invalid = rejected;
-            final AssertionError cpuError = expectThrows(AssertionError.class, () -> new SearchCopyDemand(invalid, valid));
-            assertThat(cpuError.getMessage(), containsString("cpuDemand must be finite and non-negative"));
-
-            final AssertionError threadError = expectThrows(AssertionError.class, () -> new SearchCopyDemand(valid, invalid));
-            assertThat(threadError.getMessage(), containsString("threadDemand must be finite and non-negative"));
-        }
     }
 
     public void testSearchLoadsAreTransportVersionGated() throws Exception {

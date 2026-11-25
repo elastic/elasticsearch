@@ -38,7 +38,8 @@ public interface FetchedHitsCheck {
     /**
      * Called once every shard has answered the fetch phase, before the hits are merged into the response, so a check that works in the
      * background can finish. The search fails if the listener fails, with an {@link IllegalArgumentException} for hits the check
-     * rejects. Completes the listener at once by default.
+     * rejects. The search continues in the listener, so an implementation that completes it on another thread must restore the thread
+     * context of this call. Completes the listener at once by default.
      */
     default void onFetchDone(ActionListener<Void> listener) {
         listener.onResponse(null);

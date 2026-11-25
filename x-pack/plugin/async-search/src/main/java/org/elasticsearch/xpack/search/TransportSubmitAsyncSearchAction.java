@@ -106,7 +106,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             );
             // Fails a search whose stored response won't fit as its hits arrive, rather than after the response is built.
             searchTask.setFetchedHitsCheck(
-                new StoredResponseSizeCheck(store::getMaxResponseSize, searchTask::isResultStored, hitsSamplingExecutor)
+                new StoredResponseSizeCheck(store::getMaxResponseSize, searchTask::isResultStored, hitsSamplingExecutor, threadContext)
             );
             if (request.isKeepOnCompletion()) {
                 searchTask.markResultStored();

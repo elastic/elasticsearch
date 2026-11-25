@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.FetchedHitsCheck;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -95,6 +97,7 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
     private final LongSupplier maxStoredSize;
     private final BooleanSupplier isStored;
     private final Executor executor;
+    private final ThreadContext threadContext;
     private final AtomicLong hitsBytes = new AtomicLong();
     private final AtomicLong projectedBytes = new AtomicLong();
     // Calls to sample once the hits reach the limit.
@@ -110,11 +113,13 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
      * @param maxStoredSize the size limit of stored responses, read on each call since the setting is dynamic
      * @param isStored      whether the response will be stored, which can turn true while the search runs
      * @param executor      where the hits are compressed
+     * @param threadContext restored around the listener of {@link #onFetchDone}, which a sampling task may complete
      */
-    StoredResponseSizeCheck(LongSupplier maxStoredSize, BooleanSupplier isStored, Executor executor) {
+    StoredResponseSizeCheck(LongSupplier maxStoredSize, BooleanSupplier isStored, Executor executor, ThreadContext threadContext) {
         this.maxStoredSize = maxStoredSize;
         this.isStored = isStored;
         this.executor = executor;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -150,7 +155,10 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
             listener.onResponse(null);
             return;
         }
-        final ActionListener<Void> previous = fetchDone.getAndSet(listener);
+        // A task started by a chunk runs in that chunk's context, but the search continues in its own.
+        final ActionListener<Void> previous = fetchDone.getAndSet(
+            ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)
+        );
         assert previous == null : "the fetch phase is done only once";
         startSampling();
     }
@@ -185,7 +193,7 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
 
     /**
      * Samples the remembered calls on the executor. At most one task samples at a time, and it runs until no request for sampling is
-     * left, so every call remembered before a request is sampled.
+     * left, so every call remembered before a request is sampled, unless the executor rejects the task.
      */
     private void startSampling() {
         if (samplingRequests.getAndIncrement() != 0) {
@@ -194,31 +202,16 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
-                int requests = samplingRequests.get();
-                do {
-                    // Taken before sampling, so every call of the fetch phase is sampled before the listener is completed.
-                    final ActionListener<Void> listener = fetchDone.getAndSet(null);
-                    try {
-                        sampleCalls();
-                    } catch (Exception e) {
-                        // Must not stop later sampling or leave the fetch phase waiting.
-                        assert false : e;
-                        logger.warn("failed to sample the hits of an async search", e);
-                    }
-                    if (listener != null) {
-                        completeFetchDone(listener);
-                    }
-                } while ((requests = samplingRequests.addAndGet(-requests)) > 0);
+                holdSamplingSlot(true);
             }
 
             @Override
             public void onRejection(Exception e) {
-                // The calls stay remembered for a later request to sample, and a fetch phase that is done leaves them to the store.
-                samplingRequests.set(0);
-                final ActionListener<Void> listener = fetchDone.getAndSet(null);
-                if (listener != null) {
-                    listener.onResponse(null);
-                }
+                // Holds the slot like a sampling task, so no other task starts while this completes the fetch phase, even if an onHits
+                // arrives meanwhile, which can't happen today since onFetchDone runs after every onHits. The calls stay remembered for
+                // a later request to sample. A fetch phase that is done is checked against the samples taken so far, and leaves the
+                // rest to the store.
+                holdSamplingSlot(false);
             }
 
             @Override
@@ -227,6 +220,30 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
                 logger.warn("failed to sample the hits of an async search", e);
             }
         });
+    }
+
+    /**
+     * Runs until no request for sampling is left, sampling the remembered calls if {@code sample}, and completes the fetch phase if it
+     * is done.
+     */
+    private void holdSamplingSlot(boolean sample) {
+        int requests = samplingRequests.get();
+        do {
+            // Taken before sampling, so every call of the fetch phase is sampled before the listener is completed.
+            final ActionListener<Void> listener = fetchDone.getAndSet(null);
+            if (sample) {
+                try {
+                    sampleCalls();
+                } catch (Exception e) {
+                    // Must not stop later sampling or leave the fetch phase waiting.
+                    assert false : e;
+                    logger.warn("failed to sample the hits of an async search", e);
+                }
+            }
+            if (listener != null) {
+                completeFetchDone(listener);
+            }
+        } while ((requests = samplingRequests.addAndGet(-requests)) > 0);
     }
 
     private void completeFetchDone(ActionListener<Void> listener) {

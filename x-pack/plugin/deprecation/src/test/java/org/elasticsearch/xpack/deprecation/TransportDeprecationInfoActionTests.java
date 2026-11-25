@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -232,6 +233,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
                 )
             )
             .componentTemplates(Map.of("my-component-template", componentTemplate))
+            .put(IndexTemplateMetadata.builder("my-legacy-template").patterns(List.of("legacy-*")).settings(inputSettings))
             .build();
 
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
@@ -239,6 +241,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
         AtomicReference<Settings> visibleComponentTemplateSettings = new AtomicReference<>();
         AtomicReference<Settings> visibleIndexTemplateSettings = new AtomicReference<>();
+        AtomicReference<Settings> visibleLegacyTemplateSettings = new AtomicReference<>();
         AtomicInteger backingIndicesCount = new AtomicInteger(0);
         List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (pr, req) -> {
             for (String indexName : resolver.concreteIndexNames(pr, req)) {
@@ -255,6 +258,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
                     visibleIndexTemplateSettings.set(template.template().settings());
                 }
             });
+            pr.templates().values().forEach(template -> visibleLegacyTemplateSettings.set(template.settings()));
             return Map.of();
         }));
         TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData(null);
@@ -290,6 +294,8 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         Assert.assertEquals(expectedSettings, visibleComponentTemplateSettings.get());
         Assert.assertNotNull(visibleIndexTemplateSettings.get());
         Assert.assertEquals(expectedSettings, visibleIndexTemplateSettings.get());
+        Assert.assertNotNull(visibleLegacyTemplateSettings.get());
+        Assert.assertEquals(expectedSettings, visibleLegacyTemplateSettings.get());
     }
 
     public void testCtorFailure() {

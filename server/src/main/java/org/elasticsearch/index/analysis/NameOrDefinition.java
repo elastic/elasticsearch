@@ -51,6 +51,14 @@ public class NameOrDefinition implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * {@code true} if this component was defined inline in a request or config rather than referenced by name.
+     * Index settings never produce a definition; they reference components by name.
+     */
+    public boolean isInline() {
+        return definition != null;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(name);

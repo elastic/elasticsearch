@@ -25,9 +25,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -36,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -515,6 +520,163 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         );
         List<DeprecationIssue> issues = issuesByIndex.get("test");
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testMinHashParamBoundsCheck() {
+        Function<IndexVersion, Settings.Builder> minHashSettings = version -> {
+            return settings(version).put("index.analysis.filter.big.type", "min_hash")
+                .put("index.analysis.filter.big.hash_count", 1)
+                .put("index.analysis.filter.big.bucket_count", 512)
+                .put("index.analysis.filter.big.hash_set_size", 200)
+                .put("index.analysis.filter.small.type", "min_hash")
+                .put("index.analysis.filter.small.hash_set_size", 20)
+                .put("index.analysis.filter.other.type", "lowercase");
+        };
+
+        String bigViolation = "[big]: " + MinHashIndexParamBounds.violation(1, 512, 200);
+        Function<String, DeprecationIssue> warning = indexName -> new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "min_hash token filter parameters exceed the limits for new indices",
+            "https://www.elastic.co/docs/reference/text-analysis/analysis-minhash-tokenfilter",
+            "The following [min_hash] filters on index ["
+                + indexName
+                + "] can't be used on new indices: "
+                + bigViolation
+                + " This index keeps working. Before reindexing, lower hash_count, bucket_count, or hash_set_size in the "
+                + "settings of the destination index; note that this changes the hashes the filter produces.",
+            false,
+            null
+        );
+
+        // Only the filter that exceeds the bounds is reported, not one within them or a filter of another type.
+        // Restrict the index version to indices that are writeable after upgrade. Older indices must be reindexed or made read-only and
+        // are handled differently.
+        assertThat(
+            minHashIssues(
+                minHashSettings.apply(
+                    IndexVersionUtils.randomVersionBetween(
+                        DeprecatedIndexPredicate.MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE,
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)
+                    )
+                ),
+                false
+            ),
+            contains(warning.apply("test"))
+        );
+
+        // Older indices must be reindexed before upgrading, and the reindex copies the filter to a new index that rejects it.
+        assertThat(
+            minHashIssues(minHashSettings.apply(OLD_VERSION), false),
+            contains(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "min_hash token filter parameters exceed the limits for new indices",
+                    "https://www.elastic.co/docs/reference/text-analysis/analysis-minhash-tokenfilter",
+                    "Reindexing index [test] will fail: it defines [min_hash] filters that new indices reject: "
+                        + bigViolation
+                        + " "
+                        + MinHashIndexParamBounds.INDEX_REINDEX_REMEDIATION,
+                    false,
+                    null
+                )
+            )
+        );
+
+        // An older data stream backing index is reported as critical on its data stream instead.
+        assertThat(minHashIssues(minHashSettings.apply(OLD_VERSION), true), contains(warning.apply(".ds-test")));
+
+        // An older index that is verified read-only doesn't need to be reindexed.
+        assertThat(
+            minHashIssues(
+                minHashSettings.apply(OLD_VERSION).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true),
+                false
+            ),
+            contains(warning.apply("test"))
+        );
+
+        // Indices created on or after the bounds were introduced can't hold such a filter, so there is nothing to report.
+        assertThat(
+            minHashIssues(
+                minHashSettings.apply(IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)),
+                false
+            ),
+            equalTo(List.of())
+        );
+    }
+
+    public void testMinHashParamBoundsCheckIgnoresUnparseableSettings() {
+        // A filter whose settings can't be parsed is skipped rather than failing the check.
+        assertThat(
+            minHashIssues(
+                settings(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)).put(
+                    "index.analysis.filter.bad.type",
+                    "min_hash"
+                ).put("index.analysis.filter.bad.hash_count", "not_a_number"),
+                false
+            ),
+            equalTo(List.of())
+        );
+    }
+
+    /**
+     * Runs the checks on an index named {@code test}, or on a backing index named {@code .ds-test} of a data stream, and returns
+     * the {@code min_hash} issues reported for it.
+     */
+    private List<DeprecationIssue> minHashIssues(Settings.Builder settings, boolean inDataStream) {
+        String indexName = inDataStream ? ".ds-test" : "test";
+        if (inDataStream) {
+            settings.put("index.hidden", true);
+        }
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true);
+        if (inDataStream) {
+            DataStream dataStream = new DataStream(
+                "my-data-stream",
+                List.of(indexMetadata.getIndex()),
+                randomNegativeLong(),
+                Map.of(),
+                randomBoolean(),
+                false,
+                false,
+                randomBoolean(),
+                randomFrom(IndexMode.availableModes()),
+                null,
+                randomFrom(
+                    DataStreamOptions.EMPTY,
+                    DataStreamOptions.FAILURE_STORE_DISABLED,
+                    DataStreamOptions.FAILURE_STORE_ENABLED,
+                    null
+                ),
+                List.of(),
+                randomBoolean(),
+                null
+            );
+
+            projectBuilder.customs(
+                Map.of(
+                    DataStreamMetadata.TYPE,
+                    new DataStreamMetadata(ImmutableOpenMap.builder(Map.of("my-data-stream", dataStream)).build(), ImmutableOpenMap.of())
+                )
+            );
+        }
+
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            projectBuilder.build(),
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+
+        return issuesByIndex.getOrDefault(indexName, List.of())
+            .stream()
+            .filter(issue -> issue.getMessage().startsWith("min_hash"))
+            .toList();
     }
 
     public void testTranslogRetentionSettings() {

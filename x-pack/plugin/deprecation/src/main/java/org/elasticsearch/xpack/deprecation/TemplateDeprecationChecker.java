@@ -9,9 +9,13 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -20,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
@@ -32,12 +37,17 @@ import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATI
 public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "templates";
-    private final List<Function<ComposableIndexTemplate, DeprecationIssue>> indexTemplateChecks = List.of(
-        this::checkLegacyTiersInIndexTemplate
+    private final List<BiFunction<ComposableIndexTemplate, ProjectMetadata, DeprecationIssue>> indexTemplateChecks = List.of(
+        (template, project) -> checkLegacyTiersInIndexTemplate(template),
+        this::checkMinHashParamBoundsInIndexTemplate
     );
     private final List<Function<ComponentTemplate, DeprecationIssue>> componentTemplateChecks = List.of(
         this::checkSourceModeInComponentTemplates,
-        this::checkLegacyTiersInComponentTemplates
+        this::checkLegacyTiersInComponentTemplates,
+        this::checkMinHashParamBoundsInComponentTemplate
+    );
+    private final List<Function<IndexTemplateMetadata, DeprecationIssue>> legacyTemplateChecks = List.of(
+        this::checkMinHashParamBoundsInLegacyTemplate
     );
 
     /**
@@ -62,16 +72,18 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
     Map<String, List<DeprecationIssue>> check(ProjectMetadata project) {
         var indexTemplates = project.templatesV2().entrySet();
         var componentTemplates = project.componentTemplates().entrySet();
-        if (indexTemplates.isEmpty() && componentTemplates.isEmpty()) {
+        var legacyTemplates = project.templates().entrySet();
+        if (indexTemplates.isEmpty() && componentTemplates.isEmpty() && legacyTemplates.isEmpty()) {
             return Map.of();
         }
+
         Map<String, List<DeprecationIssue>> issues = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : indexTemplates) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
 
             List<DeprecationIssue> issuesForSingleIndexTemplate = indexTemplateChecks.stream()
-                .map(c -> c.apply(template))
+                .map(c -> c.apply(template, project))
                 .filter(Objects::nonNull)
                 .toList();
             if (issuesForSingleIndexTemplate.isEmpty() == false) {
@@ -90,6 +102,19 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
                 issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
             }
         }
+        for (Map.Entry<String, IndexTemplateMetadata> entry : legacyTemplates) {
+            String name = entry.getKey();
+            IndexTemplateMetadata template = entry.getValue();
+
+            List<DeprecationIssue> issuesForSingleLegacyTemplate = legacyTemplateChecks.stream()
+                .map(c -> c.apply(template))
+                .filter(Objects::nonNull)
+                .toList();
+            if (issuesForSingleLegacyTemplate.isEmpty() == false) {
+                issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleLegacyTemplate);
+            }
+        }
+
         return issues.isEmpty() ? Map.of() : issues;
     }
 
@@ -149,6 +174,43 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
                 + DEPRECATION_COMMON_DETAIL,
             false,
             DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
+        );
+    }
+
+    private DeprecationIssue checkMinHashParamBoundsInIndexTemplate(ComposableIndexTemplate template, ProjectMetadata project) {
+        // Resolved settings, because an index template is a combination of itself plus the component templates it references
+        Settings settings = MetadataIndexTemplateService.resolveSettings(template, project.componentTemplates());
+        return minHashParamBoundsIssue(settings, "index template");
+    }
+
+    private DeprecationIssue checkMinHashParamBoundsInComponentTemplate(ComponentTemplate componentTemplate) {
+        return minHashParamBoundsIssue(componentTemplate.template().settings(), "component template");
+    }
+
+    private DeprecationIssue checkMinHashParamBoundsInLegacyTemplate(IndexTemplateMetadata template) {
+        return minHashParamBoundsIssue(template.settings(), "legacy index template");
+    }
+
+    private DeprecationIssue minHashParamBoundsIssue(Settings settings, String templateKind) {
+        List<String> violations = MinHashIndexParamBounds.indexSettingsViolations(settings);
+        if (violations.isEmpty()) {
+            return null;
+        }
+
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            MinHashIndexParamBounds.DEPRECATION_MESSAGE,
+            MinHashIndexParamBounds.DEPRECATION_HELP_URL,
+            "The following [min_hash] filters in this "
+                + templateKind
+                + " can't be used on new indices: "
+                + String.join(" ", violations)
+                + " Creating an index from this "
+                + templateKind
+                + " fails. Lower hash_count, bucket_count, or hash_set_size in the template; "
+                + "note that this changes the hashes the filter produces.",
+            false,
+            null
         );
     }
 

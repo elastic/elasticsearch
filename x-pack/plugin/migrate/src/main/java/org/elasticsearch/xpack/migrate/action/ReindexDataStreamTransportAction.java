@@ -16,9 +16,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -29,6 +32,9 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.getReindexRequiredPredicate;
 import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.TASK_ID_PREFIX;
@@ -77,11 +83,21 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             listener.onFailure(new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName));
             return;
         }
+
         int totalIndices = dataStream.getIndices().size();
-        int totalIndicesToBeUpgraded = (int) dataStream.getIndices()
+        List<Index> indicesToBeUpgraded = dataStream.getIndices()
             .stream()
             .filter(getReindexRequiredPredicate(projectMetadata, false, dataStream.isSystem()))
-            .count();
+            .toList();
+
+        try {
+            reindexCompatibilityCheck(sourceDataStreamName, indicesToBeUpgraded, projectMetadata);
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        int totalIndicesToBeUpgraded = indicesToBeUpgraded.size();
         ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(
             sourceDataStreamName,
             transportService.getThreadPool().absoluteTimeInMillis(),
@@ -117,6 +133,32 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             );
         }
 
+    }
+
+    /**
+     * Throws if any of the indices has settings that the new index created by its reindex would reject.
+     */
+    static void reindexCompatibilityCheck(String dataStreamName, List<Index> indicesToBeUpgraded, ProjectMetadata projectMetadata) {
+        // The destination of each reindex copies its source's settings, so fail now rather than partway through the migration
+        // if a min_hash filter that new indices reject would be copied.
+        List<String> minHashViolations = new ArrayList<>();
+        for (Index index : indicesToBeUpgraded) {
+            List<String> violations = MinHashIndexParamBounds.indexSettingsViolations(projectMetadata.index(index).getSettings());
+            if (violations.isEmpty() == false) {
+                minHashViolations.add("index [" + index.getName() + "] " + String.join(" ", violations));
+            }
+        }
+
+        if (minHashViolations.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "Reindexing data stream ["
+                    + dataStreamName
+                    + "] would fail: backing indices define [min_hash] filters that new indices reject: "
+                    + String.join(" ", minHashViolations)
+                    + " "
+                    + MinHashIndexParamBounds.DATA_STREAM_REINDEX_REMEDIATION
+            );
+        }
     }
 
     private void startTask(

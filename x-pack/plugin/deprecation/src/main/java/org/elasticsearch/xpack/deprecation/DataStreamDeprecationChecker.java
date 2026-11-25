@@ -10,13 +10,16 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,7 +38,8 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
     public static final String NAME = "data_streams";
     private static final List<BiFunction<DataStream, ProjectMetadata, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
         DataStreamDeprecationChecker::oldIndicesCheck,
-        DataStreamDeprecationChecker::ignoredOldIndicesCheck
+        DataStreamDeprecationChecker::ignoredOldIndicesCheck,
+        DataStreamDeprecationChecker::minHashOldIndicesCheck
     );
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
@@ -165,6 +169,48 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
             );
         }
         return null;
+    }
+
+    /**
+     * Reports backing indices that must be reindexed before upgrading but define {@code min_hash} filters that the new
+     * index rejects, because the data stream reindex copies the backing index's settings unchanged.
+     */
+    static DeprecationIssue minHashOldIndicesCheck(DataStream dataStream, ProjectMetadata project) {
+        List<Index> backingIndices = dataStream.getIndices();
+        Map<String, List<String>> violationsByIndex = new LinkedHashMap<>();
+        for (Index index : backingIndices) {
+            IndexMetadata indexMetadata = project.index(index);
+            if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false)) {
+                List<String> violations = MinHashIndexParamBounds.indexSettingsViolations(indexMetadata.getSettings());
+                if (violations.isEmpty() == false) {
+                    violationsByIndex.put(index.getName(), violations);
+                }
+            }
+        }
+
+        if (violationsByIndex.isEmpty()) {
+            return null;
+        }
+
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            MinHashIndexParamBounds.DEPRECATION_MESSAGE,
+            MinHashIndexParamBounds.DEPRECATION_HELP_URL,
+            "Reindexing this data stream will fail: backing indices define [min_hash] filters that new indices reject: "
+                + violationsByIndex.entrySet()
+                    .stream()
+                    .map(e -> "index [" + e.getKey() + "] " + String.join(" ", e.getValue()))
+                    .collect(Collectors.joining(" "))
+                + " "
+                + MinHashIndexParamBounds.DATA_STREAM_REINDEX_REMEDIATION,
+            false,
+            ofEntries(
+                entry("reindex_required", true),
+                entry("total_backing_indices", backingIndices.size()),
+                entry("indices_requiring_upgrade_count", violationsByIndex.size()),
+                entry("indices_requiring_upgrade", List.copyOf(violationsByIndex.keySet()))
+            )
+        );
     }
 
     private static Set<String> getReindexRequiredIndices(

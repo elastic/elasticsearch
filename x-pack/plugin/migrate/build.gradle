@@ -23,6 +23,7 @@ dependencies {
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:lang-painless')
 
+  internalClusterTestImplementation project(path: ':modules:analysis-common')
   internalClusterTestImplementation project(path: ':modules:lang-painless')
   internalClusterTestImplementation project(path: ':modules:lang-painless:spi')
   internalClusterTestImplementation project(path: ':modules:mapper-extras')

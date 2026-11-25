@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -31,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static java.util.Map.entry;
 import static java.util.Map.ofEntries;
@@ -38,6 +40,7 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamDeprecationCheckerTests extends ESTestCase {
+    private static final IndexVersion OLD_VERSION = IndexVersion.fromId(7170099);
 
     private final DataStreamDeprecationChecker checker = new DataStreamDeprecationChecker(TestIndexNameExpressionResolver.newInstance());
 
@@ -291,7 +294,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         MappingMetadata mappingMetadata,
         TransportVersion transportVersion
     ) {
-        Settings.Builder settingsBuilder = isOld ? settings(IndexVersion.fromId(7170099)) : settings(IndexVersion.current());
+        Settings.Builder settingsBuilder = isOld ? settings(OLD_VERSION) : settings(IndexVersion.current());
         String indexName = (isOld ? "old-" : "new-") + (isClosed ? "closed-" : "") + "data-stream-index-" + suffix;
         if (isOld) {
             if (expectedIndices.isEmpty() == false && randomIntBetween(0, 2) == 0) {
@@ -323,7 +326,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         Set<String> expectedIndices = new HashSet<>();
 
         for (int i = 0; i < oldIndexCount; i++) {
-            Settings.Builder settings = settings(IndexVersion.fromId(7170099));
+            Settings.Builder settings = settings(OLD_VERSION);
 
             String indexName = "old-data-stream-index-" + i;
             settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
@@ -385,6 +388,96 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
+    }
+
+    public void testMinHashOldIndicesCheck() {
+        final BiFunction<String, Settings.Builder, IndexMetadata> createTestIndex = (name, settings) -> IndexMetadata.builder(name)
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        Settings.Builder invalidSettings = Settings.builder()
+            .put("index.analysis.filter.big.type", "min_hash")
+            .put("index.analysis.filter.big.hash_count", 1)
+            .put("index.analysis.filter.big.bucket_count", 512)
+            .put("index.analysis.filter.big.hash_set_size", 200)
+            .put("index.analysis.filter.small.type", "min_hash")
+            .put("index.analysis.filter.small.hash_set_size", 20)
+            .put("index.analysis.filter.other.type", "lowercase");
+        Settings.Builder validSettings = Settings.builder()
+            .put("index.analysis.filter.small.type", "min_hash")
+            .put("index.analysis.filter.small.hash_set_size", 20);
+
+        IndexMetadata oldInvalid = createTestIndex.apply("old-invalid", settings(OLD_VERSION).put(invalidSettings.build()));
+        IndexMetadata oldValid = createTestIndex.apply("old-valid", settings(OLD_VERSION).put(validSettings.build()));
+        IndexMetadata oldReadOnlyInvalid = createTestIndex.apply(
+            "old-readonly-invalid",
+            settings(OLD_VERSION).put(invalidSettings.build()).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
+        );  // A verified read-only index doesn't need to be reindexed, so its filter is not reported.
+        IndexMetadata newIndex = createTestIndex.apply("new", settings(IndexVersion.current()));
+
+        assertThat(
+            minHashIssues(List.of(oldInvalid, oldValid, oldReadOnlyInvalid, newIndex)),
+            equalTo(
+                List.of(
+                    new DeprecationIssue(
+                        DeprecationIssue.Level.CRITICAL,
+                        MinHashIndexParamBounds.DEPRECATION_MESSAGE,
+                        MinHashIndexParamBounds.DEPRECATION_HELP_URL,
+                        "Reindexing this data stream will fail: backing indices define [min_hash] filters that new indices reject: "
+                            + "index [old-invalid] [big]: "
+                            + MinHashIndexParamBounds.violation(1, 512, 200)
+                            + " "
+                            + MinHashIndexParamBounds.DATA_STREAM_REINDEX_REMEDIATION,
+                        false,
+                        ofEntries(
+                            entry("reindex_required", true),
+                            entry("total_backing_indices", 4),
+                            entry("indices_requiring_upgrade_count", 1),
+                            entry("indices_requiring_upgrade", List.of("old-invalid"))
+                        )
+                    )
+                )
+            )
+        );
+
+        assertThat(minHashIssues(List.of(oldValid, oldReadOnlyInvalid, newIndex)), equalTo(List.of()));
+    }
+
+    /**
+     * Runs the checks on a data stream with the given backing indices and returns the {@code min_hash} issues reported for it.
+     */
+    private List<DeprecationIssue> minHashIssues(List<IndexMetadata> backingIndices) {
+        DataStream dataStream = new DataStream(
+            randomAlphaOfLength(10),
+            backingIndices.stream().map(IndexMetadata::getIndex).toList(),
+            randomNegativeLong(),
+            Map.of(),
+            randomBoolean(),
+            false,
+            false,
+            randomBoolean(),
+            randomFrom(IndexMode.availableModes()),
+            null,
+            randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
+            List.of(),
+            randomBoolean(),
+            null
+        );
+
+        Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
+        backingIndices.forEach(indexMetadata -> nameToIndexMetadata.put(indexMetadata.getIndex().getName(), indexMetadata));
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
+
+        return checker.check(project)
+            .getOrDefault(dataStream.getName(), List.of())
+            .stream()
+            .filter(issue -> issue.getMessage().equals(MinHashIndexParamBounds.DEPRECATION_MESSAGE))
+            .toList();
     }
 
     public void testOldIndicesIgnoredWithPercolatorField() {
@@ -474,7 +567,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         List<Index> allIndices = new ArrayList<>();
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
         for (int i = 0; i < oldIndexCount; i++) {
-            Settings.Builder settings = settings(IndexVersion.fromId(7170099));
+            Settings.Builder settings = settings(OLD_VERSION);
 
             String indexName = "old-data-stream-index-" + i;
             settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);

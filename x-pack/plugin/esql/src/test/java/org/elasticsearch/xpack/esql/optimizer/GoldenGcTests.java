@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -17,6 +18,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 /** The source rewrites {@code -Dgolden.gc.fix} performs, on the shapes the golden suites actually use. */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtrasFS can add a directory to the ones a test creates, and it would count as stale.
 public class GoldenGcTests extends ESTestCase {
 
     public void testRemovesChainedCallsAndUnusedConstant() {

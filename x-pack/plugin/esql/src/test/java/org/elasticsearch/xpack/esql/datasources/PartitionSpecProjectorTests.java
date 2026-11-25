@@ -922,6 +922,64 @@ public class PartitionSpecProjectorTests extends ESTestCase {
     }
 
     /**
+     * Offset-less quoted DATE_NANOS is UTC {@code LocalDateTime}. Exclusive upper inside the
+     * first millisecond must still keep the 22:00 folder.
+     */
+    public void testQuotedNanosExclusiveUpperWithoutOffsetKeepsBoundaryHour() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start = Instant.parse("2026-11-17T22:00:00Z");
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(start, true, "2026-11-17T22:00:00.000000001", false)))
+        );
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(hourBinding(2026, 11, 17, 22)));
+        assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 21)));
+        assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 23)));
+    }
+
+    /**
+     * Exclusive {@code >} at an exact millisecond keeps that millisecond so AND of two DATE_NANOS
+     * windows that only overlap inside it is not empty.
+     */
+    public void testExclusiveLowerAtExactMillisKeepsNanosWindow() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant exactMs = Instant.parse("2026-11-17T22:00:00Z");
+        Instant insideMs = Instant.parse("2026-11-17T22:00:00.000000001Z");
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(exactMs, false, insideMs, false))),
+            new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(exactMs, true, insideMs, false)))
+        );
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(hourBinding(2026, 11, 17, 22)));
+        assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 21)));
+        assertFalse(predicate.mayContain(hourBinding(2026, 11, 17, 23)));
+    }
+
+    /**
+     * Overlapping windows in each OR merge before AND so the cartesian product does not grow
+     * and identity matches the covering interval.
+     */
+    public void testAndOfOverlappingRangeHintsMergesDisjuncts() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant start2 = Instant.parse("2026-11-17T22:30:00Z");
+        Instant end2 = Instant.parse("2026-11-18T00:30:00Z");
+        List<Object> overlapping = List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false));
+        var merged = spec.folderRangePredicate(
+            List.of(new PartitionFilterHint("ts", Operator.RANGE, overlapping), new PartitionFilterHint("ts", Operator.RANGE, overlapping))
+        );
+        var covering = spec.folderRangePredicate(
+            List.of(new PartitionFilterHint("ts", Operator.RANGE, List.of(new BoundRange(start1, true, end2, false))))
+        );
+        assertNotNull(merged);
+        assertEquals(covering.identity(), merged.identity());
+        assertEquals(hourFoldersIn(2026, 11, 17, 18, covering), hourFoldersIn(2026, 11, 17, 18, merged));
+    }
+
+    /**
      * One value that is not a {@link BoundRange} discards the whole {@code RANGE} hint. Keeping only
      * the convertible branch would hide folders the omitted interval still matches.
      */

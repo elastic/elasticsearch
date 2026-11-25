@@ -1489,6 +1489,37 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals("temporal hull stays off extract so PartitionSpec cannot clip UTC windows with it", 1, hints.size());
     }
 
+    /**
+     * Quoted offset windows whose text order is not UTC order. A string hull would invert and
+     * drop both; RANGE-only extract keeps Nov 17 10:00 UTC and Nov 18 10:00 UTC.
+     */
+    public void testQuotedOffsetWindowsSkipHullAndKeepBothFolders() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-17T22:00:00-12:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-17T23:00:00-12:00"))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-18T00:00:00+14:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-18T01:00:00+14:00"))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(1, hints.size());
+        assertEquals("ts", hints.get(0).columnName());
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "10")));
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "10")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "22")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "0")));
+    }
+
     public void testResolvedOrOfTwoPrefixesEmitsNothing() {
         // Walking OR would AND two GTE/LT ranges in matchesAllFileHints and drop every file.
         Expression filter = new Or(

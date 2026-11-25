@@ -1916,6 +1916,7 @@ public final class PartitionSpec {
     /**
      * Every {@link BoundRange} converted, or {@code null} when any value is not a range or does not
      * convert. Dropping only the values that convert would hide a branch that still matches rows.
+     * Overlapping clips are merged so later pairwise AND cannot grow the list exponentially.
      */
     @Nullable
     private static List<InstantRange> convertBoundRanges(List<Object> values, Unit unit) {
@@ -1931,12 +1932,17 @@ public final class PartitionSpec {
                 return null;
             }
         }
-        return converted.isEmpty() ? null : converted;
+        if (converted.isEmpty()) {
+            return null;
+        }
+        List<InstantRange> merged = mergeOverlapping(converted);
+        return merged.isEmpty() ? List.of(InstantRange.EMPTY) : merged;
     }
 
     /**
      * AND of two ORs: every pair of intervals, dropping empty clips. Unioning would keep
      * folders each conjunct already excludes and can trip {@code max_discovered_files}.
+     * Overlapping clips are merged so a later AND cannot grow the cartesian product.
      */
     private static List<InstantRange> intersectDisjuncts(List<InstantRange> left, List<InstantRange> right) {
         List<InstantRange> out = new ArrayList<>();
@@ -1948,7 +1954,45 @@ public final class PartitionSpec {
                 }
             }
         }
-        return out;
+        return mergeOverlapping(out);
+    }
+
+    /**
+     * Collapse overlapping or abutting half-open intervals. Pairwise AND of two unions is
+     * quadratic; without this, overlapping windows in each OR grow the list exponentially.
+     */
+    private static List<InstantRange> mergeOverlapping(List<InstantRange> ranges) {
+        List<InstantRange> live = new ArrayList<>(ranges.size());
+        for (InstantRange range : ranges) {
+            if (range.isEmpty() == false) {
+                live.add(range);
+            }
+        }
+        if (live.size() <= 1) {
+            return live;
+        }
+        live.sort(INSTANT_RANGE_ORDER);
+        List<InstantRange> merged = new ArrayList<>(live.size());
+        InstantRange current = live.get(0);
+        for (int i = 1; i < live.size(); i++) {
+            InstantRange next = live.get(i);
+            if (overlapsOrAbuts(current, next)) {
+                current = current.union(next);
+            } else {
+                merged.add(current);
+                current = next;
+            }
+        }
+        merged.add(current);
+        return merged;
+    }
+
+    private static boolean overlapsOrAbuts(InstantRange a, InstantRange b) {
+        long a0 = a.startInclusiveMillis() != null ? a.startInclusiveMillis() : Long.MIN_VALUE;
+        long a1 = a.endExclusiveMillis() != null ? a.endExclusiveMillis() : Long.MAX_VALUE;
+        long b0 = b.startInclusiveMillis() != null ? b.startInclusiveMillis() : Long.MIN_VALUE;
+        long b1 = b.endExclusiveMillis() != null ? b.endExclusiveMillis() : Long.MAX_VALUE;
+        return (a0 < b1 && b0 < a1) || a1 == b0 || b1 == a0;
     }
 
     @Nullable
@@ -2401,16 +2445,13 @@ public final class PartitionSpec {
 
     /**
      * Exclusive {@code >} as an inclusive start. {@link Instant#toEpochMilli()} floors,
-     * so a DATE_NANOS bound inside a millisecond would otherwise skip the rest of that
-     * millisecond and drop a folder that still matches.
+     * so keep the containing millisecond: DATE_NANOS rows after an exact-ms bound still
+     * live in that millisecond, and AND of two such windows must not become empty.
+     * One extra DATETIME millisecond does not add a grain folder.
      */
     @Nullable
     private static Long exclusiveLowerStartMillis(Object raw, Unit unit) {
-        Long millis = toUtcMillisForProjection(raw, unit);
-        if (millis == null) {
-            return null;
-        }
-        return hasSubMilliNanos(raw) ? millis : increment(millis);
+        return toUtcMillisForProjection(raw, unit);
     }
 
     /**
@@ -2448,11 +2489,21 @@ public final class PartitionSpec {
         try {
             return Instant.parse(text);
         } catch (DateTimeParseException ignored) {
-            // try offset form below
+            // try offset / local forms below
         }
         try {
             return OffsetDateTime.parse(text).toInstant();
         } catch (DateTimeParseException ignored) {
+            // try local date-time below
+        }
+        try {
+            return LocalDateTime.parse(text).toInstant(ZoneOffset.UTC);
+        } catch (DateTimeParseException ignored) {
+            // try date-only below
+        }
+        try {
+            return LocalDate.parse(text).atStartOfDay().toInstant(ZoneOffset.UTC);
+        } catch (DateTimeParseException e) {
             return null;
         }
     }

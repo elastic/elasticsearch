@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
@@ -673,6 +674,12 @@ public final class PartitionFilterHintExtractor {
         }
         try {
             OffsetDateTime.parse(text);
+            return true;
+        } catch (DateTimeParseException ignored) {
+            // try local date-time below
+        }
+        try {
+            LocalDateTime.parse(text);
             return true;
         } catch (DateTimeParseException ignored) {
             // try date-only below

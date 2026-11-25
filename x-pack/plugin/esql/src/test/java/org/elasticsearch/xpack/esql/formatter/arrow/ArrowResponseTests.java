@@ -1701,6 +1701,10 @@ public class ArrowResponseTests extends ESTestCase {
                 ArrowStreamReader reader = new ArrowStreamReader(bytes.streamInput(), ALLOCATOR);
                 VectorSchemaRoot root = reader.getVectorSchemaRoot()
             ) {
+                BlockArrowFormatter formatter = ArrowResponse.ESQL_FORMATTERS.get(type);
+                assertFieldNodes(formatter, mixedBlock, false, new ArrowFieldNode(5, 3));
+                assertFieldNodes(formatter, allEmptyBlock, false, new ArrowFieldNode(2, 2));
+
                 assertTrue(reader.loadNextBatch());
                 VarCharVector vector = (VarCharVector) root.getVector("json");
                 assertEquals(5, vector.getValueCount());
@@ -1768,6 +1772,10 @@ public class ArrowResponseTests extends ESTestCase {
                 ArrowStreamReader reader = new ArrowStreamReader(bytes.streamInput(), ALLOCATOR);
                 VectorSchemaRoot root = reader.getVectorSchemaRoot()
             ) {
+                BlockArrowFormatter formatter = ArrowResponse.ESQL_FORMATTERS.get(type);
+                assertFieldNodes(formatter, mixedBlock, true, new ArrowFieldNode(6, 3), new ArrowFieldNode(4, 0));
+                assertFieldNodes(formatter, allEmptyMultivalued, true, new ArrowFieldNode(2, 2), new ArrowFieldNode(0, 0));
+
                 assertTrue(reader.loadNextBatch());
                 ListVector listVector = (ListVector) root.getVector("json");
                 assertEquals(6, listVector.getValueCount());
@@ -1797,6 +1805,21 @@ public class ArrowResponseTests extends ESTestCase {
 
                 assertFalse(reader.loadNextBatch());
             }
+        }
+    }
+
+    private static void assertFieldNodes(BlockArrowFormatter formatter, Block block, boolean asList, ArrowFieldNode... expected) {
+        var nodes = new ArrayList<ArrowFieldNode>();
+        var releasables = new ArrayList<Releasable>();
+        try {
+            formatter.convert(block, asList, nodes, new ArrayList<>(), new ArrayList<>(), releasables);
+            assertEquals(expected.length, nodes.size());
+            for (int i = 0; i < expected.length; i++) {
+                assertEquals("node[" + i + "].length", expected[i].getLength(), nodes.get(i).getLength());
+                assertEquals("node[" + i + "].nullCount", expected[i].getNullCount(), nodes.get(i).getNullCount());
+            }
+        } finally {
+            Releasables.close(releasables);
         }
     }
 

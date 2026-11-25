@@ -59,6 +59,8 @@ abstract class BlockArrowFormatter {
 
     static final String ESQL_TYPE_METADATA = "elastic:type";
 
+    private static final byte[] ZERO_BYTES = new byte[4096];
+
     private final FieldType fieldType;
 
     protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType) {
@@ -163,7 +165,7 @@ abstract class BlockArrowFormatter {
      */
     public static class AsDenseVector extends BlockArrowFormatter {
 
-        public AsDenseVector(DataType esqlType) {
+        AsDenseVector(DataType esqlType) {
             super(esqlType, Types.MinorType.FLOAT4);
         }
 
@@ -210,7 +212,7 @@ abstract class BlockArrowFormatter {
      */
     public static class AsFloat64 extends BlockArrowFormatter {
 
-        public AsFloat64(DataType esqlType) {
+        AsFloat64(DataType esqlType) {
             super(esqlType, Types.MinorType.FLOAT8);
         }
 
@@ -271,7 +273,7 @@ abstract class BlockArrowFormatter {
      */
     public static class AsInt32 extends BlockArrowFormatter {
 
-        public AsInt32(DataType esqlType) {
+        AsInt32(DataType esqlType) {
             super(esqlType, Types.MinorType.INT);
         }
 
@@ -318,7 +320,7 @@ abstract class BlockArrowFormatter {
      * Conversion of Long blocks
      */
     public static class AsInt64 extends BlockArrowFormatter {
-        public AsInt64(DataType esqlType) {
+        AsInt64(DataType esqlType) {
             this(esqlType, Types.MinorType.BIGINT);
         }
 
@@ -387,7 +389,7 @@ abstract class BlockArrowFormatter {
      * longs. Arrow's {@code UInt64} expects the plain unsigned bits.
      */
     public static class AsFlippedSignInt64 extends AsInt64 {
-        public AsFlippedSignInt64(DataType esqlType) {
+        AsFlippedSignInt64(DataType esqlType) {
             super(esqlType, Types.MinorType.UINT8);
         }
 
@@ -401,7 +403,7 @@ abstract class BlockArrowFormatter {
      * Conversion of Boolean blocks
      */
     public static class AsBoolean extends BlockArrowFormatter {
-        public AsBoolean(DataType esqlType) {
+        AsBoolean(DataType esqlType) {
             super(esqlType, Types.MinorType.BIT);
         }
 
@@ -457,7 +459,7 @@ abstract class BlockArrowFormatter {
      */
     public static class BytesReFormatter extends BlockArrowFormatter {
 
-        public BytesReFormatter(DataType esqlType, Types.MinorType minorType) {
+        BytesReFormatter(DataType esqlType, Types.MinorType minorType) {
             super(esqlType, minorType);
         }
 
@@ -571,7 +573,7 @@ abstract class BlockArrowFormatter {
          * @param minorType Arrow type
          * @param valueConverter a function that takes (value, scratch) input parameters and returns the transformed value
          */
-        public TransformedBytesRef(DataType esqlType, Types.MinorType minorType, BiFunction<BytesRef, BytesRef, BytesRef> valueConverter) {
+        TransformedBytesRef(DataType esqlType, Types.MinorType minorType, BiFunction<BytesRef, BytesRef, BytesRef> valueConverter) {
             super(esqlType, minorType);
             this.valueConverter = valueConverter;
         }
@@ -691,7 +693,7 @@ abstract class BlockArrowFormatter {
     public static class AsJson extends TransformedBytesRef {
         public static final String ARROW_JSON = "arrow.json";
 
-        public AsJson(DataType esqlType) {
+        AsJson(DataType esqlType) {
             super(
                 esqlType,
                 Types.MinorType.VARCHAR,
@@ -728,7 +730,7 @@ abstract class BlockArrowFormatter {
          */
         private static final String GEO_CRS_METADATA = "{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}";
 
-        public AsGeoArrowWkb(DataType esqlType) {
+        AsGeoArrowWkb(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY, extensionMetadata(esqlType));
         }
 
@@ -859,7 +861,7 @@ abstract class BlockArrowFormatter {
 
         private final DataType esqlType;
 
-        public AsAggregateMetricDouble(DataType esqlType) {
+        AsAggregateMetricDouble(DataType esqlType) {
             super(esqlType, Types.MinorType.STRUCT);
             this.esqlType = esqlType;
         }
@@ -934,7 +936,7 @@ abstract class BlockArrowFormatter {
     public static class AsTDigest extends BlockArrowFormatter {
         private final DataType esqlType;
 
-        public AsTDigest(DataType esqlType) {
+        AsTDigest(DataType esqlType) {
             super(esqlType, Types.MinorType.STRUCT);
             this.esqlType = esqlType;
         }
@@ -1114,7 +1116,7 @@ abstract class BlockArrowFormatter {
      * lists, distinct from a null histogram.
      */
     public static class AsHistogram extends BlockArrowFormatter {
-        public AsHistogram(DataType esqlType) {
+        AsHistogram(DataType esqlType) {
             super(esqlType, Types.MinorType.STRUCT);
         }
 
@@ -1207,7 +1209,7 @@ abstract class BlockArrowFormatter {
      * sum(negative.counts)}. Multivalued columns are encoded as a list of structs.
      */
     public static class AsExponentialHistogram extends BlockArrowFormatter {
-        public AsExponentialHistogram(DataType esqlType) {
+        AsExponentialHistogram(DataType esqlType) {
             super(esqlType, Types.MinorType.STRUCT);
         }
 
@@ -1567,7 +1569,7 @@ abstract class BlockArrowFormatter {
             }
         }
 
-        public AsGeoTile(DataType esqlType) {
+        AsGeoTile(DataType esqlType) {
             super(esqlType, Types.MinorType.STRUCT);
         }
 
@@ -1644,7 +1646,7 @@ abstract class BlockArrowFormatter {
      * Conversion of {@code null} and {@code unsupported} columns to Arrow {@code Null} vectors (no data buffers).
      */
     public static class AsNull extends BlockArrowFormatter {
-        public AsNull(DataType esqlType) {
+        AsNull(DataType esqlType) {
             super(esqlType, Types.MinorType.NULL);
         }
 
@@ -1731,8 +1733,11 @@ abstract class BlockArrowFormatter {
     }
 
     protected static long writeZeroes(RecyclerBytesStreamOutput out, long byteCount) {
-        for (long i = 0; i < byteCount; i++) {
-            out.writeByte((byte) 0);
+        long remaining = byteCount;
+        while (remaining > 0) {
+            int chunk = (int) Math.min(remaining, ZERO_BYTES.length);
+            out.writeBytes(ZERO_BYTES, 0, chunk);
+            remaining -= chunk;
         }
         return byteCount;
     }

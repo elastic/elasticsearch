@@ -5033,6 +5033,13 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for {@code ROW} under {@code unmapped_fields="LOAD_ALL"}, alone or as a branch of a subquery next to an index. A
+         * {@code ROW} has no {@code _source}, so it adds no unmapped fields and its rows have a null {@code _unmapped_fields}. Only
+         * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ROW(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
          * Snapshot-only until the command is advertised.
          */

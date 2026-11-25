@@ -13,14 +13,18 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
+import org.elasticsearch.xpack.esql.DenseVectorFieldTypeIT;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
@@ -72,14 +76,29 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
             .build();
     }
 
+    public static class DiskBBQPluginEnabler extends DiskBBQPlugin {
+        public DiskBBQPluginEnabler(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected XPackLicenseState getLicenseState() {
+            return new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalExchangePlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(InternalExchangePlugin.class);
+        plugins.add(DiskBBQPluginEnabler.class);
+        return plugins;
     }
 
     private final String functionName;
     private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
     private final ElementType elementType;
+    private final double delta;
     private int numDims;
 
     public SimdVecLibraryIT(
@@ -90,6 +109,10 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
         this.functionName = functionName;
         this.similarityFunction = similarityFunction;
         this.elementType = elementType;
+        this.delta = switch (elementType) {
+            case BYTE, BIT, FLOAT -> DenseVectorFieldTypeIT.DELTA;
+            case BFLOAT16 -> DenseVectorFieldTypeIT.BFLOAT16_DELTA;
+        };
     }
 
     @SuppressWarnings("unchecked")
@@ -111,7 +134,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
                 } else {
                     assertNotNull(similarity);
                     double expectedSimilarity = similarityFunction.calculateSimilarity(left, right);
-                    assertEquals(expectedSimilarity, similarity, 0.0001);
+                    assertEquals(expectedSimilarity, similarity, delta);
                 }
             });
         }
@@ -136,7 +159,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
                 } else {
                     assertNotNull(similarity);
                     double expectedSimilarity = calculateSimilarity(similarityFunction, randomVector, leftAsList);
-                    assertEquals(expectedSimilarity, similarity, 0.0001);
+                    assertEquals(expectedSimilarity, similarity, delta);
                 }
             });
         }
@@ -160,7 +183,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
                 } else {
                     assertNotNull(similarity);
                     double expectedSimilarity = calculateSimilarity(similarityFunction, randomVector, vecAsList);
-                    assertEquals(expectedSimilarity, similarity, 0.0001);
+                    assertEquals(expectedSimilarity, similarity, delta);
                 }
             });
         }
@@ -217,7 +240,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
                 if (similarity == null) {
                     assertNull("Expected " + orderedSimilarity + " but got " + valuesList, expectedSimilarity);
                 } else {
-                    assertEquals("Expected " + orderedSimilarity + " but got " + valuesList, expectedSimilarity, similarity, 0.0001);
+                    assertEquals("Expected " + orderedSimilarity + " but got " + valuesList, expectedSimilarity, similarity, delta);
                 }
             }
         }
@@ -277,7 +300,7 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
             } else {
                 assertNotNull(similarity);
                 final double expectedSimilarity = calculateSimilarity(similarityFunction, vectorLeft, vectorRight);
-                assertEquals(expectedSimilarity, similarity, 0.0001);
+                assertEquals(expectedSimilarity, similarity, delta);
             }
         }
     }

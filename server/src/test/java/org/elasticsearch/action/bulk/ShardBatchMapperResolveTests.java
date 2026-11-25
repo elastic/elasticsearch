@@ -997,17 +997,17 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
 
     /**
      * The sink is on every new strict columnar index, so a sink whose wrapped flattened mapper cannot batch (here because
-     * {@code index.mapping.index_disabled_by_default: false} turns the inverted index on) must not turn off the batch path for the whole
+     * {@code index.mapping.flattened.store_root_doc_values: true} adds root doc values) must not turn off the batch path for the whole
      * index: a batch with no unmapped leaf still batches, and only a batch that would absorb a leaf falls back.
      */
     public void testSinkThatCannotBatchFallsBackOnlyWhenAbsorbing() throws IOException {
         assumeUnmappedSinkAvailable();
-        Settings indexEnabled = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), false).build();
+        Settings rootDocValues = Settings.builder().put(IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES.getKey(), true).build();
         MapperService ms = columnarMapperService(
-            indexEnabled,
+            rootDocValues,
             dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject())
         );
-        IndexSettings settings = columnarIndexSettings(indexEnabled);
+        IndexSettings settings = columnarIndexSettings(rootDocValues);
         assertNotNull(ShardBatchMapper.resolveMappers(schemaOfJson("{\"host\":\"srv\"}"), ms.mappingLookup(), settings));
         assertNull(ShardBatchMapper.resolveMappers(schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}"), ms.mappingLookup(), settings));
     }

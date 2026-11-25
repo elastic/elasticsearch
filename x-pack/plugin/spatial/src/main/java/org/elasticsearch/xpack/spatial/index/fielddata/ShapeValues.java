@@ -30,6 +30,7 @@ import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
+import org.elasticsearch.lucene.spatial.VertexLookupTable;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -174,6 +175,12 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
             // For polygons we prefer to use the centroid, as long as it is within the polygon
             if (reader.getDimensionalShapeType() == DimensionalShapeType.POLYGON && centroidWithinShape()) {
                 return pointMaker.apply(getX(), getY());
+            }
+            if (reader.isPointsOnly()) {
+                // Without a tree, the middle point in Morton order stands in for the root of the tree, near the middle
+                VertexLookupTable points = reader.getVertexTable();
+                long xy = points.getXY((points.size() - 1) / 2);
+                return pointMaker.apply(encoder.decodeX((int) (xy >>> 32)), encoder.decodeY((int) xy));
             }
             // For all other cases, use the first triangle (or line or point) in the tree which will always intersect the shape
             LabelPositionVisitor visitor = new LabelPositionVisitor(this.encoder, pointMaker);

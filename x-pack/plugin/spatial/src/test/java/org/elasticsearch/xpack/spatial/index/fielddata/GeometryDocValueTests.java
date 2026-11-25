@@ -29,6 +29,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -42,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -223,6 +225,26 @@ public class GeometryDocValueTests extends ESTestCase {
 
         // Assert that we can extract the original geometry from the doc-values
         assertThat("Expect equivalent geometry", reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(geometry));
+    }
+
+    /**
+     * Points along a horizontal line, in random order, are labelled at the middle point in both formats: the root of the legacy
+     * tree, and the middle of the V2 vertex table, whose Morton order follows x when y is the same.
+     */
+    public void testMultiPointLabelPosition() throws IOException {
+        int numPoints = randomIntBetween(1, 200);
+        List<Point> points = new ArrayList<>(numPoints);
+        for (int i = 0; i < numPoints; i++) {
+            points.add(new Point(-50 + i * 0.5, 10));
+        }
+        Point middle = points.get((numPoints - 1) / 2);
+        Collections.shuffle(points, random());
+        Geometry geometry = numPoints == 1 ? points.get(0) : new MultiPoint(points);
+        for (GeometryDocValueFormat format : GeometryDocValueFormat.values()) {
+            SpatialPoint labelPosition = GeoTestUtils.geoShapeValue(geometry, format).labelPosition();
+            assertEquals("label x for " + format, middle.getX(), labelPosition.getX(), 0.0000001);
+            assertEquals("label y for " + format, middle.getY(), labelPosition.getY(), 0.0000001);
+        }
     }
 
     public void testRandomGeometryReconstruction() throws IOException {

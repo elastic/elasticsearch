@@ -184,6 +184,15 @@ public class GeometryDocValueReader {
     }
 
     /**
+     * True for V2 values made only of points, which have no triangle tree and hold their points in the vertex table in
+     * Morton order. Visiting them therefore starts at a corner of the extent, where a tree would start at its root.
+     */
+    public boolean isPointsOnly() throws IOException {
+        ensureExtentLoaded();
+        return v2PointType && treeLength == 0;
+    }
+
+    /**
      * Returns the vertex lookup table. Only available in V2 format.
      */
     public VertexLookupTable getVertexTable() throws IOException {

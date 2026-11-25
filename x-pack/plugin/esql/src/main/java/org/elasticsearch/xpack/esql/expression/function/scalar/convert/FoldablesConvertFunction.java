@@ -44,7 +44,19 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
     }
 
     @Override
-    protected final TypeResolution resolveType() {
+    public final boolean lenientOnInputType() {
+        // The value must be a constant, and folding it gives a temporal amount, not a null of the right type.
+        return false;
+    }
+
+    @Override
+    public final boolean convertsInput() {
+        // It never resolves without converting its input, and the types it takes aren't the ones it has an evaluator for.
+        return true;
+    }
+
+    @Override
+    protected final TypeResolution doResolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }

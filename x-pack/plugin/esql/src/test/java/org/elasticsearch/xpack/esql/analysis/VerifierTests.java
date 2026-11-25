@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -1770,10 +1771,15 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     public void testInlineImpossibleConvert() {
-        defaultAnalyzer().error(
-            "ROW false::ip",
-            equalTo("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]")
-        );
+        if (minimumVersion.supports(ConvertFunction.LENIENT_CAST)) {
+            defaultAnalyzer().query("ROW false::ip");
+            assertWarnings("[false] of type [boolean] cannot be converted to [IP] and will be null.");
+        } else {
+            defaultAnalyzer().error(
+                "ROW false::ip",
+                equalTo("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]")
+            );
+        }
     }
 
     public void testAggregateOnCounter() {

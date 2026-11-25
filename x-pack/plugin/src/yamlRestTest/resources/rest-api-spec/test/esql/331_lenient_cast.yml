@@ -1,0 +1,107 @@
+---
+# A cast, or a conversion function, of an input type it doesn't convert is null, with a warning, instead of failing the query.
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ lenient_cast ]
+      reason: "casts of an input type they don't convert were an error"
+      test_runner_features: [ capabilities, warnings_regex, contains ]
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              flag:
+                type: boolean
+              name:
+                type: keyword
+              addr:
+                type: ip
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test" } }
+          - { "id": 1, "flag": true, "name": "a", "addr": "10.0.0.1" }
+          - { "index": { "_index": "test" } }
+          - { "id": 2, "flag": false, "name": "b", "addr": "10.0.0.2" }
+
+---
+"cast of a field the cast doesn't accept":
+  - do:
+      warnings_regex:
+        - "\\[id\\] of type \\[integer\\] cannot be converted to \\[IP\\] and will be null\\."
+      esql.query:
+        body:
+          query: 'FROM test | EVAL x = id::ip | SORT id | KEEP id, x | LIMIT 10'
+  - match: { columns: [ { name: id, type: integer }, { name: x, type: ip } ] }
+  - match: { values: [ [ 1, null ], [ 2, null ] ] }
+
+---
+"conversion function of a field it doesn't accept":
+  - do:
+      warnings_regex:
+        - "\\[flag\\] of type \\[boolean\\] cannot be converted to \\[DOUBLE\\] and will be null\\."
+      esql.query:
+        body:
+          query: 'FROM test | EVAL x = TO_RADIANS(flag) | SORT id | KEEP id, x | LIMIT 10'
+  - match: { columns: [ { name: id, type: integer }, { name: x, type: double } ] }
+  - match: { values: [ [ 1, null ], [ 2, null ] ] }
+
+---
+"surrogate conversion of a field it doesn't accept":
+  - do:
+      warnings_regex:
+        - "\\[addr\\] of type \\[ip\\] cannot be converted to \\[LONG\\] and will be null\\."
+      esql.query:
+        body:
+          query: 'FROM test | EVAL x = TO_LONG(addr) | SORT id | KEEP id, x | LIMIT 10'
+  - match: { columns: [ { name: id, type: integer }, { name: x, type: long } ] }
+  - match: { values: [ [ 1, null ], [ 2, null ] ] }
+
+---
+"a cast that is null filters out every row":
+  - do:
+      warnings_regex:
+        - "\\[id\\] of type \\[integer\\] cannot be converted to \\[IP\\] and will be null\\."
+      esql.query:
+        body:
+          query: 'FROM test | WHERE id::ip IS NOT NULL | KEEP id | LIMIT 10'
+  - length: { values: 0 }
+
+---
+"a cast that converts doesn't warn":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | EVAL x = addr::keyword, y = id::long | SORT id | KEEP id, x, y | LIMIT 10'
+  - match: { columns: [ { name: id, type: integer }, { name: x, type: keyword }, { name: y, type: long } ] }
+  - match: { values: [ [ 1, "10.0.0.1", 1 ], [ 2, "10.0.0.2", 2 ] ] }
+
+---
+"options are still checked":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | EVAL x = TO_IP(id, {"unknown": "x"}) | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Invalid option [unknown]' }
+
+---
+"conversions that need the type of their input stay an error":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | EVAL x = TO_GAUGE(name) | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'argument of [TO_GAUGE(name)] must be' }

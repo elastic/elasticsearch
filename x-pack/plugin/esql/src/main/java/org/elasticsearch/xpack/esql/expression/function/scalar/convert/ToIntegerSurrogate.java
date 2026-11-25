@@ -150,6 +150,10 @@ public class ToIntegerSurrogate extends EsqlScalarFunction
 
     @Override
     protected TypeResolution resolveType() {
+        return LenientConversion.resolve(this);
+    }
+
+    private TypeResolution doResolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
@@ -166,8 +170,19 @@ public class ToIntegerSurrogate extends EsqlScalarFunction
         } else {
 
             // single parameter TO_INTEGER(field) supports many types
-            return (new ToInteger(source(), field)).resolveType();
+            return (new ToInteger(source(), field)).strictTypeResolution();
         }
+    }
+
+    @Override
+    public TypeResolution strictTypeResolution() {
+        return doResolveType();
+    }
+
+    @Override
+    public boolean lenientOnInputType() {
+        // With a base it only parses strings, and surrogate() fails for any other type.
+        return base == null;
     }
 
     @Override

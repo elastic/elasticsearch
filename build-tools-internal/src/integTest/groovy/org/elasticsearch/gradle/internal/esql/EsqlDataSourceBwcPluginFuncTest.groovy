@@ -98,6 +98,13 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
               it.name.contains('#esqlDataSourceBwc') && it.name.endsWith('Coordinator') && it.enabled
             }
             assert bwcTasks.empty == false
+            // withType(Test) also matches the legacy StandaloneRestIntegTestTask, so check that the
+            // coordinator tasks are registered through the restTests extension.
+            def restTestNames = restTests.tasks*.name as Set
+            def coordinatorNames = tasks.names.findAll { it.contains('#esqlDataSourceBwc') && it.endsWith('Coordinator') }
+            assert coordinatorNames.empty == false
+            assert restTestNames.containsAll(coordinatorNames)
+            assert bwcTasks.every { it.class.name.contains('StandaloneRestIntegTestTask') == false }
             // A release build must not pick these up through check -> bwcTestSnapshots; the func
             // test harness builds snapshots, so here they are enabled.
             assert bwcTasks.every { task ->

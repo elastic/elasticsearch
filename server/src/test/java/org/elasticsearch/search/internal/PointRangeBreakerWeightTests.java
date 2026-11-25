@@ -77,6 +77,8 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     private static final String RARE_TERM = "rare";
     private static final int RARE_DOCS = 5;
     private static final int NUM_DOCS = 2000;
+    /** Upper bound of the dense range, which matches the documents with values 0 to three quarters of {@link #NUM_DOCS}. */
+    private static final int DENSE_UPPER = NUM_DOCS * 3 / 4;
 
     private Directory directory;
     private DirectoryReader reader;
@@ -114,7 +116,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testIndexOrDocValuesRangeChargesAndReleasesAcrossSearch() throws IOException {
-        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L);
+        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER);
         assertChargesThenReleases(new IndexOrDocValuesQuery(denseRangeQuery(), dvQuery));
     }
 
@@ -149,7 +151,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     public void testIndexSortRangeAnsweredFromSortChargesNothing() throws Exception {
         withIndexSortedReader(false, sortedReader -> {
             int hits = BreakerWeightTestUtils.runSearch(sortedReader, indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()), breaker);
-            assertThat(hits, equalTo(NUM_DOCS * 3 / 4 + 1));
+            assertThat(hits, equalTo(DENSE_UPPER + 1));
             assertThat("a range answered from the index sort builds no result set", breaker.peak(), equalTo(0L));
         });
     }
@@ -182,10 +184,9 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
                 writer.forceMerge(1);
             }
             try (DirectoryReader sortedReader = DirectoryReader.open(sortedDirectory)) {
-                long upper = NUM_DOCS * 3L / 4L;
-                Query fallback = LongPoint.newRangeQuery(FIELD, new long[] { 0L, 0L }, new long[] { upper, upper });
+                Query fallback = LongPoint.newRangeQuery(FIELD, new long[] { 0L, 0L }, new long[] { DENSE_UPPER, DENSE_UPPER });
                 int hits = BreakerWeightTestUtils.runSearch(sortedReader, indexSortRangeQuery(fallback), breaker);
-                assertThat("the fallback must answer the range", hits, equalTo(NUM_DOCS * 3 / 4 + 1));
+                assertThat("the fallback must answer the range", hits, equalTo(DENSE_UPPER + 1));
                 assertThat("the fallback must charge execution RAM while it runs", breaker.peak(), greaterThan(0L));
             }
         }
@@ -222,23 +223,23 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     public void testPlainRangeInConjunctionChargesViaScorerGetPath() throws IOException {
-        Query dv = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L);
+        Query dv = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER);
         assertChargesThenReleases(conjunction(denseRangeQuery(), dv));
     }
 
     public void testIndexOrDocValuesInConjunctionChargesWhenPointsBranchSelected() throws IOException {
         Query indexOrDocValues = new IndexOrDocValuesQuery(
             denseRangeQuery(),
-            SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L)
+            SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER)
         );
-        Query lead = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L);
+        Query lead = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER);
         assertChargesThenReleases(conjunction(indexOrDocValues, lead));
     }
 
     public void testIndexOrDocValuesInConjunctionSkipsChargeWhenDocValuesBranchSelected() throws IOException {
         Query indexOrDocValues = new IndexOrDocValuesQuery(
             denseRangeQuery(),
-            SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L)
+            SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER)
         );
         Query rareLead = new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM));
         int hits = runSearch(conjunction(rareLead, indexOrDocValues), breaker);
@@ -819,16 +820,16 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     private static Query denseRangeQuery() {
-        return LongPoint.newRangeQuery(FIELD, 0L, (long) (NUM_DOCS * 3 / 4));
+        return LongPoint.newRangeQuery(FIELD, 0L, DENSE_UPPER);
     }
 
     private static Query denseIndexOrDocValuesRangeQuery() {
-        return new IndexOrDocValuesQuery(denseRangeQuery(), SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L));
+        return new IndexOrDocValuesQuery(denseRangeQuery(), SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, DENSE_UPPER));
     }
 
     /** Wraps {@code fallback} the way the number and date mappers do when the index is sorted on the field. */
     private static Query indexSortRangeQuery(Query fallback) {
-        return new IndexSortSortedNumericDocValuesRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L, fallback);
+        return new IndexSortSortedNumericDocValuesRangeQuery(FIELD, 0L, DENSE_UPPER, fallback);
     }
 
     /** A single-segment index sorted on {@link #FIELD}, with one value per document or, if {@code multiValued}, two. */

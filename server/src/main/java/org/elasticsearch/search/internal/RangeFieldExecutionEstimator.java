@@ -10,17 +10,13 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.document.RangeFieldQuery;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScorerSupplier;
-
-import java.io.IOException;
 
 /**
  * The per-leaf execution RAM of a {@link RangeFieldQuery}. When every document of a leaf has a value and the leaf's whole value range
  * is inside the query, Lucene matches all documents without building anything. This charges nothing on the single-valued leaves of
- * that case and is a {@link PointsExecutionEstimator} otherwise.
+ * that case and is sized like any other points query otherwise.
  * <p>
  * The query keeps its ranges and relation private, so the case is told apart by {@link ScorerSupplier#cost()}: {@code maxDoc} on the
  * match-all path. On a dense single-valued leaf the intersecting path only estimates {@code maxDoc} when every point lies in a BKD
@@ -30,30 +26,17 @@ import java.io.IOException;
  * always charged: its doc count estimate can round up to {@code maxDoc} while some documents do not match. So is a single-document
  * leaf, where the one crossing point is counted in full.
  */
-final class RangeFieldExecutionEstimator implements LeafExecutionEstimator {
-
-    private final String field;
-    private final PointsExecutionEstimator points;
+final class RangeFieldExecutionEstimator extends PointsExecutionEstimator {
 
     RangeFieldExecutionEstimator(String field) {
-        this.field = field;
-        this.points = new PointsExecutionEstimator(field);
+        super(field);
     }
 
     @Override
-    public long bytesForLeaf(LeafReaderContext ctx, ScorerSupplier inner, long leadCost) throws IOException {
-        if (matchesAllDocs(ctx.reader(), inner)) {
+    long bytesForMatches(PointValues values, int maxDoc, long cost) {
+        if (maxDoc > 1 && values.getDocCount() == maxDoc && values.size() == maxDoc && cost == maxDoc) {
             return 0L;
         }
-        return points.bytesForLeaf(ctx, inner, leadCost);
-    }
-
-    private boolean matchesAllDocs(LeafReader reader, ScorerSupplier inner) throws IOException {
-        final PointValues values = reader.getPointValues(field);
-        if (values == null) {
-            return false;
-        }
-        final int maxDoc = reader.maxDoc();
-        return maxDoc > 1 && values.getDocCount() == maxDoc && values.size() == maxDoc && inner.cost() == maxDoc;
+        return super.bytesForMatches(values, maxDoc, cost);
     }
 }

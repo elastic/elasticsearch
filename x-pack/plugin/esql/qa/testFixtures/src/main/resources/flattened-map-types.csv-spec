@@ -115,8 +115,9 @@ f1         | a
 f2         | c
 ;
 
-// Rule 5: [meta.labels] renamed under [attributes] gives maps at two levels, and the more specific one is read first
-mostSpecificMapIsReadFirst
+// Rule 3 and 5: [meta.labels] renamed under [attributes] gives a row maps at two levels; the nearer one was written later and
+// has replaced what was under its name
+nearestMapIsRead
 required_capability: map_types_setting
 
 SET map_types=true\;

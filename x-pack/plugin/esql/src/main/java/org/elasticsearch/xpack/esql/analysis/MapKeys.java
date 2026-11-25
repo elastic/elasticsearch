@@ -17,8 +17,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -56,9 +57,11 @@ import java.util.Set;
  *     of a map. A key is readable where its map is in the output and no {@code KEEP} or {@code DROP} since the map entered the query
  *     has excluded the key's name: {@code KEEP attrs} closes the map, {@code KEEP attrs*} keeps it open. Dropping a map takes its
  *     keys with it; its child columns that remain are plain columns.</li>
- *     <li><b>Sources merge node by node.</b> In a union of indices or subqueries a map column holds whichever map a row has, a child
- *     column resolves its type conflicts as any field does, and a name that is under maps at two levels reads the most specific
- *     one first.</li>
+ *     <li><b>Sources merge node by node.</b> In a union of indices or subqueries a map column holds whichever map a row has, and a
+ *     child column resolves its type conflicts as any field does. Where maps are at two levels under a name ({@code attrs} in one
+ *     index and {@code attrs.foo} in another), each row reads {@code attrs.foo.bar} from the nearest map it has: the result is the
+ *     union of both. A row can only have both maps when the nearer one was written under the other later, and then the nearer one
+ *     has replaced what was under its name (rule 3).</li>
  *     <li><b>A key of a map in scope wins over {@code unmapped_fields}.</b> {@code nullify} and {@code load} decide only what no map
  *     and no column answers.</li>
  * </ol>
@@ -146,12 +149,17 @@ public final class MapKeys {
         if (maps.isEmpty()) {
             return null;
         }
-        // rule 5: the most specific map first
+        // rule 5: per row, the nearest map that the row has
         maps.sort(Comparator.comparing((Attribute map) -> map.name().length()).reversed());
-        List<Expression> keyReads = new ArrayList<>(maps.size());
-        for (Attribute map : maps) {
-            keyReads.add(keyRead(source, map, name.substring(map.name().length() + 1)));
+        Attribute farthest = maps.get(maps.size() - 1);
+        Expression read = keyRead(source, farthest, name.substring(farthest.name().length() + 1));
+        for (int i = maps.size() - 2; i >= 0; i--) {
+            Attribute map = maps.get(i);
+            Expression nearer = keyRead(source, map, name.substring(map.name().length() + 1));
+            read = new Case(source, new IsNotNull(source, map), List.of(nearer, read));
         }
+        return read;
+    }
         return keyReads.size() == 1 ? keyReads.get(0) : new Coalesce(source, keyReads.get(0), keyReads.subList(1, keyReads.size()));
     }
 

@@ -278,7 +278,8 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
             false,
             false,
             splits(1),
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            null
         );
     }
 

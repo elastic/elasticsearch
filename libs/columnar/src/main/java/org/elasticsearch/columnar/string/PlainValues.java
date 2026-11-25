@@ -149,10 +149,14 @@ final class PlainValues {
         private boolean previousNull;
         /** Whether values come through {@link #transfer}, which keeps no {@link #previous}; a column takes one or the other. */
         private Boolean transferred;
+        private final boolean tracksOwnerChunk;
+        private int ownerChunk;
 
         /**
-         * @param constantLength the length every value has, which the caller knows before writing any of them,
-         *                       or {@code -1}; a column with one keeps no lengths
+         * @param constantLength   the length every value has, which the caller knows before writing any of them,
+         *                         or {@code -1}; a column with one keeps no lengths
+         * @param tracksOwnerChunk whether the caller reads {@link #ownerChunk}, which only a column that captures
+         *                         bounds does
          */
         Writer(
             ChunkCodec codec,
@@ -161,9 +165,11 @@ final class PlainValues {
             int lengthBlockSize,
             long numValues,
             int constantLength,
-            ColumnOutputs outputs
+            ColumnOutputs outputs,
+            boolean tracksOwnerChunk
         ) {
             assert valuesPerBlock <= lengthBlockSize : valuesPerBlock + " > " + lengthBlockSize;
+            this.tracksOwnerChunk = tracksOwnerChunk;
             this.chunks = new ChunkedBytesWriter(codec, bounds, outputs.data(), outputs.navigation());
             this.constantLength = constantLength;
             if (constantLength >= 0) {
@@ -184,7 +190,8 @@ final class PlainValues {
             this.chunkTargetBytes = bounds.targetBytes();
         }
 
-        void add(BytesRef value) throws IOException {
+        /** Adds {@code value} and returns whether it equals the value before it. */
+        boolean add(BytesRef value) throws IOException {
             assert transferred != Boolean.TRUE : "a column's values are either added or transferred";
             transferred = false;
             if (constantLength >= 0 && value.length != constantLength) {
@@ -193,6 +200,7 @@ final class PlainValues {
             }
             final boolean repeat = count > 0 && previousNull == false && previous.get().bytesEquals(value);
             startSlot();
+            recordOwnerChunk();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
                 lengths.add(REPEAT);
             } else {
@@ -210,6 +218,7 @@ final class PlainValues {
             }
             previousNull = false;
             count++;
+            return repeat;
         }
 
         /**
@@ -224,6 +233,7 @@ final class PlainValues {
             }
             assert repeat == false || (count > 0 && previousNull == false) : "only a value can be repeated";
             startSlot();
+            recordOwnerChunk();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
                 lengths.add(REPEAT);
             } else {
@@ -254,12 +264,28 @@ final class PlainValues {
                 throw new IllegalStateException("a null in a column counted as holding none");
             }
             startSlot();
+            recordOwnerChunk();
             lengths.add(NULL_CODE);
             if (count == 0 || previousNull == false) {
                 runs++;
             }
             previousNull = true;
             count++;
+        }
+
+        /**
+         * The chunk that owns the slot just written: the one holding its first byte, or the one being filled if it has none.
+         * Valid only if the writer was built with {@code tracksOwnerChunk}.
+         */
+        int ownerChunk() {
+            assert tracksOwnerChunk : "the writer was not asked to track the chunk that owns a slot";
+            return ownerChunk;
+        }
+
+        private void recordOwnerChunk() {
+            if (tracksOwnerChunk) {
+                ownerChunk = chunks.chunkBeingFilled();
+            }
         }
 
         private void startSlot() throws IOException {
@@ -311,6 +337,7 @@ final class PlainValues {
 
         /** Null when every value has {@link #constantLength}. */
         private final LongValues starts;
+        private final long numLengthBlocks;
         private final LongBlocks.Reader lengths;
         private final int lengthShift;
         private final int lengthMask;
@@ -339,6 +366,7 @@ final class PlainValues {
             this.chunkTargetBytes = meta.chunkTargetBytes();
             if (meta.constant()) {
                 this.starts = null;
+                this.numLengthBlocks = 0;
                 this.lengths = null;
                 this.lengthShift = 0;
                 this.lengthMask = 0;
@@ -348,6 +376,7 @@ final class PlainValues {
                 return;
             }
             final int lengthBlockSize = meta.lengths().blockSize();
+            this.numLengthBlocks = meta.lengths().numBlocks();
             this.lengthShift = Integer.numberOfTrailingZeros(lengthBlockSize);
             this.lengthMask = lengthBlockSize - 1;
             this.starts = MonotonicReader.open(
@@ -365,6 +394,36 @@ final class PlainValues {
 
         long numValues() {
             return numValues;
+        }
+
+        /**
+         * Prefetches the values at {@code [firsts[i], firsts[i] + counts[i])}, a block at a time, in one stage: a column of one
+         * length its value blocks, which their addresses locate, and any other column its blocks of lengths and the bytes
+         * each of them covers, which the navigation file locates.
+         */
+        void prefetch(long[] firsts, long[] counts, int count) throws IOException {
+            long last = -1;
+            for (int i = 0; i < count; i++) {
+                for (long address = firsts[i]; address < firsts[i] + counts[i]; address++) {
+                    if (constantLength >= 0) {
+                        final long block = address >>> valuesShift;
+                        if (block != last) {
+                            last = block;
+                            final long first = block << valuesShift;
+                            chunks.prefetch(first * constantLength, (Math.min(first + valuesPerBlock, numValues) - first) * constantLength);
+                        }
+                    } else {
+                        final long block = address >>> lengthShift;
+                        if (block != last) {
+                            last = block;
+                            lengths.prefetchBlocks(block, block);
+                            final long start = starts.get(block);
+                            final long end = block + 1 < numLengthBlocks ? starts.get(block + 1) : chunks.length();
+                            chunks.prefetch(start, end - start);
+                        }
+                    }
+                }
+            }
         }
 
         /** Whether the slot at {@code valueAddress} is null, which its code says. */

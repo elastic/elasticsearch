@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
@@ -80,7 +81,11 @@ public record SplitDiscoveryContext(
     // Drivers the planner will start for this query ({@code task_concurrency}). Discovery sizes LIMIT cuts
     // from this so a single-driver LIMIT does not probe. Zero or negative means the search-pool default.
     int taskConcurrency,
-    TransportVersion minTransportVersion
+    TransportVersion minTransportVersion,
+    // True when a LIMIT sits behind a Filter: remaining matching rows are unknown until read, so
+    // footer-planning a first wave and emitting the rest as whole-file splits is safe. Sort and
+    // aggregate queries keep this false and plan every file.
+    boolean filteredLimit
 ) {
     /**
      * As the canonical constructor, with {@link TransportVersion#current()} as the minimum transport version.
@@ -123,7 +128,55 @@ public record SplitDiscoveryContext(
             rowLimit,
             listingMemory,
             taskConcurrency,
-            TransportVersion.current()
+            TransportVersion.current(),
+            false
+        );
+    }
+
+    /**
+     * As the canonical constructor, with {@code filteredLimit} false.
+     * <p>
+     * Tests only: assumes every node runs this build. Production callers that know a LIMIT sits
+     * behind a Filter must use the canonical constructor.
+     */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable ExternalSchema unifiedSchema,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        DeclaredReadSpec declaredReadSpec,
+        Set<String> metadataColumnNames,
+        @Nullable Set<String> retainedPartitionKeys,
+        int rowLimit,
+        @Nullable PlanningMemory listingMemory,
+        int taskConcurrency,
+        TransportVersion minTransportVersion
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            metadataColumnNames,
+            retainedPartitionKeys,
+            rowLimit,
+            listingMemory,
+            taskConcurrency,
+            minTransportVersion,
+            false
         );
     }
 
@@ -210,7 +263,8 @@ public record SplitDiscoveryContext(
             rowLimit,
             listingMemory,
             taskConcurrency,
-            minTransportVersion
+            minTransportVersion,
+            filteredLimit
         );
     }
 
@@ -401,7 +455,7 @@ public record SplitDiscoveryContext(
         // when the survivor map is frozen. A provided set is authoritative aside from those three keys.
         retainedPartitionKeys = retainedPartitionKeys == null ? null : Set.copyOf(retainedPartitionKeys);
         if (taskConcurrency <= 0) {
-            taskConcurrency = ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY;
+            taskConcurrency = ExternalLimitSplits.defaultTaskConcurrency(Settings.EMPTY);
         }
         if (minTransportVersion == null) {
             throw new IllegalArgumentException("minTransportVersion cannot be null");

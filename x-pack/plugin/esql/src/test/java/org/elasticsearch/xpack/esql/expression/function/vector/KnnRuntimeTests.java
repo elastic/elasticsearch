@@ -11,7 +11,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 
+import java.util.List;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 
@@ -108,6 +117,41 @@ public class KnnRuntimeTests extends ESTestCase {
             );
             assertThat(error.getMessage(), containsString("dense_vector dimensions do not match"));
         }
+    }
+
+    public void testIndexedDenseVectorFieldIsNotRuntimeSearch() {
+        FieldAttribute field = getFieldAttribute("vector", DataType.DENSE_VECTOR);
+        assertFalse("knn on an indexed dense_vector field must be pushed to Lucene", knn(field).isRuntimeSearch());
+    }
+
+    /**
+     * {@code TO_DENSE_VECTOR} over a field that is already a {@code dense_vector} is a no-op, so the knn query can still
+     * target the indexed field.
+     */
+    public void testNoOpToDenseVectorOnIndexedDenseVectorFieldIsNotRuntimeSearch() {
+        FieldAttribute field = getFieldAttribute("vector", DataType.DENSE_VECTOR);
+        assertFalse(
+            "a no-op conversion of an indexed dense_vector field must be pushed to Lucene",
+            knn(new ToDenseVector(Source.EMPTY, field)).isRuntimeSearch()
+        );
+    }
+
+    /**
+     * {@code TO_DENSE_VECTOR} over a non-{@code dense_vector} field builds the vector per row: there is no indexed vector
+     * behind it, so knn function here is a runtime search.
+     */
+    public void testToDenseVectorOnNonDenseVectorFieldIsRuntimeSearch() {
+        DataType sourceType = randomFrom(DataType.KEYWORD, DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
+        FieldAttribute field = getFieldAttribute("field", sourceType);
+        assertTrue(
+            "knn on TO_DENSE_VECTOR of a [" + sourceType.typeName() + "] field must run at runtime, not be pushed to Lucene",
+            knn(new ToDenseVector(Source.EMPTY, field)).isRuntimeSearch()
+        );
+    }
+
+    private static Knn knn(Expression field) {
+        Literal queryVector = new Literal(Source.EMPTY, List.of(64.0f, 0.0f, 0.0f), DataType.DENSE_VECTOR);
+        return new Knn(Source.EMPTY, field, queryVector, null);
     }
 
     private static void assertScore(

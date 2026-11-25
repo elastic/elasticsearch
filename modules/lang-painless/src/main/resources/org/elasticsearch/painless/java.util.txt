@@ -135,13 +135,13 @@ class java.util.Map {
   def computeIfPresent(def,BiFunction)
   boolean containsKey(def)
   boolean containsValue(def)
-  Set entrySet()
+  Set entrySet() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
   boolean equals(Object)
   void org.elasticsearch.painless.api.Augmentation forEach(BiConsumer) @script_aware
   def get(def)
   def getOrDefault(def,def)
   boolean isEmpty()
-  Set keySet()
+  Set keySet() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
   def merge(def,def,BiFunction) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapMergeBytes"]
   def put(def,def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapPutBytes"]
   void putAll(Map) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapPutAllBytes"]
@@ -152,7 +152,7 @@ class java.util.Map {
   boolean replace(def,def,def)
   void org.elasticsearch.painless.api.Augmentation replaceAll(BiFunction) @script_aware
   int size()
-  Collection values()
+  Collection values() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
   Object org.elasticsearch.painless.api.Augmentation getByPath(String)
   Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 
@@ -185,35 +185,35 @@ class java.util.Map$Entry {
 class java.util.NavigableMap {
   Map.Entry ceilingEntry(def)
   def ceilingKey(def)
-  NavigableSet descendingKeySet()
-  NavigableMap descendingMap()
+  NavigableSet descendingKeySet() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
+  NavigableMap descendingMap() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
   Map.Entry firstEntry()
   Map.Entry floorEntry(def)
   def floorKey(def)
-  NavigableMap headMap(def,boolean)
+  NavigableMap headMap(def,boolean) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subMapBytes"]
   Map.Entry higherEntry(def)
   def higherKey(def)
   Map.Entry lastEntry()
   Map.Entry lowerEntry(def)
-  NavigableSet navigableKeySet()
+  NavigableSet navigableKeySet() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="mapViewBytes"]
   Map.Entry pollFirstEntry()
   Map.Entry pollLastEntry()
-  NavigableMap subMap(def,boolean,def,boolean)
-  NavigableMap tailMap(def,boolean)
+  NavigableMap subMap(def,boolean,def,boolean) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subMapBytes"]
+  NavigableMap tailMap(def,boolean) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subMapBytes"]
 }
 
 class java.util.NavigableSet {
   def ceiling(def)
   Iterator descendingIterator()
-  NavigableSet descendingSet()
+  NavigableSet descendingSet() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="setViewBytes"]
   def floor(def)
-  NavigableSet headSet(def,boolean)
+  NavigableSet headSet(def,boolean) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subSetBytes"]
   def higher(def)
   def lower(def)
   def pollFirst()
   def pollLast()
-  NavigableSet subSet(def,boolean,def,boolean)
-  NavigableSet tailSet(def,boolean)
+  NavigableSet subSet(def,boolean,def,boolean) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subSetBytes"]
+  NavigableSet tailSet(def,boolean) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subSetBytes"]
 }
 
 class java.util.Observer {
@@ -302,19 +302,19 @@ class java.util.Set {
 class java.util.SortedMap {
   Comparator comparator()
   def firstKey()
-  SortedMap headMap(def)
+  SortedMap headMap(def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subMapBytes"]
   def lastKey()
-  SortedMap subMap(def,def)
-  SortedMap tailMap(def)
+  SortedMap subMap(def,def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subMapBytes"]
+  SortedMap tailMap(def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subMapBytes"]
 }
 
 class java.util.SortedSet {
   Comparator comparator()
   def first()
-  SortedSet headSet(def)
+  SortedSet headSet(def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subSetBytes"]
   def last()
-  SortedSet subSet(def,def)
-  SortedSet tailSet(def)
+  SortedSet subSet(def,def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subSetBytes"]
+  SortedSet tailSet(def) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="subSetBytes"]
 }
 
 #### Classes

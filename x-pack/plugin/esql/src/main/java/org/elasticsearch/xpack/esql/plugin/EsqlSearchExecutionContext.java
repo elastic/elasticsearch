@@ -11,6 +11,7 @@ import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -32,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class EsqlSearchExecutionContext extends SearchExecutionContext {
     private final QueryWarnings queryWarnings;
     private final Set<String> unmappedFieldNames;
+    private final boolean flattenedKeys;
     private final Map<String, Optional<MappedFieldType>> unmappedFieldTypes = new ConcurrentHashMap<>();
 
     public EsqlSearchExecutionContext(SearchExecutionContext base, QueryWarnings queryWarnings) {
@@ -42,14 +44,32 @@ public class EsqlSearchExecutionContext extends SearchExecutionContext {
      * @param unmappedFieldNames the fields the plan reads that some shards may not map
      */
     public EsqlSearchExecutionContext(SearchExecutionContext base, QueryWarnings queryWarnings, Set<String> unmappedFieldNames) {
+        this(base, queryWarnings, unmappedFieldNames, false);
+    }
+
+    /**
+     * @param unmappedFieldNames the fields the plan reads that some shards may not map
+     * @param flattenedKeys whether a name under a {@code flattened} field is a field, the key of that name
+     */
+    public EsqlSearchExecutionContext(
+        SearchExecutionContext base,
+        QueryWarnings queryWarnings,
+        Set<String> unmappedFieldNames,
+        boolean flattenedKeys
+    ) {
         super(base);
         this.queryWarnings = queryWarnings;
         this.unmappedFieldNames = Set.copyOf(unmappedFieldNames);
+        this.flattenedKeys = flattenedKeys;
     }
 
     @Override
     protected MappedFieldType fieldType(String name) {
         MappedFieldType mapped = super.fieldType(name);
+        if (flattenedKeys && mapped instanceof FlattenedFieldMapper.KeyedFlattenedFieldType && isFieldVisible(name) == false) {
+            // Field-level security hides a key as it hides a mapped field
+            return null;
+        }
         if (mapped != null || unmappedFieldNames.contains(name) == false) {
             return mapped;
         }
@@ -58,7 +78,15 @@ public class EsqlSearchExecutionContext extends SearchExecutionContext {
 
     @Override
     public boolean isMappedField(String name) {
-        return super.isMappedField(name) || (unmappedFieldNames.contains(name) && fieldType(name) != null);
+        return super.isMappedField(name) || readsKey(name) || (unmappedFieldNames.contains(name) && fieldType(name) != null);
+    }
+
+    /**
+     * Whether this shard reads the field {@code name} as the key of a {@code flattened} field it maps, a {@code keyword}. Field-level
+     * security hides a key as it hides a mapped field.
+     */
+    public boolean readsKey(String name) {
+        return flattenedKeys && super.fieldType(name) instanceof FlattenedFieldMapper.KeyedFlattenedFieldType && isFieldVisible(name);
     }
 
     /**

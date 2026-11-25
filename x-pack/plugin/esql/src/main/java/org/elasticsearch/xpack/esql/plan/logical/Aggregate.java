@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 import java.io.IOException;
 import java.util.List;
@@ -71,7 +71,7 @@ public class Aggregate extends UnaryPlan
     protected final List<Expression> groupings;
     protected final List<? extends NamedExpression> aggregates;
 
-    protected List<Attribute> lazyOutput;
+    protected volatile List<Attribute> lazyOutput;
 
     public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
         super(source, child);
@@ -305,7 +305,7 @@ public class Aggregate extends UnaryPlan
 
     /**
      * Returns {@code true} if {@code plan} (or any non-{@link UnionAll} descendant, excluding the right-hand side
-     * of an {@link AbstractSubqueryJoin}) holds an {@link EsRelation} in time-series index mode.
+     * of an {@link IndependentSubqueryJoin}) holds an {@link EsRelation} in time-series index mode.
      * <p>
      * Traversal stops at {@link UnionAll} boundaries so that a {@code TS} source nested inside a {@code FROM}
      * subquery (e.g. {@code FROM (TS k8s), (FROM sample_data)}) does not allow time-series aggregate functions
@@ -319,10 +319,7 @@ public class Aggregate extends UnaryPlan
         if (plan instanceof UnionAll) {
             return false;
         }
-        if (plan instanceof AbstractSubqueryJoin join) {
-            return hasTimeSeriesSource(join.left());
-        }
-        for (LogicalPlan child : plan.children()) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             if (hasTimeSeriesSource(child)) {
                 return true;
             }

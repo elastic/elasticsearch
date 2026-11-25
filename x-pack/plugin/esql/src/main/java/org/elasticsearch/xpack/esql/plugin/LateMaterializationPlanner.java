@@ -220,6 +220,10 @@ class LateMaterializationPlanner {
             if (r.indexMode() == IndexMode.LOOKUP) {
                 return r;
             }
+            if (r.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
+                // ReplaceSourceAttributes made this _doc the doc of the source, and a source outputs only one
+                return r;
+            }
             return r.withAttributes(CollectionUtils.prependToCopy(doc, r.output()));
         });
         // Defensive check: if any intermediate project removed the doc field, abort this optimization.

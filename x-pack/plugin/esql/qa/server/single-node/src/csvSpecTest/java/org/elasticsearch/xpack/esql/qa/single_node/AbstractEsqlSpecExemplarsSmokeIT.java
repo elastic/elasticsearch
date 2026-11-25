@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
@@ -23,7 +22,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -83,17 +82,21 @@ public abstract class AbstractEsqlSpecExemplarsSmokeIT extends AbstractEsqlSpecI
         super.shouldSkipTest(testName);
         CsvTestUtils.assumeTrueLogging(
             "Cluster needs to support the exemplars setting",
-            hasCapabilities(adminClient(), List.of(EXEMPLARS_SETTING_DEVELOPMENT_V8.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EXEMPLARS_SETTING_RELEASE.capabilityName()))
         );
         CsvTestUtils.assumeFalseLogging(
             "Tests of the exemplars setting itself run as they are",
-            testCase.requiredCapabilities.contains(EXEMPLARS_SETTING_DEVELOPMENT_V8.capabilityName())
+            testCase.requiredCapabilities.contains(EXEMPLARS_SETTING_RELEASE.capabilityName())
         );
         CsvTestUtils.assumeFalseLogging(
             "dataset-backed spec; covered by the external-source suites",
             testCase.datasetSources.isEmpty() == false
         );
         CsvTestUtils.assumeTrueLogging("Only TS ... | STATS and PROMQL queries aggregate metrics", isMetricsQuery(testCase.query));
+        CsvTestUtils.assumeFalseLogging(
+            "The redirect to the exemplars fixture doesn't see a PROMQL index passed as a query parameter",
+            testCase.hasPromqlIndexParam()
+        );
     }
 
     /**
@@ -113,6 +116,9 @@ public abstract class AbstractEsqlSpecExemplarsSmokeIT extends AbstractEsqlSpecI
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values())).query(query)
             .settings("{\"exemplars\": " + exemplarsSetting + "}");
+        if (testCase.paramsJson() != null) {
+            builder.params(testCase.paramsJson());
+        }
         if (Strings.isNullOrEmpty(testCase.requestTimeRangeGte) == false) {
             // TSTEP and PROMQL range queries take their time range from the request filter
             String gte = testCase.requestTimeRangeGte;
@@ -132,15 +138,39 @@ public abstract class AbstractEsqlSpecExemplarsSmokeIT extends AbstractEsqlSpecI
             // the warnings the spec expects do not apply and the ones the exemplars query raises are not asserted.
             answer = RestEsqlTestCase.runEsql(builder, (warnings, context) -> {}, profileLogger, mode);
         } catch (ResponseException e) {
-            String body = EntityUtils.toString(e.getResponse().getEntity());
+            // The error is parsed instead of searching the raw body: the request format is random and e.g. YAML wraps long strings
+            // at an arbitrary column, which can split a message we look for.
+            Map<String, Object> error = entityAsMap(e.getResponse());
             if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+                List<String> reasons = errorReasons(error);
                 for (String message : UNSUPPORTED_QUERY_MESSAGES) {
-                    CsvTestUtils.assumeFalseLogging("Metrics query is not supported with exemplars: " + body, body.contains(message));
+                    CsvTestUtils.assumeFalseLogging(
+                        "Metrics query is not supported with exemplars: " + error,
+                        reasons.stream().anyMatch(reason -> reason.contains(message))
+                    );
                 }
             }
-            throw new AssertionError("Exemplars query failed for [" + query + "] with exemplars=" + exemplarsSetting + ": " + body, e);
+            throw new AssertionError("Exemplars query failed for [" + query + "] with exemplars=" + exemplarsSetting + ": " + error, e);
         }
         assertExemplarColumns(answer, exemplarsSetting.contains("include_timeseries\": true"));
+    }
+
+    /** The {@code reason} of an error response and of each of its {@code root_cause}s. */
+    private static List<String> errorReasons(Map<String, Object> response) {
+        List<String> reasons = new ArrayList<>();
+        if (response.get("error") instanceof Map<?, ?> error) {
+            if (error.get("reason") instanceof String reason) {
+                reasons.add(reason);
+            }
+            if (error.get("root_cause") instanceof List<?> rootCauses) {
+                for (Object rootCause : rootCauses) {
+                    if (rootCause instanceof Map<?, ?> cause && cause.get("reason") instanceof String reason) {
+                        reasons.add(reason);
+                    }
+                }
+            }
+        }
+        return reasons;
     }
 
     private static String randomExemplarsSetting() {

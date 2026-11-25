@@ -234,3 +234,28 @@ setup:
   - match: { hits.total: 5 }
   - length: { hits.hits: 5 }
   - match: { aggregations.the_int_sum.value: 100304.0 }
+
+---
+"Numeric value script returning null":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ numeric_value_script_null_is_missing ]
+      test_runner_features: [ capabilities ]
+      reason: "null numeric value script results are treated as missing"
+
+  - do:
+      search:
+        index: test_1
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_double_sum:
+              sum:
+                field: double_field
+                script: "_value > 100 ? _value : null"
+
+  - match: { hits.total: 4 }
+  - match: { aggregations.the_double_sum.value: 252.0 }

@@ -1,0 +1,2 @@
+FROM employees
+| FORK (WHERE emp_no <= 10002) (WHERE emp_no == 10003)

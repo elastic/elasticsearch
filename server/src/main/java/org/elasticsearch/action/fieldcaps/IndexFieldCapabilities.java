@@ -38,6 +38,10 @@ import java.util.Map;
  *                       the default otherwise, so a missing name does not affect equality
  * @param indexLocalAnalyzer {@code true} when a text field's analyzer name was withheld because it is defined under
  *                       {@code index.analysis}. Never set together with {@code indexAnalyzer}.
+ * @param isStaticallySingleValued {@code true} when the mapping guarantees there is at most one value per document for this
+ *                       field ({@code multi_value=false}); see {@code MappedFieldType#isStaticallySingleValued}.
+ *                       {@code false} means "no guarantee", not that the field definitely has multiple values. This is the
+ *                       default value.
  */
 
 public record IndexFieldCapabilities(
@@ -53,7 +57,8 @@ public record IndexFieldCapabilities(
     Map<String, String> meta,
     @Nullable String indexAnalyzer,
     int indexAnalyzerPositionIncrementGap,
-    boolean indexLocalAnalyzer
+    boolean indexLocalAnalyzer,
+    boolean isStaticallySingleValued
 ) implements Writeable {
 
     public IndexFieldCapabilities {
@@ -82,6 +87,8 @@ public record IndexFieldCapabilities(
         Boolean isPassthrough = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
             ? in.readOptionalBoolean()
             : null;
+        boolean isStaticallySingleValued = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)
+            && in.readBoolean();
         return new IndexFieldCapabilities(
             name,
             type,
@@ -95,7 +102,8 @@ public record IndexFieldCapabilities(
             meta,
             indexAnalyzer,
             indexAnalyzerPositionIncrementGap,
-            indexLocalAnalyzer
+            indexLocalAnalyzer,
+            isStaticallySingleValued
         );
     }
 
@@ -122,6 +130,9 @@ public record IndexFieldCapabilities(
         }
         if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)) {
             out.writeOptionalBoolean(isPassthrough);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)) {
+            out.writeBoolean(isStaticallySingleValued);
         }
     }
 

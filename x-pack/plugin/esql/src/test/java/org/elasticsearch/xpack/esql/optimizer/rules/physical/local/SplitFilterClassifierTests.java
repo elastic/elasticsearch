@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -234,7 +236,48 @@ public class SplitFilterClassifierTests extends ESTestCase {
         int scoreCol = builder.addColumn("score", 0L, 1.5, 9.5, -1);
         builder.valueCount(scoreCol, 100); // single-valued (one value per row) — required for comparison MATCH
         SplitStats stats = builder.build();
-        assertEquals(MATCH, classify(greaterThanOf(score, of(0.5)), stats));
+        // min/max omit NaN, so a DOUBLE MATCH would over-count; MISS is still sound.
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(0.5)), stats));
+        assertEquals(MISS, classify(greaterThanOf(score, of(10.0)), stats));
+    }
+
+    /**
+     * File-format min/max omit IEEE NaN. Conservative DOUBLE/FLOAT classification: ordered/eq/IN
+     * MATCH is forbidden (NaN fails those comparisons), {@code !=} MISS is forbidden (NaN != lit
+     * is true). INTEGER fixtures above are unchanged.
+     */
+    public void testFloatingStatsMayHideNaN() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats constFive = colStats("score", 5.0, 5.0, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(score, of(5.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(4.0)), constFive));
+        assertEquals(MISS, classify(lessThanOf(score, of(4.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(not(greaterThanOf(score, of(4.0))), constFive));
+        // != MATCH stays valid: a hidden NaN also satisfies != 4.
+        assertEquals(MATCH, classify(notEqualsOf(score, of(4.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(equalsOf(score, of(5.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(in(score, of(5.0)), constFive));
+
+        ReferenceAttribute f = referenceAttribute("f", DataType.FLOAT);
+        SplitStats floatFive = colStats("f", 5.0f, 5.0f, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(f, of(4.0f)), floatFive));
+        assertEquals(MISS, classify(lessThanOf(f, of(4.0f)), floatFive));
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(f, of(5.0f)), floatFive));
+        assertEquals(MATCH, classify(notEqualsOf(f, of(4.0f)), floatFive));
+
+        // In.process uses Double.compare, so a hidden NaN matches IN (NaN). Cannot MISS.
+        assertEquals(AMBIGUOUS, classify(in(score, of(Double.NaN), of(9.0)), constFive));
+        assertEquals(MISS, classify(in(score, of(9.0)), constFive));
+
+        // Finite extrema contained in the range would MATCH without NaN; DOUBLE MATCH is withheld.
+        assertEquals(AMBIGUOUS, classify(new MvInRange(Source.EMPTY, score, of(4.0), of(6.0)), constFive));
+        assertEquals(MISS, classify(new MvInRange(Source.EMPTY, score, of(6.0), of(9.0)), constFive));
+
+        // Extrema that are themselves NaN cannot MATCH or MISS (Double.compare orders NaN largest).
+        SplitStats nanBounds = colStats("score", Double.NaN, Double.NaN, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(score, of(5.0)), nanBounds));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(score, of(10.0)), nanBounds));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(0.0)), nanBounds));
     }
 
     public void testStringStats() {
@@ -475,6 +518,28 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(0, compareValues(1.5, 1.5));
     }
 
+    public void testCompareValuesSignedZeros() {
+        assertEquals(0, compareValues(-0.0, 0.0));
+        assertEquals(0, compareValues(0.0, -0.0));
+    }
+
+    public void testEqualsKeepsOppositeSignZero() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
+        // DOUBLE MATCH is withheld (NaN may hide); opposite-sign zeros still MISS for > 0.0.
+        assertEquals(AMBIGUOUS, classify(equalsOf(score, of(0.0)), negZero));
+        assertEquals(AMBIGUOUS, classify(greaterThanOrEqualOf(score, of(0.0)), negZero));
+        assertEquals(MISS, classify(greaterThanOf(score, of(0.0)), negZero));
+    }
+
+    public void testInLeavesOppositeSignZeroUnknown() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
+        assertEquals(AMBIGUOUS, classify(in(score, of(0.0)), negZero));
+        // Same-sign IN would MATCH without NaN; DOUBLE MATCH is withheld.
+        assertEquals(AMBIGUOUS, classify(in(score, of(-0.0)), negZero));
+    }
+
     public void testCompareValuesNull() {
         assertEquals(Integer.MIN_VALUE, compareValues(null, 10L));
         assertEquals(Integer.MIN_VALUE, compareValues(10L, null));
@@ -501,6 +566,40 @@ public class SplitFilterClassifierTests extends ESTestCase {
         builder.min(col, min);
         builder.max(col, max);
         return builder.build();
+    }
+
+    // --- mv_in_range ---
+
+    public void testMvInRangeMissBelow() {
+        assertEquals(MISS, classify(mvInRange(5L, 9L), STATS_10_20));
+    }
+
+    public void testMvInRangeMissAbove() {
+        assertEquals(MISS, classify(mvInRange(21L, 30L), STATS_10_20));
+    }
+
+    public void testMvInRangeMissExclusiveLowerOnMax() {
+        // [10,20] vs (20, 30] — max sits on the excluded lower bound.
+        assertEquals(MISS, classify(mvInRange(20L, 30L, false, true), STATS_10_20));
+    }
+
+    public void testMvInRangeAmbiguousOverlap() {
+        assertEquals(AMBIGUOUS, classify(mvInRange(15L, 25L), STATS_10_20));
+    }
+
+    public void testMvInRangeMatchContained() {
+        assertEquals(MATCH, classify(mvInRange(5L, 25L), STATS_10_20));
+    }
+
+    public void testMvInRangeAllNullIsMiss() {
+        var stats = colStats(COL, 10L, 20L, 100L, 100L);
+        assertEquals(MISS, classify(mvInRange(5L, 25L), stats));
+    }
+
+    public void testMvInRangeMultivaluedStillMissesWhenDisjoint() {
+        SplitStats mv = colStats(COL, 10L, 20L, 100L, 0L, 150L);
+        assertEquals(MISS, classify(mvInRange(30L, 40L), mv));
+        assertEquals(AMBIGUOUS, classify(mvInRange(5L, 25L), mv));
     }
 
     public void testComparisonOnMultivaluedColumnIsAmbiguousNotMatch() {
@@ -537,5 +636,27 @@ public class SplitFilterClassifierTests extends ESTestCase {
 
     private static Expression in(Expression value, Literal... list) {
         return new In(Source.EMPTY, value, List.of(list));
+    }
+
+    private static Expression mvInRange(long lower, long upper) {
+        return new MvInRange(Source.EMPTY, AGE, of(lower), of(upper));
+    }
+
+    private static Expression mvInRange(long lower, long upper, boolean includeLower, boolean includeUpper) {
+        return new MvInRange(
+            Source.EMPTY,
+            AGE,
+            of(lower),
+            of(upper),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    Literal.keyword(Source.EMPTY, "include_lower"),
+                    new Literal(Source.EMPTY, includeLower, DataType.BOOLEAN),
+                    Literal.keyword(Source.EMPTY, "include_upper"),
+                    new Literal(Source.EMPTY, includeUpper, DataType.BOOLEAN)
+                )
+            )
+        );
     }
 }

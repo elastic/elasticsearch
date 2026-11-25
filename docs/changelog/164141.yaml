@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164140
+pr: 164141
+summary: Fix coordinator OOM with concurrent INLINE STATS queries
+type: bug

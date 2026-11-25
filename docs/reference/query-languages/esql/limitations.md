@@ -35,7 +35,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `double_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.6.0` {applies_to}`serverless: preview`
 * `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
-* `flattened` {applies_to}`stack: preview 9.5.0`
+* `flattened` {applies_to}`stack: preview 9.5.0, ga 9.6.0`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
@@ -385,7 +385,7 @@ version-specific rules for nested branching and
 ## Data Federation limitations [esql-limitations-data-federation]
 ```{applies_to}
 stack: preview 9.6+, experimental =9.5
-serverless: unavailable
+serverless: preview
 ```
 
 [Datasets](/reference/query-languages/esql/esql-data-federation-datasets.md) created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) don't support every operation that works on an {{es}} index. For example, a dataset can't be the lookup target of `LOOKUP JOIN` or the source of `TS`. For the full list, refer to [](/reference/query-languages/esql/esql-data-federation-querying.md#limitations).

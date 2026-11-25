@@ -123,9 +123,11 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.BOTTOMK,
         PromqlBuiltinFunctionDefinitions.LIMITK,
         PromqlBuiltinFunctionDefinitions.LIMIT_RATIO,
+        PromqlBuiltinFunctionDefinitions.COUNT_VALUES,
         //
         PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
         PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
+        PromqlBuiltinFunctionDefinitions.ABSENT,
         PromqlBuiltinFunctionDefinitions.SORT,
         PromqlBuiltinFunctionDefinitions.SORT_DESC,
         PromqlBuiltinFunctionDefinitions.SORT_BY_LABEL,
@@ -207,7 +209,6 @@ public class PromqlFunctionRegistry {
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
         "group",
-        "count_values",
         // Range vector functions (not yet implemented)
         // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
         "double_exponential_smoothing",
@@ -216,7 +217,6 @@ public class PromqlFunctionRegistry {
         "resets",
 
         // Instant vector functions
-        "absent",
         // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
         "info",
 

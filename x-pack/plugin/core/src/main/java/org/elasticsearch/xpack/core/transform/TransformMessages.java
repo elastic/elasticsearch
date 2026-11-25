@@ -38,6 +38,11 @@ public class TransformMessages {
 
     public static final String REST_WARN_NO_TRANSFORM_NODES =
         "Transform requires the transform node role for at least 1 node, found no transform nodes";
+    public static final String REST_WARN_DANGLING_TASK_CHECK_TIMED_OUT =
+        "Timed out checking for dangling transform tasks, so they are not reported in this response. "
+            + "Increase [timeout] to complete the check.";
+    public static final String REST_WARN_DANGLING_TASK_CHECK_FAILED =
+        "Could not check for dangling transform tasks, so they are not reported in this response.";
 
     public static final String REST_WARN_DEFER_WITH_NO_SYNC_CONFIG =
         "Unable to defer scheduling for batch Transform [{0}]. Defaulting to scheduling without defer.";

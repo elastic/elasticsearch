@@ -93,6 +93,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
@@ -997,6 +998,10 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             // Shard with no docs may still see minimal load from query rewrite, but should be <= others
             assertThat(loadLarge, greaterThan(0d));
             assertThat(loadLarge, greaterThanOrEqualTo(load0));
+
+            // each shard counts the rows its source emitted
+            assertThat(((MockShardContext) shardContexts.get(0)).rowsEmitted(), equalTo(0L));
+            assertThat(((MockShardContext) shardContexts.get(1)).rowsEmitted(), equalTo(totalPositions));
         } finally {
             IOUtils.close(r0, rLarge, dir0, dirLarge);
         }
@@ -1023,6 +1028,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         private final ContextIndexSearcher searcher;
         private final ShardSearchStats shardSearchStats;
         private final AtomicInteger unfinishedSlices = new AtomicInteger();
+        private final AtomicLong rowsEmitted = new AtomicLong();
 
         private static final int MIN_DOCS_PER_SLICE = 50_000;
         private static final int MAX_SLICES_NUMBER = 10;
@@ -1123,6 +1129,15 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         @Override
         public ShardSearchStats stats() {
             return shardSearchStats;
+        }
+
+        @Override
+        public void addRowsEmitted(long rows) {
+            rowsEmitted.addAndGet(rows);
+        }
+
+        public long rowsEmitted() {
+            return rowsEmitted.get();
         }
 
         public void incRef() {}

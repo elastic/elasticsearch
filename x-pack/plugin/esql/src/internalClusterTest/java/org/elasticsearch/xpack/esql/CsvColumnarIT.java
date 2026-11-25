@@ -321,12 +321,8 @@ public class CsvColumnarIT extends CsvIT {
         .collect(
             java.util.stream.Collectors.toUnmodifiableMap(
                 Map.Entry::getKey,
-                // View bodies may open with SET statements (set_in_view_definitions), which hide
-                // the FROM from the pattern extractor's anchors; strip them like test queries.
-                e -> EsqlQueryDatasetResolver.resolveDatasets(
-                    EsqlQueryDatasetResolver.extractIndexPatterns(stripLeadingSetStatements(e.getValue().loadQuery())),
-                    CSV_DATASET
-                )
+                // View bodies are read like test queries, so a PROMQL body (index=...) resolves too.
+                e -> EsqlQueryDatasetResolver.resolveDatasets(sourcePatterns(e.getValue().loadQuery()), CSV_DATASET)
             )
         );
 
@@ -371,6 +367,33 @@ public class CsvColumnarIT extends CsvIT {
     }
 
     /**
+     * The normalised index patterns that {@code query} reads directly, not through a view: the first three extraction paths of
+     * {@link #resolveAllDatasets}. Also used for view bodies by {@link #VIEW_BACKING_DATASETS}, so it must only use static
+     * fields declared before that one.
+     */
+    private static Set<String> sourcePatterns(String query) {
+        String stripped = stripLeadingSetStatements(query);
+        // Collect raw patterns from FROM/TS and PROMQL, then normalise each one.
+        Set<String> rawPatterns = new LinkedHashSet<>(EsqlQueryDatasetResolver.extractIndexPatterns(stripped));
+        Matcher m = PROMQL_INDEX.matcher(stripped);
+        while (m.find()) {
+            rawPatterns.add(m.group(1).trim());
+        }
+        // Double-quoted index names (e.g. TS "k8s" | ...) are masked to spaces before the shared
+        // SOURCE_COMMAND regex runs, so extractIndexPatterns captures only a 1-char fragment that
+        // normalizeIndexPattern cannot de-quote. Match directly on the unmasked stripped text.
+        Matcher dq = DOUBLE_QUOTED_SOURCE.matcher(stripped);
+        while (dq.find()) {
+            rawPatterns.add(dq.group(1).trim());
+        }
+        Set<String> patterns = new LinkedHashSet<>();
+        for (String raw : rawPatterns) {
+            patterns.add(normalizeIndexPattern(raw));
+        }
+        return patterns;
+    }
+
+    /**
      * Resolves all {@link CsvTestsDataLoader.TestDataset} entries that the given query touches,
      * combining five extraction paths that {@link EsqlQueryDatasetResolver#extractIndexPatterns}
      * alone would miss:
@@ -392,24 +415,7 @@ public class CsvColumnarIT extends CsvIT {
      * the method never throws.
      */
     private static Set<CsvTestsDataLoader.TestDataset> resolveAllDatasets(String query) {
-        String stripped = stripLeadingSetStatements(query);
-        // Collect raw patterns from FROM/TS and PROMQL, then normalise each one.
-        Set<String> rawPatterns = new LinkedHashSet<>(EsqlQueryDatasetResolver.extractIndexPatterns(stripped));
-        Matcher m = PROMQL_INDEX.matcher(stripped);
-        while (m.find()) {
-            rawPatterns.add(m.group(1).trim());
-        }
-        // Double-quoted index names (e.g. TS "k8s" | ...) are masked to spaces before the shared
-        // SOURCE_COMMAND regex runs, so extractIndexPatterns captures only a 1-char fragment that
-        // normalizeIndexPattern cannot de-quote. Match directly on the unmasked stripped text.
-        Matcher dq = DOUBLE_QUOTED_SOURCE.matcher(stripped);
-        while (dq.find()) {
-            rawPatterns.add(dq.group(1).trim());
-        }
-        Set<String> patterns = new LinkedHashSet<>();
-        for (String raw : rawPatterns) {
-            patterns.add(normalizeIndexPattern(raw));
-        }
+        Set<String> patterns = sourcePatterns(query);
         Set<CsvTestsDataLoader.TestDataset> datasets = new LinkedHashSet<>(EsqlQueryDatasetResolver.resolveDatasets(patterns, CSV_DATASET));
         for (String pattern : patterns) {
             // Exact-key view lookup (e.g. FROM country_airports).
@@ -487,6 +493,10 @@ public class CsvColumnarIT extends CsvIT {
         // Tests with a per-test skip directive are kept so the reason shows up in JUnit XML.
         if (testCase.skipColumnar != null) {
             return false;
+        }
+        // The dataset resolution below doesn't see an index name in a parameter's value.
+        if (testCase.hasPromqlIndexParam()) {
+            return true;
         }
         // Wildcard view patterns (e.g. view_k8s_max_*) are not resolvable via the exact-key
         // VIEW_BACKING_DATASETS lookup in resolveAllDatasets; check them first against the known

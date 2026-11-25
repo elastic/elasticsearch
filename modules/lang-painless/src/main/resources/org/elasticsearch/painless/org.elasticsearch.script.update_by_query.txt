@@ -42,7 +42,7 @@ class org.elasticsearch.script.field.WriteField {
     void remove()
     WriteField set(def)
     WriteField append(def)
-    Iterator iterator()
+    Iterator iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
     def get(def)
     def get(int, def)
     boolean hasValue(Predicate)

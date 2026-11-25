@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RowCountPreserving;
@@ -105,7 +107,9 @@ final class PartitionPruningRule {
             || plan instanceof Rename
             || plan instanceof Project       // column selection; KEEP extends Project
             || plan instanceof Drop
-            || plan instanceof UnresolvedMetadata; // its names are the METADATA clause, and it redefines nothing
+            || plan instanceof UnresolvedMetadata // its names are the METADATA clause, and it redefines nothing
+            || plan instanceof Subquery      // the wrapper of a subquery or of a view body, whose columns are its child's
+            || plan instanceof UnionAll;     // a filter on the rows of a union filters the rows of each branch
     }
 
     /**

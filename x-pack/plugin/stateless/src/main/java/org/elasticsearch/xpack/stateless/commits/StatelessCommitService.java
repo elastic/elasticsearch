@@ -72,12 +72,11 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -426,7 +425,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markRecoveredBcc(
         ShardId shardId,
         BatchedCompoundCommit recoveredBcc,
-        Set<BlobFile> otherBlobs,
+        Set<BccBlob> otherBlobs,
         Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
     ) {
         assert recoveredBcc != null;
@@ -501,10 +500,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * runs independently, and will call this function for itself.
      * @param sourceShardId the source shard ID. Commits uploaded from this shard will be copied to the target shard.
      * @param targetShardId the target shard ID.
+     * @return a runnable that calls {@link #markSplitEnding}. This is used to handle the case where a shard relocates from and back to its
+     *         original node, and a new split clashes with the original one. This ensures the split ends on the right
+     *         {@link ShardCommitState}. TODO: remove when we transition to a source shard state machine.
      */
-    public void markSplitting(ShardId sourceShardId, ShardId targetShardId) {
+    public Runnable markSplitting(ShardId sourceShardId, ShardId targetShardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
         commitState.markSplitting(targetShardId);
+        return () -> commitState.markSplitEnding(targetShardId, true);
     }
 
     /**
@@ -954,8 +957,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
         // todo: reevaluate this.
         blobReference.incRef();
-        final TimeValue hotThreadsLogInterval = clusterService.getClusterSettings()
-            .get(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
         var bccUpload = new BatchedCompoundCommitUploadTask(
             threadPool,
             cacheWarmingService,
@@ -965,7 +966,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             commitState::runUploadWhenCommitIsReady,
             virtualBcc,
             TimeValue.timeValueMillis(50),
-            hotThreadsLogInterval,
             newUploadTaskListener(commitState, virtualBcc, blobReference)
         );
         metrics.recordBccUpload(
@@ -997,6 +997,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
+                metrics.recordBccUploadCompleted(virtualBcc.getTotalSizeInBytes(), uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 logger.debug(
                     "{} uploaded BCC [{}] (last cc generation [{}]), marking as uploaded",
@@ -1219,18 +1220,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         if (bccUploadSlowLogThresholdMillis <= 0 || uploadResult.totalUploadTimeMs() < bccUploadSlowLogThresholdMillis) {
             return;
         }
+        // the total time spans every attempt and the delays between them, the other fields describe the successful attempt
+        final var timing = uploadResult.timing();
         final var message = new ESLogMessage(
             "{} batched compound commit [{}] upload took [{}]ms over [{}] attempt(s): {}",
             virtualBcc.getShardId(),
             virtualBcc.getPrimaryTermAndGeneration().generation(),
             uploadResult.totalUploadTimeMs(),
-            uploadResult.uploadAttempts(),
-            uploadResult.attemptsToLogString()
+            timing.attempt(),
+            timing.toLogString()
         ).field("elasticsearch.primary.bcc_upload_time", uploadResult.totalUploadTimeMs())
-            .field("elasticsearch.primary.bcc_upload_attempts", uploadResult.uploadAttempts())
-            .field("elasticsearch.primary.bcc_generation_queue_time", uploadResult.totalGenerationQueueWaitMs())
-            .field("elasticsearch.primary.bcc_object_store_queue_time", uploadResult.totalObjectStoreQueueWaitMs())
-            .field("elasticsearch.primary.bcc_upload_throughput_mib_per_sec", uploadResult.uploadThroughputMiBPerSec());
+            .field("elasticsearch.primary.bcc_upload_attempts", timing.attempt())
+            .field("elasticsearch.primary.bcc_generation_queue_time", timing.generationQueueWaitMs())
+            .field("elasticsearch.primary.bcc_object_store_queue_time", timing.objectStoreQueueWaitMs())
+            .field("elasticsearch.primary.bcc_upload_throughput_mib_per_sec", timing.uploadThroughputMiBPerSec());
         logger.info(message);
     }
 
@@ -1429,31 +1432,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * including blobs pending async deletion. Blobs created after relocation started are never uploaded
      * ({@link ShardCommitState#pauseUpload}) and can be excluded by the caller passing the latest uploaded BCC generation.
      */
-    public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
-        Set<BlobFile> blobFiles = new HashSet<>();
+    public Set<BccBlob> getTrackedUploadedBccBlobsUpTo(ShardId shardId, long maxUploadedGeneration) {
+        Set<BccBlob> bccBlobs = new HashSet<>();
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         // The order of loops is the reverse of BlobReference#closeInternal to avoid missing pending deletes.
         for (var primaryTermAndGeneration : commitState.primaryTermAndGenToBlobReference.keySet()) {
             if (primaryTermAndGeneration.generation() > maxUploadedGeneration) {
                 continue;
             }
-            blobFiles.add(
-                new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()), primaryTermAndGeneration)
-            );
+            bccBlobs.add(new BccBlob(primaryTermAndGeneration));
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
         for (var staleCompoundCommit : commitCleaner.getPendingDeletes(shardId)) {
             if (staleCompoundCommit.primaryTermAndGeneration().generation() > maxUploadedGeneration) {
                 continue;
             }
-            blobFiles.add(
-                new BlobFile(
-                    BatchedCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
-                    staleCompoundCommit.primaryTermAndGeneration()
-                )
-            );
+            bccBlobs.add(new BccBlob(staleCompoundCommit.primaryTermAndGeneration()));
         }
-        return blobFiles;
+        return bccBlobs;
     }
 
     // Package private for testing only
@@ -1463,13 +1459,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public record RecoveryInfoFromSource(
         @Nullable SourceBlobsInfo sourceBlobsInfo,
-        Set<BlobFile> lastCommitBlobs,
+        Set<BccBlob> lastCommitBlobs,
         boolean lastCommitIsHollow,
         boolean hasRecentIdLookup,
         @Nullable HollowShardRecoveryState hollowRecoveryState
     ) {}
 
-    public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
+    public record SourceBlobsInfo(BccBlob latestBccBlob, long latestBlobFileLength, Set<BccBlob> otherBlobs) {}
 
     public @Nullable RecoveryInfoFromSource getRecoveryInfoFromSourceEntry(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
@@ -1662,7 +1658,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.splitTargetCopyExecutor = new ThrottledTaskRunner(
                 "copy-to-split-targets[" + shardId + "]",
                 1,
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
             ).asExecutor();
             this.allocationPrimaryTerm = allocationPrimaryTerm;
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
@@ -1704,7 +1700,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void markBccRecovered(
             BatchedCompoundCommit recoveredBcc,
-            Set<BlobFile> otherBlobs,
+            Set<BccBlob> otherBlobs,
             Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
         ) {
             assert recoveredBcc != null;
@@ -1734,9 +1730,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
-            for (BlobFile nonRecoveredBlobFile : otherBlobs) {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
-                    PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlobFile.termAndGeneration();
+            for (BccBlob nonRecoveredBlob : otherBlobs) {
+                if (BccBlob.startsWithBlobPrefix(nonRecoveredBlob.blobName())) {
+                    PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlob.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
                     // We don't know which CCs are included in the non-recovered BCCs,
@@ -1762,7 +1758,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         () -> format(
                             "%s found object store file which does not match compound commit file naming pattern [%s]",
                             shardId,
-                            nonRecoveredBlobFile
+                            nonRecoveredBlob
                         )
                     );
                 }
@@ -2286,8 +2282,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         return new CommitAndBlobLocation(blobReference, blobLocation);
                     } else {
                         assert StatelessCompoundCommit.isGenerationalFile(fileName)
-                            && existing.blobLocation.compoundFileGeneration() < blobLocation.compoundFileGeneration()
-                            : fileName + ':' + existing + ':' + blobLocation;
+                            && existing.blobLocation.blob() instanceof BccBlob existingBlob
+                            && blobLocation.blob() instanceof BccBlob newBlob
+                            && existingBlob.generation() < newBlob.generation() : fileName + ':' + existing + ':' + blobLocation;
                         logger.trace(
                             "{} ignoring generational file [{}] updated location [{}]->[{}], keeping [{}]",
                             shardId,

@@ -469,4 +469,9 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         // NOTE: The test needs three distinct ordered values and a boolean has two.
         return false;
     }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

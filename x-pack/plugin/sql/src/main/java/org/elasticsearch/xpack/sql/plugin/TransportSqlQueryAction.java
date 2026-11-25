@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -94,6 +95,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         PlanExecutor planExecutor,
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -125,7 +127,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             bigArrays
         );
         var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new SqlLogProducer(), logWriterProvider, fieldProvider);
-        this.activityInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.activityInterceptor = querySinkRegistry.createInterceptor(queryLogger);
     }
 
     @Override

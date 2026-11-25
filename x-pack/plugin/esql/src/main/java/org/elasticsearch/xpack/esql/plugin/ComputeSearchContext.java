@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -29,22 +30,27 @@ import java.util.function.BooleanSupplier;
  * <p>
  * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
  * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by
- * {@link #shardContext(QueryWarnings, Set)} reaches 0.
+ * {@link #shardContext(QueryWarnings, Set, boolean)} reaches 0.
  */
 class ComputeSearchContext implements Releasable {
     private final int index;
     @Nullable
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
+    /** The rows the sources emitted from the shard, shared by the contexts of the shard in a request. */
+    @Nullable
+    private final LongAdder rowsEmitted;
 
-    ComputeSearchContext(int index, SearchContext searchContext) {
+    ComputeSearchContext(int index, SearchContext searchContext, LongAdder rowsEmitted) {
         this.index = index;
         this.searchContext = Objects.requireNonNull(searchContext);
+        this.rowsEmitted = Objects.requireNonNull(rowsEmitted);
     }
 
     private ComputeSearchContext(int index) {
         this.index = index;
         this.searchContext = null;
+        this.rowsEmitted = null;
     }
 
     /** Tombstone with no {@link SearchContext}, so the closed search context can be GC'd. */
@@ -65,10 +71,11 @@ class ComputeSearchContext implements Releasable {
 
     /**
      * @param unmappedFieldNames the fields the plan reads that some shards may not map, which this shard resolves to what it holds
+     * @param flattenedKeys whether a name under a {@code flattened} field is a field, the key of that name
      */
-    ShardContext shardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames) {
+    ShardContext shardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames, boolean flattenedKeys) {
         if (shardContext.get() == null) {
-            shardContext.set(createShardContext(queryWarnings, unmappedFieldNames));
+            shardContext.set(createShardContext(queryWarnings, unmappedFieldNames, flattenedKeys));
         }
         return shardContext.get();
     }
@@ -94,15 +101,16 @@ class ComputeSearchContext implements Releasable {
         return searchContext == null ? null : searchContext.indexShard();
     }
 
-    private ShardContext createShardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames) {
+    private ShardContext createShardContext(QueryWarnings queryWarnings, Set<String> unmappedFieldNames, boolean flattenedKeys) {
         ensureNotTombstone();
         EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
             searchContext.getSearchExecutionContext(),
             queryWarnings,
-            unmappedFieldNames
+            unmappedFieldNames,
+            flattenedKeys
         );
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
-        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());
+        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter(), rowsEmitted);
     }
 
     @Override

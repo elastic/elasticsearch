@@ -172,47 +172,6 @@ final class CanMatchPreFilterSearchPhase {
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         SearchResponseMetrics searchResponseMetrics,
         Map<String, Object> searchRequestAttributes,
-        boolean includeSkippedShardsInIterators
-    ) {
-        return execute(
-            logger,
-            searchTransportService,
-            nodeIdToConnection,
-            aliasFilter,
-            concreteIndexBoosts,
-            executor,
-            request,
-            shardsIts,
-            timeProvider,
-            task,
-            requireAtLeastOneMatch,
-            coordinatorRewriteContextProvider,
-            searchResponseMetrics,
-            searchRequestAttributes,
-            includeSkippedShardsInIterators,
-            null
-        );
-    }
-
-    /**
-     * As above, with the cluster state the {@code shardsIts} were built from, so that a search that cannot proceed because every copy of a
-     * shard is being restored from a snapshot can say so (see {@link SearchPhase#doCheckNoMissingShards}).
-     */
-    public static SubscribableListener<CanMatchResult> execute(
-        Logger logger,
-        SearchTransportService searchTransportService,
-        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-        Map<String, AliasFilter> aliasFilter,
-        Map<String, Float> concreteIndexBoosts,
-        Executor executor,
-        SearchRequest request,
-        List<SearchShardIterator> shardsIts,
-        TransportSearchAction.SearchTimeProvider timeProvider,
-        SearchTask task,
-        boolean requireAtLeastOneMatch,
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        SearchResponseMetrics searchResponseMetrics,
-        Map<String, Object> searchRequestAttributes,
         boolean includeSkippedShardsInIterators,
         @Nullable ClusterState clusterState
     ) {
@@ -246,7 +205,7 @@ final class CanMatchPreFilterSearchPhase {
                 if (logger.isDebugEnabled()) {
                     logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
                 }
-                listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "start", e, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "start", e, List.of()));
             }
 
             @Override
@@ -507,7 +466,7 @@ final class CanMatchPreFilterSearchPhase {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
             }
-            listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "round", e, ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "round", e, List.of()));
         }
     }
 

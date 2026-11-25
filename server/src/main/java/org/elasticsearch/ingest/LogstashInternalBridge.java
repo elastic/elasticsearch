@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,6 +46,6 @@ public class LogstashInternalBridge {
      * @return a new {@link ThreadPool} with a noop {@link MeterRegistry} and default executors
      */
     public static ThreadPool createThreadPool(final Settings settings) {
-        return new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        return new ThreadPool(new ThreadContext(settings), settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
     }
 }

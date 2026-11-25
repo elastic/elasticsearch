@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.wildcard.Wildcard;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Parity tests for {@link WildcardFieldMapper#doMapColumnBatch} against the row path.
@@ -352,7 +353,7 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
         final var mapper = (WildcardFieldMapper) ms.mappingLookup().getMapper(FIELD);
         assertFalse(
             "wildcard must not take the columnar path outside strict-columnar index modes",
-            mapper.supportsColumnarParse(ms.getIndexSettings())
+            mapper.supportsColumnarParse(ms.getIndexSettings(), Set.of())
         );
     }
 }

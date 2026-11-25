@@ -264,8 +264,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         try {
             AtomicLong first = new AtomicLong();
             AtomicLong second = new AtomicLong();
-            TaskLoadAttribution.Target firstTarget = (nanos, finishNanos) -> first.addAndGet(nanos);
-            TaskLoadAttribution.Target secondTarget = (nanos, finishNanos) -> second.addAndGet(nanos);
+            TaskLoadAttribution.Target firstTarget = (nanos, cpuNanos, finishNanos) -> first.addAndGet(nanos);
+            TaskLoadAttribution.Target secondTarget = (nanos, cpuNanos, finishNanos) -> second.addAndGet(nanos);
             // outside a pool task, attributing does nothing
             TaskLoadAttribution.attribute(secondTarget);
 
@@ -279,13 +279,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
             long attributed = executor.getAttributedTaskExecutionTime();
             long total = executor.getTotalTaskExecutionTime();
-            runTask(executor, 2, () -> TaskLoadAttribution.attribute(TaskLoadAttribution.CHARGED_BY_TASK));
-            assertThat(executor.getAttributedTaskExecutionTime() - attributed, equalTo(executor.getTotalTaskExecutionTime() - total));
-            assertThat(second.get(), equalTo(0L));
-
-            attributed = executor.getAttributedTaskExecutionTime();
-            total = executor.getTotalTaskExecutionTime();
-            runTask(executor, 3, () -> {});
+            runTask(executor, 2, () -> {});
             assertThat(executor.getAttributedTaskExecutionTime(), equalTo(attributed));
             assertThat(executor.getTotalTaskExecutionTime(), greaterThan(total));
 
@@ -293,7 +287,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             first.set(0);
             attributed = executor.getAttributedTaskExecutionTime();
             total = executor.getTotalTaskExecutionTime();
-            runTask(executor, 4, () -> {
+            runTask(executor, 3, () -> {
                 TaskLoadAttribution.attribute(firstTarget);
                 TaskLoadAttribution.charge(secondTarget, 1, System.nanoTime());
             });
@@ -312,7 +306,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testChargingExecutor() throws Exception {
         var executor = attributingExecutor();
         AtomicLong charged = new AtomicLong();
-        Executor charging = TaskLoadAttribution.charging(executor, (nanos, finishNanos) -> charged.addAndGet(nanos));
+        Executor charging = TaskLoadAttribution.charging(executor, (nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos));
         AtomicInteger ran = new AtomicInteger();
         AtomicInteger failed = new AtomicInteger();
         AtomicInteger rejected = new AtomicInteger();
@@ -343,7 +337,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      * A task whose failure handling throws is failed once, and completed once.
      */
     public void testChargingExecutorFailsTaskOnce() {
-        Executor charging = TaskLoadAttribution.charging(EsExecutors.DIRECT_EXECUTOR_SERVICE, (nanos, finishNanos) -> {});
+        Executor charging = TaskLoadAttribution.charging(EsExecutors.DIRECT_EXECUTOR_SERVICE, (nanos, cpuNanos, finishNanos) -> {});
         AtomicInteger failed = new AtomicInteger();
         AtomicInteger completed = new AtomicInteger();
         var thrown = expectThrows(IllegalArgumentException.class, () -> charging.execute(new AbstractRunnable() {
@@ -546,7 +540,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         );
         try {
             AtomicLong charged = new AtomicLong();
-            runTask(executor, 1, () -> TaskLoadAttribution.attribute((nanos, finishNanos) -> charged.addAndGet(nanos)));
+            runTask(executor, 1, () -> TaskLoadAttribution.attribute((nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos)));
             assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
             assertThat(executor.getAttributedTaskExecutionTime(), equalTo(0L));
             assertThat(charged.get(), equalTo(0L));
@@ -763,6 +757,47 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         @Override
         long getQueueTimeNanos() {
             return queuedTimeTakenNanos;
+        }
+    }
+
+    /**
+     * A tracking scaling pool with core=0 force-queues work and then submits the unwrapped worker
+     * probe. That probe must not trip the TimedRunnable assertion in beforeExecute/afterExecute.
+     */
+    public void testScalingFromZeroDoesNotAssertOnWorkerProbe() throws Exception {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        EsThreadPoolExecutor executor = EsExecutors.newScaling(
+            "probe-test",
+            0,
+            2,
+            1,
+            TimeUnit.MILLISECONDS,
+            false,
+            TestEsExecutors.testOnlyDaemonThreadFactory("probe"),
+            context,
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
+        );
+        try {
+            CyclicBarrier busy = new CyclicBarrier(3);
+            CountDownLatch release = new CountDownLatch(1);
+            for (int i = 0; i < 2; i++) {
+                executor.execute(() -> {
+                    try {
+                        busy.await(10, TimeUnit.SECONDS);
+                        release.await(10, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                });
+            }
+            busy.await(10, TimeUnit.SECONDS);
+            CountDownLatch thirdDone = new CountDownLatch(1);
+            executor.execute(thirdDone::countDown);
+            release.countDown();
+            assertTrue(thirdDone.await(10, TimeUnit.SECONDS));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
     }
 

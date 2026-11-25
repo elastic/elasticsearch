@@ -45,7 +45,10 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     private static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = TransportVersion.fromName("esql_profile_async_nanos");
 
-    private volatile SubscribableListener<Void> blockedFuture;
+    /**
+     * Guarded by {@code this}.
+     */
+    private SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Fetched> buffers = ConcurrentCollections.newConcurrentMap();
     private final FailureCollector failureCollector = new FailureCollector();
@@ -152,15 +155,15 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     }
 
     private void notifyIfBlocked() {
-        if (blockedFuture != null) {
-            final SubscribableListener<Void> future;
-            synchronized (this) {
-                future = blockedFuture;
-                this.blockedFuture = null;
-            }
-            if (future != null) {
-                future.onResponse(null);
-            }
+        final SubscribableListener<Void> future;
+        // Under the lock, like isBlocked: either it sees the result, or this sees its future. Read outside the lock, the
+        // future could still be null while isBlocked, which missed the result, was about to create it.
+        synchronized (this) {
+            future = blockedFuture;
+            this.blockedFuture = null;
+        }
+        if (future != null) {
+            future.onResponse(null);
         }
     }
 
@@ -185,7 +188,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public final void close() {
-        finish();
+        // not finish(): a subclass reacts there to the end of its input, which a closing operator never saw
+        finished = true;
         closed = true;
         discardResults();
         responseHeadersCollector.finish();

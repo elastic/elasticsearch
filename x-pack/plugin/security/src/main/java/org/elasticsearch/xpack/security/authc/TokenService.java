@@ -1777,7 +1777,7 @@ public class TokenService {
                         .prepareRefresh(securityTokensIndex.aliasName())
                         .execute(ActionListener.wrap(refreshResponse -> {
                             if (refreshResponse.getFailedShards() > 0 && logger.isDebugEnabled()) {
-                                logger.debug("Failure to refresh tokens index {}", Arrays.toString(refreshResponse.getShardFailures()));
+                                logger.debug("Failure to refresh tokens index {}", refreshResponse.getShardFailures());
                             }
                             final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
                                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))

@@ -74,7 +74,7 @@ public class AnalysisICUFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, FactorySettings> tokenizerSettings() {
         // rule_files are read from the config directory, which the contract does not have; IcuAnalyzerSharingTests covers them.
-        return Map.of("icu_tokenizer", settings());
+        return Map.of("icu_tokenizer", settings().covered("rule_files", "file content keyed via per-script SHA; IcuAnalyzerSharingTests"));
     }
 
     @Override

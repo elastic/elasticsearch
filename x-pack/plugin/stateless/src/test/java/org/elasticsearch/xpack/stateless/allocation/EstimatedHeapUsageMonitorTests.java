@@ -249,7 +249,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                             return new NodeHeapMetrics(
                                 nodeHeapMetrics.nodeId(),
                                 nodeHeapMetrics.totalBytes(),
-                                validHeapEstimate(nodeHeapMetrics.totalBytes() * between(0, lowWatermarkPercentage) / 100)
+                                validHeapEstimate(nodeHeapMetrics.totalBytes() * between(0, lowWatermarkPercentage - 1) / 100)
                             );
                         } else {
                             return nodeHeapMetrics;
@@ -325,7 +325,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
     }
 
     private ClusterInfo createClusterInfo(int lowWatermarkPercentage, int numNodesAboveLowWatermark) {
-        assert lowWatermarkPercentage >= 0 && lowWatermarkPercentage < 100 : lowWatermarkPercentage;
+        assert lowWatermarkPercentage > 0 && lowWatermarkPercentage < 100 : lowWatermarkPercentage;
         final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>();
         final var nodeIdsAboveLowWatermark = randNodeIds(numNodesAboveLowWatermark);
         nodeIdsAboveLowWatermark.forEach(nodeId -> {
@@ -346,7 +346,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                     new NodeHeapMetrics(
                         nodeId,
                         totalBytesPerNode,
-                        validHeapEstimate(totalBytesPerNode * between(0, lowWatermarkPercentage) / 100)
+                        validHeapEstimate(totalBytesPerNode * between(0, lowWatermarkPercentage - 1) / 100)
                     )
                 );
             });

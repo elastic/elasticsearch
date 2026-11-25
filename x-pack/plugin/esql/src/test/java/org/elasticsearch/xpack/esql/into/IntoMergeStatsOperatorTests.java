@@ -129,9 +129,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, empty());
     }
 
-    private static final String WRITTEN = "INTO ["
-        + DEST
-        + "] wrote [1] documents successfully, only the refresh failed, so they may not be searchable yet: ";
+    private static final String FAILED = "index refresh for INTO [" + DEST + "] failed: ";
 
     /**
      * The rows are stored whatever the refresh does, and a failed query invites a retry that stores them again, so a refresh that
@@ -148,7 +146,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
         assertTrue(op.isFinished());
-        assertThat(warnings(), equalTo(List.of(WRITTEN + "no such index [" + DEST + "]")));
+        assertThat(warnings(), equalTo(List.of(FAILED + "no such index [" + DEST + "]")));
     }
 
     public void testForbiddenRefreshWarningExplainsThePrivilege() {
@@ -162,11 +160,10 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
             warnings(),
             equalTo(
                 List.of(
-                    "INTO ["
+                    "index refresh for INTO ["
                         + DEST
-                        + "] wrote [4] documents successfully, only the refresh failed, so they may not be searchable yet: "
-                        + "action [indices:admin/refresh] is unauthorized"
-                        + " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
+                        + "] failed: action [indices:admin/refresh] is unauthorized"
+                        + " (INTO includes an index refresh that requires the [maintenance] privilege; use \"refresh\": false to skip it)"
                 )
             )
         );
@@ -181,7 +178,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.answerRefresh(new BroadcastResponse(2, 1, 1, List.of(shardFailure(new IllegalStateException("shard is closed")))));
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
-        assertThat(warnings(), equalTo(List.of(WRITTEN + "shard is closed")));
+        assertThat(warnings(), equalTo(List.of(FAILED + "shard is closed")));
     }
 
     public void testClosedMemberOfAnAliasIsSkippedOnARetry() {
@@ -215,7 +212,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, empty());
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
-        assertThat(warnings(), equalTo(List.of(WRITTEN + "closed")));
+        assertThat(warnings(), equalTo(List.of(FAILED + "closed")));
     }
 
     public void testRefreshIsOnlyRetriedForAClosedMember() {
@@ -237,7 +234,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.answerRefresh(new BroadcastResponse(2, 0, 0, List.of()));
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
-        assertThat(warnings(), equalTo(List.of(WRITTEN + "no shard of the destination was refreshed")));
+        assertThat(warnings(), equalTo(List.of(FAILED + "no shard of the destination was refreshed")));
     }
 
     public void testRefreshOfAnUnderReplicatedDestinationSucceeds() {
@@ -262,7 +259,22 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
         client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remoteBreaker()))));
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
-        assertThat(warnings(), equalTo(List.of(WRITTEN + "[parent] Data too large")));
+        assertThat(warnings(), equalTo(List.of(FAILED + "[parent] Data too large")));
+    }
+
+    /**
+     * A cancelled query finishes the driver context while the refresh is still in flight, and the failure of that refresh then arrives
+     * on a transport thread. It must not write into the finished context, which asserts that nobody does.
+     */
+    public void testRefreshFailureAfterTheDriverContextFinishedIsDropped() {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        driverContext.finish();
+        client.failRefresh(new IndexNotFoundException(DEST));
+
+        assertThat(driverContext.warnings(), empty());
     }
 
     private static RemoteTransportException remoteBreaker() {

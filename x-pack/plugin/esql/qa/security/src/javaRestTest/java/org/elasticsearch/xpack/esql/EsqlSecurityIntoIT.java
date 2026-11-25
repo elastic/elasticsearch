@@ -88,12 +88,9 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         assertSummary(response);
         assertThat(
             warning(response),
-            containsString(
-                "INTO [into-dest] wrote [2] documents successfully, only the refresh failed, so they may not be searchable yet: "
-                    + "action [indices:admin/refresh] is unauthorized"
-            )
+            containsString("index refresh for INTO [into-dest] failed: action [indices:admin/refresh] is unauthorized")
         );
-        assertThat(warning(response), containsString("refreshing requires the [maintenance] privilege on the destination"));
+        assertThat(warning(response), containsString("INTO includes an index refresh that requires the [maintenance] privilege"));
         // The header escapes the quotes of the option, so only what follows it is matched
         assertThat(warning(response), containsString(": false to skip it"));
 
@@ -109,7 +106,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     public void testMaintenanceOnAnotherIndexDoesNotRefreshTheDestination() throws IOException {
         Response response = runInto("into_maintainer_elsewhere", "");
         assertSummary(response);
-        assertThat(warning(response), containsString("INTO [into-dest] wrote [2] documents successfully, only the refresh failed"));
+        assertThat(warning(response), containsString("index refresh for INTO [into-dest] failed"));
 
         assertThat("the refresh did not happen", countDestination(), equalTo(0L));
         refreshDestination();

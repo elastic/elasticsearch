@@ -138,6 +138,8 @@ public final class IntoMergeStatsOperator implements Operator {
     // Set once a refresh is sent; done when it settles. A failure is a warning of the driver context.
     @Nullable
     private SubscribableListener<Void> refreshing;
+    @Nullable
+    private volatile String refreshWarning;
 
     private IntoMergeStatsOperator(DriverContext driverContext, @Nullable Refresher refresher) {
         this.driverContext = driverContext;
@@ -196,17 +198,11 @@ public final class IntoMergeStatsOperator implements Operator {
         // node is wrapped again with the details of that node, which are internal. The warning says what actually went wrong.
         Throwable underlying = ExceptionsHelper.unwrapCause(cause);
         String hint = ExceptionsHelper.status(underlying) == RestStatus.FORBIDDEN
-            ? " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
+            ? " (INTO includes an index refresh that requires the [maintenance] privilege; use \"refresh\": false to skip it)"
             : "";
-        driverContext.addWarning(
-            Strings.format(
-                "INTO [%s] wrote [%d] documents successfully, only the refresh failed, so they may not be searchable yet: %s%s",
-                refresher.destination(),
-                createdSum,
-                underlying.getMessage(),
-                hint
-            )
-        );
+        // Kept here and published by the driver thread in getOutput: the callback can arrive after a cancellation has finished the
+        // driver context, which must not be written to any more.
+        refreshWarning = Strings.format("index refresh for INTO [%s] failed: %s%s", refresher.destination(), underlying.getMessage(), hint);
     }
 
     private boolean refreshPending() {
@@ -234,6 +230,10 @@ public final class IntoMergeStatsOperator implements Operator {
             return null;
         }
         outputEmitted = true;
+        String warning = refreshWarning;
+        if (warning != null) {
+            driverContext.addWarning(warning);
+        }
         return new IntoStats(totalSum, createdSum).toPage(blockFactory);
     }
 

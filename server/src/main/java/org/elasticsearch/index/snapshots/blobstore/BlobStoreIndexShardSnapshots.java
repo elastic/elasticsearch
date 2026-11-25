@@ -275,8 +275,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 // just not even write it.
                 //
                 // Failing here may leave a partially-written object but that's ok, nothing is going to read that object (e.g. in a
-                // `FsRepository` it's either a `pending-*` file or an `index-${UUID}` with a fresh UUID). Some later operation (e.g.
-                // deleting the snapshot with the duplicate name) will clean up the leftovers.
+                // `FsRepository` it's either a `pending-*` file or an `index-${UUID}` with a fresh UUID), so the repository remains
+                // fully readable in this state. Some later operation (e.g. deleting the snapshot with the duplicate name) can clean up the
+                // leftovers.
                 throw new IllegalStateException("duplicate snapshot name [" + snapshotName + "]");
             }
             builder.startObject(snapshotName);

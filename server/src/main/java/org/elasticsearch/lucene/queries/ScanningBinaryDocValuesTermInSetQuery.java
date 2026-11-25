@@ -138,10 +138,13 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
     }
 
     private static final class ExactTermSet implements Accountable {
+        private static final int HASH_SEED = StringHelper.GOOD_FAST_HASH_SEED;
+
         private final byte[] bytes;
         private final int[] offsets;
         private final int[] table;
         private final int mask;
+        private final int maxTermLength;
 
         ExactTermSet(PrefixCodedTerms termData) {
             int size = (int) termData.size();
@@ -150,18 +153,26 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
             this.table = new int[capacity];
             Arrays.fill(table, -1);
             this.offsets = new int[size + 1];
-            BytesRefBuilder all = new BytesRefBuilder();
+            int total = 0;
+            int longest = 0;
             PrefixCodedTerms.TermIterator iterator = termData.iterator();
-            int ord = 0;
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
-                offsets[ord] = all.length();
-                all.append(term);
-                ord++;
+                total += term.length;
+                longest = Math.max(longest, term.length);
             }
-            offsets[size] = all.length();
-            this.bytes = Arrays.copyOf(all.bytes(), all.length());
+            this.maxTermLength = longest;
+            this.bytes = new byte[total];
+            iterator = termData.iterator();
+            int ord = 0;
+            int upTo = 0;
+            for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
+                offsets[ord++] = upTo;
+                System.arraycopy(term.bytes, term.offset, bytes, upTo, term.length);
+                upTo += term.length;
+            }
+            offsets[size] = total;
             for (ord = 0; ord < size; ord++) {
-                int slot = StringHelper.murmurhash3_x86_32(bytes, offsets[ord], offsets[ord + 1] - offsets[ord], 0) & mask;
+                int slot = StringHelper.murmurhash3_x86_32(bytes, offsets[ord], offsets[ord + 1] - offsets[ord], HASH_SEED) & mask;
                 while (table[slot] != -1) {
                     slot = (slot + 1) & mask;
                 }
@@ -170,7 +181,10 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
         }
 
         boolean contains(BytesRef term) {
-            int slot = StringHelper.murmurhash3_x86_32(term.bytes, term.offset, term.length, 0) & mask;
+            if (term.length > maxTermLength) {
+                return false;
+            }
+            int slot = StringHelper.murmurhash3_x86_32(term.bytes, term.offset, term.length, HASH_SEED) & mask;
             for (int ord = table[slot]; ord != -1; ord = table[slot]) {
                 if (Arrays.equals(bytes, offsets[ord], offsets[ord + 1], term.bytes, term.offset, term.offset + term.length)) {
                     return true;

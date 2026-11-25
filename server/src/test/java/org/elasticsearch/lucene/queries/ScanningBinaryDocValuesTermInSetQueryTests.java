@@ -102,6 +102,21 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
         }
     }
 
+    public void testValuesLongerThanEveryTermDoNotMatch() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(singleValueDoc(new BytesRef("ab")));
+            writer.addDocument(singleValueDoc(new BytesRef("abc")));
+            writer.addDocument(singleValueDoc(new BytesRef(new byte[10_000])));
+            writer.addDocument(singleValueDoc(new BytesRef("")));
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                var format = BinaryDocValuesFormat.SEPARATE_COUNT;
+                var terms = List.of(new BytesRef("ab"), new BytesRef(""));
+                assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", terms, format)));
+            }
+        }
+    }
+
     private static Document singleValueDoc(BytesRef term) {
         Document document = new Document();
         var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);

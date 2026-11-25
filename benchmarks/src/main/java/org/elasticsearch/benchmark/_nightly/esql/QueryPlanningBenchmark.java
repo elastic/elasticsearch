@@ -46,6 +46,7 @@ import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -75,7 +76,14 @@ public class QueryPlanningBenchmark {
         BenchmarkLogging.configure();
     }
 
-    private Analyzer manyFieldsAnalyzer;
+    /**
+     * The width of the index. {@code FILLNULL ... ON *} mirrors every column in a {@code COALESCE} alias, so planning
+     * cost grows with the field count; the sweep follows the 1k/5k/10k shape called for in #163220.
+     */
+    @Param({ "1000", "5000", "10000" })
+    public int fields;
+
+    private Analyzer analyzer;
     private LogicalPlanOptimizer defaultOptimizer;
     private Configuration config;
     private EsqlParser parser;
@@ -101,7 +109,6 @@ public class QueryPlanningBenchmark {
             Map.of()
         );
 
-        var fields = 10_000;
         var mapping = LinkedHashMap.<String, EsField>newLinkedHashMap(fields);
         for (int i = 0; i < fields; i++) {
             // We're creating a standard index, so none of these fields should be marked as dimensions.
@@ -111,12 +118,13 @@ public class QueryPlanningBenchmark {
         var esIndex = new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
 
         var functionRegistry = new EsqlFunctionRegistry();
-        parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        // FILLNULL is a dev-only command, so force the dev version on regardless of how the benchmark jar was built.
+        parser = new EsqlParser(new EsqlConfig(true, functionRegistry));
 
         // Assume all nodes are on the current version for the benchmark.
         TransportVersion minimumVersion = TransportVersion.current();
 
-        manyFieldsAnalyzer = new Analyzer(
+        analyzer = new Analyzer(
             new AnalyzerContext(
                 config,
                 functionRegistry,
@@ -143,6 +151,15 @@ public class QueryPlanningBenchmark {
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan(parser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+        blackhole.consume(plan(parser, analyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+    }
+
+    /**
+     * The {@link #manyFields} query with a {@code FILLNULL DEFAULT ON *} added: the delta between the two is the planning
+     * cost of mirroring every column in a {@code COALESCE}, which is what #163220 asks to track at 1k/5k/10k fields.
+     */
+    @Benchmark
+    public void manyFieldsFillNull(Blackhole blackhole) {
+        blackhole.consume(plan(parser, analyzer, defaultOptimizer, "FROM test | FILLNULL DEFAULT ON * | LIMIT 10"));
     }
 }

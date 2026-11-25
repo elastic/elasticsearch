@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -92,6 +94,13 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             // The setting is rejected while the feature flag is off, which would fail the cluster before the tests can be skipped.
             settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
         }
+        // The size of the bulks that INTO sends comes from these settings, which the test cluster randomizes: with the defaults, a few
+        // hundred rows go in one 4MB bulk, and tests that fail or count the bulks of a write have no second bulk to work on. Pin the
+        // small sizes, so that they always get several.
+        settings.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B");
+        settings.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB");
+        settings.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "16KB");
+        settings.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
         return settings.build();
     }
 
@@ -423,7 +432,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             });
         }
         try {
-            expectThrows(Exception.class, () -> run("FROM " + RETRY_SOURCE + " | KEEP k | INTO " + DESTINATION).close());
+            // The writer takes a whole page before it looks at the size of its bulk, so all rows in one page are one bulk, and there
+            // would be no second one to fail. The randomized pragmas can pick a page of any size, so pick a small one.
+            EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + RETRY_SOURCE + " | KEEP k | INTO " + DESTINATION);
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), 10).build()));
+            request.acceptedPragmaRisks(true);
+            expectThrows(Exception.class, () -> run(request).close());
             assertThat("the second bulk was reached", bulks.get(), greaterThan(1));
             assertThat(dataNodeRequests.get(), equalTo(1));
         } finally {
@@ -444,9 +458,68 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertThat(failed.getMessage(), containsString("unmapped_col"));
     }
 
+    public void testRefreshByDefaultMakesRowsVisible() {
+        disableDestinationRefresh();
+        assertInto("ROW k = [\"a\", \"b\"] | MV_EXPAND k", 2);
+        assertThat(countDestinationDocuments(), equalTo(2L));
+    }
+
+    public void testRefreshByDefaultMakesRowsFromSourceVisible() {
+        createSource();
+        disableDestinationRefresh();
+        assertInto("FROM " + SOURCE, 3);
+        assertThat(countDestinationDocuments(), equalTo(3L));
+    }
+
+    public void testRefreshFalseLeavesRowsInvisibleUntilRefreshed() {
+        disableDestinationRefresh();
+        assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed("ROW k = [\"a\", \"b\", \"c\"] | MV_EXPAND k");
+    }
+
+    public void testRefreshFalseLeavesRowsFromSourceInvisibleUntilRefreshed() {
+        createSource();
+        disableDestinationRefresh();
+        assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed("FROM " + SOURCE);
+    }
+
+    public void testRefreshSkipsAClosedNonWriteMemberOfTheDestinationAlias() {
+        String older = "dest-into-older";
+        String alias = "dest-into-alias";
+        assertAcked(indicesAdmin().prepareCreate(older).setSettings(batchIndexingSettings()).setMapping(MAPPING));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(older).alias(alias).writeIndex(false))
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(DESTINATION).alias(alias).writeIndex(true))
+        );
+        assertAcked(indicesAdmin().prepareClose(older));
+        disableDestinationRefresh();
+
+        assertIntoTarget("ROW k = [\"a\", \"b\"] | MV_EXPAND k", alias, 2);
+        assertThat("the write index was refreshed", countDestinationDocuments(), equalTo(2L));
+    }
+
     public void testIntoRunsOnCoordinatorWithoutDataNodeRequests() {
         assertThat(countDataNodeRequests(() -> assertInto("ROW k = [\"r1\", \"r2\"] | MV_EXPAND k", 2)), equalTo(0));
         assertReadBack("KEEP k | SORT k", List.of(List.of("r1"), List.of("r2")));
+    }
+
+    private void disableDestinationRefresh() {
+        assertAcked(indicesAdmin().prepareUpdateSettings(DESTINATION).setSettings(Settings.builder().put("index.refresh_interval", -1)));
+    }
+
+    private void assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed(String producer) {
+        try (EsqlQueryResponse response = run(producer + " | INTO " + DESTINATION + " WITH {\"refresh\": false}")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(3L, 3L))));
+        }
+        assertThat(countDestinationDocuments(), equalTo(0L));
+        refresh(DESTINATION);
+        assertThat(countDestinationDocuments(), equalTo(3L));
+    }
+
+    private long countDestinationDocuments() {
+        try (EsqlQueryResponse response = run("FROM " + DESTINATION + " | STATS c = COUNT(*)")) {
+            return (long) getValuesList(response).getFirst().getFirst();
+        }
     }
 
     private int countDataNodeRequests(Runnable action) {

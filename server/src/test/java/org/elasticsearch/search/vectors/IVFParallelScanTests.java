@@ -557,8 +557,8 @@ public class IVFParallelScanTests extends ESTestCase {
     private static IndexWriterConfig randomConfig() {
         return newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, randomIntBetween(2, 8))))
             .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setMaxBufferedDocs(50_000)
-            .setRAMBufferSizeMB(256);
+            .setRAMBufferSizeMB(256)
+            .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
     }
 
     private static Document vectorDoc(int dims) {

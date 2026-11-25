@@ -361,7 +361,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (indexingHeapMemoryRequirements == null || indexingHeapMemoryRequirements.validUntil() < relativeTimeInNanos()) {
             // Try to clear the memory once the results are stale
             indexingOperationsHeapMemoryRequirementsRef.compareAndSet(indexingHeapMemoryRequirements, null);
-            return 0L;
+            return 0;
         }
         return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
     }
@@ -375,6 +375,15 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         }
         final Long operationSize = largestOperationSize(relativeTimeInNanos());
         return operationSize == null ? 0L : operationSize;
+    }
+
+    private Long largestOperationSize(long now) {
+        var largestOperation = largestIndexingOperationRef.get();
+        if (largestOperation == null || largestOperation.validUntil() < now) {
+            largestIndexingOperationRef.compareAndSet(largestOperation, null);
+            return null;
+        }
+        return largestOperation.operationSizeInBytes();
     }
 
     /**
@@ -397,15 +406,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         // Heap required so that this operation is that percent of the heap. E.g a 4MB operation that cannot use more than 10% of the heap
         // has 40MB returned to the autoscaler
         return (long) Math.ceil(operationSizeInBytes * 100.0d / percent);
-    }
-
-    private Long largestOperationSize(long now) {
-        var largestOperation = largestIndexingOperationRef.get();
-        if (largestOperation == null || largestOperation.validUntil() < now) {
-            largestIndexingOperationRef.compareAndSet(largestOperation, null);
-            return null;
-        }
-        return largestOperation.operationSizeInBytes();
     }
 
     public long mergeMemoryEstimation() {

@@ -261,6 +261,35 @@ public class HttpUsagePublisherTests extends ESTestCase {
         }
     }
 
+    public void testStatusesThatAreNotRecognisedAreWarnedAboutAndTransientOnesAreNot() throws Exception {
+        for (int status : new int[] { 301, 404, 405, 415, 422 }) {
+            statusFor = ids -> status;
+            try (MockLog mockLog = MockLog.capture(HttpUsagePublisher.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "warned " + status,
+                        HttpUsagePublisher.class.getCanonicalName(),
+                        Level.WARN,
+                        "the Usage API answered with status [" + status + "]*the usage records stay pending"
+                    )
+                );
+                publisher.publish(records(2));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+        // A transient answer is expected while retrying: the reporter logs it, and a warning every cycle of an outage would be noise.
+        for (int status : new int[] { 408, 429, 500, 503 }) {
+            statusFor = ids -> status;
+            try (MockLog mockLog = MockLog.capture(HttpUsagePublisher.class)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation("quiet " + status, HttpUsagePublisher.class.getCanonicalName(), Level.WARN, "*")
+                );
+                publisher.publish(records(2));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
     public void testTooLargeBatchIsSplitUntilItFitsAndNothingIsDropped() {
         List<UsageRecord> batch = records(10);
         statusFor = ids -> ids.size() > 3 ? 413 : 201;

@@ -205,8 +205,12 @@ public final class HttpUsagePublisher implements UsagePublisher {
             try {
                 HttpResponse<String> response = future.get(requestTimeout.millis(), TimeUnit.MILLISECONDS);
                 Attempt attempt = classify(response.statusCode(), response.body());
-                if (attempt.failureClass() != null && response.statusCode() >= 200 && response.statusCode() < 300) {
-                    // A success status that does not say that the batch was written: the records stay pending, which nobody sees otherwise.
+                int status = response.statusCode();
+                boolean expectedWhileRetrying = status == 408 || status == 413 || status == 429 || status >= 500;
+                if (attempt.failureClass() == PublishResult.FailureClass.RETRYABLE && expectedWhileRetrying == false) {
+                    // Neither a success, nor a status the pipeline documents, nor a transient one: a 2xx that does not say that the batch
+                    // was written, a redirect, a wrong url or a proxy answer. It lasts, and the records stay pending, which the reporter
+                    // logs at debug level only.
                     logger.warn("{}: the usage records stay pending", attempt.message());
                 }
                 return attempt;

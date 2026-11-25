@@ -9,8 +9,10 @@
  *
  * <h2>Summary</h2>
  * <p>
- * A user sets {@code frozen_after} on the lifecycle of a data stream. When a backing index is older than
- * {@code frozen_after}, DLM converts it to a partially mounted searchable snapshot.
+ * A user sets {@code frozen_after} on the lifecycle of a data stream. When a backing index that is NOT the write index
+ * is older than {@code frozen_after}, DLM converts it to a partially mounted searchable snapshot. The age comes from
+ * {@code DataStream#getGenerationLifecycleDate}: the origination date if set, else the rollover time, else the
+ * creation date. Thus the age normally counts from rollover, not from creation.
  * The mounted index replaces the original index in the data stream. Then DLM deletes the original index.
  * <p>
  * The feature has two halves:
@@ -47,7 +49,7 @@
  *   <dt>{@link DLMFrozenTransitionRunnable}</dt>
  *   <dd>Interface for a transition task (index and project), as the executor sees it.</dd>
  *   <dt>{@link DLMUnrecoverableException}</dt>
- *   <dd>Signals "remove the marker, do not try again with this marker value".</dd>
+ *   <dd>Signals "stop retrying the current mark and remove the marker".</dd>
  *   <dt>{@link UnmarkIndexForFrozenTask}</dt>
  *   <dd>Cluster state task that removes {@code dlm_freeze_with}.</dd>
  *   <dt>{@link DLMFrozenCleanupService}</dt>
@@ -93,6 +95,9 @@
  *       <li>Success: the original index is deleted, so its marker goes with it. The next scan finds nothing.</li>
  *       <li>{@link DLMUnrecoverableException}: {@link UnmarkIndexForFrozenTask} removes the marker. The next DLM
  *           run can mark the index again (step 1).</li>
+ *       <li>Transient master failover error: logged at DEBUG only, with NO error store entry. The marker stays, so
+ *           the next master submits the index again (step 2). An empty error store does not prove that no retry
+ *           occurred.</li>
  *       <li>Any other error: the error goes to {@code DataStreamLifecycleErrorStore}. The marker stays, so the
  *           next scan submits the index again (step 2).</li>
  *     </ul>
@@ -113,8 +118,10 @@
  * <p>
  * <b>The snapshot name and the mounted index name are not always the same.</b> The snapshot name comes from the
  * force merge target ({@code snapshotName(forceMergeIndex)}). The mounted index name always comes from the original
- * index ({@code snapshotName(indexName)}). If the original has replicas, the snapshot is
- * {@code dlm-frozen-dlm-clone-<original>}. If it has 0 replicas, the snapshot is {@code dlm-frozen-<original>}.
+ * index ({@code snapshotName(indexName)}). If the force merge target is the clone, the snapshot is
+ * {@code dlm-frozen-dlm-clone-<original>}. If it is the original, the snapshot is {@code dlm-frozen-<original>}. Do not
+ * use the current replica count of the original to decide: if a clone already exists, a retry uses it, also after
+ * the replicas of the original are set to 0.
  * <p>
  * DLM sets the internal index setting {@code index.dlm.frozen.created: true} on the clone and on the mounted index.
  * The scan skips every index that has it. The marking side skips an index that has it and also has a searchable
@@ -125,13 +132,14 @@
  * <h3>1. Stateless execution</h3>
  * <p>
  * The only persisted state is the {@code dlm_freeze_with} marker on the original index. No step writes a progress
- * marker. Each step finds its own status from facts in the cluster state or the repository: a {@code WRITE} block,
- * a clone that exists, the segment count, {@code SnapshotsInProgress}, a snapshot in the repository, a mounted index
- * that exists, the data stream membership. Derived facts cannot become out of date relative to the real artifacts,
- * for example after a master crash between an action and a marker update.
+ * marker. Each step finds its own status from facts about the real artifacts: a {@code WRITE} block, a clone that
+ * exists, the segment count of each primary (from the indices segments API), {@code SnapshotsInProgress}, a snapshot
+ * in the repository, a mounted index that exists, the data stream membership. Derived facts cannot become out of date
+ * relative to the real artifacts, for example after a master crash between an action and a marker update.
  * <p>
- * <b>Rule:</b> every step must have a skip check that uses only the cluster state or the repository. A wrong skip
- * check causes repeated work or data loss (see the mount wait in rule 5).
+ * <b>Rule:</b> every step must have a skip check that reads the current state of the artifacts it creates or
+ * changes (cluster state, the repository, or a live API such as segments). Never use a stored progress flag. A wrong
+ * skip check causes repeated work or data loss (see the mount wait in rule 5).
  *
  * <h3>2. The original index is the source of truth</h3>
  * <ul>
@@ -149,7 +157,8 @@
  * After DLM marks an index, a policy change does not remove the marker. A conversion is destructive (it deletes the
  * original), so a partial undo would be complex and risky.
  * <ul>
- *   <li>Removing {@code frozen_after}, or changing the default repository: no effect on a marked index.</li>
+ *   <li>Removing {@code frozen_after}, or changing the default repository: no effect on a marked index (except the
+ *       mark task race in rule 4).</li>
  *   <li>{@code dlm.frozen_transitions.enabled=false} (kill switch) or {@code index.lifecycle.skip=true}: new
  *       submissions stop, including resumes after a failure or a master change. A task that runs now
  *       continues. The marker stays, so work continues when the
@@ -167,11 +176,16 @@
  *     the <b>current</b> default repository. There is no user API that removes the marker.</li>
  * </ul>
  *
- * <h3>4. The repository is fixed at mark time</h3>
+ * <h3>4. The converter takes the repository from the marker</h3>
  * <p>
- * Every step reads the repository name from the marker on the <b>original</b> index (also when the force merge
- * target is the clone). Never use the current default repository inside a transition. A missing license is NOT
- * unrecoverable: it goes to the error store, and the index is tried again on each scan.
+ * Every step reads the repository name from the CURRENT marker on the <b>original</b> index (also when the force
+ * merge target is the clone). Never use the current default repository inside a transition.
+ * <p>
+ * The marker value is NOT guaranteed to be immutable. {@code MarkIndicesForFrozenTask} skips an index only if the
+ * marker already has the same value. If a mark task that was selected from an older cluster state runs after another
+ * task marked the index, and the default repository changed between them, it overwrites the marker.
+ * <p>
+ * A missing license is NOT unrecoverable: it goes to the error store, and the index is tried again on each scan.
  *
  * <h3>5. Never swap in an index that is not available</h3>
  * <p>
@@ -185,9 +199,11 @@
  * <p>
  * If the original index is in a data stream, the cleanup swaps it with the mounted index in one
  * {@code ModifyDataStreamsAction} request (remove and add). If the original is NOT in a data stream, the cleanup
- * deletes it only if {@code dlm-frozen-<original>} is in a data stream, has {@code index.dlm.frozen.created} and a
- * searchable snapshot store, and is mounted from a snapshot of the original or its clone. Otherwise it throws
- * {@link DLMUnrecoverableException} (#167129). Example: a user removes the original from its data stream during
+ * deletes it only if {@code dlm-frozen-<original>} passes a name-and-settings check: it is in any data stream, has
+ * {@code index.dlm.frozen.created} and a searchable snapshot store, its {@code index.store.snapshot.index_name} is
+ * the original or the clone, and its snapshot name matches. Otherwise it throws {@link DLMUnrecoverableException}
+ * (#167129). This check does NOT prove provenance: it does not verify the repository, any UUID, or that the data
+ * stream is the one the original left. Example: a user removes the original from its data stream during
  * the transition. The original is kept, and the cleanup service later deletes the clone, mount and snapshot as
  * orphans.
  *
@@ -209,9 +225,13 @@
  * to prevent concurrent transitions on two nodes. {@code Future#cancel} is a forbidden API, suppressed on purpose.
  * <p>
  * A request that the old master already sent (a snapshot, a force merge) continues on the cluster. The new master
- * finds it through the skip checks, for example the snapshot in {@code SnapshotsInProgress}. For a short time, two
- * masters can both think they own a transition. The idempotent steps make this safe. Keep this in mind when you add
- * or change a step.
+ * finds it through the skip checks, for example the snapshot in {@code SnapshotsInProgress}.
+ * <p>
+ * For a short time, two masters can both think they own a transition. Idempotent steps let the new master recover by
+ * retry, but they do NOT prevent interference between overlapping attempts. Example: when an interrupted worker exits
+ * the clone step ({@code maybeCloneIndex} or {@code waitForCloneToBeActive}), its error path still sends a delete of
+ * the clone, which can remove a clone that the new master already uses. Check such races for every step that you add
+ * or change, especially for cleanup code in error paths.
  *
  * <h2>Exception handling</h2>
  * <p>
@@ -237,7 +257,9 @@
  *   <li>{@link DLMFrozenTransitionExecutor#stop()} replaces the map with a new map. Each wrapper holds the map it was
  *       registered in, so a late completion from an old master term cannot remove an entry of a new term.</li>
  *   <li>{@code QUEUED} and {@code RUNNING} status lives only in the memory of the current master. After a master
- *       change, explain shows {@code marked} until the new master submits the index.</li>
+ *       change, explain shows {@code marked} until the new master submits the index. Exception: if the user removed
+ *       {@code frozen_after}, explain omits {@code frozen_transition_status}, but the marked transition still
+ *       resumes. A missing status does not mean that the work stopped.</li>
  * </ul>
  *
  * <h2>Orphan cleanup ({@link DLMFrozenCleanupService})</h2>
@@ -255,18 +277,21 @@
  *
  * <h2>Checklist for changes</h2>
  * <ul>
- *   <li>A new step needs a skip check based only on the cluster state or the repository, and must be safe if two
- *       masters run it at the same time.</li>
+ *   <li>A new step needs a skip check that reads the current state of its artifacts (rule 1), and must be safe if two
+ *       masters run it at the same time, including its error paths.</li>
  *   <li>Do not delete the original before the mounted index is available and in its data stream.</li>
  *   <li>Do not add process state (progress markers, in-memory flags that must survive a master change).</li>
  *   <li>Do not read the default repository inside a transition; use the marker.</li>
- *   <li>Throw {@link DLMUnrecoverableException} only when trying again with the same marker can never succeed. It
- *       removes the marker.</li>
+ *   <li>Throw {@link DLMUnrecoverableException} only when DLM must stop retrying the current mark and let the marking
+ *       side select the index again. It removes the marker. It does not mean that success is impossible with the
+ *       same marker value: for example, a read-only repository can become writable again under the same name.</li>
  *   <li>Every blocking call must respond to interruption. Call {@code checkIfThreadInterrupted()} at the start of
  *       each step.</li>
  *   <li>Keep artifact names stable. The cleanup service, the marking side and the skip checks all depend on the
  *       {@code dlm-clone-} and {@code dlm-frozen-} prefixes and on {@code index.dlm.frozen.created}.</li>
- *   <li>Integration tests for a master change in each step are in {@code DLMFrozenTransitionDisruptionIT}.</li>
+ *   <li>{@code DLMFrozenTransitionDisruptionIT} has master failover tests for these phases: mark read-only, clone,
+ *       force merge, snapshot, mount and cleanup. It has NO failover test for {@code waitForMountedIndexToBeAvailable}.
+ *       Add one if you change that wait.</li>
  * </ul>
  */
 package org.elasticsearch.xpack.dlm.frozen;

@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.into.IntoDestinationAuthorizer;
@@ -47,8 +51,35 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
 
     public void testAuthorizerIsToldWhetherTheDestinationExists() throws Exception {
         authorize(grantingAuthorizer(), "ROW x = 1 | INTO " + EXISTING);
-        authorize(grantingAuthorizer(), "ROW x = 1 | INTO nothing");
-        assertThat(asked, contains(EXISTING + ":true", "nothing:false"));
+        authorize(grantingAuthorizer(), "ROW x = 1 | INTO templated-index");
+        assertThat(asked, contains(EXISTING + ":true", "templated-index:false"));
+    }
+
+    /** A bulk would create the destination from the template, so INTO may too. */
+    public void testMissingDestinationThatATemplateMatchesIsNotAnError() throws Exception {
+        authorize(grantingAuthorizer(), "ROW x = 1 | INTO templated-index");
+    }
+
+    public void testMissingDestinationThatNoTemplateMatchesIsAnErrorForAnAuthorizedCaller() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> authorize(grantingAuthorizer(), "ROW x = 1 | INTO nothing")
+        );
+        assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(e.getMessage(), containsString("INTO destination [nothing] does not exist"));
+        assertThat("the caller is authorized before being told", asked, contains("nothing:false"));
+    }
+
+    /** Whether a destination exists is only for a caller who may write to it. */
+    public void testDeniedCallerIsNotToldThatADestinationDoesNotExist() {
+        IntoDestinationAuthorizer denying = (destination, exists, listener) -> listener.onFailure(
+            new ElasticsearchSecurityException("denied", RestStatus.FORBIDDEN)
+        );
+        ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authorize(denying, "ROW x = 1 | INTO nothing")
+        );
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
     }
 
     public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
@@ -77,7 +108,8 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(existing, false).build();
+        IndexTemplateMetadata template = IndexTemplateMetadata.builder("template").patterns(List.of("logs-*", "templated-*")).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(existing, false).put(template).build();
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
         EsqlSession.authorizeIntoDestinations(authorizer, TEST_PARSER.parseQuery(query), project, future);
         try {

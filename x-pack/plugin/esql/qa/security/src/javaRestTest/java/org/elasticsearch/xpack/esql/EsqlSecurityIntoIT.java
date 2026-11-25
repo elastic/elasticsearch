@@ -89,7 +89,8 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
     /**
      * A writer passes the authorization without any read access to the destination, and may then be told what a bulk would tell
-     * them: that the pipeline of the destination cannot be used. A missing destination that the writer may create is written.
+     * them: that the pipeline of the destination cannot be used. A missing destination is an error for them too, as INTO does not
+     * create indices.
      */
     public void testWriterWithoutReadAccessIsAuthorized() throws IOException {
         createDestinationWithPipeline();
@@ -99,7 +100,9 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         assertThat(body, refusal.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         assertThat(body, containsString("does not support ingest pipelines"));
 
-        assertThat(into("into_writer_user", "into-missing").getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_OK));
+        ResponseException missing = expectThrows(ResponseException.class, () -> into("into_writer_user", "into-missing"));
+        assertThat(missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+        assertThat(EntityUtils.toString(missing.getResponse().getEntity()), containsString("INTO destination [into-missing] does not exist"));
     }
 
     private void createDestinationWithPipeline() throws IOException {

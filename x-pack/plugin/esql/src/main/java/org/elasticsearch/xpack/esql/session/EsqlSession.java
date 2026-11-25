@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -3788,6 +3789,9 @@ public class EsqlSession {
      * allowed to write to each of them. Fails with the denial a bulk would give otherwise. Nothing about a destination is reported
      * before this, so a caller who may not write cannot tell whether it exists.
      * <p>
+     * A destination that does not exist is an error, unless an index template matches it, which is then to create it. Only a caller
+     * who was authorized is told so.
+     * <p>
      * Date math is resolved here, once, and the resolved name replaces the typed one in the plan. The authorization, the planning
      * checks and the writer, on whichever node it runs, then all see one name, instead of each resolving the expression again and
      * possibly to another name across a day boundary. A resolved name resolves to itself.
@@ -3810,7 +3814,16 @@ public class EsqlSession {
         );
         String target = resolved.collect(Into.class).getFirst().destination();
         boolean exists = project.getIndicesLookup().containsKey(target);
-        authorizer.authorize(target, exists, listener.map(ignored -> resolved));
+        authorizer.authorize(target, exists, listener.map(ignored -> {
+            if (exists == false && IntoPageWriter.Factory.matchesTemplate(project, target) == false) {
+                throw new ElasticsearchStatusException(
+                    "INTO destination [{}] does not exist, and no index template matches it",
+                    RestStatus.NOT_FOUND,
+                    target
+                );
+            }
+            return resolved;
+        }));
     }
 
     /**

@@ -30,6 +30,29 @@ setup:
                   type: ip
                 flag:
                   type: boolean
+                byt:
+                  type: byte
+                shrt:
+                  type: short
+                intg:
+                  type: integer
+                hf:
+                  type: half_float
+                flt:
+                  type: float
+                dbl:
+                  type: double
+                dn:
+                  type: date_nanos
+                bin:
+                  type: binary
+                sf:
+                  type: scaled_float
+                  scaling_factor: 100
+                mot:
+                  type: match_only_text
+                geo:
+                  type: geo_point
                 other:
                   type: keyword
 
@@ -55,6 +78,29 @@ setup:
                   type: ip
                 flag:
                   type: boolean
+                byt:
+                  type: byte
+                shrt:
+                  type: short
+                intg:
+                  type: integer
+                hf:
+                  type: half_float
+                flt:
+                  type: float
+                dbl:
+                  type: double
+                dn:
+                  type: date_nanos
+                bin:
+                  type: binary
+                sf:
+                  type: scaled_float
+                  scaling_factor: 100
+                mot:
+                  type: match_only_text
+                geo:
+                  type: geo_point
                 other:
                   type: keyword
 
@@ -81,6 +127,29 @@ setup:
                   type: ip
                 flag:
                   type: boolean
+                byt:
+                  type: byte
+                shrt:
+                  type: short
+                intg:
+                  type: integer
+                hf:
+                  type: half_float
+                flt:
+                  type: float
+                dbl:
+                  type: double
+                dn:
+                  type: date_nanos
+                bin:
+                  type: binary
+                sf:
+                  type: scaled_float
+                  scaling_factor: 100
+                mot:
+                  type: match_only_text
+                geo:
+                  type: geo_point
                 other:
                   type: keyword
   - do:
@@ -89,25 +158,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
+          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true, "byt": 1, "shrt": 1, "intg": 1, "hf": 1.5, "flt": 1.5, "dbl": 1.5, "dn": "2026-01-01T00:00:00.000000001Z", "bin": "YQ==", "sf": 1.5, "mot": "a", "geo": "1.0,2.0" }'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
+          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ], "byt": [null], "shrt": [null], "intg": [null], "hf": [null], "flt": [null], "dbl": [null], "dn": [null], "bin": [null], "sf": [null], "mot": [null], "geo": [null] }'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
+          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ], "byt": [null, null], "shrt": [null, null], "intg": [null, null], "hf": [null, null], "flt": [null, null], "dbl": [null, null], "dn": [null, null], "bin": [null, null], "sf": [null, null], "mot": [null, null], "geo": [null, null] }'
           - '{ "index": { "_id": "mixed" } }'
-          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ], "byt": [1, null, 2], "shrt": [1, null, 2], "intg": [1, null, 2], "hf": [1.5, null, 2.5], "flt": [1.5, null, 2.5], "dbl": [1.5, null, 2.5], "dn": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "bin": ["YQ==", null, "Yg=="], "sf": [1.5, null, 2.5], "mot": ["a", null, "b"], "geo": ["1.0,2.0", null, "3.0,4.0"] }'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null }'
+          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null, "byt": null, "shrt": null, "intg": null, "hf": null, "flt": null, "dbl": null, "dn": null, "bin": null, "sf": null, "mot": null, "geo": null }'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
+          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [], "byt": [], "shrt": [], "intg": [], "hf": [], "flt": [], "dbl": [], "dn": [], "bin": [], "sf": [], "mot": [], "geo": [] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
+          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ], "byt": [null, 1], "shrt": [null, 1], "intg": [null, 1], "hf": [null, 1.5], "flt": [null, 1.5], "dbl": [null, 1.5], "dn": [null, "2026-01-01T00:00:00.000000001Z"], "bin": [null, "YQ=="], "sf": [null, 1.5], "mot": [null, "a"], "geo": [null, "1.0,2.0"] }'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
+          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ], "byt": [1, null], "shrt": [1, null], "intg": [1, null], "hf": [1.5, null], "flt": [1.5, null], "dbl": [1.5, null], "dn": ["2026-01-01T00:00:00.000000001Z", null], "bin": ["YQ==", null], "sf": [1.5, null], "mot": ["a", null], "geo": ["1.0,2.0", null] }'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
+          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ], "byt": [null, 1, null], "shrt": [null, 1, null], "intg": [null, 1, null], "hf": [null, 1.5, null], "flt": [null, 1.5, null], "dbl": [null, 1.5, null], "dn": [null, "2026-01-01T00:00:00.000000001Z", null], "bin": [null, "YQ==", null], "sf": [null, 1.5, null], "mot": [null, "a", null], "geo": [null, "1.0,2.0", null] }'
 
   - do:
       bulk:
@@ -115,25 +184,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
+          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true, "byt": 1, "shrt": 1, "intg": 1, "hf": 1.5, "flt": 1.5, "dbl": 1.5, "dn": "2026-01-01T00:00:00.000000001Z", "bin": "YQ==", "sf": 1.5, "mot": "a", "geo": "1.0,2.0" }'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
+          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ], "byt": [null], "shrt": [null], "intg": [null], "hf": [null], "flt": [null], "dbl": [null], "dn": [null], "bin": [null], "sf": [null], "mot": [null], "geo": [null] }'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
+          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ], "byt": [null, null], "shrt": [null, null], "intg": [null, null], "hf": [null, null], "flt": [null, null], "dbl": [null, null], "dn": [null, null], "bin": [null, null], "sf": [null, null], "mot": [null, null], "geo": [null, null] }'
           - '{ "index": { "_id": "mixed" } }'
-          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ], "byt": [1, null, 2], "shrt": [1, null, 2], "intg": [1, null, 2], "hf": [1.5, null, 2.5], "flt": [1.5, null, 2.5], "dbl": [1.5, null, 2.5], "dn": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "bin": ["YQ==", null, "Yg=="], "sf": [1.5, null, 2.5], "mot": ["a", null, "b"], "geo": ["1.0,2.0", null, "3.0,4.0"] }'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null }'
+          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null, "byt": null, "shrt": null, "intg": null, "hf": null, "flt": null, "dbl": null, "dn": null, "bin": null, "sf": null, "mot": null, "geo": null }'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
+          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [], "byt": [], "shrt": [], "intg": [], "hf": [], "flt": [], "dbl": [], "dn": [], "bin": [], "sf": [], "mot": [], "geo": [] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
+          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ], "byt": [null, 1], "shrt": [null, 1], "intg": [null, 1], "hf": [null, 1.5], "flt": [null, 1.5], "dbl": [null, 1.5], "dn": [null, "2026-01-01T00:00:00.000000001Z"], "bin": [null, "YQ=="], "sf": [null, 1.5], "mot": [null, "a"], "geo": [null, "1.0,2.0"] }'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
+          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ], "byt": [1, null], "shrt": [1, null], "intg": [1, null], "hf": [1.5, null], "flt": [1.5, null], "dbl": [1.5, null], "dn": ["2026-01-01T00:00:00.000000001Z", null], "bin": ["YQ==", null], "sf": [1.5, null], "mot": ["a", null], "geo": ["1.0,2.0", null] }'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
+          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ], "byt": [null, 1, null], "shrt": [null, 1, null], "intg": [null, 1, null], "hf": [null, 1.5, null], "flt": [null, 1.5, null], "dbl": [null, 1.5, null], "dn": [null, "2026-01-01T00:00:00.000000001Z", null], "bin": [null, "YQ==", null], "sf": [null, 1.5, null], "mot": [null, "a", null], "geo": [null, "1.0,2.0", null] }'
 
   - do:
       bulk:
@@ -141,25 +210,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
+          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true, "byt": 1, "shrt": 1, "intg": 1, "hf": 1.5, "flt": 1.5, "dbl": 1.5, "dn": "2026-01-01T00:00:00.000000001Z", "bin": "YQ==", "sf": 1.5, "mot": "a", "geo": "1.0,2.0" }'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
+          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ], "byt": [null], "shrt": [null], "intg": [null], "hf": [null], "flt": [null], "dbl": [null], "dn": [null], "bin": [null], "sf": [null], "mot": [null], "geo": [null] }'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
+          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ], "byt": [null, null], "shrt": [null, null], "intg": [null, null], "hf": [null, null], "flt": [null, null], "dbl": [null, null], "dn": [null, null], "bin": [null, null], "sf": [null, null], "mot": [null, null], "geo": [null, null] }'
           - '{ "index": { "_id": "mixed" } }'
-          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ], "byt": [1, null, 2], "shrt": [1, null, 2], "intg": [1, null, 2], "hf": [1.5, null, 2.5], "flt": [1.5, null, 2.5], "dbl": [1.5, null, 2.5], "dn": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "bin": ["YQ==", null, "Yg=="], "sf": [1.5, null, 2.5], "mot": ["a", null, "b"], "geo": ["1.0,2.0", null, "3.0,4.0"] }'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null }'
+          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null, "byt": null, "shrt": null, "intg": null, "hf": null, "flt": null, "dbl": null, "dn": null, "bin": null, "sf": null, "mot": null, "geo": null }'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
+          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [], "byt": [], "shrt": [], "intg": [], "hf": [], "flt": [], "dbl": [], "dn": [], "bin": [], "sf": [], "mot": [], "geo": [] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
+          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ], "byt": [null, 1], "shrt": [null, 1], "intg": [null, 1], "hf": [null, 1.5], "flt": [null, 1.5], "dbl": [null, 1.5], "dn": [null, "2026-01-01T00:00:00.000000001Z"], "bin": [null, "YQ=="], "sf": [null, 1.5], "mot": [null, "a"], "geo": [null, "1.0,2.0"] }'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
+          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ], "byt": [1, null], "shrt": [1, null], "intg": [1, null], "hf": [1.5, null], "flt": [1.5, null], "dbl": [1.5, null], "dn": ["2026-01-01T00:00:00.000000001Z", null], "bin": ["YQ==", null], "sf": [1.5, null], "mot": ["a", null], "geo": ["1.0,2.0", null] }'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
+          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ], "byt": [null, 1, null], "shrt": [null, 1, null], "intg": [null, 1, null], "hf": [null, 1.5, null], "flt": [null, 1.5, null], "dbl": [null, 1.5, null], "dn": [null, "2026-01-01T00:00:00.000000001Z", null], "bin": [null, "YQ==", null], "sf": [null, 1.5, null], "mot": [null, "a", null], "geo": [null, "1.0,2.0", null] }'
 
 ---
 columnar_stored returns the same source as synthetic for every field type on both indexing paths:
@@ -210,16 +279,16 @@ columnar_stored drops the null elements of every field type:
 
   - match:
       hits.hits:
-        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true, byt: 1, shrt: 1, intg: 1, hf: 1.5, flt: 1.5, dbl: 1.5, dn: "2026-01-01T00:00:00.000000001Z", bin: "YQ==", sf: 1.5, mot: "a", geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
         - _source: {}
         - _source: {}
-        - _source: { kwd: [ a, b ], txt: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ] }
+        - _source: { kwd: [ a, b ], txt: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ], byt: [ 1, 2 ], shrt: [ 1, 2 ], intg: [ 1, 2 ], hf: [ 1.5, 2.5 ], flt: [ 1.5, 2.5 ], dbl: [ 1.5, 2.5 ], dn: [ "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z" ], bin: [ "YQ==", "Yg==" ], sf: [ 1.5, 2.5 ], mot: [ "a", "b" ], geo: [ {"lat": 0.9999999823048711, "lon": 1.9999999646097422}, {"lat": 2.999999988824129, "lon": 3.9999999292194843} ] }
         - _source: {}
         - _source: {}
         - _source: { other: c }
-        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
-        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
-        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true, byt: 1, shrt: 1, intg: 1, hf: 1.5, flt: 1.5, dbl: 1.5, dn: "2026-01-01T00:00:00.000000001Z", bin: "YQ==", sf: 1.5, mot: "a", geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true, byt: 1, shrt: 1, intg: 1, hf: 1.5, flt: 1.5, dbl: 1.5, dn: "2026-01-01T00:00:00.000000001Z", bin: "YQ==", sf: 1.5, mot: "a", geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true, byt: 1, shrt: 1, intg: 1, hf: 1.5, flt: 1.5, dbl: 1.5, dn: "2026-01-01T00:00:00.000000001Z", bin: "YQ==", sf: 1.5, mot: "a", geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
 
 ---
 columnar_stored drops the null elements of every field type on the row indexing path:
@@ -237,16 +306,16 @@ columnar_stored drops the null elements of every field type on the row indexing 
 
   - match:
       hits.hits:
-        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true, byt: 1, shrt: 1, intg: 1, hf: 1.5, flt: 1.5, dbl: 1.5, dn: "2026-01-01T00:00:00.000000001Z", bin: "YQ==", sf: 1.5, mot: "a", geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
         - _source: {}
         - _source: {}
-        - _source: { kwd: [ a, b ], txt: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ] }
+        - _source: { kwd: [ a, b ], txt: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ], byt: [ 1, 2 ], shrt: [ 1, 2 ], intg: [ 1, 2 ], hf: [ 1.5, 2.5 ], flt: [ 1.5, 2.5 ], dbl: [ 1.5, 2.5 ], dn: [ "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z" ], bin: [ "YQ==", "Yg==" ], sf: [ 1.5, 2.5 ], mot: [ "a", "b" ], geo: [ {"lat": 0.9999999823048711, "lon": 1.9999999646097422}, {"lat": 2.999999988824129, "lon": 3.9999999292194843} ] }
         - _source: {}
         - _source: {}
         - _source: { other: c }
-        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
-        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
-        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true, byt: 1, shrt: 1, intg: 1, hf: 1.5, flt: 1.5, dbl: 1.5, dn: "2026-01-01T00:00:00.000000001Z", bin: "YQ==", sf: 1.5, mot: "a", geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true, byt: 1, shrt: 1, intg: 1, hf: 1.5, flt: 1.5, dbl: 1.5, dn: "2026-01-01T00:00:00.000000001Z", bin: "YQ==", sf: 1.5, mot: "a", geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true, byt: 1, shrt: 1, intg: 1, hf: 1.5, flt: 1.5, dbl: 1.5, dn: "2026-01-01T00:00:00.000000001Z", bin: "YQ==", sf: 1.5, mot: "a", geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
 
 ---
 every document of the bulk requests is indexed:

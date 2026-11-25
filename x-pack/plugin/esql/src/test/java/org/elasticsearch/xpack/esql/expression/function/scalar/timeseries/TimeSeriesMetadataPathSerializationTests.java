@@ -15,7 +15,7 @@ import java.util.List;
 public class TimeSeriesMetadataPathSerializationTests extends AbstractExpressionSerializationTests<TimeSeriesMetadataPath> {
     @Override
     protected TimeSeriesMetadataPath createTestInstance() {
-        return new TimeSeriesMetadataPath(randomSource(), randomChild(), randomChild(), randomPaths());
+        return new TimeSeriesMetadataPath(randomSource(), randomChild(), randomChild(), randomRoots());
     }
 
     @Override
@@ -23,14 +23,14 @@ public class TimeSeriesMetadataPathSerializationTests extends AbstractExpression
         var children = new ArrayList<>(instance.children());
         int index = randomInt(children.size());
         if (index == children.size()) {
-            List<String> paths = randomValueOtherThan(instance.paths(), TimeSeriesMetadataPathSerializationTests::randomPaths);
-            return new TimeSeriesMetadataPath(instance.source(), children.get(0), children.get(1), paths);
+            List<String> roots = randomValueOtherThan(instance.roots(), TimeSeriesMetadataPathSerializationTests::randomRoots);
+            return new TimeSeriesMetadataPath(instance.source(), children.get(0), children.get(1), roots);
         }
         children.set(index, mutateExpression(children.get(index)));
         return instance.replaceChildren(children);
     }
 
-    static List<String> randomPaths() {
+    static List<String> randomRoots() {
         return randomList(0, 3, () -> randomAlphaOfLength(5));
     }
 }

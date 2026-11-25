@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.index.PassthroughFields;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -154,7 +155,12 @@ public final class ExemplarsRewriter {
         if (exemplars instanceof LocalRelation) {
             return exemplars;
         }
-        Set<String> passthroughPaths = PassthroughFields.passthroughPaths(metricsResolutions);
+        Set<String> passthroughPaths = new HashSet<>();
+        for (IndexResolution resolution : metricsResolutions) {
+            if (resolution != null && resolution.isValid()) {
+                collectPassthroughPaths(null, resolution.get().mapping(), passthroughPaths);
+            }
+        }
         List<Expression> aggregationFilters = new ArrayList<>();
         // Note that we currently only support a single PROMQL / TS .. STATS Command,
         // still due to vector matching there may be multiple TimeSeriesAggregates
@@ -270,7 +276,7 @@ public final class ExemplarsRewriter {
                 conditions.add(exemplarFilter(conjunct, passthroughPaths));
             }
             List<Expression> nameFilters = metricFields.stream()
-                .map(field -> PassthroughFields.withoutPassthroughParents(field.fieldName().string(), passthroughPaths))
+                .map(field -> withoutPassthroughParents(field.fieldName().string(), passthroughPaths))
                 .distinct()
                 .map(name -> {
                     return (Expression) new Equals(
@@ -368,10 +374,7 @@ public final class ExemplarsRewriter {
                 return e;
             }
             FieldAttribute metric = metricField(((UnaryScalarFunction) e).field());
-            Literal metricName = Literal.keyword(
-                e.source(),
-                PassthroughFields.withoutPassthroughParents(metric.fieldName().string(), passthroughPaths)
-            );
+            Literal metricName = Literal.keyword(e.source(), withoutPassthroughParents(metric.fieldName().string(), passthroughPaths));
             if (e instanceof IsNull) {
                 return new NotEquals(e.source(), new UnresolvedAttribute(e.source(), METRIC_NAME_FIELD), metricName);
             } else {
@@ -383,6 +386,28 @@ public final class ExemplarsRewriter {
             FieldAttribute.class,
             field -> new UnresolvedAttribute(field.source(), field.fieldName().string())
         );
+    }
+
+    private static void collectPassthroughPaths(@Nullable String parentPath, Map<String, EsField> mapping, Set<String> passthroughPaths) {
+        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+            String path = parentPath == null ? entry.getKey() : parentPath + "." + entry.getKey();
+            if (entry.getValue().isPassthrough()) {
+                passthroughPaths.add(path);
+            }
+            collectPassthroughPaths(path, entry.getValue().getProperties(), passthroughPaths);
+        }
+    }
+
+    /**
+     * The field name relative to its innermost passthrough parent, which is the name of its root-level alias.
+     */
+    private static String withoutPassthroughParents(String fieldName, Set<String> passthroughPaths) {
+        for (int dot = fieldName.lastIndexOf('.'); dot > 0; dot = fieldName.lastIndexOf('.', dot - 1)) {
+            if (passthroughPaths.contains(fieldName.substring(0, dot))) {
+                return fieldName.substring(dot + 1);
+            }
+        }
+        return fieldName;
     }
 
     /**

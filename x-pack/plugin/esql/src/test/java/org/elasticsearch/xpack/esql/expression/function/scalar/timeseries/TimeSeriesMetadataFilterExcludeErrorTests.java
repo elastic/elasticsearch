@@ -21,8 +21,8 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 
 public class TimeSeriesMetadataFilterExcludeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
-    /** The {@code paths} of remote write, which keeps every label in a {@code labels} object. */
-    static final List<String> PATHS = List.of("labels");
+    /** The {@code roots} of remote write, which keeps every label in a {@code labels} object. */
+    static final List<String> ROOTS = List.of("labels");
 
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -32,7 +32,7 @@ public class TimeSeriesMetadataFilterExcludeErrorTests extends ErrorsForCasesWit
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), true, PATHS);
+        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), true, ROOTS);
     }
 
     @Override

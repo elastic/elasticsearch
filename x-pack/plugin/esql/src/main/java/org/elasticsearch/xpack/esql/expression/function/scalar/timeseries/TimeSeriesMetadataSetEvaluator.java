@@ -34,7 +34,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
     private final String key;
     private final List<String> path;
     private final ExpressionEvaluator value;
-    private final Set<String> paths;
+    private final Set<String> roots;
 
     TimeSeriesMetadataSetEvaluator(
         DriverContext driverContext,
@@ -42,14 +42,14 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
         String key,
         List<String> path,
         ExpressionEvaluator value,
-        Set<String> paths
+        Set<String> roots
     ) {
         super(driverContext, metadata, value);
         this.metadata = metadata;
         this.key = key;
         this.path = path;
         this.value = value;
-        this.paths = paths;
+        this.roots = roots;
     }
 
     @Override
@@ -100,7 +100,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
             if (token == XContentParser.Token.START_OBJECT) {
                 String object = prefix + name;
                 writer.startObject(name);
-                copy(parser, object + ".", labelPrefix(object, label + name, paths), order == 0 ? depth + 1 : -1, writer, values);
+                copy(parser, object + ".", labelPrefix(object, label + name, roots), order == 0 ? depth + 1 : -1, writer, values);
                 writer.endObject();
                 write &= order != 0;
             } else if (isLabel(key, label, name)) {
@@ -165,11 +165,11 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
         String key,
         List<String> path,
         ExpressionEvaluator.Factory value,
-        Set<String> paths
+        Set<String> roots
     ) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesMetadataSetEvaluator(context, metadata.get(context), key, path, value.get(context), paths);
+            return new TimeSeriesMetadataSetEvaluator(context, metadata.get(context), key, path, value.get(context), roots);
         }
 
         @Override

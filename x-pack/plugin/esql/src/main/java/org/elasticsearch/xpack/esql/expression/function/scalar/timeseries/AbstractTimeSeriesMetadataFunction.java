@@ -35,17 +35,21 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.index.PassthroughFields;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -57,9 +61,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * <p>
  * A container holds a dimension at the path its storage gives it: remote write keeps {@code pod} at {@code labels.pod}, OTel keeps
  * {@code state} at {@code attributes.state}. A key names a dimension by its label name instead: its path below the innermost of the
- * objects at {@link #paths} holding it, or its full path when none does. So {@code pod}, {@code labels.pod} and
+ * objects at {@link #roots} holding it, or its full path when none does. So {@code pod}, {@code labels.pod} and
  * {@code attributes.pod} all have the label name {@code pod}, and a key {@code pod} matches each of them; a field below an object
- * not in {@link #paths}, as {@code host.name}, keeps its full path. A function treats every field a key matches as that one key.
+ * not in {@link #roots}, as {@code host.name}, keeps its full path. A function treats every field a key matches as that one key.
  */
 public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
     /**
@@ -68,11 +72,11 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
      */
     public static final TransportVersion ENABLE_TSMETADATA_FN = TransportVersion.fromName("enable_tsmetadata_fn");
 
-    private final List<String> paths;
+    private final List<String> roots;
 
-    protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments, List<String> paths) {
+    protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments, List<String> roots) {
         super(source, arguments);
-        this.paths = paths;
+        this.roots = roots;
     }
 
     protected AbstractTimeSeriesMetadataFunction(StreamInput in) throws IOException {
@@ -87,7 +91,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(children());
-        out.writeStringCollection(paths);
+        out.writeStringCollection(roots);
         writeArguments(out);
     }
 
@@ -95,13 +99,42 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
     protected void writeArguments(StreamOutput out) throws IOException {}
 
     /** The paths of the objects below which a dimension is named by its path below the innermost one. */
-    public List<String> paths() {
-        return paths;
+    public List<String> roots() {
+        return roots;
     }
 
-    /** The label name of the dimension at {@code field}, see {@link AbstractTimeSeriesMetadataFunction}. */
-    static String labelName(String field, Set<String> paths) {
-        return PassthroughFields.withoutPassthroughParents(field, paths);
+    /**
+     * The roots of the mappings of the valid {@code resolutions}, in name order: the objects whose fields a query can also name
+     * by their path below the object, which are the {@code passthrough} objects.
+     */
+    public static List<String> roots(Collection<IndexResolution> resolutions) {
+        Set<String> roots = new TreeSet<>();
+        for (IndexResolution resolution : resolutions) {
+            if (resolution != null && resolution.isValid()) {
+                collectRoots(null, resolution.get().mapping(), roots);
+            }
+        }
+        return List.copyOf(roots);
+    }
+
+    private static void collectRoots(@Nullable String parent, Map<String, EsField> mapping, Set<String> roots) {
+        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+            String path = parent == null ? entry.getKey() : parent + "." + entry.getKey();
+            if (entry.getValue().isPassthrough()) {
+                roots.add(path);
+            }
+            collectRoots(path, entry.getValue().getProperties(), roots);
+        }
+    }
+
+    /** The label name of the dimension at {@code field}: its path below the innermost of {@code roots} holding it, or its full path. */
+    public static String labelName(String field, Collection<String> roots) {
+        for (int dot = field.lastIndexOf('.'); dot > 0; dot = field.lastIndexOf('.', dot - 1)) {
+            if (roots.contains(field.substring(0, dot))) {
+                return field.substring(dot + 1);
+            }
+        }
+        return field;
     }
 
     /** The dimension names this function reads or writes: every argument after the metadata container by default. */
@@ -150,12 +183,12 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), paths);
+        return Objects.hash(super.hashCode(), roots);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && paths.equals(((AbstractTimeSeriesMetadataFunction) obj).paths);
+        return super.equals(obj) && roots.equals(((AbstractTimeSeriesMetadataFunction) obj).roots);
     }
 
     /** The name a key argument folds to; type resolution checks it is a non-empty string. */
@@ -305,12 +338,13 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
          * Moves {@code parser}, in the object at path {@code prefix} whose fields have the label name prefix {@code label}, to
          * the value of the first field whose label name is {@code key}, returning false when no field has it.
          */
-        static boolean find(XContentParser parser, String prefix, String label, String key, Set<String> paths) throws IOException {
+        protected static boolean find(XContentParser parser, String prefix, String label, String key, Set<String> roots)
+            throws IOException {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
                 if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
                     String object = prefix + name;
-                    if (find(parser, object + ".", labelPrefix(object, label + name, paths), key, paths)) {
+                    if (find(parser, object + ".", labelPrefix(object, label + name, roots), key, roots)) {
                         return true;
                     }
                 } else if (isLabel(key, label, name)) {
@@ -324,15 +358,15 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
 
         /**
          * The label name prefix of the fields of the object at {@code path}, whose own label name is {@code label}: none in an
-         * object at one of {@code paths}, whose fields are named by their names in it, and the object's label name and a dot
+         * object at one of {@code roots}, whose fields are named by their names in it, and the object's label name and a dot
          * otherwise.
          */
-        static String labelPrefix(String path, String label, Set<String> paths) {
-            return paths.contains(path) ? "" : label + ".";
+        protected static String labelPrefix(String path, String label, Set<String> roots) {
+            return roots.contains(path) ? "" : label + ".";
         }
 
         /** Whether the field {@code name}, in an object whose fields have the label name prefix {@code label}, is {@code key}. */
-        static boolean isLabel(String key, String label, String name) {
+        protected static boolean isLabel(String key, String label, String name) {
             return key.length() == label.length() + name.length() && key.startsWith(label) && key.endsWith(name);
         }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWitho
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.index.PassthroughFields;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -101,8 +101,8 @@ public record TranslationContext(
     TranslationSchema required,
     /* The current evaluation time (default: @timestamp). */
     Expression time,
-    /* The paths of the passthrough objects in the queried indices, in name order, see PassthroughFields. */
-    List<String> passthroughPaths
+    /* The roots of the label names in the queried indices, see AbstractTimeSeriesMetadataFunction#roots. */
+    List<String> roots
 ) {
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end): TStep requires explicit bounds,
     // so pass the widest representable range. EPOCH/MAX_MILLIS_BEFORE_9999 avoid time boundary handling in the engine.
@@ -111,14 +111,7 @@ public record TranslationContext(
 
     /** The command exposes every label of the result series: the full open label space. */
     public TranslationContext(PromqlCommand cmd, AnalyzerContext analyzer) {
-        this(
-            cmd,
-            analyzer,
-            null,
-            open(),
-            null,
-            PassthroughFields.passthroughPaths(analyzer.indexResolution().values()).stream().sorted().toList()
-        );
+        this(cmd, analyzer, null, open(), null, AbstractTimeSeriesMetadataFunction.roots(analyzer.indexResolution().values()));
     }
 
     /**
@@ -135,7 +128,7 @@ public record TranslationContext(
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
     public TranslationContext withRequired(TranslationSchema childRequired) {
-        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, passthroughPaths);
+        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, roots);
     }
 
     /**
@@ -169,7 +162,7 @@ public record TranslationContext(
     public IntermediateResult translateIntermediate(LogicalPlan branch, NameId stepId, NameId valueId) {
         Expression branchTime = cmd.collectEvaluationTimestampForBranch(branch);
         Alias step = canCreateStepBucket() ? emitStepBucketExpression(stepId, branchTime) : null;
-        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, passthroughPaths);
+        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, roots);
         return run.translateIntermediate(branch, valueId);
     }
 
@@ -530,15 +523,15 @@ public record TranslationContext(
             .sorted()
             .<Expression>map(label -> Literal.keyword(packing.source(), label))
             .toList();
-        return names.isEmpty() ? packing : new TimeSeriesMetadataFilter(packing.source(), packing, names, true, passthroughPaths);
+        return names.isEmpty() ? packing : new TimeSeriesMetadataFilter(packing.source(), packing, names, true, roots);
     }
 
     /**
      * The PromQL label {@code name} names: {@code foo}, {@code labels.foo} and {@code attributes.foo} are one label {@code foo},
-     * as the label container functions match it at the root and below any passthrough object.
+     * as the label container functions match it at the root and below any of the {@link #roots}.
      */
     public String labelName(String name) {
-        return PassthroughFields.withoutPassthroughParents(name, Set.copyOf(passthroughPaths));
+        return AbstractTimeSeriesMetadataFunction.labelName(name, roots);
     }
 
     /**

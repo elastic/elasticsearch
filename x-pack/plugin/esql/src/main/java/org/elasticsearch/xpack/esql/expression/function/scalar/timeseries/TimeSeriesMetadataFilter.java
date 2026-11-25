@@ -36,8 +36,8 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
 
     private final boolean exclude;
 
-    public TimeSeriesMetadataFilter(Source source, Expression metadata, List<Expression> keys, boolean exclude, List<String> paths) {
-        super(source, Stream.concat(Stream.of(metadata), keys.stream()).toList(), paths);
+    public TimeSeriesMetadataFilter(Source source, Expression metadata, List<Expression> keys, boolean exclude, List<String> roots) {
+        super(source, Stream.concat(Stream.of(metadata), keys.stream()).toList(), roots);
         this.exclude = exclude;
     }
 
@@ -72,18 +72,18 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
             toEvaluator.apply(children().getFirst()),
             keys().stream().map(key -> foldKey(key, toEvaluator)).toList(),
             exclude,
-            Set.copyOf(paths())
+            Set.copyOf(roots())
         );
     }
 
     @Override
     public TimeSeriesMetadataFilter replaceChildren(List<Expression> children) {
-        return new TimeSeriesMetadataFilter(source(), children.getFirst(), children.subList(1, children.size()), exclude, paths());
+        return new TimeSeriesMetadataFilter(source(), children.getFirst(), children.subList(1, children.size()), exclude, roots());
     }
 
     @Override
     protected NodeInfo<TimeSeriesMetadataFilter> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataFilter::new, children().getFirst(), keys(), exclude, paths());
+        return NodeInfo.create(this, TimeSeriesMetadataFilter::new, children().getFirst(), keys(), exclude, roots());
     }
 
     @Override

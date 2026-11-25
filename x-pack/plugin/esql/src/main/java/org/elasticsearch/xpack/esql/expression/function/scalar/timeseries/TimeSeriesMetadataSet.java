@@ -45,9 +45,9 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
         Expression key,
         Expression value,
         List<String> path,
-        List<String> paths
+        List<String> roots
     ) {
-        super(source, List.of(metadata, key, value), paths);
+        super(source, List.of(metadata, key, value), roots);
         this.path = path;
     }
 
@@ -91,7 +91,7 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
             foldKey(key(), toEvaluator),
             path,
             toEvaluator.apply(value()),
-            Set.copyOf(paths())
+            Set.copyOf(roots())
         );
     }
 
@@ -109,19 +109,19 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
             return resolution;
         }
         String key = ((BytesRef) key().fold(FoldContext.small())).utf8ToString();
-        return path.isEmpty() == false && labelName(String.join(".", path), Set.copyOf(paths())).equals(key)
+        return path.isEmpty() == false && labelName(String.join(".", path), roots()).equals(key)
             ? resolution
             : new TypeResolution("[" + sourceText() + "] writes key [" + key + "] to path " + path + " of another key");
     }
 
     @Override
     public TimeSeriesMetadataSet replaceChildren(List<Expression> children) {
-        return new TimeSeriesMetadataSet(source(), children.get(0), children.get(1), children.get(2), path, paths());
+        return new TimeSeriesMetadataSet(source(), children.get(0), children.get(1), children.get(2), path, roots());
     }
 
     @Override
     protected NodeInfo<TimeSeriesMetadataSet> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataSet::new, children().getFirst(), key(), value(), path, paths());
+        return NodeInfo.create(this, TimeSeriesMetadataSet::new, children().getFirst(), key(), value(), path, roots());
     }
 
     @Override

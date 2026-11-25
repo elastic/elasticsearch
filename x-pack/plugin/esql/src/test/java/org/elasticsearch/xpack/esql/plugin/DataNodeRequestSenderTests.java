@@ -94,6 +94,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -959,6 +960,53 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
         TaskCancelledException failure = expectThrows(TaskCancelledException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(failure.getMessage(), containsString("test cancellation"));
+        assertThat(recorded.routingWaits(), equalTo(0L));
+    }
+
+    /**
+     * A wait must not be armed once the sender has reported its failures: nothing would end it before its timeout, and it would
+     * hold the compute listener until then.
+     * <p>
+     * shard1 is parked, and the thread that starts its wait is held inside the start, after the wait is listed as active and
+     * before it reads the signals. Meanwhile shard2 fails for good on another thread, which reports the failures and ends the
+     * listed wait. When the start goes on it must see the reported failure and stop: it counts no wait and arms neither a timer
+     * nor an observer.
+     * <p>
+     * The start cannot be held any earlier without a hook in production code: nothing overridable runs between the pass handing
+     * the wait over and the wait listing itself. A wait that fails in that gap is not listed yet, so only the start's own read of
+     * the reported failure ends it; that interleaving is not forced here. {@code testParkedShardSurvivesReportedFailure} covers
+     * the outcome for a wait that is already armed.
+     */
+    public void testWaitNotStartedAfterReportedFailure() {
+        requireTwoSearchThreads();
+        RecordedMetrics recorded = new RecordedMetrics();
+        CountDownLatch startHeld = new CountDownLatch(1);
+        CountDownLatch releaseStart = new CountDownLatch(1);
+        CountDownLatch shard2Failed = new CountDownLatch(1);
+        SubscribableListener<Void> failShard2 = new SubscribableListener<>();
+        var future = setup(List.of(targetShard(shard1, node1), targetShard(shard2, node2)), (node, shards, aliasFilters, listener) -> {
+            if (node.equals(node1)) {
+                runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
+            } else {
+                failShard2.addListener(ActionListener.running(() -> executor.execute(() -> {
+                    listener.onFailure(new IOException("shard2 failed for good"), true);
+                    shard2Failed.countDown();
+                })));
+            }
+        }).resolver(shardIds -> Map.of(shard1.shardId(), List.of(node1))).metrics(recorded).onFirstWaitStarting(() -> {
+            startHeld.countDown();
+            safeAwait(releaseStart);
+        }).start();
+
+        safeAwait(startHeld);
+        failShard2.onResponse(null);
+        safeAwait(shard2Failed);
+        releaseStart.countDown();
+
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        Throwable failure = ExceptionsHelper.unwrap(e, IOException.class);
+        assertNotNull(e.toString(), failure);
+        assertThat(failure.getMessage(), equalTo("shard2 failed for good"));
         assertThat(recorded.routingWaits(), equalTo(0L));
     }
 

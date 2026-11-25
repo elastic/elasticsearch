@@ -71,6 +71,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
     }
 
     public void testLastSearcherAcquiredTimeIsSetWhenAddingReplica() throws Exception {
+        long testStartTime = System.currentTimeMillis();
         startMasterAndIndexNode();
         String firstNode = startSearchNode();
         String indexName = "my-index";
@@ -79,7 +80,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
 
         IndexShard searchShard = findSearchShard(indexName);
         final long lastAcquiredTime = searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(lastAcquiredTime, greaterThan(0L));
+        assertThat(lastAcquiredTime, greaterThan(testStartTime));
 
         // increase replica count
         String secondNode = startSearchNode();
@@ -105,6 +106,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
     }
 
     public void testLastSearcherAcquiredTimeIsSetWhenRecovering() throws Exception {
+        long testStartTime = System.currentTimeMillis();
         startMasterAndIndexNode();
         String firstNode = startSearchNode();
         String indexName = "my-index";
@@ -113,7 +115,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
 
         IndexShard searchShard = findSearchShard(indexName);
         final long lastAcquiredTime = searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(lastAcquiredTime, greaterThan(0L));
+        assertThat(lastAcquiredTime, greaterThan(testStartTime));
 
         String secondNode = startSearchNode();
 

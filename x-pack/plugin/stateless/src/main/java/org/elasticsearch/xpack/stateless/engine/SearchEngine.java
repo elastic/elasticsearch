@@ -92,6 +92,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
@@ -128,6 +129,7 @@ public class SearchEngine extends Engine {
     private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;
+    private final LongSupplier absoluteNowSupplier;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     // The current primary term/generation is updated on initialization and after new commit notifications from the indexing shard.
@@ -191,6 +193,7 @@ public class SearchEngine extends Engine {
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
+        this.absoluteNowSupplier = config.getThreadPool()::absoluteTimeInMillis;
 
         this.relocatedPITReaderTracker = new RelocatedPITReaderTracker();
 
@@ -638,9 +641,10 @@ public class SearchEngine extends Engine {
             listener.onResponse(null);
             return;
         }
+        long lastSearcherAcquiredTime = this.lastSearcherAcquiredTime;
         long timeSinceLastSearcherWasAcquiredInMillis = lastSearcherAcquiredTime == 0L
             ? Long.MAX_VALUE // never acquired a searcher
-            : engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime;
+            : absoluteNowSupplier.getAsLong() - lastSearcherAcquiredTime;
         commitPrefetcher.maybePrefetchLatestCommit(
             newCommitNotification,
             timeSinceLastSearcherWasAcquiredInMillis,
@@ -1165,7 +1169,7 @@ public class SearchEngine extends Engine {
     protected void onSearcherCreation(String source, SearcherScope scope) {
         super.onSearcherCreation(source, scope);
         if (source.equals(CAN_MATCH_SEARCH_SOURCE) || source.equals(SEARCH_SOURCE)) {
-            lastSearcherAcquiredTime = engineConfig.getThreadPool().relativeTimeInMillis();
+            lastSearcherAcquiredTime = absoluteNowSupplier.getAsLong();
         }
     }
 

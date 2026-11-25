@@ -301,10 +301,10 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     /**
-     * A rejected sampling holds the slot until no request is left, so it also completes a fetch-done listener published while it
-     * completes another one, without starting a second task.
+     * A rejected sampling holds the slot until no request is left. A late chunk that arrives while it completes the fetch phase doesn't
+     * start a second task, and a fetch-done listener published meanwhile is completed too.
      */
-    public void testRejectedSamplingCompletesAListenerPublishedWhileItHoldsTheSlot() {
+    public void testRejectedSamplingHoldsTheSlotWhileItCompletesTheFetchPhase() {
         AtomicInteger submitted = new AtomicInteger();
         StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, r -> {
             submitted.incrementAndGet();
@@ -316,11 +316,17 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
         }
         final int submittedBefore = submitted.get();
         AtomicBoolean secondCompleted = new AtomicBoolean();
-        // The fetch phase is done once, but a second listener published from the first one's completion lands while the rejected
-        // task holds the slot, as an onFetchDone does when it races the late chunk of a shard whose fetch failed.
-        check.onFetchDone(ActionListener.running(() -> check.onFetchDone(ActionListener.running(() -> secondCompleted.set(true)))));
+        check.onFetchDone(ActionListener.running(() -> {
+            // A late chunk of a shard whose fetch failed arrives while the rejected task holds the slot.
+            List<SearchHit> late = hits(HITS_PER_BATCH, SOURCE_SIZE, false);
+            check.onHits(late, heapBytes(late));
+            assertThat("the late chunk found the slot held", submitted.get(), equalTo(submittedBefore + 1));
+            // The fetch phase is done once, but a second listener published here lands while the slot is held too, as an
+            // onFetchDone does when it races such a chunk.
+            check.onFetchDone(ActionListener.running(() -> secondCompleted.set(true)));
+        }));
         assertTrue(secondCompleted.get());
-        assertThat(submitted.get(), equalTo(submittedBefore + 1));
+        assertThat("the second listener found the slot held", submitted.get(), equalTo(submittedBefore + 1));
     }
 
     /**

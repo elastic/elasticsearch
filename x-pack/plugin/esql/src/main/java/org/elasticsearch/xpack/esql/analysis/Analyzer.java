@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -268,6 +269,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -4832,23 +4834,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(tcf)) {
                     return fa;
                 }
+                // A type the conversion doesn't accept still gets its conversion, which is null for it, when every node can take part in
+                // a lenient conversion and every type of the field can be sent to them.
+                boolean lenient = isLenient(convert, tcf.types(), context);
                 tcf.types().forEach(type -> {
-                    if (supportedTypes.contains(type.widenSmallNumeric())) {
+                    if (lenient || supportedTypes.contains(type.widenSmallNumeric())) {
                         typeResolutions(convert, type, fa, tcf, typeResolutions);
                     }
                 });
 
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
-                    for (Expression conversion : typeResolutions.values()) {
-                        String unusable = unusableAsFieldConversion(conversion, convertExpression);
-                        if (unusable != null) {
-                            return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
+                    for (Map.Entry<TypeResolutionKey, Expression> typeResolution : typeResolutions.entrySet()) {
+                        // The conversion of a type it doesn't accept, which a lenient conversion keeps, is null and not evaluated
+                        if (supportedTypes.contains(typeResolution.getKey().fieldType().widenSmallNumeric())) {
+                            String unusable = unusableAsFieldConversion(typeResolution.getValue(), convertExpression);
+                            if (unusable != null) {
+                                return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
+                            }
                         }
                     }
                     boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
+                    }
+                    if (lenient) {
+                        warnUnconvertedTypes(convert, fa, tcf, supportedTypes, context);
                     }
 
                     Expression potentiallyUnmappedConversion = tcf.isPotentiallyUnmapped()
@@ -4874,12 +4885,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
 
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
+                    // A lenient conversion takes the types it doesn't accept: its conversion of them is null.
+                    boolean lenient = isLenient(convert, mappedTypes(unionTypeEsField), context);
+                    if (lenient == false && areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
                         return new UnresolvedAttribute(
                             fa.source(),
                             fa.name(),
                             unsupportedExplicitCastMessage(unionTypeEsField, supportedTypes, fa.name(), convertExpression.sourceText())
                         );
+                    }
+                    if (lenient) {
+                        warnUnconvertedMappedTypes(convert, fa, unionTypeEsField, supportedTypes, context);
                     }
 
                     Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
@@ -4933,6 +4949,94 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     + "as the conversion happens when loading the field";
             }
             return null;
+        }
+
+        /**
+         * Whether the conversion of a field mapped to several types has a conversion for every type, including the ones it doesn't
+         * accept, which are {@code null}. That needs every node of the query to support lenient conversions, a function that is lenient
+         * on the type of its input, and types that every node can read.
+         */
+        private static boolean isLenient(ConvertFunction convert, Collection<DataType> types, AnalyzerContext context) {
+            if (context.minimumVersion().supports(ConvertFunction.LENIENT_CAST) == false || convert.lenientOnInputType() == false) {
+                return false;
+            }
+            boolean isSnapshot = Build.current().isSnapshot();
+            return types.stream()
+                .allMatch(
+                    // An unsupported type is any type some node can't read, or ES|QL doesn't have: its leg is null, without reading it.
+                    type -> type == DataType.UNSUPPORTED
+                        || (DataType.isRepresentableInOutput(type)
+                            && type.supportedVersion().supportedOn(context.minimumVersion(), isSnapshot))
+                );
+        }
+
+        /**
+         * Warns, for each type of the field that the conversion doesn't accept, that the field is {@code null} in the indices that
+         * map it. Like every warning of the analysis, it's only sent if the query is valid.
+         */
+        private static void warnUnconvertedTypes(
+            ConvertFunction convert,
+            FieldAttribute fa,
+            TypeConflictedField tcf,
+            Set<DataType> supportedTypes,
+            AnalyzerContext context
+        ) {
+            // The types that ES|QL doesn't support are named as the indices have them, like rank_feature, instead of as unsupported.
+            Map<String, Set<String>> unconverted = new TreeMap<>();
+            tcf.getTypesToIndices().forEach((typeName, indices) -> {
+                DataType type = DataType.fromTypeName(typeName);
+                if (type == DataType.UNSUPPORTED) {
+                    unconverted.putAll(tcf.unsupportedOriginalTypesToIndices());
+                } else if (supportedTypes.contains(type.widenSmallNumeric()) == false) {
+                    unconverted.put(type.typeName(), indices);
+                }
+            });
+            unconverted.forEach((typeName, indices) -> {
+                // A truncated list ends with a "..." sentinel, which stays last.
+                List<String> names = new ArrayList<>(indices.stream().filter(i -> i.equals("...") == false).sorted().toList());
+                if (names.size() < indices.size()) {
+                    names.add("...");
+                }
+                context.deferredHeaderWarnings()
+                    .add(
+                        Strings.format(
+                            "Field [%s] of type [%s] in [%s] cannot be converted to [%s] and will be null in those indices.",
+                            fa.fieldName().string(),
+                            typeName,
+                            String.join(", ", names),
+                            convert.dataType().nameUpper()
+                        )
+                    );
+            });
+        }
+
+        /**
+         * Like {@link #warnUnconvertedTypes} for a field that was already a union when the conversion came, which doesn't know the
+         * indices of each type.
+         */
+        private static void warnUnconvertedMappedTypes(
+            ConvertFunction convert,
+            FieldAttribute fa,
+            UnionTypeEsField unionTypeEsField,
+            Set<DataType> supportedTypes,
+            AnalyzerContext context
+        ) {
+            mappedTypes(unionTypeEsField).stream()
+                .filter(type -> supportedTypes.contains(type.widenSmallNumeric()) == false)
+                .map(DataType::typeName)
+                .distinct()
+                .sorted()
+                .forEach(
+                    typeName -> context.deferredHeaderWarnings()
+                        .add(
+                            Strings.format(
+                                "Field [%s] of type [%s] cannot be converted to [%s] and will be null where it has that type.",
+                                fa.fieldName().string(),
+                                typeName,
+                                convert.dataType().nameUpper()
+                            )
+                        )
+                );
         }
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(
@@ -5016,6 +5120,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
         }
 
+        /** The types a union field is mapped as: the types its per-type conversions read. */
+        private static List<DataType> mappedTypes(UnionTypeEsField unionTypeEsField) {
+            return unionTypeEsField.getConversionExpressions()
+                .stream()
+                .map(e -> e instanceof AbstractConvertFunction convertFunction ? convertFunction.field().dataType() : DataType.UNSUPPORTED)
+                .toList();
+        }
+
         private static String unsupportedMappedTypeNames(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
             return unionTypeEsField.getConversionExpressions().stream().<String>mapMulti((e, consumer) -> {
                 if (e instanceof AbstractConvertFunction cf) {
@@ -5072,10 +5184,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> children = new ArrayList<>(fn.children());
             children.set(0, resolvedAttr);
             Expression e = ((Expression) convert).replaceChildren(children);
-            if (e.children().size() > 1 && e.typeResolved().unresolved()) {
+            boolean nullForThisType = convert.lenientOnInputType() && convert.supportedTypes().contains(type.widenSmallNumeric()) == false;
+            if (e.children().size() > 1 && e.typeResolved().unresolved() && nullForThisType == false) {
                 // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when
                 // they are valid. The caller reports the error. Conversions of the field alone don't resolve for every type they
-                // convert, like small numerics, which are widened when converting.
+                // convert, like small numerics, which are widened when converting. The conversion of a type that a lenient
+                // conversion doesn't accept is unresolved too, but it is null and has no error to report: it still has to be
+                // substituted, because the surrogates are not serializable.
                 return e;
             }
             /*
@@ -5211,7 +5326,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static EsField asTransportable(EsField field) {
             if (field instanceof TypeConflictedField tcf) {
-                return new UnsupportedEsField(tcf.getName(), tcf.getTypesToIndices().keySet().stream().toList());
+                return new UnsupportedEsField(tcf.getName(), tcf.originalTypes());
             }
             if (field instanceof InvalidMappedTsField imtf) {
                 return new UnsupportedEsField(imtf.getName(), List.of());

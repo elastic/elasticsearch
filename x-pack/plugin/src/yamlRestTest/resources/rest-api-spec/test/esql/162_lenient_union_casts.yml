@@ -1,0 +1,78 @@
+---
+# A cast of a field mapped to several types is null in the indices that map a type the cast doesn't convert, with a warning, instead
+# of failing the query.
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ lenient_cast ]
+      reason: "casts of a field mapped to a type they don't convert were an error"
+      test_runner_features: [ capabilities, warnings_regex, contains ]
+  - do:
+      indices.create:
+        index: lenient_ip
+        body:
+          mappings:
+            properties:
+              value:
+                type: ip
+  - do:
+      indices.create:
+        index: lenient_keyword
+        body:
+          mappings:
+            properties:
+              value:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "lenient_ip" } }
+          - { "value": "10.0.0.1" }
+          - { "index": { "_index": "lenient_keyword" } }
+          - { "value": "7" }
+
+---
+"cast to a type one of the types doesn't convert":
+  - do:
+      warnings_regex:
+        - "Field \\[value\\] of type \\[ip\\] in \\[lenient_ip\\] cannot be converted to \\[LONG\\] and will be null in those indices\\."
+      esql.query:
+        body:
+          query: 'FROM lenient_ip, lenient_keyword METADATA _index | EVAL x = value::long | SORT _index | KEEP _index, x | LIMIT 10'
+  - match: { columns: [ { name: _index, type: keyword }, { name: x, type: long } ] }
+  - match: { values: [ [ "lenient_ip", null ], [ "lenient_keyword", 7 ] ] }
+
+---
+"a cast that is null in an index filters out its rows":
+  - do:
+      warnings_regex:
+        - "Field \\[value\\] of type \\[ip\\] in \\[lenient_ip\\] cannot be converted to \\[LONG\\] and will be null in those indices\\."
+      esql.query:
+        body:
+          query: 'FROM lenient_ip, lenient_keyword METADATA _index | WHERE value::long > 0 | KEEP _index | LIMIT 10'
+  - match: { values: [ [ "lenient_keyword" ] ] }
+
+---
+"conversion function of a type one of the types doesn't convert":
+  - do:
+      warnings_regex:
+        - "Field \\[value\\] of type \\[ip\\] in \\[lenient_ip\\] cannot be converted to \\[INTEGER\\] and will be null in those indices\\."
+      esql.query:
+        body:
+          query: 'FROM lenient_ip, lenient_keyword METADATA _index | EVAL x = TO_INTEGER(value) | SORT _index | KEEP _index, x | LIMIT 10'
+  - match: { values: [ [ "lenient_ip", null ], [ "lenient_keyword", 7 ] ] }
+
+---
+"conversions that need the type of their input stay an error":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM lenient_ip, lenient_keyword | EVAL x = TO_GAUGE(value) | LIMIT 10'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Cannot use field [value] due to ambiguities' }

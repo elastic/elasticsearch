@@ -1071,7 +1071,7 @@ public class LocalExecutionPlanner {
                 String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
                 boolean discard = configuration.explainOnly();
                 if (discard == false) {
-                    IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
+                    IntoPageWriter.Factory.requireBatchDestinationUnchanged(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
                 }
                 IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
                     escfBulkService,

@@ -214,6 +214,23 @@ public final class IntoPageWriter {
             }
         }
 
+        /**
+         * The check a node runs when it plans the write, after the coordinator has authorized the caller and checked the destination, so
+         * a failure here means the destination changed since. As with a bulk, which resolves templates once and does not derive them
+         * again on a later hop, the node does not say why: the caller was not authorized for what a template would describe.
+         */
+        public static void requireBatchDestinationUnchanged(boolean batchIndexingSupported, ProjectMetadata project, String target) {
+            try {
+                requireBatchDestination(batchIndexingSupported, project, target);
+            } catch (ElasticsearchStatusException e) {
+                throw new ElasticsearchStatusException(
+                    "INTO [{}] can no longer be written as a batch, as its destination changed after the query was planned",
+                    RestStatus.CONFLICT,
+                    target
+                );
+            }
+        }
+
         private static boolean hasPipeline(ProjectMetadata project, String target) {
             IndexRequest probe = new IndexRequest(target);
             IngestService.setPipelineOnRequest(probe, IngestService.resolvePipelines(probe, probe, project, System.currentTimeMillis()));

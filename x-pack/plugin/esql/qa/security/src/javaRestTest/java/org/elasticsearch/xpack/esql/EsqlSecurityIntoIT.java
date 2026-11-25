@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -42,6 +43,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .feature(FeatureFlag.BATCH_INDEXING)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("indices.batch_indexing", "true")
@@ -82,6 +84,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         assertThat(missingBody, missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         String format = "action [indices:data/write/index:op_type/create] is unauthorized for user [%s] on indices [%s]";
         assertThat(existingBody, containsString(Strings.format(format, USER, EXISTING)));
+        assertThat(missingBody, containsString(Strings.format(format, USER, "into-missing")));
     }
 
     /**

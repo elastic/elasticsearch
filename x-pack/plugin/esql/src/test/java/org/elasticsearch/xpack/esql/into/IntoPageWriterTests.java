@@ -76,6 +76,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -413,6 +414,19 @@ public class IntoPageWriterTests extends ComputeTestCase {
             () -> IntoPageWriter.Factory.requireBatchDestination(true, project, "dest")
         );
         assertThat(e.getMessage(), containsString("ingest pipelines"));
+    }
+
+    public void testNodeDoesNotSayWhyTheDestinationIsNoLongerEligible() {
+        IndexMetadata index = IndexMetadata.builder("dest")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "my-pipeline"))
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true).build();
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> IntoPageWriter.Factory.requireBatchDestinationUnchanged(true, project, "dest")
+        );
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e.getMessage(), not(containsString("pipeline")));
     }
 
     public void testBatchIndexingDisabledIsRejected() {

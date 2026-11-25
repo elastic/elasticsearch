@@ -1608,7 +1608,7 @@ public class ArrowResponseTests extends ESTestCase {
 
     public void testTransformedValuesAreConvertedOnce() throws IOException {
         AtomicInteger conversionCount = new AtomicInteger();
-        var formatter = new BlockArrowFormatter.TransformedBytesRef(DataType.KEYWORD, Types.MinorType.VARCHAR, (value, scratch) -> {
+        var formatter = new BytesRefArrowFormatter.TransformedBytesRef(DataType.KEYWORD, Types.MinorType.VARCHAR, (value, scratch) -> {
             conversionCount.incrementAndGet();
             return value;
         });
@@ -1638,7 +1638,7 @@ public class ArrowResponseTests extends ESTestCase {
 
     public void testTransformedBytesRefAllNullShortCircuit() throws IOException {
         AtomicInteger conversionCount = new AtomicInteger();
-        var formatter = new BlockArrowFormatter.TransformedBytesRef(DataType.KEYWORD, Types.MinorType.VARCHAR, (value, scratch) -> {
+        var formatter = new BytesRefArrowFormatter.TransformedBytesRef(DataType.KEYWORD, Types.MinorType.VARCHAR, (value, scratch) -> {
             conversionCount.incrementAndGet();
             return value;
         });

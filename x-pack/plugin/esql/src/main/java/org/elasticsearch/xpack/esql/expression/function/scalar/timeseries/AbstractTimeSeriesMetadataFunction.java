@@ -66,9 +66,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
      * Nodes that know the label container functions. A plan reaches a node only when it knows every function in it, so a
      * translation emits these functions only when every node does.
      */
-    public static final TransportVersion ESQL_TIMESERIES_METADATA_FUNCTIONS = TransportVersion.fromName(
-        "esql_timeseries_metadata_functions"
-    );
+    public static final TransportVersion ENABLE_TSMETADATA_FN = TransportVersion.fromName("enable_tsmetadata_fn");
 
     private final List<String> passthrough;
 

@@ -412,7 +412,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      */
     public static boolean containerFunctions(TransportVersion minimumVersion) {
         return EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()
-            && minimumVersion.supports(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS);
+            && minimumVersion.supports(AbstractTimeSeriesMetadataFunction.ENABLE_TSMETADATA_FN);
     }
 
     public void verify(Failures failures, int maxBranches, String limitSource) {

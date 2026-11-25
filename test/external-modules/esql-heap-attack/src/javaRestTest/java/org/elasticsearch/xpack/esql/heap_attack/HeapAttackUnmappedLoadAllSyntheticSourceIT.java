@@ -25,6 +25,9 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 
 /**
  * Heap-attack coverage for {@code SET unmapped_fields="LOAD_ALL"} over an index with synthetic {@code _source}, where the unmapped
@@ -93,7 +96,7 @@ public class HeapAttackUnmappedLoadAllSyntheticSourceIT extends HeapAttackTestCa
      * Expected: the columns {@code id} and {@code _unmapped_fields}, and no warning
      * <p>
      * Each object is its own entry in {@code _ignored_source}, so this reads a thousand entries and merges them into the one JSON
-     * object of a row, which stored {@code _source} does not.
+     * object of a row, which stored {@code _source} does not. A sampled row must hold all of its 100,000 leaves.
      */
     public void testFewDocsWithHugeNumberOfDistinctFields() throws IOException {
         String index = "load_all_synthetic_huge_docs";
@@ -135,6 +138,30 @@ public class HeapAttackUnmappedLoadAllSyntheticSourceIT extends HeapAttackTestCa
         }
         assertThat(names, containsInAnyOrder(MAPPED_FIELD, "_unmapped_fields"));
         assertThat(response.getWarnings(), empty());
+
+        // The query above checks the shape of the response, and would pass if only one of the thousand entries of a row were merged.
+        // So read the values of one document, and check that its JSON holds every leaf, with some from the first, the middle and the last.
+        int sampled = 7;
+        StringBuilder sample = startQuery();
+        sample.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+        sample.append("FROM ").append(index).append("\n| WHERE ").append(MAPPED_FIELD).append(" == \\\"").append(sampled).append("\\\"\n");
+        sample.append("| LIMIT 1\"}");
+        Map<String, Object> sampleMap = responseAsMap(query(sample.toString(), "columns,values"));
+        int column = -1;
+        List<?> sampleColumns = (List<?>) sampleMap.get("columns");
+        for (int c = 0; c < sampleColumns.size(); c++) {
+            if ("_unmapped_fields".equals(((Map<?, ?>) sampleColumns.get(c)).get("name"))) {
+                column = c;
+            }
+        }
+        assertThat(column, greaterThanOrEqualTo(0));
+        Map<?, ?> json = (Map<?, ?>) ((List<?>) ((List<?>) sampleMap.get("values")).get(0)).get(column);
+        assertThat(json.size(), equalTo(objectsPerDoc * leavesPerObject));
+        for (int o : new int[] { 0, objectsPerDoc / 2, objectsPerDoc - 1 }) {
+            for (int l : new int[] { 0, leavesPerObject / 2, leavesPerObject - 1 }) {
+                assertThat(json, hasKey(String.format(Locale.ROOT, "d%d_g%03d.f%03d", sampled, o, l)));
+            }
+        }
     }
 
     private Map<String, Object> loadAllOneRow(String index) throws IOException {

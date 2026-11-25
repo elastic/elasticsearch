@@ -21,8 +21,8 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 
 public class TimeSeriesMetadataPathErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
-    /** Passthrough objects as remote write maps them: every label in a {@code labels} object. */
-    static final List<String> PASSTHROUGH = List.of("labels");
+    /** The {@code paths} of remote write, which keeps every label in a {@code labels} object. */
+    static final List<String> PATHS = List.of("labels");
 
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -31,7 +31,7 @@ public class TimeSeriesMetadataPathErrorTests extends ErrorsForCasesWithoutExamp
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesMetadataPath(source, args.get(0), args.get(1), PASSTHROUGH);
+        return new TimeSeriesMetadataPath(source, args.get(0), args.get(1), PATHS);
     }
 
     @Override

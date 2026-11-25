@@ -33,21 +33,21 @@ final class TimeSeriesMetadataFilterEvaluator extends AbstractTimeSeriesMetadata
     private final List<String> keys;
     private final Set<String> keySet;
     private final boolean exclude;
-    private final Set<String> passthrough;
+    private final Set<String> paths;
 
     TimeSeriesMetadataFilterEvaluator(
         DriverContext driverContext,
         ExpressionEvaluator metadata,
         List<String> keys,
         boolean exclude,
-        Set<String> passthrough
+        Set<String> paths
     ) {
         super(driverContext, metadata);
         this.metadata = metadata;
         this.keys = keys;
         this.keySet = Set.copyOf(keys);
         this.exclude = exclude;
-        this.passthrough = passthrough;
+        this.paths = paths;
     }
 
     @Override
@@ -82,7 +82,7 @@ final class TimeSeriesMetadataFilterEvaluator extends AbstractTimeSeriesMetadata
             if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
                 String object = prefix + name;
                 writer.startObject(name);
-                copy(parser, object + ".", labelPrefix(object, label + name, passthrough), writer);
+                copy(parser, object + ".", labelPrefix(object, label + name, paths), writer);
                 writer.endObject();
             } else if (keySet.contains(label + name) != exclude) {
                 writer.field(name).copyCurrentStructure(parser);
@@ -110,12 +110,12 @@ final class TimeSeriesMetadataFilterEvaluator extends AbstractTimeSeriesMetadata
         return "TimeSeriesMetadataFilterEvaluator[metadata=" + metadata + ", keys=" + keys + ", exclude=" + exclude + "]";
     }
 
-    record Factory(ExpressionEvaluator.Factory metadata, List<String> keys, boolean exclude, Set<String> passthrough)
+    record Factory(ExpressionEvaluator.Factory metadata, List<String> keys, boolean exclude, Set<String> paths)
         implements
             ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesMetadataFilterEvaluator(context, metadata.get(context), keys, exclude, passthrough);
+            return new TimeSeriesMetadataFilterEvaluator(context, metadata.get(context), keys, exclude, paths);
         }
 
         @Override

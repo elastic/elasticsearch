@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCase {
-    /** Passthrough objects as remote write maps them: every label in a {@code labels} object. */
-    static final List<String> PASSTHROUGH = List.of("labels");
+    /** The {@code paths} of remote write, which keeps every label in a {@code labels} object. */
+    static final List<String> PATHS = List.of("labels");
 
     public TimeSeriesMetadataFilterTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -83,7 +83,7 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), false, PASSTHROUGH);
+        return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), false, PATHS);
     }
 
     /** A missing metadata is the empty one, so keeping keys of it leaves it empty rather than null. */
@@ -106,7 +106,7 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
                 metadata,
                 List.of(Literal.keyword(Source.EMPTY, "pod"), key),
                 false,
-                PASSTHROUGH
+                PATHS
             );
             assertTrue(key.toString(), transform.typeResolved().unresolved());
         }
@@ -119,7 +119,7 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
             field("metadata", DataType.LONG),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             false,
-            PASSTHROUGH
+            PATHS
         );
         assertThat(transform.typeResolved().message(), containsString("_timeseries"));
     }
@@ -143,7 +143,7 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
             field("metadata", DataType.KEYWORD),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             false,
-            PASSTHROUGH
+            PATHS
         );
         try (
             ExpressionEvaluator eval = evaluator(transform).get(driverContext());

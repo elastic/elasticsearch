@@ -34,7 +34,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
     private final String key;
     private final List<String> path;
     private final ExpressionEvaluator value;
-    private final Set<String> passthrough;
+    private final Set<String> paths;
 
     TimeSeriesMetadataSetEvaluator(
         DriverContext driverContext,
@@ -42,14 +42,14 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
         String key,
         List<String> path,
         ExpressionEvaluator value,
-        Set<String> passthrough
+        Set<String> paths
     ) {
         super(driverContext, metadata, value);
         this.metadata = metadata;
         this.key = key;
         this.path = path;
         this.value = value;
-        this.passthrough = passthrough;
+        this.paths = paths;
     }
 
     @Override
@@ -100,7 +100,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
             if (token == XContentParser.Token.START_OBJECT) {
                 String object = prefix + name;
                 writer.startObject(name);
-                copy(parser, object + ".", labelPrefix(object, label + name, passthrough), order == 0 ? depth + 1 : -1, writer, values);
+                copy(parser, object + ".", labelPrefix(object, label + name, paths), order == 0 ? depth + 1 : -1, writer, values);
                 writer.endObject();
                 write &= order != 0;
             } else if (isLabel(key, label, name)) {
@@ -165,11 +165,11 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
         String key,
         List<String> path,
         ExpressionEvaluator.Factory value,
-        Set<String> passthrough
+        Set<String> paths
     ) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesMetadataSetEvaluator(context, metadata.get(context), key, path, value.get(context), passthrough);
+            return new TimeSeriesMetadataSetEvaluator(context, metadata.get(context), key, path, value.get(context), paths);
         }
 
         @Override

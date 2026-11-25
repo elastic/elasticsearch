@@ -21,7 +21,7 @@ public class TimeSeriesMetadataSetSerializationTests extends AbstractExpressionS
             randomChild(),
             randomChild(),
             randomPath(),
-            TimeSeriesMetadataPathSerializationTests.randomPassthrough()
+            TimeSeriesMetadataPathSerializationTests.randomPaths()
         );
     }
 
@@ -31,28 +31,11 @@ public class TimeSeriesMetadataSetSerializationTests extends AbstractExpressionS
         int index = randomInt(children.size() + 1);
         if (index == children.size()) {
             List<String> path = randomValueOtherThan(instance.path(), TimeSeriesMetadataSetSerializationTests::randomPath);
-            return new TimeSeriesMetadataSet(
-                instance.source(),
-                children.get(0),
-                children.get(1),
-                children.get(2),
-                path,
-                instance.passthrough()
-            );
+            return new TimeSeriesMetadataSet(instance.source(), children.get(0), children.get(1), children.get(2), path, instance.paths());
         }
         if (index == children.size() + 1) {
-            List<String> passthrough = randomValueOtherThan(
-                instance.passthrough(),
-                TimeSeriesMetadataPathSerializationTests::randomPassthrough
-            );
-            return new TimeSeriesMetadataSet(
-                instance.source(),
-                children.get(0),
-                children.get(1),
-                children.get(2),
-                instance.path(),
-                passthrough
-            );
+            List<String> paths = randomValueOtherThan(instance.paths(), TimeSeriesMetadataPathSerializationTests::randomPaths);
+            return new TimeSeriesMetadataSet(instance.source(), children.get(0), children.get(1), children.get(2), instance.path(), paths);
         }
         children.set(index, mutateExpression(children.get(index)));
         return instance.replaceChildren(children);

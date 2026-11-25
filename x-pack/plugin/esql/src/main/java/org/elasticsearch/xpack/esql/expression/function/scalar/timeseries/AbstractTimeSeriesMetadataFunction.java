@@ -57,9 +57,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * <p>
  * A container holds a dimension at the path its storage gives it: remote write keeps {@code pod} at {@code labels.pod}, OTel keeps
  * {@code state} at {@code attributes.state}. A key names a dimension by its label name instead: its path below the innermost of the
- * {@link #passthrough} objects holding it, or its full path when none does. So {@code pod}, {@code labels.pod} and
+ * objects at {@link #paths} holding it, or its full path when none does. So {@code pod}, {@code labels.pod} and
  * {@code attributes.pod} all have the label name {@code pod}, and a key {@code pod} matches each of them; a field below an object
- * that is not passthrough, as {@code host.name}, keeps its full path. A function treats every field a key matches as that one key.
+ * not in {@link #paths}, as {@code host.name}, keeps its full path. A function treats every field a key matches as that one key.
  */
 public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
     /**
@@ -68,11 +68,11 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
      */
     public static final TransportVersion ENABLE_TSMETADATA_FN = TransportVersion.fromName("enable_tsmetadata_fn");
 
-    private final List<String> passthrough;
+    private final List<String> paths;
 
-    protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments, List<String> passthrough) {
+    protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments, List<String> paths) {
         super(source, arguments);
-        this.passthrough = passthrough;
+        this.paths = paths;
     }
 
     protected AbstractTimeSeriesMetadataFunction(StreamInput in) throws IOException {
@@ -87,21 +87,21 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(children());
-        out.writeStringCollection(passthrough);
+        out.writeStringCollection(paths);
         writeArguments(out);
     }
 
     /** Writes the arguments that are not expressions, after the children; a subclass reads them back in the same order. */
     protected void writeArguments(StreamOutput out) throws IOException {}
 
-    /** The paths of the passthrough objects, below which a dimension is named by its path below the innermost one. */
-    public List<String> passthrough() {
-        return passthrough;
+    /** The paths of the objects below which a dimension is named by its path below the innermost one. */
+    public List<String> paths() {
+        return paths;
     }
 
     /** The label name of the dimension at {@code field}, see {@link AbstractTimeSeriesMetadataFunction}. */
-    static String labelName(String field, Set<String> passthrough) {
-        return PassthroughFields.withoutPassthroughParents(field, passthrough);
+    static String labelName(String field, Set<String> paths) {
+        return PassthroughFields.withoutPassthroughParents(field, paths);
     }
 
     /** The dimension names this function reads or writes: every argument after the metadata container by default. */
@@ -150,12 +150,12 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), passthrough);
+        return Objects.hash(super.hashCode(), paths);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && passthrough.equals(((AbstractTimeSeriesMetadataFunction) obj).passthrough);
+        return super.equals(obj) && paths.equals(((AbstractTimeSeriesMetadataFunction) obj).paths);
     }
 
     /** The name a key argument folds to; type resolution checks it is a non-empty string. */
@@ -305,12 +305,12 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
          * Moves {@code parser}, in the object at path {@code prefix} whose fields have the label name prefix {@code label}, to
          * the value of the first field whose label name is {@code key}, returning false when no field has it.
          */
-        static boolean find(XContentParser parser, String prefix, String label, String key, Set<String> passthrough) throws IOException {
+        static boolean find(XContentParser parser, String prefix, String label, String key, Set<String> paths) throws IOException {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
                 if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
                     String object = prefix + name;
-                    if (find(parser, object + ".", labelPrefix(object, label + name, passthrough), key, passthrough)) {
+                    if (find(parser, object + ".", labelPrefix(object, label + name, paths), key, paths)) {
                         return true;
                     }
                 } else if (isLabel(key, label, name)) {
@@ -323,11 +323,12 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         }
 
         /**
-         * The label name prefix of the fields of the object at {@code path}, whose own label name is {@code label}: none in a
-         * passthrough object, whose fields are named by their names in it, and the object's label name and a dot otherwise.
+         * The label name prefix of the fields of the object at {@code path}, whose own label name is {@code label}: none in an
+         * object at one of {@code paths}, whose fields are named by their names in it, and the object's label name and a dot
+         * otherwise.
          */
-        static String labelPrefix(String path, String label, Set<String> passthrough) {
-            return passthrough.contains(path) ? "" : label + ".";
+        static String labelPrefix(String path, String label, Set<String> paths) {
+            return paths.contains(path) ? "" : label + ".";
         }
 
         /** Whether the field {@code name}, in an object whose fields have the label name prefix {@code label}, is {@code key}. */

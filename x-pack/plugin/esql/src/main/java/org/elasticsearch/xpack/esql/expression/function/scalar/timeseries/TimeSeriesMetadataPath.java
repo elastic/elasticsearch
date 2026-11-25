@@ -32,8 +32,8 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
         TimeSeriesMetadataPath::new
     );
 
-    public TimeSeriesMetadataPath(Source source, Expression metadata, Expression key, List<String> passthrough) {
-        super(source, List.of(metadata, key), passthrough);
+    public TimeSeriesMetadataPath(Source source, Expression metadata, Expression key, List<String> paths) {
+        super(source, List.of(metadata, key), paths);
     }
 
     private TimeSeriesMetadataPath(StreamInput in) throws IOException {
@@ -55,7 +55,7 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
         return new TimeSeriesMetadataPathEvaluator.Factory(
             toEvaluator.apply(children().get(0)),
             foldKey(children().get(1), toEvaluator),
-            Set.copyOf(passthrough())
+            Set.copyOf(paths())
         );
     }
 
@@ -66,11 +66,11 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
 
     @Override
     public TimeSeriesMetadataPath replaceChildren(List<Expression> children) {
-        return new TimeSeriesMetadataPath(source(), children.get(0), children.get(1), passthrough());
+        return new TimeSeriesMetadataPath(source(), children.get(0), children.get(1), paths());
     }
 
     @Override
     protected NodeInfo<TimeSeriesMetadataPath> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataPath::new, children().get(0), children().get(1), passthrough());
+        return NodeInfo.create(this, TimeSeriesMetadataPath::new, children().get(0), children().get(1), paths());
     }
 }

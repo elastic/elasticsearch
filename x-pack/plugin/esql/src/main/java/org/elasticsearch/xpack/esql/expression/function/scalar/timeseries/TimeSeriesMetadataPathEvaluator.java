@@ -28,13 +28,13 @@ final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFu
 
     private final ExpressionEvaluator metadata;
     private final String key;
-    private final Set<String> passthrough;
+    private final Set<String> paths;
 
-    TimeSeriesMetadataPathEvaluator(DriverContext driverContext, ExpressionEvaluator metadata, String key, Set<String> passthrough) {
+    TimeSeriesMetadataPathEvaluator(DriverContext driverContext, ExpressionEvaluator metadata, String key, Set<String> paths) {
         super(driverContext, metadata);
         this.metadata = metadata;
         this.key = key;
-        this.passthrough = passthrough;
+        this.paths = paths;
     }
 
     @Override
@@ -47,7 +47,7 @@ final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFu
     ) throws IOException {
         if (container != null) {
             try (XContentParser parser = parser(container)) {
-                if (find(parser, "", "", key, passthrough)) {
+                if (find(parser, "", "", key, paths)) {
                     // A null or empty value reads as absent, as TS_SET writes an absent label.
                     if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                         List<BytesRef> values = new ArrayList<>();
@@ -94,10 +94,10 @@ final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFu
         return "TimeSeriesMetadataPathEvaluator[metadata=" + metadata + ", key=" + key + "]";
     }
 
-    record Factory(ExpressionEvaluator.Factory metadata, String key, Set<String> passthrough) implements ExpressionEvaluator.Factory {
+    record Factory(ExpressionEvaluator.Factory metadata, String key, Set<String> paths) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesMetadataPathEvaluator(context, metadata.get(context), key, passthrough);
+            return new TimeSeriesMetadataPathEvaluator(context, metadata.get(context), key, paths);
         }
 
         @Override

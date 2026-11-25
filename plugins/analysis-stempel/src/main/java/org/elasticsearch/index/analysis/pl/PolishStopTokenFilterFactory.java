@@ -70,5 +70,5 @@ public class PolishStopTokenFilterFactory extends AbstractTokenFilterFactory {
         return sharingKey;
     }
 
-    private record Key(Analysis.StableCharArraySet stopWords, boolean ignoreCase, boolean removeTrailing) {}
+    private record Key(Object stopWords, boolean ignoreCase, boolean removeTrailing) {}
 }

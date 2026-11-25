@@ -187,12 +187,17 @@ public class Analysis {
         return new StableCharArraySet(stopWords, settings.getAsBoolean("stopwords_case", false));
     }
 
+    /** Keys an unconfigured default stop set, whatever case mode it was loaded with. */
+    private enum DefaultStopWords {
+        INSTANCE
+    }
+
     /**
      * Wraps a stop set parsed with {@code ignoreCase} for a {@code sharingKey()}. With no stop words configured, parsing returns
-     * {@code defaultStopWords} as is, which stays case-sensitive whatever {@code ignoreCase} says.
+     * {@code defaultStopWords} as is, ignoring {@code ignoreCase}, so it is keyed by a marker rather than its words and a case mode.
      */
-    public static StableCharArraySet stableStopWords(CharArraySet stopWords, CharArraySet defaultStopWords, boolean ignoreCase) {
-        return new StableCharArraySet(stopWords, ignoreCase && stopWords != defaultStopWords);
+    public static Object stableStopWords(CharArraySet stopWords, CharArraySet defaultStopWords, boolean ignoreCase) {
+        return stopWords == defaultStopWords ? DefaultStopWords.INSTANCE : new StableCharArraySet(stopWords, ignoreCase);
     }
 
     /**

@@ -884,3 +884,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testDeeplyNestedFields
   issue: https://github.com/elastic/elasticsearch/issues/167380
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testAnyNullIsNull {TestCase=<long, 2 longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/167392

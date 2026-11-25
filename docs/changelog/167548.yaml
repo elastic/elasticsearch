@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 144400
+pr: 167548
+summary: Make casts and type conversion functions return null for inputs of a type they can't convert
+type: enhancement

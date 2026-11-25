@@ -4038,7 +4038,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
             LogicalPlan nested = analyzer().addIndex(mergedResolution("foo,bar", caps))
                 .query("FROM foo, bar | EVAL x = TO_IP(value::keyword, " + options + ")");
             List<ToIp> conversions = new ArrayList<>();
-            nested.forEachExpression(ToIp.class, conversions::add);
+            nested.forEachExpressionDown(ToIp.class, conversions::add);
             assertThat(conversions, hasSize(1));
             assertThat(conversions.get(0).children(), hasSize(2));
             assertThat(conversions.get(0).children().get(1), instanceOf(MapExpression.class));

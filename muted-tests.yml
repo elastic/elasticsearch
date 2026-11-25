@@ -234,6 +234,11 @@ tests:
   - :docs:yamlRestTest
   method: test {yaml=reference/search/retriever/line_983}
   issue: https://github.com/elastic/elasticsearch/issues/167204
+- class: org.elasticsearch.xpack.vectortile.feature.FeatureFactoryTests
+  tasks:
+  - :x-pack:plugin:vector-tile:test
+  method: testDegeneratedPolygon
+  issue: https://github.com/elastic/elasticsearch/issues/165844
 
 # Examples:
 #

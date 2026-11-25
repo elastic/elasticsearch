@@ -274,6 +274,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testNestedUnionOperandCopiesLimit() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         // An or below the top level reads its left operand twice, so each or nested on its left doubles the copies.
         int cap = 4;
         TestAnalyzer analyzer = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)

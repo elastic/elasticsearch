@@ -1291,10 +1291,8 @@ final class PageColumnReader implements Releasable {
         BytesRef[] binaries = new BytesRef[count];
         readBinariesDispatch(binaries, 0, count);
         for (int i = 0; i < count; i++) {
-            byte[] bytes = binaries[i].bytes;
-            int off = binaries[i].offset;
-            short float16Bits = (short) ((bytes[off + 1] & 0xFF) << 8 | (bytes[off] & 0xFF));
-            values[offset + i] = Float.float16ToFloat(float16Bits);
+            BytesRef raw = binaries[i];
+            values[offset + i] = ParquetColumnDecoding.float16ToDouble(raw.bytes, raw.offset, raw.length);
         }
     }
 
@@ -1613,7 +1611,7 @@ final class PageColumnReader implements Releasable {
         if (isUuid) {
             for (int i = 0; i < count; i++) {
                 BytesRef raw = vals[i];
-                vals[i] = new BytesRef(ParquetColumnDecoding.formatUuid(raw.bytes, raw.offset, raw.length));
+                vals[i] = new BytesRef(ParquetColumnDecoding.uuidText(raw.bytes, raw.offset, raw.length));
             }
             return;
         }

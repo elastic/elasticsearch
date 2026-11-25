@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.ValuesType;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
@@ -30,6 +34,7 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.LocalInputFile;
 import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
@@ -9266,6 +9271,34 @@ public class ParquetFormatReaderTests extends ESTestCase {
         return outputStream.toByteArray();
     }
 
+    /**
+     * Writes {@code schema} with the given writer version and no dictionary. Under {@code PARQUET_2_0} parquet-java
+     * stores a FIXED_LEN_BYTE_ARRAY column as DELTA_BYTE_ARRAY without checking a value's width, which is how a test
+     * puts a value of the wrong width in a file.
+     */
+    private byte[] createParquetFileWithoutDictionary(
+        MessageType schema,
+        ParquetProperties.WriterVersion version,
+        GroupCreator groupCreator
+    ) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        List<Group> groups = groupCreator.create(new SimpleGroupFactory(schema));
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withWriterVersion(version)
+                .withDictionaryEncoding(false)
+                .build()
+        ) {
+            for (Group group : groups) {
+                writer.write(group);
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
     private static OutputFile createOutputFile(ByteArrayOutputStream outputStream) {
         return new OutputFile() {
             @Override
@@ -11863,6 +11896,179 @@ public class ParquetFormatReaderTests extends ESTestCase {
             rewriteColumnStats(written, 0, "f16", stats -> setStatBound(stats, corruptMin, shortBound))
         );
         expectThrows(IllegalArgumentException.class, () -> footerOf(storageObject));
+    }
+
+    /**
+     * A UUID footer statistic is published as the hex text the scan renders, not as its raw bytes decoded as UTF-8,
+     * which no scanned value matches. One that is not 16 bytes is withheld, as for FIXED_LEN_BYTE_ARRAY DECIMAL and
+     * FLOAT16, since it has no text at all. parquet-java's V2 writer folds a wrong-width UUID value into the
+     * statistics and its footer parser accepts them, so the corrupt bound comes from a real write; the scan reads that
+     * value as empty text.
+     */
+    public void testUuidStatIsHexAndWrongWidthIsWithheld() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .named("u")
+            .named("test_schema");
+        // Unsigned byte order: low < high, an all-zero value shorter than 16 bytes sorts first and 0xFF bytes past 16 last.
+        UUID low = UUID.fromString("00000000-0000-0000-0000-0000000000ff");
+        UUID high = UUID.fromString("ff000000-0000-0000-0000-00000000000a");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        StorageObject valid = createStorageObject(
+            createParquetFileWithoutDictionary(
+                schema,
+                ParquetProperties.WriterVersion.PARQUET_2_0,
+                factory -> List.of(
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(toUuidBytes(high))),
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(toUuidBytes(low)))
+                )
+            )
+        );
+        var validStats = reader.metadata(valid).statistics().get().columnStatistics().get().get("u");
+        assertEquals(Optional.of(low.toString()), validStats.minValue());
+        assertEquals(Optional.of(high.toString()), validStats.maxValue());
+        Map<String, Object> validSplit = reader.discoverSplitRanges(valid).getFirst().statistics();
+        assertEquals(low.toString(), validSplit.get("_stats.columns.u.min"));
+        assertEquals(high.toString(), validSplit.get("_stats.columns.u.max"));
+
+        boolean corruptMin = randomBoolean();
+        byte[] corrupt = corruptMin ? new byte[between(0, 15)] : bytesOf((byte) 0xFF, between(17, 32));
+        StorageObject storageObject = createStorageObject(
+            createParquetFileWithoutDictionary(
+                schema,
+                ParquetProperties.WriterVersion.PARQUET_2_0,
+                factory -> List.of(
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(toUuidBytes(high))),
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(corrupt)),
+                    factory.newGroup().append("u", Binary.fromConstantByteArray(toUuidBytes(low)))
+                )
+            )
+        );
+        // The fixture must really carry the corrupt bound, as parquet-java reads it back.
+        Statistics<?> footerStats = footerOf(storageObject).getBlocks().getFirst().getColumns().getFirst().getStatistics();
+        assertEquals(corrupt.length, ((Binary) (corruptMin ? footerStats.genericGetMin() : footerStats.genericGetMax())).length());
+
+        var colStats = reader.metadata(storageObject).statistics().get().columnStatistics().get().get("u");
+        assertEquals("u min withheld", Optional.empty(), colStats.minValue());
+        assertEquals("u max withheld", Optional.empty(), colStats.maxValue());
+        assertEquals("u null count kept", OptionalLong.of(0L), colStats.nullCount());
+        Map<String, Object> split = reader.discoverSplitRanges(storageObject).getFirst().statistics();
+        assertNull("u split min withheld", split.get("_stats.columns.u.min"));
+        assertNull("u split max withheld", split.get("_stats.columns.u.max"));
+        assertEquals("u split null count kept", 0L, split.get("_stats.columns.u.null_count"));
+
+        for (ParquetFormatReader scan : List.of(reader, new ParquetFormatReader(blockFactory).withBaselinePath())) {
+            try (CloseableIterator<Page> iterator = scan.read(storageObject, null, 10)) {
+                Page page = iterator.next();
+                try {
+                    BytesRefBlock block = page.getBlock(0);
+                    assertEquals(3, block.getPositionCount());
+                    assertEquals(new BytesRef(high.toString()), block.getBytesRef(0, new BytesRef()));
+                    assertEquals(new BytesRef(), block.getBytesRef(1, new BytesRef()));
+                    assertEquals(new BytesRef(low.toString()), block.getBytesRef(2, new BytesRef()));
+                } finally {
+                    page.releaseBlocks();
+                }
+                assertFalse(iterator.hasNext());
+            }
+        }
+    }
+
+    /**
+     * A LIST&lt;UUID&gt; element that is not 16 bytes reads as an empty-text element, as the scalar read does, in both
+     * readers; its neighbours keep their hex text.
+     */
+    public void testWrongWidthUuidListElementReadsAsEmpty() throws Exception {
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .named("ids");
+        MessageType schema = new MessageType("test_schema", listType);
+        UUID uuid1 = new UUID(randomLong(), randomLong());
+        UUID uuid2 = new UUID(randomLong(), randomLong());
+        byte[] corrupt = randomBoolean() ? randomByteArrayOfLength(between(0, 15)) : randomByteArrayOfLength(between(17, 32));
+        byte[] data = createParquetFileWithoutDictionary(schema, ParquetProperties.WriterVersion.PARQUET_2_0, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ids");
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(toUuidBytes(uuid1)));
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(corrupt));
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(toUuidBytes(uuid2)));
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(data);
+        for (ParquetFormatReader reader : List.of(
+            new ParquetFormatReader(blockFactory),
+            new ParquetFormatReader(blockFactory).withBaselinePath()
+        )) {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+                Page page = iterator.next();
+                try {
+                    BytesRefBlock block = page.getBlock(0);
+                    assertEquals(3, block.getValueCount(0));
+                    int start = block.getFirstValueIndex(0);
+                    assertEquals(new BytesRef(uuid1.toString()), block.getBytesRef(start, new BytesRef()));
+                    assertEquals(new BytesRef(), block.getBytesRef(start + 1, new BytesRef()));
+                    assertEquals(new BytesRef(uuid2.toString()), block.getBytesRef(start + 2, new BytesRef()));
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * The wrong-width shapes the readers leave alone (see the ParquetColumnDecoding class Javadoc), pinned on the
+     * parquet-java checks that rule them out, so a parquet-java upgrade that drops one fails here. FLOAT16 and UUID
+     * annotate only FIXED_LEN_BYTE_ARRAY(2) and (16): the schema builder, which the footer parser builds the schema
+     * with, rejects any other shape. An INT96 value is always 12 bytes: the writer rejects another width under either
+     * writer version, no variable-width encoding reads INT96, and its footer min/max are dropped on read, so no INT96
+     * statistic needs a width check either.
+     */
+    public void testWrongWidthShapesRejectedByParquetJava() throws Exception {
+        var flba = PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
+        var binary = PrimitiveType.PrimitiveTypeName.BINARY;
+        expectThrows(IllegalStateException.class, () -> Types.required(flba).length(3).as(LogicalTypeAnnotation.float16Type()).named("f"));
+        expectThrows(IllegalStateException.class, () -> Types.required(binary).as(LogicalTypeAnnotation.float16Type()).named("f"));
+        expectThrows(IllegalStateException.class, () -> Types.required(flba).length(15).as(LogicalTypeAnnotation.uuidType()).named("u"));
+        expectThrows(IllegalStateException.class, () -> Types.required(binary).as(LogicalTypeAnnotation.uuidType()).named("u"));
+
+        MessageType int96 = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT96).named("t").named("test_schema");
+        for (ParquetProperties.WriterVersion version : ParquetProperties.WriterVersion.values()) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> createParquetFileWithoutDictionary(
+                    int96,
+                    version,
+                    factory -> List.of(factory.newGroup().append("t", Binary.fromConstantByteArray(new byte[11])))
+                )
+            );
+        }
+        ColumnDescriptor int96Column = int96.getColumnDescription(new String[] { "t" });
+        expectThrows(ParquetDecodingException.class, () -> Encoding.DELTA_BYTE_ARRAY.getValuesReader(int96Column, ValuesType.VALUES));
+        expectThrows(
+            ParquetDecodingException.class,
+            () -> Encoding.DELTA_LENGTH_BYTE_ARRAY.getValuesReader(int96Column, ValuesType.VALUES)
+        );
+
+        byte[] written = createParquetFile(
+            int96,
+            factory -> List.of(
+                factory.newGroup().append("t", new NanoTime(2_451_545, 0L)),
+                factory.newGroup().append("t", new NanoTime(2_451_546, 1L))
+            )
+        );
+        Statistics<?> stats = footerOf(createStorageObject(written)).getBlocks().getFirst().getColumns().getFirst().getStatistics();
+        assertFalse("parquet-java drops INT96 min/max", stats.hasNonNullValue());
+    }
+
+    private static byte[] bytesOf(byte b, int length) {
+        byte[] bytes = new byte[length];
+        Arrays.fill(bytes, b);
+        return bytes;
     }
 
     /** Records {@code bound} as the min (when {@code min} is set) or max statistic, in both the current and the legacy fields. */

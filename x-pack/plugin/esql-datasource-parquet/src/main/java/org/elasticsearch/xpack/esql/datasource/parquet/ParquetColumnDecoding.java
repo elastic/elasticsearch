@@ -54,6 +54,26 @@ import java.util.function.IntConsumer;
  * and {@link OptimizedParquetColumnIterator}. Centralises list-column decoding,
  * timestamp conversion, UUID formatting, {@code unsigned_long} sign-flip encoding, and other utilities so that bug
  * fixes in one decode path are automatically reflected in the other.
+ *
+ * <p><b>Values of the wrong length.</b> A value whose byte length cannot represent its type reads as that type's
+ * empty value: 0 for a {@code FLOAT16} ({@link #float16ToDouble}) and empty text for a {@code UUID}
+ * ({@link #uuidText}). The read neither fails nor decodes bytes the value does not have. Only a corrupt file holds
+ * such a value, and only through an encoding that does not cut values at the declared width: parquet-java's own V2
+ * writer stores a wrong-width {@code FIXED_LEN_BYTE_ARRAY} value as {@code DELTA_BYTE_ARRAY} without checking it.
+ * PLAIN, {@code BYTE_STREAM_SPLIT} and dictionary pages are cut at the declared width, and the footer parser rejects
+ * a {@code FLOAT16} or {@code UUID} annotation on any other physical shape. The empty value follows the lenient rules
+ * already in place: a negative PLAIN BINARY length reads as an empty value (see {@link PlainValueDecoder}) and an
+ * empty unscaled DECIMAL as 0 (see {@link #unscaledToBigInteger}). It is a value rather than a null because a
+ * required column builds a vector, which has no null, and a second, null-capable decode path only for corrupt files
+ * is not worth its cost. The optimized and baseline scans and the LIST arm all decode through these helpers, so they
+ * agree.
+ * <p>
+ * Two types have no such length. Any number of big-endian bytes is a two's complement integer, so a
+ * {@code FIXED_LEN_BYTE_ARRAY} DECIMAL of the wrong width reads as the value its bytes hold, as a BINARY one does.
+ * An INT96 value is always 12 bytes: parquet-java has no variable-width encoding for INT96 and its writer rejects any
+ * other width, so {@link #int96ToEpochMillis} treats another length as a broken invariant. Footer statistics are
+ * stricter than the scan: a bound of the wrong width is withheld (see {@link #isUsableStatBound}), since a default
+ * there would be a bound that says nothing about the row group.
  */
 final class ParquetColumnDecoding {
 
@@ -697,8 +717,7 @@ final class ParquetColumnDecoding {
         if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
             if (value instanceof Binary binary) {
                 byte[] bytes = binary.getBytes();
-                short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
-                return (double) Float.float16ToFloat(float16Bits);
+                return float16ToDouble(bytes, 0, bytes.length);
             }
             return null;
         }
@@ -717,23 +736,43 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Whether a footer min/max value may be published as a bound at all. A FIXED_LEN_BYTE_ARRAY DECIMAL or FLOAT16
-     * value always has the declared width, and parquet-java never truncates such bounds, so a statistic of any other
+     * Whether a footer min/max value may be published as a bound at all. A FIXED_LEN_BYTE_ARRAY DECIMAL, FLOAT16 or
+     * UUID value has the declared width, and parquet-java never truncates such bounds, so a statistic of any other
      * length for such a column is corrupt. Decoding it anyway would publish a bound no scanned value backs: a short
      * DECIMAL reads as an unrelated value (an empty one as 0, as for variable-length BINARY, where parquet-java really
      * does order an empty value as 0) that could prune a split holding matching rows or answer a pushed MIN/MAX
-     * wrongly, and a short FLOAT16 would read past its bytes. Callers withhold the column's min and max for that row
-     * group instead, which is always safe: nothing is pruned and MIN/MAX fall back to a scan. Every other value is
-     * usable here; type-specific checks (such as temporal range) stay with the normalization that follows.
+     * wrongly, a short FLOAT16 would read past its bytes, and a UUID has no text for any other width. Such a bound is
+     * reachable: parquet-java's V2 writer accepts a wrong-width UUID value (see the {@link ParquetColumnDecoding class
+     * Javadoc}) and folds it into the statistics, and its footer parser accepts the result. Callers withhold the
+     * column's min and max for that row group instead, which is always safe: nothing is pruned and MIN/MAX fall back
+     * to a scan. Every other value is usable here; type-specific checks (such as temporal range) stay with the
+     * normalization that follows. INT96 needs no check, as parquet-java drops INT96 min/max when it reads the footer.
      */
     static boolean isUsableStatBound(Object value, PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
         if (type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY
-            && (type.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation
-                || type.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation)
+            && (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation
+                || logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation
+                || logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation)
             && value instanceof Binary binary) {
             return binary.length() == type.getTypeLength();
         }
         return true;
+    }
+
+    /** Byte width of a Parquet {@code FLOAT16} value, an IEEE half stored little-endian. */
+    static final int FLOAT16_BYTES = 2;
+
+    /**
+     * Decodes a little-endian IEEE half ({@code FLOAT16}) into the {@code double} ESQL stores. A value that is not
+     * {@link #FLOAT16_BYTES} long reads as 0; see the {@link ParquetColumnDecoding class Javadoc}.
+     */
+    static double float16ToDouble(byte[] bytes, int offset, int length) {
+        if (length != FLOAT16_BYTES) {
+            return 0.0;
+        }
+        short float16Bits = (short) ((bytes[offset + 1] & 0xFF) << 8 | (bytes[offset] & 0xFF));
+        return Float.float16ToFloat(float16Bits);
     }
 
     /**
@@ -780,10 +819,23 @@ final class ParquetColumnDecoding {
 
     // ---- UUID formatting ----
 
+    /** Byte width of a Parquet {@code UUID} value. */
+    static final int UUID_BYTES = 16;
+
+    /**
+     * The KEYWORD text of a Parquet {@code UUID} value: the 8-4-4-4-12 hex string of {@link #formatUuid}, or empty
+     * text for a value that is not {@link #UUID_BYTES} long (see the {@link ParquetColumnDecoding class Javadoc}).
+     * Every read of a file's UUID values goes through here rather than through {@link #formatUuid}, which rejects
+     * such a value.
+     */
+    static String uuidText(byte[] bytes, int offset, int length) {
+        return length == UUID_BYTES ? formatUuid(bytes, offset, length) : "";
+    }
+
     /**
      * Formats a 16-byte UUID in big-endian layout as the standard 8-4-4-4-12 hex string.
-     * Requires exactly 16 bytes; shorter or longer arrays indicate an upstream bug since
-     * Parquet {@code FIXED_LEN_BYTE_ARRAY(16)} is always exactly 16 bytes.
+     * Requires exactly 16 bytes and throws otherwise. A file value can have another length (see the
+     * {@link ParquetColumnDecoding class Javadoc}), so decode paths call {@link #uuidText} instead.
      */
     static String formatUuid(byte[] bytes) {
         return formatUuid(bytes, 0, bytes == null ? 0 : bytes.length);
@@ -821,9 +873,11 @@ final class ParquetColumnDecoding {
      * list agree with both.
      */
     static String declaredTextOf(Binary binary, @Nullable LogicalTypeAnnotation logical) {
-        return logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation
-            ? formatUuid(binary.getBytes())
-            : binary.toStringUsingUTF8();
+        if (logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation) {
+            byte[] bytes = binary.getBytes();
+            return uuidText(bytes, 0, bytes.length);
+        }
+        return binary.toStringUsingUTF8();
     }
 
     // ---- Skip helpers ----
@@ -1539,9 +1593,10 @@ final class ParquetColumnDecoding {
         // rather than sanitizing, which would mangle valid UUID bytes into replacement characters.
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-            Runnable appender = isUuid
-                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(input.reader().getBinary().getBytes())))
-                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(input.reader().getBinary().getBytes())));
+            Runnable appender = isUuid ? () -> {
+                byte[] bytes = input.reader().getBinary().getBytes();
+                builder.appendBytesRef(new BytesRef(uuidText(bytes, 0, bytes.length)));
+            } : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(input.reader().getBinary().getBytes())));
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }
@@ -1629,9 +1684,9 @@ final class ParquetColumnDecoding {
                         input.consumeUndefined();
                     } else {
                         // Always read the value so the data cursor advances, also past a row skip_row drops. The
-                        // text render stays inside the try: formatUuid rejects a UUID annotation over anything but
-                        // 16 bytes, and that is a per-value failure for the error policy to handle, not a reason to
-                        // abandon the read with the cursor un-consumed.
+                        // text render stays inside the try so that any failure rendering it is a per-value failure
+                        // for the error policy to handle, not a reason to abandon the read with the cursor
+                        // un-consumed. A UUID of the wrong width renders as empty text, which fails to parse.
                         Binary raw = input.reader().getBinary();
                         if (rowDropped == false) {
                             try {

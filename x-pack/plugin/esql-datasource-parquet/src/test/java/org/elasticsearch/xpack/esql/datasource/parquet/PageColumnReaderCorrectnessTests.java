@@ -79,6 +79,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -1071,6 +1072,179 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertOptimizedMatchesBaseline(data, List.of("s"));
     }
 
+    // --- FIXED_LEN_BYTE_ARRAY values of the wrong width (see the ParquetColumnDecoding class Javadoc) ---
+
+    /**
+     * A FLOAT16 value that is not two bytes reads as 0 in both readers, rather than reading past a short value or
+     * decoding the first two bytes of a long one. A required column still reads as a vector.
+     */
+    public void testWrongWidthFloat16ReadsAsZero() throws IOException {
+        boolean optional = randomBoolean();
+        byte[][] values = {
+            toFloat16Bytes(1.5f),
+            randomByteArrayOfLength(between(0, 1)),
+            toFloat16Bytes(2.5f),
+            randomByteArrayOfLength(between(3, 8)),
+            optional ? null : toFloat16Bytes(4f),
+            toFloat16Bytes(-0.5f) };
+        Object[] expected = { 1.5, 0.0, 2.5, 0.0, optional ? null : 4.0, -0.5 };
+        byte[] data = writeDeltaFixedLenFile(2, LogicalTypeAnnotation.float16Type(), optional, values);
+        assertWrongWidthRead(data, DataType.DOUBLE, optional, expected);
+        try (Block sparse = sparseRead(data, "s", DataType.DOUBLE, new int[] { 0, 2, 5 })) {
+            assertValues("sparse", sparse, new Object[] { 1.5, 2.5, -0.5 });
+        }
+    }
+
+    /**
+     * A UUID value that is not 16 bytes reads as empty text in both readers, rather than failing the read. A required
+     * column still reads as a vector.
+     */
+    public void testWrongWidthUuidReadsAsEmpty() throws IOException {
+        boolean optional = randomBoolean();
+        UUID[] uuids = new UUID[4];
+        for (int i = 0; i < uuids.length; i++) {
+            uuids[i] = new UUID(randomLong(), randomLong());
+        }
+        byte[][] values = {
+            uuidBytes(uuids[0]),
+            randomByteArrayOfLength(between(0, 15)),
+            uuidBytes(uuids[1]),
+            randomByteArrayOfLength(between(17, 32)),
+            optional ? null : uuidBytes(uuids[2]),
+            uuidBytes(uuids[3]) };
+        Object[] expected = {
+            uuids[0].toString(),
+            "",
+            uuids[1].toString(),
+            "",
+            optional ? null : uuids[2].toString(),
+            uuids[3].toString() };
+        byte[] data = writeDeltaFixedLenFile(16, LogicalTypeAnnotation.uuidType(), optional, values);
+        assertWrongWidthRead(data, DataType.KEYWORD, optional, expected);
+        try (Block sparse = sparseRead(data, "s", DataType.KEYWORD, new int[] { 0, 2, 5 })) {
+            assertValues("sparse", sparse, new Object[] { uuids[0].toString(), uuids[1].toString(), uuids[3].toString() });
+        }
+    }
+
+    /**
+     * A FIXED_LEN_BYTE_ARRAY DECIMAL value has no width it cannot be read at: its big-endian bytes are a two's
+     * complement integer whatever their number, as for a BINARY DECIMAL, and an empty one is 0. Both readers read
+     * the value the bytes hold; this pins that they agree and do not fail.
+     */
+    public void testWrongWidthFixedLenDecimalReadsItsBytes() throws IOException {
+        byte[][] values = {
+            ByteBuffer.allocate(4).putInt(12345).array(),
+            new byte[] { 1, 0, 0 },
+            new byte[0],
+            new byte[] { 0, 0, 0, 0, 7 },
+            ByteBuffer.allocate(4).putInt(-678).array() };
+        Object[] expected = { 123.45, 655.36, 0.0, 0.07, -6.78 };
+        byte[] data = writeDeltaFixedLenFile(4, LogicalTypeAnnotation.decimalType(2, 9), false, values);
+        assertWrongWidthRead(data, DataType.DOUBLE, false, expected);
+    }
+
+    /**
+     * Reads column {@code s} of a {@link #writeDeltaFixedLenFile} file through the optimized and the baseline reader,
+     * both on a breaker that counts every byte, checks every value, checks that a required column is a vector, and
+     * that the breaker is back to zero once the blocks are released.
+     */
+    private void assertWrongWidthRead(byte[] data, DataType type, boolean optional, Object[] expected) throws IOException {
+        assertEquals(Set.of(Encoding.DELTA_BYTE_ARRAY), dataPageEncodings(data));
+        CountingBreaker breaker = new CountingBreaker();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
+        BlockFactory factory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+        try (Block block = fullRead(data, "s", type, factory)) {
+            assertValues("optimized", block, expected);
+            if (optional == false) {
+                assertNotNull("a required column reads as a vector", block.asVector());
+            }
+        }
+        List<Page> baseline = readAll(new ParquetFormatReader(factory).withBaselinePath(), data, List.of("s"));
+        try {
+            assertEquals(1, baseline.size());
+            assertValues("baseline", baseline.getFirst().getBlock(0), expected);
+        } finally {
+            baseline.forEach(Page::releaseBlocks);
+        }
+        assertEquals("every byte the blocks reserved must be released", 0L, breaker.used());
+        assertOptimizedMatchesBaseline(data, List.of("s"));
+    }
+
+    /** Checks a single-valued block against {@code expected}: a {@link Double}, a {@link String} or {@code null}. */
+    private static void assertValues(String ctx, Block block, Object[] expected) {
+        assertEquals(ctx + " rows", expected.length, block.getPositionCount());
+        for (int p = 0; p < expected.length; p++) {
+            if (expected[p] == null) {
+                assertTrue(ctx + " null at " + p, block.isNull(p));
+                continue;
+            }
+            assertFalse(ctx + " non-null at " + p, block.isNull(p));
+            int i = block.getFirstValueIndex(p);
+            switch (expected[p]) {
+                case Double d -> assertEquals(ctx + " at " + p, d, ((DoubleBlock) block).getDouble(i), 0.0);
+                case String s -> assertEquals(ctx + " at " + p, new BytesRef(s), ((BytesRefBlock) block).getBytesRef(i, new BytesRef()));
+                default -> throw new AssertionError("unexpected expected value " + expected[p]);
+            }
+        }
+    }
+
+    /**
+     * Writes one uncompressed FIXED_LEN_BYTE_ARRAY({@code typeLength}) column {@code s} annotated with {@code logical}
+     * through parquet-java's V2 writer without a dictionary. That writer stores the column as DELTA_BYTE_ARRAY and does
+     * not check a value's width, so a value of another width lands in the file as it is: the shape a corrupt file
+     * holds. Statistics are off because the FLOAT16 statistics reject such a value. A {@code null} entry is a null row
+     * of an optional column.
+     */
+    private byte[] writeDeltaFixedLenFile(int typeLength, LogicalTypeAnnotation logical, boolean optional, byte[][] values)
+        throws IOException {
+        var col = optional ? Types.optional(FIXED_LEN_BYTE_ARRAY) : Types.required(FIXED_LEN_BYTE_ARRAY);
+        MessageType schema = Types.buildMessage().addField(col.length(typeLength).as(logical).named("s")).named("wrong_width");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(codecFactory)
+                .withType(schema)
+                .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withStatisticsEnabled(false)
+                .withSizeStatisticsEnabled(false)
+                .build()
+        ) {
+            for (byte[] value : values) {
+                Group g = factory.newGroup();
+                if (value != null) {
+                    g.add("s", Binary.fromConstantByteArray(value));
+                }
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /** The value encodings of the data pages of column {@code s}, so a fixture cannot silently change encoding. */
+    private Set<Encoding> dataPageEncodings(byte[] data) throws IOException {
+        try (ParquetFileReader reader = openReader(data)) {
+            ColumnDescriptor desc = reader.getFileMetaData().getSchema().getColumnDescription(new String[] { "s" });
+            PageReader pages = reader.readNextRowGroup().getPageReader(desc);
+            Set<Encoding> encodings = new HashSet<>();
+            for (DataPage page = pages.readPage(); page != null; page = pages.readPage()) {
+                encodings.add(switch (page) {
+                    case DataPageV1 v1 -> v1.getValueEncoding();
+                    case DataPageV2 v2 -> v2.getDataEncoding();
+                    default -> throw new AssertionError("unexpected page " + page);
+                });
+            }
+            return encodings;
+        }
+    }
+
+    private static byte[] uuidBytes(UUID uuid) {
+        return ByteBuffer.allocate(16).putLong(uuid.getMostSignificantBits()).putLong(uuid.getLeastSignificantBits()).array();
+    }
+
     /**
      * Finds the one PLAIN value {@code before} (length prefix and payload) that is immediately followed by an
      * empty value, and overwrites the empty value's prefix with a random negative length, as a corrupt page
@@ -1984,6 +2158,11 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     /** Reads {@code column} as a single full batch through a fresh reader. The caller owns the block. */
     private Block fullRead(byte[] data, String column, DataType dataType) throws IOException {
+        return fullRead(data, column, dataType, blockFactory);
+    }
+
+    /** {@link #fullRead(byte[], String, DataType)} building the block with {@code factory}. */
+    private Block fullRead(byte[] data, String column, DataType dataType, BlockFactory factory) throws IOException {
         try (ParquetFileReader reader = openReader(data)) {
             BlockMetaData block = reader.getRowGroups().getFirst();
             MessageType schema = reader.getFileMetaData().getSchema();
@@ -2000,7 +2179,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             assertNotNull(store);
             int rgRows = Math.toIntExact(block.getRowCount());
             try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(rgRows))) {
-                return pcr.readBatch(rgRows, blockFactory);
+                return pcr.readBatch(rgRows, factory);
             }
         }
     }

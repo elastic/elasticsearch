@@ -69,4 +69,27 @@ public class MinHashIndexParamBoundsTests extends ESTestCase {
             assertEquals("Failed to parse int setting [" + key + "] with value [not_a_number]", e.getMessage());
         }
     }
+
+    public void testIndexSettingsViolations() {
+        assertEquals(List.of(), MinHashIndexParamBounds.indexSettingsViolations(null));
+        assertEquals(List.of(), MinHashIndexParamBounds.indexSettingsViolations(Settings.EMPTY));
+
+        // Only the min_hash filter that exceeds the bounds is reported, not one within them, one that can't be parsed, or a filter of
+        // another type.
+        Settings indexSettings = Settings.builder()
+            .put("index.analysis.filter.big.type", "min_hash")
+            .put("index.analysis.filter.big.hash_count", 1)
+            .put("index.analysis.filter.big.bucket_count", 512)
+            .put("index.analysis.filter.big.hash_set_size", 200)
+            .put("index.analysis.filter.small.type", "min_hash")
+            .put("index.analysis.filter.small.hash_set_size", 20)
+            .put("index.analysis.filter.bad.type", "min_hash")
+            .put("index.analysis.filter.bad.hash_count", "not_a_number")
+            .put("index.analysis.filter.other.type", "lowercase")
+            .build();
+        assertEquals(
+            List.of("[big]: " + MinHashIndexParamBounds.violation(1, 512, 200)),
+            MinHashIndexParamBounds.indexSettingsViolations(indexSettings)
+        );
+    }
 }

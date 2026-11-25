@@ -927,3 +927,8 @@ tests:
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<integer>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <null>, <long>, <long>, <long>,
     <long>, <long>, <long>, <long>, <long>, <long>}
   issue: https://github.com/elastic/elasticsearch/issues/167426
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testAnyNullIsNull {TestCase=<long>, <null>, <double>}
+  issue: https://github.com/elastic/elasticsearch/issues/167430

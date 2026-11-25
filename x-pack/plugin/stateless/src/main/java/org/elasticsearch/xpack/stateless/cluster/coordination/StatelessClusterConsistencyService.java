@@ -132,7 +132,7 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
         // translog file delete task), which were taken off the queue above. No later check will see those delayed listeners again, so
         // if the lease cannot be read they must be failed here too. Their owners retry on failure but wait forever if never called.
         final ActionListener<Void> allListeners = ActionListener.wrap(
-            ignored -> ActionListener.onResponse(listenersToCall, null),
+            ignored -> { assert false : "success is handled by the lease callback"; },
             e -> ActionListener.onFailure(listenersToCall, e)
         );
         ReadLease readLease = new ReadLease(timeout, allListeners.delegateFailureAndWrap((delegate, lease) -> {

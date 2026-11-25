@@ -139,9 +139,13 @@ public class StatelessClusterConsistencyServiceTests extends ESTestCase {
             new FailingLeaseReadElectionStrategy(1, failure),
             TimeValue.timeValueMillis(100)
         );
+        // Enqueue the whole batch before starting the monitor, otherwise it could run a check on a partial batch, consume the single
+        // injected
+        // lease read failure early, and let the listeners enqueued afterwards succeed
+        final var delayedChecks = addDelayedChecks(consistencyService);
         consistencyService.start();
         try {
-            for (var delayedCheck : addDelayedChecks(consistencyService)) {
+            for (var delayedCheck : delayedChecks) {
                 assertThat(safeAwaitFailure(delayedCheck), sameInstance(failure));
             }
             // The lease can be read again, so listeners that are queued afterwards, as a retry would, complete successfully

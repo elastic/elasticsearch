@@ -337,7 +337,7 @@ public class InboundHandler {
                         doHandleRequest(reg, request, transportChannel);
                     }
                 } else {
-                    handleRequestForking(/* autocloses */ request, reg, transportChannel);
+                    handleRequestForking(/* autocloses */ request, reg, transportChannel, decodedBytes);
                     request = null; // now owned by the thread we forked to
                 }
             } finally {
@@ -349,8 +349,18 @@ public class InboundHandler {
             sendErrorResponse(action, transportChannel, e);
         } catch (Throwable t) {
             // The sender still gets a failure response, which releases the decoded-bytes and in-flight charges, before the
-            // error keeps propagating since it may be fatal.
-            sendErrorResponse(action, transportChannel, new ElasticsearchException(t));
+            // error keeps propagating since it may be fatal. The reply is best-effort: it is skipped when a response has
+            // already been sent on this channel, and neither building nor sending it may mask the error below or leak the
+            // charges, which fall back to being released directly.
+            try {
+                if (decodedBytes.isReleased() == false) {
+                    sendErrorResponse(action, transportChannel, new ElasticsearchException(t));
+                }
+            } catch (Throwable suppressed) {
+                if (decodedBytes.isReleased() == false) {
+                    decodedBytes.close();
+                }
+            }
             if (t instanceof Error error) {
                 throw error;
             }
@@ -370,7 +380,12 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportRequest> void handleRequestForking(T request, RequestHandlerRegistry<T> reg, TransportChannel channel) {
+    private <T extends TransportRequest> void handleRequestForking(
+        T request,
+        RequestHandlerRegistry<T> reg,
+        TransportChannel channel,
+        DecodedRequestBytes decodedBytes
+    ) {
         boolean success = false;
         try {
             reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
@@ -379,7 +394,17 @@ public class InboundHandler {
                     try {
                         doHandleRequest(reg, request, channel);
                     } catch (Throwable t) {
-                        sendErrorResponse(reg.getAction(), channel, new ElasticsearchException(t));
+                        // Same best-effort reply as the direct path above: skipped when a response has already been sent
+                        // on this channel, and it may not mask the error below or leak the charges.
+                        try {
+                            if (decodedBytes.isReleased() == false) {
+                                sendErrorResponse(reg.getAction(), channel, new ElasticsearchException(t));
+                            }
+                        } catch (Throwable suppressed) {
+                            if (decodedBytes.isReleased() == false) {
+                                decodedBytes.close();
+                            }
+                        }
                         if (t instanceof Error error) {
                             throw error;
                         }

@@ -69,6 +69,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class InboundHandlerTests extends ESTestCase {
 
@@ -849,6 +850,123 @@ public class InboundHandlerTests extends ESTestCase {
         handler.inboundMessage(channel, replyMessage(requestId, true));
         assertThat(responseHandler.exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
         assertThat(responseHandler.exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
+    }
+
+    /**
+     * A request reader that charges decoded bytes and then throws an {@link OutOfMemoryError} before returning a request does not
+     * run the handler, and the failure response is still sent to the sender, releasing the decoded-bytes charge and the in-flight
+     * charge instead of leaking them into the request breaker.
+     */
+    public void testDecodedRequestBytesReleasedWhenRequestReaderThrowsError() throws Exception {
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        handler = createInboundHandler(false);
+        final long decodedBytes = between(1, 2 * (int) DecodedRequestBytes.CHUNK_BYTES);
+        final AtomicBoolean inFlightReleased = new AtomicBoolean();
+        final AtomicBoolean handlerInvoked = new AtomicBoolean();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            assertNotNull(in.chargeDecodedBytes(decodedBytes, "test"));
+            throw new OutOfMemoryError("expected error from the request reader");
+        }, taskManager, (request, channel, task) -> {
+            handlerInvoked.set(true);
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE, false, true));
+        final CapturingResponseHandler responseHandler = readingResponseHandler();
+        final long requestId = responseHandlers.add(responseHandler, null, action).requestId();
+
+        final AtomicReference<OutOfMemoryError> errorCaptor = new AtomicReference<>();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            try {
+                handler.inboundMessage(channel, requestMessage(action, requestId, out, () -> inFlightReleased.set(true)));
+            } catch (OutOfMemoryError e) {
+                errorCaptor.set(e);
+            }
+        }
+        assertThat("error propagates to the caller", errorCaptor.get(), instanceOf(OutOfMemoryError.class));
+        assertEquals("expected error from the request reader", errorCaptor.get().getMessage());
+        assertFalse("handler does not run", handlerInvoked.get());
+        assertThat("released when the failure response is sent", requestBreaker.getUsed(), equalTo(0L));
+        assertTrue("released with the in-flight charge", inFlightReleased.get());
+        handler.inboundMessage(channel, replyMessage(requestId, true));
+        assertThat(responseHandler.exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
+        assertThat(responseHandler.exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
+    }
+
+    /**
+     * An {@link OutOfMemoryError} thrown after the handler already sent its response does not send a second reply for the same
+     * request or release the already-released charges again, and still propagates the error to the caller.
+     */
+    public void testNoSecondReplyWhenResponseWasAlreadySent() throws Exception {
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        handler = createInboundHandler(false);
+        final long decodedBytes = between(1, 2 * (int) DecodedRequestBytes.CHUNK_BYTES);
+        final AtomicBoolean inFlightReleased = new AtomicBoolean();
+        final AtomicReference<BytesReference> sent = new AtomicReference<>();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            assertNotNull(in.chargeDecodedBytes(decodedBytes, "test"));
+            return request;
+        }, taskManager, (request, transportChannel, task) -> {
+            transportChannel.sendResponse(new TestResponse("response before the error"));
+            sent.set(channel.getMessageCaptor().get());
+            throw new OutOfMemoryError("expected error after the response was sent");
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE, false, true));
+        final CapturingResponseHandler responseHandler = readingResponseHandler();
+        final long requestId = responseHandlers.add(responseHandler, null, action).requestId();
+
+        final AtomicReference<OutOfMemoryError> errorCaptor = new AtomicReference<>();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            try {
+                handler.inboundMessage(channel, requestMessage(action, requestId, out, () -> inFlightReleased.set(true)));
+            } catch (OutOfMemoryError e) {
+                errorCaptor.set(e);
+            }
+        }
+        assertThat("error propagates to the caller", errorCaptor.get(), instanceOf(OutOfMemoryError.class));
+        assertEquals("expected error after the response was sent", errorCaptor.get().getMessage());
+        assertThat("no second reply replaces the response on the channel", channel.getMessageCaptor().get(), sameInstance(sent.get()));
+        assertThat("charges stay released, and are only released once", requestBreaker.getUsed(), equalTo(0L));
+        assertTrue("released with the in-flight charge", inFlightReleased.get());
+    }
+
+    /**
+     * The failure response for a {@link Throwable} escaping request handling is best-effort: if sending the reply itself throws, the
+     * original error still propagates to the caller and the charges are still released by the failed reply attempt.
+     */
+    public void testOriginalErrorPropagatesWhenFailureReplySendFails() throws Exception {
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        handler = createInboundHandler(false);
+        channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address()) {
+            @Override
+            public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+                throw new OutOfMemoryError("expected error while sending the failure reply");
+            }
+        };
+        final long decodedBytes = between(1, 2 * (int) DecodedRequestBytes.CHUNK_BYTES);
+        final AtomicBoolean inFlightReleased = new AtomicBoolean();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            assertNotNull(in.chargeDecodedBytes(decodedBytes, "test"));
+            return request;
+        }, taskManager, (request, channel, task) -> {
+            throw new OutOfMemoryError("expected error from the request handler");
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE, false, true));
+        final CapturingResponseHandler responseHandler = readingResponseHandler();
+        final long requestId = responseHandlers.add(responseHandler, null, action).requestId();
+
+        final AtomicReference<OutOfMemoryError> errorCaptor = new AtomicReference<>();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            try {
+                handler.inboundMessage(channel, requestMessage(action, requestId, out, () -> inFlightReleased.set(true)));
+            } catch (OutOfMemoryError e) {
+                errorCaptor.set(e);
+            }
+        }
+        assertNotNull("the original error propagates to the caller", errorCaptor.get());
+        assertEquals("expected error from the request handler", errorCaptor.get().getMessage());
+        assertThat("released by the failed reply attempt", requestBreaker.getUsed(), equalTo(0L));
+        assertTrue("released with the in-flight charge", inFlightReleased.get());
     }
     /**
      * The breaker is checked each time a request's charges reach a chunk, and once more after the request is read, not on every charge.

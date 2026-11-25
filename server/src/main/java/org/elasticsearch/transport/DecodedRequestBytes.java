@@ -104,6 +104,14 @@ final class DecodedRequestBytes implements Releasable {
         }
     }
 
+    /**
+     * Whether the charges have been returned and the in-flight release closed, which happens when the response is sent,
+     * on any thread.
+     */
+    boolean isReleased() {
+        return released;
+    }
+
     @Override
     public void close() {
         try {

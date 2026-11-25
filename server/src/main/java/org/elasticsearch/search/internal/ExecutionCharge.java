@@ -12,7 +12,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.document.RangeFieldQuery;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -25,7 +24,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 import org.elasticsearch.lucene.search.IndexedSpatialQueries;
@@ -34,8 +32,7 @@ import java.io.IOException;
 
 /**
  * What {@link ExecutionBreakerWeight} charges for one query whose scorer allocates per-leaf execution memory.
- * {@link #forQuery} maps each such query to its charge; a query defined outside {@code server} has its weight implement
- * {@link AccountableWeight} instead.
+ * {@link #forQuery} maps each such query to its charge.
  * <p>
  * {@link ContextIndexSearcher#createWeight} consults {@link #forQuery} only for the queries that reach the searcher: the root, and
  * children whose parent builds their weight through {@code searcher.createWeight} (e.g. {@link BooleanQuery}
@@ -46,35 +43,7 @@ import java.io.IOException;
  * @param estimator sizes the query's execution memory on each leaf
  * @param label     the request circuit breaker label the memory is charged under
  */
-public record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
-
-    /**
-     * A {@link Weight} whose scorers allocate per-leaf execution memory, such as a doc id set they materialize. {@link #forQuery}
-     * recognises only Lucene's queries by their type, so this is how a query defined outside {@code server} gets the same treatment.
-     * It is checked on the weight rather than the query because the charger belongs to one search, and a query is immutable and may
-     * be shared by several. Everything charged on a leaf, up front or through the charger, is released once the leaf is done.
-     */
-    public interface AccountableWeight {
-
-        /**
-         * Called once, when a searcher with a request circuit breaker has created this weight and before it scores any leaf.
-         *
-         * @param charger charges the request circuit breaker as the scorers allocate, which a weight may keep for as long as it is
-         *                used
-         * @return a charge for {@link ExecutionBreakerWeight} to reserve each time a scorer is built, or {@code null} for none
-         */
-        @Nullable
-        ExecutionCharge executionCharge(LeafCharger charger);
-    }
-
-    /** Charges execution memory to a leaf; see {@link ContextIndexSearcher#chargeLeaf}. */
-    @FunctionalInterface
-    public interface LeafCharger {
-
-        /** Reserves {@code bytes} more for {@code ctx} under {@code label}. May trip the breaker, in which case nothing is reserved. */
-        void charge(LeafReaderContext ctx, long bytes, String label);
-    }
-
+record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
     /**
      * Looks through the wrappers that create their child's weight directly: {@link BoostQuery},
      * {@link IndexSortSortedNumericDocValuesRangeQuery} and {@link IndexOrDocValuesQuery}. Their children never reach the searcher

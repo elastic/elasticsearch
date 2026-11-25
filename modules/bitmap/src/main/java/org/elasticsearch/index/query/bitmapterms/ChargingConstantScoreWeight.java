@@ -11,31 +11,27 @@ package org.elasticsearch.index.query.bitmapterms;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
-import org.elasticsearch.search.internal.ExecutionCharge;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.util.function.LongConsumer;
 
 /**
  * A {@link ConstantScoreWeight} whose scorers charge the {@link DocIdSetBuilder} they fill to the request circuit breaker as it grows,
- * so a clause is charged for the set it builds rather than for a bound on every set it could build. The charges go through the charger
- * the searcher hands over when it creates the weight; a searcher without a request circuit breaker hands over none, and nothing is
- * charged.
+ * so a clause is charged for the set it builds rather than for a bound on every set it could build. The charges go through
+ * {@link ContextIndexSearcher#getLeafCharger} of the searcher the weight is created with, which reaches the weight however its query
+ * is wrapped; on a searcher without a request circuit breaker nothing is charged.
  */
-abstract class ChargingConstantScoreWeight extends ConstantScoreWeight implements ExecutionCharge.AccountableWeight {
+abstract class ChargingConstantScoreWeight extends ConstantScoreWeight {
 
-    private ExecutionCharge.LeafCharger charger = (ctx, bytes, label) -> {};
+    private final ContextIndexSearcher.LeafCharger charger;
 
-    ChargingConstantScoreWeight(Query query, float score) {
+    ChargingConstantScoreWeight(Query query, float score, IndexSearcher searcher) {
         super(query, score);
-    }
-
-    @Override
-    public ExecutionCharge executionCharge(ExecutionCharge.LeafCharger charger) {
-        this.charger = charger;
-        return null;
+        this.charger = ContextIndexSearcher.getLeafCharger(searcher);
     }
 
     /** Charges the bytes it accepts to {@code ctx}, for as long as the leaf is scored. */

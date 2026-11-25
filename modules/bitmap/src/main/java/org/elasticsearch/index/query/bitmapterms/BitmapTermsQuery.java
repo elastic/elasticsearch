@@ -71,7 +71,7 @@ public class BitmapTermsQuery extends Query implements Accountable {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        return new ChargingConstantScoreWeight(this, boost) {
+        return new ChargingConstantScoreWeight(this, boost, searcher) {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 if (values.isEmpty()) {

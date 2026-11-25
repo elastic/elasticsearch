@@ -37,6 +37,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -52,6 +53,8 @@ import org.apache.lucene.util.bkd.BKDConfig;
 import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
 import org.elasticsearch.lucene.search.cost.FixedBitSetCost;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -113,6 +116,18 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
     /** {@link BoostQuery} creates its child's weight itself and returns it as is, so the searcher still sees the charging weight. */
     public void testChargedUnderBoostQuery() throws IOException {
         assertChargesThenReleases(null, new BoostQuery(randomFrom(pointsQuery(), termsQuery()), 2f));
+    }
+
+    /**
+     * Scored, {@link FunctionScoreQuery} creates its child's weight itself and returns one of its own, so the searcher never sees the
+     * bitmap weight, which is charged all the same through the searcher it was created with.
+     */
+    public void testChargedUnderScoringFunctionScore() throws IOException {
+        assertChargesThenReleases(
+            null,
+            new FunctionScoreQuery(randomFrom(pointsQuery(), termsQuery()), new WeightFactorFunction(2f)),
+            true
+        );
     }
 
     /**
@@ -234,6 +249,10 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
      * the largest single leaf's charge rather than their sum, and nothing is left for {@link ContextIndexSearcher#close} to release.
      */
     private void assertChargesThenReleases(String sortField, Query query) throws IOException {
+        assertChargesThenReleases(sortField, query, false);
+    }
+
+    private void assertChargesThenReleases(String sortField, Query query, boolean scored) throws IOException {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, sortField)) {
             assertThat("the peak tells leaves apart only if there are several", reader.leaves().size(), equalTo(SEGMENTS));
@@ -243,7 +262,10 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
                 largestLeafCharge = Math.max(largestLeafCharge, new DocIdSetBuilderCostEstimator(maxDoc, maxDoc).estimate());
             }
             try (ContextIndexSearcher searcher = newSearcher(reader, breaker)) {
-                assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(NUM_DOCS / 2));
+                long hits = scored
+                    ? searcher.search(query, new TopScoreDocCollectorManager(1, Integer.MAX_VALUE)).totalHits.value()
+                    : searcher.search(query, DummyTotalHitCountCollector.createManager());
+                assertThat(hits, equalTo((long) NUM_DOCS / 2));
                 assertThat("each leaf must release its charge once it is scored, not on close", breaker.getUsed(), equalTo(0L));
             }
             assertThat("a leaf must release its charge before the next leaf charges", breaker.peak(), equalTo(largestLeafCharge));

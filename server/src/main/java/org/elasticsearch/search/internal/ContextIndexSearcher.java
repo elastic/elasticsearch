@@ -212,6 +212,31 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
+     * Charges the request circuit breaker of {@code searcher} for the execution memory a weight's scorers allocate on a leaf, released
+     * when the leaf is done (see {@link #chargeLeaf}). Charges nothing when {@code searcher} is not a {@link ContextIndexSearcher} or
+     * has no breaker configured. Meant to be called from {@code Query#createWeight} by a query that learns what it allocates only while
+     * scoring. Every wrapper passes the searcher on to its child's {@code createWeight}, so this reaches the query however it is
+     * wrapped, which the charges this searcher applies itself do not.
+     */
+    public static LeafCharger getLeafCharger(IndexSearcher searcher) {
+        if (searcher instanceof ContextIndexSearcher cis && cis.executionAccounting.breaker() != null) {
+            // Created before any leaf is entered, so that each leaf is released when it is done rather than on close.
+            cis.executionAccounting.ensureCreated();
+            return cis::chargeLeaf;
+        }
+        return LeafCharger.NONE;
+    }
+
+    /** Charges execution memory to a leaf; see {@link #getLeafCharger}. */
+    @FunctionalInterface
+    public interface LeafCharger {
+        LeafCharger NONE = (ctx, bytes, label) -> {};
+
+        /** Reserves {@code bytes} more for {@code ctx} under {@code label}. May trip the breaker, in which case nothing is reserved. */
+        void charge(LeafReaderContext ctx, long bytes, String label);
+    }
+
+    /**
      * Returns a searcher over the same reader that uses {@code queryCache} and shares this searcher's request circuit breaker and
      * execution accounting. The execution memory its weights charge is released when this searcher is closed.
      */
@@ -352,11 +377,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 timer.stop();
                 profiler.pollLastElement();
             }
-            return chargingExecutionMemory(query, innerWeight, new ProfileWeight(query, innerWeight, profile));
+            return chargingExecutionMemory(query, new ProfileWeight(query, innerWeight, profile));
         }
         // The charging weight sits below the query cache, so a leaf served from the cache is not charged.
-        final Weight created = query.createWeight(this, scoreMode, boost);
-        final Weight weight = chargingExecutionMemory(query, created, created);
+        final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
         final QueryCache queryCache = getQueryCache();
         if (scoreMode.needsScores() == false && queryCache != null) {
             return queryCache.doCache(chargingCachePopulation(weight), getQueryCachingPolicy());
@@ -376,22 +400,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return new QueryCacheBreakerWeight(this, weight);
     }
 
-    /**
-     * Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker.
-     * {@code created} is the weight {@code query} created, which {@code weight} may wrap, e.g. for profiling.
-     */
-    private Weight chargingExecutionMemory(Query query, Weight created, Weight weight) {
+    /** Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker. */
+    private Weight chargingExecutionMemory(Query query, Weight weight) {
         if (executionAccounting.breaker() == null) {
             return weight;
         }
-        final ExecutionCharge charge;
-        if (created instanceof ExecutionCharge.AccountableWeight accountable) {
-            // The weight may charge through the charger from now on, so its leaves must be released from the first one.
-            executionAccounting.ensureCreated();
-            charge = accountable.executionCharge(this::chargeLeaf);
-        } else {
-            charge = ExecutionCharge.forQuery(query);
-        }
+        final ExecutionCharge charge = ExecutionCharge.forQuery(query);
         if (charge == null) {
             return weight;
         }

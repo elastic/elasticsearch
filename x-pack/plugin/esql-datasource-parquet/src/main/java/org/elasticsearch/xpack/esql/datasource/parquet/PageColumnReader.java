@@ -1754,6 +1754,7 @@ final class PageColumnReader implements Releasable {
                 cachedCompactDictionary.incRef();
                 dictVector = cachedCompactDictionary;
             } else {
+                releaseCachedCompactDictionary();
                 dictVector = compactDictionary(dict, marked, rankBase.length, referenced, blockFactory);
                 cacheCompactDictionary(dictVector, marked, rankBase.length);
             }
@@ -1779,12 +1780,17 @@ final class PageColumnReader implements Releasable {
 
     /** Retains one ref to the latest compact dictionary so consecutive batches with the same subset can share it. */
     private void cacheCompactDictionary(BytesRefVector dictionary, long[] marked, int words) {
+        assert cachedCompactDictionary == null;
         dictionary.incRef();
-        BytesRefVector previous = cachedCompactDictionary;
         cachedCompactDictionary = dictionary;
         System.arraycopy(marked, 0, compactDictionaryMarks, 0, words);
-        if (previous != null) {
-            previous.close();
+    }
+
+    /** Releases the reader's retained dictionary before allocating a replacement. */
+    private void releaseCachedCompactDictionary() {
+        if (cachedCompactDictionary != null) {
+            cachedCompactDictionary.close();
+            cachedCompactDictionary = null;
         }
     }
 
@@ -1925,10 +1931,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private void releaseCompactionScratch() {
-        if (cachedCompactDictionary != null) {
-            cachedCompactDictionary.close();
-            cachedCompactDictionary = null;
-        }
+        releaseCachedCompactDictionary();
         referencedEntries = null;
         compactDictionaryMarks = null;
         rankBase = null;

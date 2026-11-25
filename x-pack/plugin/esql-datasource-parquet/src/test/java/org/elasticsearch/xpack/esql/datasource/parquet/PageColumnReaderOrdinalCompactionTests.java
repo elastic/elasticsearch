@@ -591,6 +591,34 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
+    /** Replacing the reuse cache releases its old dictionary before allocating the new one. */
+    public void testReplacingCachedCompactDictionaryDoesNotTemporarilyRetainBoth() {
+        byte[][] dict = new byte[8][];
+        for (int i = 0; i < dict.length; i++) {
+            dict[i] = String.valueOf((char) ('a' + i)).repeat(64 * 1024).getBytes(StandardCharsets.UTF_8);
+        }
+        ColumnDescriptor desc = column(false);
+        PageReader pages = pageReader(dictionaryPage(dict), dictionaryDataPage(false, 0, 1, 0, 1), dictionaryDataPage(false, 2, 3, 2, 3));
+        try (PageColumnReader reader = new PageColumnReader(pages, desc, info(desc), null)) {
+            long firstDictionaryBytes;
+            try (BytesRefBlock first = (BytesRefBlock) reader.readBatch(4, blockFactory)) {
+                assertDictionarySize(first, 2);
+                firstDictionaryBytes = first.asOrdinals().getDictionaryVector().ramBytesUsed();
+            }
+            breaker.resetPeak();
+            try (BytesRefBlock second = (BytesRefBlock) reader.readBatch(4, blockFactory)) {
+                assertDictionarySize(second, 2);
+            }
+            long retainedAfterReplacement = breaker.getUsed();
+            assertThat(
+                "replacement peak must not include the old dictionary",
+                breaker.peakUsed() - retainedAfterReplacement,
+                lessThan(firstDictionaryBytes)
+            );
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
     /**
      * With every emitted block closed and the reader still open, the breaker holds exactly the
      * compaction scratch and the last compact dictionary retained for reuse; closing the reader
@@ -663,10 +691,12 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
         PageReader pages = pageReader(dictionaryPage(dict), dictionaryDataPage(false, 1, 2, 1, 2));
         long repairedBytes = RamUsageEstimator.shallowSizeOf(new BytesRef()) + RamUsageEstimator.sizeOf(new byte[3]);
         try (PageColumnReader reader = new PageColumnReader(pages, desc, info(desc), null)) {
+            long dictionaryBytes;
             try (BytesRefBlock block = (BytesRefBlock) reader.readBatch(4, blockFactory)) {
                 assertValues(block, "\uFFFD", "ok", "\uFFFD", "ok");
+                dictionaryBytes = block.asOrdinals().getDictionaryVector().ramBytesUsed();
             }
-            assertThat(breaker.getUsed(), greaterThanOrEqualTo(PageColumnReader.compactionScratchBytes(dict.length) + repairedBytes));
+            assertEquals(PageColumnReader.compactionScratchBytes(dict.length) + repairedBytes + dictionaryBytes, breaker.getUsed());
         }
         assertEquals(0, breaker.getUsed());
     }
@@ -1145,6 +1175,7 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
      */
     private static final class TestBreaker extends NoopCircuitBreaker {
         private final AtomicLong used = new AtomicLong();
+        private final AtomicLong peakUsed = new AtomicLong();
         private String tripLabel;
         private int blockAllocationsUntilTrip;
 
@@ -1175,17 +1206,30 @@ public class PageColumnReaderOrdinalCompactionTests extends ESTestCase {
                 blockAllocationsUntilTrip = 0;
                 throw new CircuitBreakingException("test trip on [" + label + "]", bytes, getLimit(), Durability.TRANSIENT);
             }
-            used.addAndGet(bytes);
+            updateUsed(bytes);
         }
 
         @Override
         public void addWithoutBreaking(long bytes) {
-            used.addAndGet(bytes);
+            updateUsed(bytes);
         }
 
         @Override
         public long getUsed() {
             return used.get();
+        }
+
+        void resetPeak() {
+            peakUsed.set(used.get());
+        }
+
+        long peakUsed() {
+            return peakUsed.get();
+        }
+
+        private void updateUsed(long bytes) {
+            long current = used.addAndGet(bytes);
+            peakUsed.accumulateAndGet(current, Math::max);
         }
     }
 }

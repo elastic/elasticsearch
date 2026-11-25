@@ -83,16 +83,6 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     }
 
     /**
-     * Returns whether this node can wrap the PEK for its next on-disk cluster-state persist, i.e., an active password id is configured
-     * and the matching password material is present in the current settings snapshot.
-     */
-    boolean canWrapForDisk() {
-        Settings s = settingsSupplier.get();
-        String id = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(s);
-        return ProjectEncryptionKeyPasswordSettings.hasPassword(s, id);
-    }
-
-    /**
      * Returns the current {@link EncryptionServiceState} of this node based on the visible cluster-state metadata and secure settings.
      */
     public EncryptionServiceState state() {
@@ -149,6 +139,11 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return null;
         }
+        return metadataIn(state);
+    }
+
+    @Nullable
+    ProjectEncryptionKeyMetadata metadataIn(ClusterState state) {
         ProjectMetadata project = state.metadata().projects().get(projectResolver.getProjectId());
         return project == null ? null : project.custom(ProjectEncryptionKeyMetadata.TYPE);
     }

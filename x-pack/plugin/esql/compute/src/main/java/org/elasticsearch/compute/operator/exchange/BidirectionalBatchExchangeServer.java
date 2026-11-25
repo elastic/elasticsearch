@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
@@ -336,7 +337,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 BatchExchangeStatusResponse response;
                 if (failure == null) {
                     DriverCompletionInfo completionInfo = batchDriver != null
-                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L, false)
+                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L, new QueryLoad(), false)
                         : DriverCompletionInfo.EMPTY;
                     response = new BatchExchangeStatusResponse(completionInfo.bytesRead(), completionInfo.warnings());
                 } else {

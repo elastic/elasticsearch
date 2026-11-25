@@ -3890,6 +3890,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_TS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, {@code DEDUP} compares the {@code _unmapped_fields} column like any other, so two
+         * rows that differ only in unmapped fields are not duplicates. It used to leave the column out of the comparison, and returned
+         * the value of an arbitrary row of each group. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165558">#165558</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_DEDUP_COMPARES_UNMAPPED_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -4380,6 +4388,12 @@ public class EsqlCapabilities {
          * vector argument has no element.
          */
         PROMQL_ABSENT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Fix PromQL {@code count_values} over a metric the index does not map: like Prometheus, it gives no element rather than
+         * failing to plan.
+         */
+        FIX_PROMQL_COUNT_VALUES_ABSENT_METRIC(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
@@ -5033,6 +5047,13 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for {@code ROW} under {@code unmapped_fields="LOAD_ALL"}, alone or as a branch of a subquery next to an index. A
+         * {@code ROW} has no {@code _source}, so it adds no unmapped fields and its rows have a null {@code _unmapped_fields}. Only
+         * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ROW(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
          * Snapshot-only until the command is advertised.
          */
@@ -5069,6 +5090,16 @@ public class EsqlCapabilities {
         FIX_TS_FIRST_LAST_SAMPLES,
 
         /**
+         * A {@code LOOKUP JOIN} with an {@code ON} expression, after a {@code RENAME} of an unmapped field, under
+         * {@code unmapped_fields} {@code "nullify"}, {@code "load"} or {@code "load_all"}, no longer fails with "Found ambiguous
+         * reference", whether or not a key of the join is the unmapped field. The rename makes the join resolve inside the rule that
+         * handles the unmapped fields, while it still has the parser's left fields, which hold both operands of every comparison, so the
+         * operand that the lookup index has was loaded onto the left side as an unmapped field. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165755">#165755</a>.
+         */
+        LOOKUP_JOIN_EXPRESSION_ON_UNMAPPED_LEFT_KEY,
+
+        /**
          * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
          * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
          */
@@ -5080,6 +5111,13 @@ public class EsqlCapabilities {
          * is on by default in builds with the feature flag.
          */
         FETCH_PHASE(EsqlFlags.FETCH_PHASE_FEATURE_FLAG),
+
+        /**
+         * A time-series {@code STATS} grouped by the same dimension twice (e.g. {@code BY cluster, c2 = cluster}) reads
+         * the dimension once instead of failing local planning with a duplicate output attribute.
+         * https://github.com/elastic/elasticsearch/issues/166793
+         */
+        FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

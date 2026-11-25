@@ -268,7 +268,16 @@ public class Mapper {
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof HashJoin hashJoin) {
+            if (hashJoin.unique() && hashJoin.repeatedKeys()) {
+                // A unique join matches a probe row to at most one build row, which only holds while the lookup table rejects
+                // repeated build keys.
+                throw new EsqlIllegalArgumentException("a unique hash join cannot allow repeated keys");
+            }
             PhysicalPlan left = mapInner(bp.left());
+            if (left instanceof FragmentExec) {
+                // The join runs on the coordinator: bring the left side's rows here, as for a coordinator LOOKUP JOIN.
+                left = new ExchangeExec(left.source(), left);
+            }
             PhysicalPlan right = mapInner(bp.right());
             if (right instanceof LocalSourceExec localData) {
                 var marker = newJoinMarker(hashJoin.source());
@@ -280,7 +289,8 @@ public class Mapper {
                     localData,
                     hashJoin.leftFields(),
                     hashJoin.rightFields(),
-                    addedFields
+                    addedFields,
+                    hashJoin.repeatedKeys()
                 );
                 // `INNER` tells operator to filter out non-matched outputs
                 if (hashJoin.config().type() == JoinTypes.INNER) {
@@ -329,7 +339,8 @@ public class Mapper {
                     localData,
                     config.leftFields(),
                     config.rightFields(),
-                    join.rightOutputFields()
+                    join.rightOutputFields(),
+                    false
                 );
             }
             if (right instanceof FragmentExec fragment) {

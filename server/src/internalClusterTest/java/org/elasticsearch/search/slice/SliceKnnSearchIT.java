@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
@@ -47,7 +46,7 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
     private static final int DIMS = 8;
     private static final int NEAR_DOCS = 30;
     private static final int FAR_DOCS = 3;
-    private static final String SLICES_REQUIRED = "to perform knn search on field [vector], the slices to search must be selected";
+    private static final String SLICES_REQUIRED = "[_slice] is required when [index.slice.enabled] is true";
 
     public void testKnnSearchSelectsNeighboursWithinSlice() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
@@ -88,8 +87,8 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
     }
 
     /**
-     * The vector field refuses a nearest neighbour search that does not name the slices to search, as a knn search or as a
-     * knn query at any depth of the query.
+     * A nearest neighbour search that does not name the slices to search is rejected, as a knn search or as a knn query at
+     * any depth of the query.
      */
     public void testKnnRequiresSelectedSlices() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
@@ -108,10 +107,10 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
     }
 
     /**
-     * The decision is made by the field of each index. In a request that also targets an index without slices, only the
-     * shards of the slice-enabled index fail.
+     * A request that also targets an index without slices is rejected as a whole when one of its indices is slice-enabled and
+     * no slice is named.
      */
-    public void testKnnRequiresSelectedSlicesOnlyOnSliceEnabledIndex() {
+    public void testKnnRequiresSelectedSlicesWhenAnyTargetedIndexIsSliceEnabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = createSliceIndex();
         assertAcked(prepareCreate("plain").setSettings(Settings.builder().put("index.number_of_shards", 1)).setMapping("""
@@ -120,13 +119,9 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
         refresh("plain");
 
         final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder("vector", queryVector(), 2, 10, null, null, null);
-        assertResponse(prepareSearch(index, "plain").setQuery(knnQuery), response -> {
-            assertThat(response.getFailedShards(), equalTo(1));
-            assertThat(response.getShardFailures().getFirst().index(), equalTo(index));
-            assertThat(response.getShardFailures().getFirst().reason(), containsString(SLICES_REQUIRED));
-            assertThat(response.getHits().getHits().length, equalTo(1));
-            assertThat(response.getHits().getHits()[0].getId(), equalTo("plain-1"));
-        });
+        final Exception e = expectThrows(Exception.class, prepareSearch(index, "plain").setQuery(knnQuery));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString(SLICES_REQUIRED));
     }
 
     /**
@@ -158,15 +153,17 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
     }
 
     /**
-     * A request that names no slice reads every slice when none of its queries needs them by name.
+     * There is no way to read every slice at once: a request without a knn part is rejected too when it names no slice.
      */
-    public void testOtherQueriesNeedNoSlices() {
+    public void testOtherQueriesRequireSliceWhenSliceEnabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final String index = createSliceIndex();
 
         for (QueryBuilder query : List.of(QueryBuilders.matchAllQuery(), QueryBuilders.existsQuery("vector"))) {
             final SearchRequestBuilder search = prepareSearch(index).setQuery(query).setSize(0);
-            assertHitCount(search, NEAR_DOCS + FAR_DOCS);
+            final Exception e = expectThrows(Exception.class, search);
+            assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(ExceptionsHelper.stackTrace(e), containsString(SLICES_REQUIRED));
         }
     }
 

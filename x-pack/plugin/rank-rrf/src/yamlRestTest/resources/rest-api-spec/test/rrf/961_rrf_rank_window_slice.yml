@@ -1,0 +1,57 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, close_to]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [slice_indexing]
+      reason: rrf retriever rank window on a slice-enabled index
+
+  - do:
+      indices.create:
+        index: sliced
+        body:
+          settings:
+            index.slice.enabled: true
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index: sliced
+        id: "1"
+        _slice: a
+        body: { text: "apple" }
+  - do:
+      index:
+        index: sliced
+        id: "2"
+        _slice: b
+        body: { text: "apple apple apple apple" }
+  - do:
+      indices.refresh:
+        index: sliced
+
+---
+"rrf rank window is filled from the requested slice only":
+  # the slice a document is the only candidate, so it holds rank 1 in both retrievers: 2 * 1/(60+1)
+  - do:
+      search:
+        index: sliced
+        _slice: a
+        body:
+          retriever:
+            rrf:
+              rank_window_size: 1
+              retrievers:
+                - standard:
+                    query: { match: { text: "apple" } }
+                - standard:
+                    query: { match: { text: "apple" } }
+          size: 1
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 0.0328, error: 0.0005 } }

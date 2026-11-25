@@ -25,6 +25,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The slices a source reads when the source spans clusters. Each cluster reads them from the plan it receives and applies
@@ -37,6 +38,9 @@ public class SliceSelectionCcsIT extends AbstractCrossClusterTestCase {
     private static final int SHARDS = 5;
     private static final Map<String, Integer> DOCS_PER_SLICE = Map.of("acme", 4, "globex", 3, "initech", 2);
     private static final int ALL_DOCS = 9;
+    private static final String ALL_SLICES = "_slice IN (\"acme\", \"globex\", \"initech\")";
+    private static final String SLICE_REQUIRED = "[_slice] is required when [index.slice.enabled] is true "
+        + "for search request targeting [";
 
     @Override
     protected List<String> remoteClusterAlias() {
@@ -60,11 +64,13 @@ public class SliceSelectionCcsIT extends AbstractCrossClusterTestCase {
     public void testSelectedSlicesRouteTheQueryOnEveryCluster() {
         String from = "FROM tenants, cluster-a:tenants METADATA _slice ";
 
-        try (EsqlQueryResponse response = runQuery(from + "| STATS c = COUNT(*)", true)) {
+        try (EsqlQueryResponse response = runQuery(from + "| WHERE " + ALL_SLICES + " | STATS c = COUNT(*)", true)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of((long) 2 * ALL_DOCS))));
-            assertThat(response.getExecutionInfo().getCluster(LOCAL_CLUSTER).getTotalShards(), equalTo(SHARDS));
-            assertThat(response.getExecutionInfo().getCluster(REMOTE_CLUSTER_1).getTotalShards(), equalTo(SHARDS));
+            assertThat(response.getExecutionInfo().getCluster(LOCAL_CLUSTER).getTotalShards(), lessThanOrEqualTo(SHARDS));
+            assertThat(response.getExecutionInfo().getCluster(REMOTE_CLUSTER_1).getTotalShards(), lessThanOrEqualTo(SHARDS));
         }
+        // a query that selects no slice is rejected, instead of reading every slice
+        assertRejected(from + "| STATS c = COUNT(*)");
         try (EsqlQueryResponse response = runQuery(from + "| WHERE _slice == \"acme\" | STATS c = COUNT(*)", true)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2L * DOCS_PER_SLICE.get("acme")))));
             assertThat(response.getExecutionInfo().getCluster(LOCAL_CLUSTER).getTotalShards(), equalTo(1));
@@ -92,7 +98,9 @@ public class SliceSelectionCcsIT extends AbstractCrossClusterTestCase {
 
     public void testSearchFunctionsOnEveryCluster() {
         String from = "FROM tenants, cluster-a:tenants METADATA _slice ";
-        try (EsqlQueryResponse response = runQuery(from + "| WHERE MATCH(description, \"document\") | STATS c = COUNT(*)", null)) {
+        String match = "| WHERE MATCH(description, \"document\") ";
+        assertRejected(from + match + "| STATS c = COUNT(*)");
+        try (EsqlQueryResponse response = runQuery(from + match + "AND " + ALL_SLICES + " | STATS c = COUNT(*)", null)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of((long) 2 * ALL_DOCS))));
         }
         String knn = "| WHERE KNN(vector, [1, 0, 0]) AND _slice IN (\"acme\", \"initech\") | KEEP _slice | LIMIT 100";
@@ -106,19 +114,22 @@ public class SliceSelectionCcsIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * The vector field of a slice-enabled index refuses a knn search that selects no slice, on whichever cluster the index is.
+     * A knn search that selects no slice of a slice-enabled index is rejected, on whichever cluster the index is.
      */
     public void testKnnRequiresSelectedSlicesOnEveryCluster() {
         for (String from : List.of("FROM tenants", "FROM cluster-a:tenants", "FROM tenants, cluster-a:tenants")) {
             EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(from + " | WHERE KNN(vector, [1, 0, 0]) | LIMIT 10");
             request.allowPartialResults(false);
             Exception e = expectThrows(Exception.class, () -> runQuery(request).close());
-            assertThat(
-                from,
-                ExceptionsHelper.stackTrace(e),
-                containsString("to perform knn search on field [vector], the slices to search must be selected")
-            );
+            assertThat(from, ExceptionsHelper.stackTrace(e), containsString(SLICE_REQUIRED));
         }
+    }
+
+    private void assertRejected(String query) {
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query);
+        request.allowPartialResults(false);
+        Exception e = expectThrows(Exception.class, () -> runQuery(request).close());
+        assertThat(query, ExceptionsHelper.stackTrace(e), containsString(SLICE_REQUIRED));
     }
 
     private void createSlicedIndex(String cluster) {

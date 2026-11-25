@@ -1,0 +1,57 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [slice_indexing]
+      reason: rrf retriever on a slice-enabled index
+
+  - do:
+      indices.create:
+        index: sliced
+        body:
+          settings:
+            index.slice.enabled: true
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index: sliced
+        id: "1"
+        _slice: a
+        body: { text: "apple banana", keyword: "fruit" }
+  - do:
+        index:
+          index: sliced
+          id: "2"
+          _slice: b
+          body: { text: "apple banana", keyword: "fruit" }
+  - do:
+      indices.refresh:
+        index: sliced
+
+---
+"rrf retriever with a slice only sees that slice":
+  - do:
+      search:
+        index: sliced
+        _slice: a
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - standard:
+                    query: { match: { text: "apple" } }
+                - standard:
+                    query: { term: { keyword: "fruit" } }
+          size: 10
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._slice: a }

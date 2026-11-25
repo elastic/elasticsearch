@@ -39,14 +39,16 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testNoSliceDefaultsToAllWhenSliceEnabledIndex() {
+    public void testNoSliceRejectedWhenSliceEnabledIndex() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
-        ValidateQueryResponse response = safeAwait(
+        IllegalArgumentException failure = safeAwaitFailure(
+            IllegalArgumentException.class,
+            ValidateQueryResponse.class,
             listener -> client().admin().indices().validateQuery(new ValidateQueryRequest("slice-enabled"), listener)
         );
-        assertTrue(response.isValid());
+        assertThat(failure.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 
     public void testRoutingRejectedWhenSliceEnabledIndex() {

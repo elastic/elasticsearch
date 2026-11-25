@@ -155,10 +155,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         // execute searches
         final SetOnce<RankDoc[]> results = new SetOnce<>();
         final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        // The inner searches read the slices of the point in time, which carries the slice of the request that opened it
+        final String searchSlice = ctx.getPointInTimeBuilder().getSearchSlice();
         for (var entry : innerRetrievers) {
             SearchRequest searchRequest = new SearchRequest().source(entry.source);
             // The can match phase can reorder shards, so we disable it to ensure the stable ordering
             searchRequest.setPreFilterShardSize(Integer.MAX_VALUE);
+            if (searchSlice != null) {
+                searchRequest.searchSlice(searchSlice);
+            }
             multiSearchRequest.add(searchRequest);
         }
         ctx.registerAsyncAction((client, listener) -> {

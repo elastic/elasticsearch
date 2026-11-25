@@ -7,6 +7,7 @@ simpleMetadataSlice
 required_capability: metadata_slice
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | SORT color
 | LIMIT 5
 | KEEP color, rgb_vector, _slice
@@ -44,17 +45,18 @@ withMixedIndices
 required_capability: metadata_slice
 
 FROM colors_with_slice, colors METADATA _slice, _index
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | SORT color, _index
 | LIMIT 5
 | KEEP color, rgb_vector, _slice, _index
 ;
 
 color:text  | rgb_vector:dense_vector | _slice:keyword | _index:keyword
-aqua marine | [127.0, 255.0, 212.0]   | null           | colors
 aqua marine | [127.0, 255.0, 212.0]   | cool           | colors_with_slice
-azure       | [240.0, 255.0, 255.0]   | null           | colors
 azure       | [240.0, 255.0, 255.0]   | neutral        | colors_with_slice
-beige       | [245.0, 245.0, 220.0]   | null           | colors
+beige       | [245.0, 245.0, 220.0]   | neutral        | colors_with_slice
+bisque      | [255.0, 228.0, 196.0]   | neutral        | colors_with_slice
+black       | [0.0, 0.0, 0.0]         | neutral        | colors_with_slice
 ;
 
 notEqualsFilterSlice
@@ -62,6 +64,7 @@ notEqualsFilterSlice
 required_capability: metadata_slice
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | WHERE _slice != "neutral"
 | SORT color
 | LIMIT 5
@@ -81,6 +84,7 @@ likeFilterSlice
 required_capability: metadata_slice
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | WHERE _slice LIKE "*_pink"
 | SORT color
 | LIMIT 5
@@ -100,6 +104,7 @@ rlikeFilterSlice
 required_capability: metadata_slice
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | WHERE _slice RLIKE "warm|cool"
 | SORT color
 | LIMIT 5
@@ -150,6 +155,7 @@ renameSliceThenFilter
 required_capability: metadata_slice
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | RENAME _slice AS category
 | WHERE category == "cool"
 | SORT color
@@ -170,6 +176,7 @@ nonPushdownFilterSlice
 required_capability: metadata_slice
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | WHERE SUBSTRING(_slice, 1, 1) == "w"
 | SORT color
 | LIMIT 5
@@ -189,6 +196,7 @@ statsGroupBySlice
 required_capability: metadata_slice
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | STATS c = COUNT(*) BY _slice
 | SORT _slice
 ;
@@ -283,6 +291,7 @@ required_capability: metadata_slice
 required_capability: slice_selection_from_filter
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | SORT color
 | LIMIT 6
 | WHERE _slice == "cool"
@@ -300,6 +309,7 @@ required_capability: metadata_slice
 required_capability: slice_selection_from_filter
 
 FROM colors_with_slice METADATA _slice
+| WHERE _slice IN ("cool", "neutral", "purple_pink", "warm", "yellow_green")
 | STATS c = COUNT(*) BY _slice
 | WHERE _slice == "warm" OR c == 7
 | SORT _slice

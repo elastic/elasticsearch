@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -24,6 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -90,8 +92,15 @@ public class SliceSelectionCpsIT extends AbstractEsqlIntegTestCase {
         ) {
             assertThat(getValuesList(response), equalTo(List.of(List.of((long) DOCS_PER_SLICE.get("globex")))));
         }
-        try (EsqlQueryResponse response = run("FROM tenants, reference | STATS c = COUNT(*)")) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(8L))));
+        // a query that selects no slice is rejected, instead of reading every slice
+        assertRejected("FROM tenants, reference | STATS c = COUNT(*)");
+        // the index without slices has no document of any slice
+        try (
+            EsqlQueryResponse response = run(
+                "FROM tenants, reference METADATA _slice | WHERE _slice IN (\"acme\", \"globex\") | STATS c = COUNT(*)"
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(7L))));
         }
     }
 
@@ -100,8 +109,22 @@ public class SliceSelectionCpsIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("FROM tenants METADATA _slice " + match + "AND _slice == \"acme\" | STATS c = COUNT(*)")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of((long) DOCS_PER_SLICE.get("acme")))));
         }
-        try (EsqlQueryResponse response = run("FROM ten*, reference " + match + "| STATS c = COUNT(*)")) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(8L))));
+        assertRejected("FROM ten*, reference " + match + "| STATS c = COUNT(*)");
+        try (
+            EsqlQueryResponse response = run(
+                "FROM ten*, reference METADATA _slice " + match + "AND _slice IN (\"acme\", \"globex\") | STATS c = COUNT(*)"
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(7L))));
         }
+    }
+
+    private void assertRejected(String query) {
+        Exception e = expectThrows(Exception.class, () -> run(query).close());
+        assertThat(
+            query,
+            ExceptionsHelper.stackTrace(e),
+            containsString("[_slice] is required when [index.slice.enabled] is true for search request targeting [")
+        );
     }
 }

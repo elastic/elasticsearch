@@ -93,6 +93,7 @@ public class ReindexValidator {
         validateAgainstAliases(source, request.getDestination(), request.getRemoteInfo(), indexResolver, autoCreateIndex, projectMetadata);
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             validateSliceRouting(request, projectMetadata);
+            markSourceReadingEverySlice(request, projectMetadata);
         }
         SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
@@ -382,6 +383,31 @@ public class ReindexValidator {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
                 throw e;
+            }
+        }
+    }
+
+    /**
+     * A search of a slice-enabled index must name the slices it reads. Reindex is the exception: it is how the documents of every slice
+     * are moved between indices, for instance into an index with a newer slice format, and each document is written back to the slice
+     * it was read from. So a source without a {@code _slice} that targets a slice-enabled index is marked as read in slice mode with
+     * unrestricted routing, the internal state that reads every slice. Nothing on the REST layer produces that state. A remote source
+     * is left alone, like its remote index names: neither can be resolved against the local cluster state.
+     */
+    private void markSourceReadingEverySlice(ReindexRequest request, ProjectMetadata projectMetadata) {
+        final SearchRequest source = request.getSearchRequest();
+        if (request.getRemoteInfo() != null || source.isRoutingFromSlice() || source.routing() != null) {
+            return;
+        }
+        final SearchRequest localSource = skipRemoteIndexNames(source);
+        if (localSource.indices().length == 0) {
+            return;
+        }
+        for (Index index : indexResolver.concreteIndices(projectMetadata, localSource)) {
+            final IndexMetadata indexMetadata = projectMetadata.index(index);
+            if (indexMetadata != null && IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings())) {
+                source.setRoutingFromSlice(true);
+                return;
             }
         }
     }

@@ -380,8 +380,10 @@ public class Reindexer {
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(reindexSettings.pitKeepAlive())
             .allowPartialSearchResults(false);
+        // A source read in slice mode is forwarded as such, so the PIT is opened over the shards of its slices. Without a [_slice]
+        // it reads every slice, which only a request marked as read in slice mode may do on a slice-enabled index.
         if (searchRequest.isRoutingFromSlice()) {
-            pitRequest.searchSlice(searchRequest.searchSlice());
+            pitRequest.routing(searchRequest.routing()).setRoutingFromSlice(true);
         }
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());

@@ -124,10 +124,6 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         return search;
     }
 
-    private SearchRequestBuilder searchAllSlices(String index, QueryBuilder query) {
-        return prepareSearch(index).setQuery(query);
-    }
-
     /**
      * The same {@code _id} indexed under two slices yields two distinct documents on the same shard (both CREATED), each
      * independently retrievable by GET, search and ids-query within its slice, with the plain user id surfaced everywhere.
@@ -156,7 +152,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assertThat(gb.getId(), equalTo("1"));
         assertThat(gb.getSource().get("field"), equalTo("vb"));
 
-        // A match-all search scoped to a slice sees only that slice's document; an unscoped search sees both.
+        // A match-all search scoped to a slice sees only that slice's document; selecting both slices sees both.
         assertResponse(searchSlice("idx", "sa", QueryBuilders.matchAllQuery()), r -> {
             assertThat(r.getHits().getTotalHits().value(), equalTo(1L));
             SearchHit hit = r.getHits().getAt(0);
@@ -166,8 +162,8 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
             assertThat(hit.field(SliceIndexing.FIELD_NAME).getValue(), equalTo("sa"));
             assertThat(hit.field("_routing"), equalTo(null));
         });
-        // an unscoped search sees both, and each hit carries its own _slice so same-id docs are distinguishable.
-        assertResponse(searchAllSlices("idx", QueryBuilders.matchAllQuery()), r -> {
+        // selecting both slices sees both documents, and each hit carries its own _slice so same-id docs are distinguishable.
+        assertResponse(searchSlice("idx", "sa,sb", QueryBuilders.matchAllQuery()), r -> {
             assertThat(r.getHits().getTotalHits().value(), equalTo(2L));
             Map<String, String> sliceByValue = new HashMap<>();
             for (SearchHit hit : r.getHits().getHits()) {
@@ -356,7 +352,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assertThat(getDoc("rec", "sa", "2").getSource().get("field"), equalTo("v2-updated"));
 
         assertResponse(
-            searchAllSlices("rec", QueryBuilders.matchAllQuery()),
+            searchSlice("rec", "sa,sb", QueryBuilders.matchAllQuery()),
             r -> assertThat(r.getHits().getTotalHits().value(), equalTo(2L))
         );
     }
@@ -385,7 +381,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assertThat(gb.getId(), equalTo("1"));
         assertThat(gb.getSource().get("field"), equalTo("vb"));
         assertResponse(
-            searchAllSlices("peer", QueryBuilders.matchAllQuery()),
+            searchSlice("peer", "sa,sb", QueryBuilders.matchAllQuery()),
             r -> assertThat(r.getHits().getTotalHits().value(), equalTo(1L))
         );
     }
@@ -551,8 +547,8 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
     }
 
     /**
-     * {@code _id} search is slice-context-free: an ids/term query without a slice matches the id across every
-     * slice (returning the plain id from each), while a query scoped to a concrete slice matches only that slice.
+     * {@code _id} search is slice-context-free: an ids/term query does not depend on a single slice: it matches the id across every
+     * selected slice (returning the plain id from each), while a query scoped to one slice matches only that slice.
      */
     public void testIdSearchIsSliceContextFree() {
         createSliceIndex("ctx", 1);
@@ -560,16 +556,16 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         indexDoc("ctx", "sb", "1", "vb");
         refresh("ctx");
 
-        // ids query without a slice returns id "1" from BOTH slices (no slice context needed).
-        assertResponse(searchAllSlices("ctx", QueryBuilders.idsQuery().addIds("1")), r -> {
+        // ids query naming both slices returns id "1" from BOTH slices (the ids query itself needs no slice context).
+        assertResponse(searchSlice("ctx", "sa,sb", QueryBuilders.idsQuery().addIds("1")), r -> {
             assertThat(r.getHits().getTotalHits().value(), equalTo(2L));
             for (var hit : r.getHits().getHits()) {
                 assertThat(hit.getId(), equalTo("1"));
             }
         });
-        // A term query on _id without a slice likewise spans slices.
+        // A term query on _id across both selected slices likewise spans slices.
         assertResponse(
-            searchAllSlices("ctx", QueryBuilders.termQuery("_id", "1")),
+            searchSlice("ctx", "sa,sb", QueryBuilders.termQuery("_id", "1")),
             r -> assertThat(r.getHits().getTotalHits().value(), equalTo(2L))
         );
         // Scoped to a concrete slice, the ids query resolves only that slice's document.
@@ -759,6 +755,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
             .slice(new SliceBuilder(sliceId, max))
             .setScroll(TimeValue.timeValueMinutes(1))
             .setSize(5);
+        builder.request().searchSlice("sa,sb");
         SearchResponse response = builder.get();
         try {
             String scrollId = response.getScrollId();

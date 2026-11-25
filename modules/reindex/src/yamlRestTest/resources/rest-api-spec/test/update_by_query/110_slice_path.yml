@@ -71,22 +71,17 @@ setup:
 
   - do:
       count:
-        index: sliced
+        index:  sliced
+        _slice: tenant-a,tenant-b
   - match: {count: 3}
 
 ---
-"Update by query without a slice updates every slice":
+"Update by query without a slice is rejected on a slice-enabled index":
   - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       update_by_query:
         index:   sliced
         refresh: true
-  - match: {updated: 3}
-  - match: {failures: []}
-
-  - do:
-      count:
-        index: sliced
-  - match: {count: 3}
 
 ---
 "Update by query with a slice in the path matches nothing on a non-sliced index":
@@ -106,7 +101,7 @@ setup:
   - match: {failures: []}
 
 ---
-"Update by query without a slice covers slice-enabled and plain indices":
+"Update by query without a slice is rejected when a slice-enabled index is among the targets":
   - do:
       index:
         index:   plain_mixed
@@ -116,6 +111,7 @@ setup:
         body:    { "company": "hen" }
 
   - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       update_by_query:
         index:   sliced,plain_mixed
         refresh: true
@@ -123,19 +119,10 @@ setup:
           script:
             lang: painless
             source: ctx._source.company = "updated"
-  - match: {updated: 4}
-  - match: {failures: []}
-
-  - do:
-      get:
-        index:  sliced
-        id:     "1"
-        _slice: tenant-a
-  - match: {_source.company: updated}
 
   - do:
       get:
         index:   plain_mixed
         id:      "10"
         routing: custom
-  - match: {_source.company: updated}
+  - match: {_source.company: hen}

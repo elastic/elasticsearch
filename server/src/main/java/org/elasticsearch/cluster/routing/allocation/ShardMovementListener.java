@@ -22,9 +22,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Receives every change the master makes to the location of a shard copy while computing a new routing table. Plugins register listeners
  * via {@link org.elasticsearch.plugins.ClusterPlugin#getShardMovementListeners()}.
  * <p>
- * Events are delivered as they are made, i.e. before the resulting cluster state is published: if publication fails the change is
- * discarded and a later allocation round may report the same event again. The first {@link ShardRouting} argument of each method is
- * the copy concerned, as it was <em>before</em> the change.
+ * Events are delivered as they are made, i.e. before the resulting cluster state is published: if publication fails, or a batch of
+ * reroute commands is rejected after some of its commands were applied, the change is discarded and a later allocation round may report
+ * the same event again. The first {@link ShardRouting} argument of each method is the copy concerned, as it was <em>before</em> the
+ * change.
  * <p>
  * The stream covers allocator-driven transitions only, so it is not a complete log of where copies are. A copy can disappear from a node
  * without an event when it is removed outside the allocator: when its index is deleted, when the number of replicas is reduced, or when

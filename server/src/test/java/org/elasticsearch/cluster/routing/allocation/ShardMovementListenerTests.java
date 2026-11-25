@@ -9,16 +9,12 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.routing.MoveReason;
-import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,36 +81,5 @@ public class ShardMovementListenerTests extends ESTestCase {
 
     public void testCompositeOfNoneIsNoop() {
         assertThat(ShardMovementListener.composite(List.of()), sameInstance(ShardMovementListener.NOOP));
-    }
-
-    @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.LoggingShardMovementListener:DEBUG",
-        reason = "verifies debug level logging"
-    )
-    public void testLoggingListener() {
-        final var listener = new LoggingShardMovementListener();
-        final var startedShard = shardRoutingBuilder(SHARD_ID, "node-1", true, ShardRoutingState.STARTED).build();
-        final var targetShard = shardRoutingBuilder(SHARD_ID, "node-2", true, ShardRoutingState.INITIALIZING).build();
-
-        MockLog.assertThatLogger(
-            () -> listener.relocationStarted(startedShard, targetShard, new MoveReason(MoveType.CANNOT_REMAIN, "filter")),
-            LoggingShardMovementListener.class,
-            new MockLog.SeenEventExpectation(
-                "relocation started",
-                LoggingShardMovementListener.class.getCanonicalName(),
-                Level.DEBUG,
-                "[test-index][0][P] relocating from [node-1] to [node-2]: move(cannot-remain)"
-            )
-        );
-        MockLog.assertThatLogger(
-            () -> listener.shardFailed(startedShard, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)),
-            LoggingShardMovementListener.class,
-            new MockLog.SeenEventExpectation(
-                "shard failed",
-                LoggingShardMovementListener.class.getCanonicalName(),
-                Level.DEBUG,
-                "[test-index][0][P] failed on [node-1]: NODE_LEFT"
-            )
-        );
     }
 }

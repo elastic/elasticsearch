@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStr
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
-import org.elasticsearch.cluster.routing.allocation.LoggingShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -264,7 +263,6 @@ public class ClusterModule extends AbstractModule {
 
     static ShardMovementListener getShardMovementListener(List<ClusterPlugin> clusterPlugins) {
         final var listeners = new ArrayList<ShardMovementListener>();
-        listeners.add(new LoggingShardMovementListener());
         clusterPlugins.forEach(plugin -> listeners.addAll(plugin.getShardMovementListeners()));
         return ShardMovementListener.composite(listeners);
     }

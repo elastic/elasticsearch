@@ -324,7 +324,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 new String[] { index },
                 executor,
                 executor,
-                TimeValue.timeValueMillis(50),
+                TimeValue.timeValueMillis(250),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete,

@@ -17,9 +17,10 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,7 +48,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -68,7 +68,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -87,9 +86,8 @@ import java.util.function.Supplier;
  * <b>Wait.</b> When every unit that underwent a second resolution is stalled ({@link Routing#NONE_YET}), the dispatcher parks and waits
  * for the cluster state to change. The wait ends as soon as one parked unit is no longer {@code NONE_YET}: either an untried copy has
  * appeared, the index was deleted, or the shard has no active copy. An unrelated state change that moves nothing for the parked shards
- * does not end the wait. The cluster state observer holds a static {@link ObserverCallback}, which only has a clearable reference to
- * the wait. The reference is cleared when the wait ends, so the observer does not pin the wait, the dispatcher or the request until it
- * unregisters.
+ * does not end the wait. The routing wait registers a timeout cluster-state listener which is unregistered as soon as the wait ends,
+ * so completed requests do not leave listeners or preserved request context behind.
  * <p>
  * <b>Budget.</b> One deadline per dispatch, started at the first stalled shard, funded by the
  * {@link TransportFieldCapabilitiesAction#ROUTING_WAIT_TIMEOUT_SETTING} setting. When the timer fires, it marks the budget as spent
@@ -131,7 +129,8 @@ final class RequestDispatcher {
     private final Map<String, IndexSelector> indexSelectors;
     private final Map<String, DiscoveryNode> laterNodes = ConcurrentCollections.newConcurrentMap();
     // written only by the round loop; volatile because the test accessor reads it from another thread
-    private volatile long routingDeadlineMillis = -1L;
+    private volatile long routingDeadlineMillis;
+    private volatile boolean routingDeadlineSet;
     private volatile boolean routingBudgetSpent;
 
     RequestDispatcher(
@@ -282,7 +281,13 @@ final class RequestDispatcher {
         for (Map.Entry<String, IndexSelector> e : indexSelectors.entrySet()) {
             final String index = e.getKey();
             final IndexSelector indexSelector = e.getValue();
-            List<ShardRouting> selectedShards = indexSelector.nextTarget(hasFilter);
+            if (shardIsUnit) {
+                if (applied == null) {
+                    applied = clusterService.state();
+                }
+                stallSeen |= indexSelector.queueUntriedCopiesForExhaustedShards(applied, projectId, laterNodes);
+            }
+            List<ShardRouting> selectedShards = indexSelector.nextTarget(shardIsUnit);
             if (selectedShards.isEmpty()) {
                 if (applied == null) {
                     applied = clusterService.state();
@@ -298,7 +303,7 @@ final class RequestDispatcher {
                     );
                 }
                 switch (resolution.result()) {
-                    case QUEUED -> selectedShards = indexSelector.nextTarget(hasFilter);
+                    case QUEUED -> selectedShards = indexSelector.nextTarget(shardIsUnit);
                     case STALLED -> {
                         stalledIndices.add(new ParkedIndex(index, resolution.stalled()));
                         continue;
@@ -323,8 +328,9 @@ final class RequestDispatcher {
                 onIndexFailure.accept(failedIndex, failure);
             }
         }
-        if (stallSeen && routingDeadlineMillis < 0L) {
+        if (stallSeen && routingDeadlineSet == false) {
             routingDeadlineMillis = threadPool.relativeTimeInMillis() + routingWaitTimeout.millis();
+            routingDeadlineSet = true;
         }
         if (nodeToSelectedShards.isEmpty() == false) {
             for (Map.Entry<String, List<ShardId>> e : nodeToSelectedShards.entrySet()) {
@@ -361,7 +367,7 @@ final class RequestDispatcher {
 
     // for testing: the time left before the routing budget expires, or -1 if the deadline has not been set
     long routingDeadlineRemainingMillis() {
-        return routingDeadlineMillis < 0L ? -1L : routingDeadlineMillis - threadPool.relativeTimeInMillis();
+        return routingDeadlineSet == false ? -1L : routingDeadlineMillis - threadPool.relativeTimeInMillis();
     }
 
     private void sendRequestToNode(String nodeId, List<ShardId> shardIds) {
@@ -554,6 +560,7 @@ final class RequestDispatcher {
     private static class IndexSelector {
         private final Map<String, List<ShardRouting>> nodeToShards = new HashMap<>();
         private final Set<ShardId> unmatchedShardIds = new HashSet<>();
+        private final Set<ShardId> allShardIds;
         private final Map<ShardId, Exception> failures = new HashMap<>();
         /** Copies handed out by nextTarget: allocation id -> whether the routing showed the copy active when it was tried. */
         private final Map<ShardId, Map<String, Boolean>> tried = new HashMap<>();
@@ -575,9 +582,11 @@ final class RequestDispatcher {
             long nowInMillis,
             CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
         ) {
+            final Set<ShardId> shardIds = new HashSet<>();
             for (SearchShardRouting searchShardRouting : shards) {
                 boolean canMatch = true;
                 final ShardId shardId = searchShardRouting.shardId();
+                shardIds.add(shardId);
                 if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
                     var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
                     if (coordinatorRewriteContext != null) {
@@ -604,6 +613,7 @@ final class RequestDispatcher {
                     unmatchedShardIds.add(shardId);
                 }
             }
+            this.allShardIds = Set.copyOf(shardIds);
         }
 
         synchronized Exception getFailure() {
@@ -642,14 +652,12 @@ final class RequestDispatcher {
             answered.add(shardId);
         }
 
-        synchronized List<ShardRouting> nextTarget(boolean withQueryFilter) {
+        synchronized List<ShardRouting> nextTarget(boolean shardIsUnit) {
             if (nodeToShards.isEmpty()) {
                 return Collections.emptyList();
             }
             final Iterator<Map.Entry<String, List<ShardRouting>>> nodeIt = nodeToShards.entrySet().iterator();
-            if (withQueryFilter) {
-                // If an index filter is specified, then we must reach out to all of an index's shards to check
-                // if one of them can match. Otherwise, for efficiency we just reach out to one of its shards.
+            if (shardIsUnit) {
                 final List<ShardRouting> selectedShards = new ArrayList<>();
                 final Set<ShardId> selectedShardIds = new HashSet<>();
                 while (nodeIt.hasNext()) {
@@ -681,6 +689,53 @@ final class RequestDispatcher {
             }
         }
 
+        /**
+         * If a shard is exhausted before the index is, resolve that shard again so any newly available copy can be dispatched alongside
+         * sibling shards in the current round.
+         */
+        synchronized boolean queueUntriedCopiesForExhaustedShards(
+            ClusterState applied,
+            ProjectId projectId,
+            Map<String, DiscoveryNode> laterNodes
+        ) {
+            if (failures.isEmpty()) {
+                return false;
+            }
+            boolean stallSeen = false;
+            for (ShardId shardId : failures.keySet()) {
+                if (answered.contains(shardId) || failedOtherwise.contains(shardId) || resolvedAgain.contains(shardId)) {
+                    continue;
+                }
+                if (hasRemainingTarget(shardId)) {
+                    continue;
+                }
+                final List<ShardRouting> copies = new ArrayList<>();
+                final Map<String, Boolean> triedCopies = tried.getOrDefault(shardId, Map.of());
+                final Routing routing = untriedCopies(applied, projectId, shardId, triedCopies, copies);
+                if (routing == Routing.UNTRIED_COPY) {
+                    for (ShardRouting copy : copies) {
+                        nodeToShards.computeIfAbsent(copy.currentNodeId(), ignored -> new ArrayList<>()).add(copy);
+                        laterNodes.put(copy.currentNodeId(), applied.nodes().get(copy.currentNodeId()));
+                    }
+                    resolvedAgain.add(shardId);
+                } else if (routing == Routing.NONE_YET) {
+                    stallSeen = true;
+                }
+            }
+            return stallSeen;
+        }
+
+        private boolean hasRemainingTarget(ShardId shardId) {
+            for (List<ShardRouting> shards : nodeToShards.values()) {
+                for (ShardRouting shard : shards) {
+                    if (shardId.equals(shard.shardId())) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         private void recordTried(List<ShardRouting> selectedShards) {
             for (ShardRouting shard : selectedShards) {
                 tried.computeIfAbsent(shard.shardId(), ignored -> new HashMap<>()).put(shard.allocationId().getId(), shard.active());
@@ -709,7 +764,8 @@ final class RequestDispatcher {
                 if (failedOtherwise.isEmpty() == false || resolvedAgain.isEmpty() == false) {
                     return new Resolution(Exhausted.NOT_ELIGIBLE, Map.of());
                 }
-                candidates.addAll(failures.keySet());
+                assert unmatchedShardIds.isEmpty();
+                candidates.addAll(allShardIds);
             }
             if (candidates.isEmpty()) {
                 return new Resolution(Exhausted.NOT_ELIGIBLE, Map.of());
@@ -726,7 +782,17 @@ final class RequestDispatcher {
                 switch (routing) {
                     case UNTRIED_COPY -> found.put(shardId, copies);
                     case NONE_YET -> newlyStalled.put(shardId, Map.copyOf(triedCopies));
-                    case NO_ACTIVE_COPY, GONE -> {
+                    case NO_ACTIVE_COPY -> {
+                        if (shardIsUnit) {
+                            resolvedAgain.add(shardId);
+                            terminal++;
+                        } else if (triedCopies.containsValue(true)) {
+                            newlyStalled.put(shardId, Map.copyOf(triedCopies));
+                        } else {
+                            terminal++;
+                        }
+                    }
+                    case GONE -> {
                         if (shardIsUnit) {
                             resolvedAgain.add(shardId);
                         }
@@ -764,10 +830,10 @@ final class RequestDispatcher {
     private final class RoutingWait {
         private final List<ParkedIndex> parked;
         private final AtomicBoolean done = new AtomicBoolean();
-        private final ObserverCallback callback = new ObserverCallback(this);
         private final AbstractRunnable resume;
         private final Supplier<ThreadContext.StoredContext> requestContext;
-        private volatile Scheduler.Cancellable timer;
+        private volatile TimeoutClusterStateListener listener;
+        private volatile long observedVersion;
 
         private RoutingWait(List<ParkedIndex> parked) {
             this.parked = List.copyOf(parked);
@@ -792,6 +858,7 @@ final class RequestDispatcher {
         void start(ClusterState resolvedOn, TimeValue remaining) {
             routingWaits.incrementAndGet();
             currentWait.set(this);
+            observedVersion = resolvedOn.version();
             if (parentTask instanceof CancellableTask cancellableTask) {
                 if (cancellationListenerRegistered.compareAndSet(false, true)) {
                     cancellableTask.addListener(() -> {
@@ -814,18 +881,50 @@ final class RequestDispatcher {
                 );
             }
             try {
-                timer = threadPool.schedule(() -> finish(End.TIMEOUT), remaining, threadPool.generic());
+                final TimeoutClusterStateListener localListener = new TimeoutClusterStateListener() {
+                    @Override
+                    public void clusterChanged(ClusterChangedEvent event) {
+                        check(event.state());
+                    }
+
+                    @Override
+                    public void postAdded() {
+                        check(clusterService.state());
+                    }
+
+                    @Override
+                    public void onClose() {
+                        finish(End.SERVICE_CLOSED);
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        finish(End.TIMEOUT);
+                    }
+
+                    private void check(ClusterState state) {
+                        final RoutingWait routingWait = currentWait.get();
+                        if (routingWait == null || routingWait != RoutingWait.this) {
+                            return;
+                        }
+                        if (state.version() <= observedVersion) {
+                            return;
+                        }
+                        try {
+                            if (wakes(state)) {
+                                finish(End.NEW_STATE);
+                            }
+                        } catch (Exception e) {
+                            finish(End.NEW_STATE);
+                        }
+                    }
+                };
+                listener = localListener;
+                clusterService.getClusterApplierService().addTimeoutListener(remaining, localListener);
                 if (done.get()) {
-                    timer.cancel();
+                    clusterService.getClusterApplierService().removeTimeoutListener(localListener);
+                    listener = null;
                 }
-                final ClusterStateObserver observer = new ClusterStateObserver(
-                    resolvedOn,
-                    clusterService,
-                    remaining,
-                    LOGGER,
-                    threadPool.getThreadContext()
-                );
-                observer.waitForNextChange(callback, callback);
             } catch (Exception e) {
                 finish(End.START_FAILED);
             }
@@ -844,7 +943,7 @@ final class RequestDispatcher {
                         new ArrayList<>()
                     );
                     anyUntried |= routing == Routing.UNTRIED_COPY;
-                    anyStalled |= routing == Routing.NONE_YET;
+                    anyStalled |= routing == Routing.NONE_YET || (shardIsUnit == false && routing == Routing.NO_ACTIVE_COPY);
                     if (shardIsUnit && routing != Routing.NONE_YET) {
                         return true;
                     }
@@ -858,61 +957,17 @@ final class RequestDispatcher {
 
         void finish(End cause) {
             if (done.compareAndSet(false, true)) {
-                if (cause == End.TIMEOUT) {
+                if (cause == End.TIMEOUT || cause == End.SERVICE_CLOSED || cause == End.START_FAILED) {
                     routingBudgetSpent = true;
                 }
                 LOGGER.debug("routing wait ended: [{}]", cause);
-                callback.wait.set(null);
                 currentWait.compareAndSet(this, null);
-                final Scheduler.Cancellable localTimer = timer;
-                if (localTimer != null) {
-                    localTimer.cancel();
+                final TimeoutClusterStateListener localListener = listener;
+                if (localListener != null) {
+                    clusterService.getClusterApplierService().removeTimeoutListener(localListener);
+                    listener = null;
                 }
                 executor.execute(resume);
-            }
-        }
-    }
-
-    /** Observer callback that does not retain an ended wait until the observer unregisters itself. */
-    private static final class ObserverCallback implements ClusterStateObserver.Listener, Predicate<ClusterState> {
-        private final AtomicReference<RoutingWait> wait;
-
-        private ObserverCallback(RoutingWait wait) {
-            this.wait = new AtomicReference<>(wait);
-        }
-
-        @Override
-        public void onNewClusterState(ClusterState state) {
-            finish(End.NEW_STATE);
-        }
-
-        @Override
-        public void onClusterServiceClose() {
-            finish(End.SERVICE_CLOSED);
-        }
-
-        @Override
-        public void onTimeout(TimeValue timeout) {
-            finish(End.TIMEOUT);
-        }
-
-        @Override
-        public boolean test(ClusterState state) {
-            final RoutingWait routingWait = wait.get();
-            if (routingWait == null) {
-                return true;
-            }
-            try {
-                return routingWait.wakes(state);
-            } catch (Exception e) {
-                return true;
-            }
-        }
-
-        private void finish(End cause) {
-            final RoutingWait routingWait = wait.get();
-            if (routingWait != null) {
-                routingWait.finish(cause);
             }
         }
     }

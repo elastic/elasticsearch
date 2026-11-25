@@ -1585,6 +1585,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the data, and one whose metric is a field reads it as absent.
      */
     public void testPromqlMatchingOnMetricNameIsRejected() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-matching-on-metric-name-is-rejected";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
@@ -1602,6 +1603,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
      * so a comparison no series passes fails too; copying a label the series agree on keeps them apart.
      */
     public void testPromqlGroupLeftLabelCollisionFails() {
+        assumeTrue("PromQL label container functions are required", EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled());
         String index = "promql-group-left-collision";
         createOptionalLabelMetricsIndex(index);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "optional", "east", "tx", 1.0);

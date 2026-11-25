@@ -179,15 +179,18 @@ final class PageColumnReader implements Releasable {
     /**
      * Compaction scratch of a reader with {@link #ordinalCompaction} on: {@link #MARK_LANES} bitsets of
      * one bit per dictionary entry ({@code referencedEntries}, lane-major; lane 0 holds the merged marks),
-     * the per-word prefix sums of the marked bits ({@code rankBase}), and the sanitized dictionary
-     * entries, filled lazily ({@code sanitizedEntries}). The arrays are allocated on the first mark
-     * pass and sized once (a reader reads a single column chunk, so the dictionary never changes);
-     * repaired UTF-8 payloads are added to the charge as they are cached. Everything is charged to
+     * the marks represented by the last compact dictionary ({@code compactDictionaryMarks}), the
+     * per-word prefix sums of the marked bits ({@code rankBase}), and the sanitized dictionary entries,
+     * filled lazily ({@code sanitizedEntries}). The arrays are allocated on the first mark pass and
+     * sized once (a reader reads a single column chunk, so the dictionary never changes); repaired
+     * UTF-8 payloads are added to the charge as they are cached. Everything is charged to
      * {@link #scratchBreaker} and released in {@link #close()}.
      */
     private long[] referencedEntries;
+    private long[] compactDictionaryMarks;
     private int[] rankBase;
     private BytesRef[] sanitizedEntries;
+    private BytesRefVector cachedCompactDictionary;
     private CircuitBreaker scratchBreaker;
     private long scratchBytes;
 
@@ -1666,7 +1669,8 @@ final class PageColumnReader implements Releasable {
             sharedDictionaryBackoff = SHARED_BACKOFF_BATCHES;
             return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
         }
-        if (compactPayloadIsMostlyDictionary(dict, referencedEntries, rankBase.length)) {
+        long compactPayloadBytes = compactPayloadBytes(dict, referencedEntries, rankBase.length);
+        if (compactPayloadBytes > dictionaryPayloadBytes - compactPayloadBytes) {
             sharedDictionaryBackoff = SHARED_BACKOFF_BATCHES;
             return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
         }
@@ -1677,8 +1681,8 @@ final class PageColumnReader implements Releasable {
         return compactOrdinalBlock(ordinals, nulls, produced, dict, referenced, blockFactory);
     }
 
-    /** Whether the marked entries contain more than half of the chunk dictionary's raw payload bytes. */
-    private boolean compactPayloadIsMostlyDictionary(BytesRef[] dict, long[] marked, int words) {
+    /** Raw payload bytes held by the marked entries, also initializing the chunk dictionary's total. */
+    private long compactPayloadBytes(BytesRef[] dict, long[] marked, int words) {
         long referencedBytes = 0;
         for (int w = 0; w < words; w++) {
             for (long bits = marked[w]; bits != 0; bits &= bits - 1) {
@@ -1691,7 +1695,7 @@ final class PageColumnReader implements Releasable {
                 dictionaryPayloadBytes += entry.length;
             }
         }
-        return referencedBytes > dictionaryPayloadBytes - referencedBytes;
+        return referencedBytes;
     }
 
     /** Wraps the batch's ordinals around the chunk dictionary, shared with the other batches of the chunk. */
@@ -1746,11 +1750,41 @@ final class PageColumnReader implements Releasable {
         BytesRefVector dictVector = null;
         try {
             ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
-            dictVector = compactDictionary(dict, marked, rankBase.length, referenced, blockFactory);
+            if (sameCompactDictionary(marked, rankBase.length)) {
+                cachedCompactDictionary.incRef();
+                dictVector = cachedCompactDictionary;
+            } else {
+                dictVector = compactDictionary(dict, marked, rankBase.length, referenced, blockFactory);
+                cacheCompactDictionary(dictVector, marked, rankBase.length);
+            }
             return new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
         } catch (Throwable e) {
             ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
             throw e;
+        }
+    }
+
+    /** Whether the current marks describe the compact dictionary retained from the previous compact batch. */
+    private boolean sameCompactDictionary(long[] marked, int words) {
+        if (cachedCompactDictionary == null) {
+            return false;
+        }
+        for (int w = 0; w < words; w++) {
+            if (marked[w] != compactDictionaryMarks[w]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Retains one ref to the latest compact dictionary so consecutive batches with the same subset can share it. */
+    private void cacheCompactDictionary(BytesRefVector dictionary, long[] marked, int words) {
+        dictionary.incRef();
+        BytesRefVector previous = cachedCompactDictionary;
+        cachedCompactDictionary = dictionary;
+        System.arraycopy(marked, 0, compactDictionaryMarks, 0, words);
+        if (previous != null) {
+            previous.close();
         }
     }
 
@@ -1850,13 +1884,15 @@ final class PageColumnReader implements Releasable {
 
     /**
      * Heap bytes of a compacting reader's scratch for a {@code dictSize}-entry dictionary: the
-     * {@link #MARK_LANES} mark bitsets, the rank prefix sums, and the sanitized-entry cache's array.
+     * {@link #MARK_LANES} mark bitsets, the last compact dictionary's marks, the rank prefix sums,
+     * and the sanitized-entry cache's array.
      */
     static long compactionScratchBytes(int dictSize) {
         int words = OrdinalCompaction.words(dictSize);
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) MARK_LANES * words * Long.BYTES)
-            + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) words * Integer.BYTES) + RamUsageEstimator
-                .alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) dictSize * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+            + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) words * Long.BYTES) + RamUsageEstimator
+                .alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) words * Integer.BYTES) + RamUsageEstimator
+                    .alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) dictSize * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
     }
 
     /**
@@ -1873,11 +1909,13 @@ final class PageColumnReader implements Releasable {
         breaker.addEstimateBytesAndMaybeBreak(bytes, OrdinalCompaction.SCRATCH_LABEL);
         try {
             long[] newReferencedEntries = new long[MARK_LANES * words];
+            long[] newCompactDictionaryMarks = new long[words];
             int[] newRankBase = new int[words];
             BytesRef[] newSanitizedEntries = new BytesRef[dictSize];
             scratchBreaker = breaker;
             scratchBytes = bytes;
             referencedEntries = newReferencedEntries;
+            compactDictionaryMarks = newCompactDictionaryMarks;
             rankBase = newRankBase;
             sanitizedEntries = newSanitizedEntries;
         } catch (Throwable e) {
@@ -1887,7 +1925,12 @@ final class PageColumnReader implements Releasable {
     }
 
     private void releaseCompactionScratch() {
+        if (cachedCompactDictionary != null) {
+            cachedCompactDictionary.close();
+            cachedCompactDictionary = null;
+        }
         referencedEntries = null;
+        compactDictionaryMarks = null;
         rankBase = null;
         sanitizedEntries = null;
         if (scratchBytes != 0) {

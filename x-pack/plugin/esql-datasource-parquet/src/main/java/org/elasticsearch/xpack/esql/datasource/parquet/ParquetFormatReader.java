@@ -52,6 +52,7 @@ import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -4379,6 +4380,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         private boolean advanceRowGroup() throws IOException {
             if (rowGroup != null) {
+                closePageColumnReaders();
                 rowsBeforeCurrentGroup += rowGroup.getRowCount();
                 rowGroup.close();
                 rowGroup = null;
@@ -4973,15 +4975,57 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
+        /** Closes the per-column page readers before replacing their row group or closing this iterator. */
+        private void closePageColumnReaders() {
+            if (pageColumnReaders == null) {
+                return;
+            }
+            Releasables.close(pageColumnReaders);
+            pageColumnReaders = null;
+        }
+
         @Override
         public void close() throws IOException {
+            Throwable failure = null;
+            try {
+                closePageColumnReaders();
+            } catch (Throwable t) {
+                failure = t;
+            }
             try {
                 if (rowGroup != null) {
                     rowGroup.close();
                 }
-            } finally {
-                reader.close();
+            } catch (Throwable t) {
+                failure = suppress(failure, t);
             }
+            try {
+                reader.close();
+            } catch (Throwable t) {
+                failure = suppress(failure, t);
+            }
+            if (failure instanceof IOException e) {
+                throw e;
+            }
+            if (failure instanceof RuntimeException e) {
+                throw e;
+            }
+            if (failure instanceof Error e) {
+                throw e;
+            }
+            if (failure != null) {
+                throw new IOException(failure);
+            }
+        }
+
+        private static Throwable suppress(@Nullable Throwable failure, Throwable next) {
+            if (failure == null) {
+                return next;
+            }
+            if (failure != next) {
+                failure.addSuppressed(next);
+            }
+            return failure;
         }
     }
 

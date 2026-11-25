@@ -761,6 +761,82 @@ load two indexes, convert client_ip with a valid option:
   - match: { columns.0.name: "c" }
   - match: { values.0.0: 14 }
 
+---
+load two indexes, convert a keyword and an ip with leading zeros:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_validate_to_ip_options]
+      reason: "The options of conversions of union types are kept and validated"
+  - do:
+      indices.create:
+        index: leading_zeros_ip
+        body:
+          mappings:
+            properties:
+              addr:
+                type: ip
+  - do:
+      indices.create:
+        index: leading_zeros_keyword
+        body:
+          mappings:
+            properties:
+              addr:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "leading_zeros_ip"}}'
+          - '{"addr": "10.0.0.1"}'
+          - '{"index": {"_index": "leading_zeros_keyword"}}'
+          - '{"addr": "1.1.010.1"}'
+
+  # Octal: 010 is 8
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM leading_zeros_* METADATA _index | EVAL x = TO_IP(addr, {"leading_zeros": "octal"}) | SORT _index ASC | KEEP _index, x'
+  - match: { columns.1.name: "x" }
+  - match: { columns.1.type: "ip" }
+  - match: { values.0.1: "10.0.0.1" }
+  - match: { values.1.1: "1.1.8.1" }
+
+  # Decimal: 010 is 10
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM leading_zeros_* METADATA _index | EVAL x = TO_IP(addr, {"leading_zeros": "decimal"}) | SORT _index ASC | KEEP _index, x'
+  - match: { values.0.1: "10.0.0.1" }
+  - match: { values.1.1: "1.1.10.1" }
+
+  # The same when the field is converted first
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM leading_zeros_* METADATA _index | EVAL x = TO_IP(addr::keyword, {"leading_zeros": "octal"}) | SORT _index ASC | KEEP _index, x'
+  - match: { values.0.1: "10.0.0.1" }
+  - match: { values.1.1: "1.1.8.1" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM leading_zeros_* METADATA _index | EVAL x = TO_IP(addr::keyword, {"leading_zeros": "decimal"}) | SORT _index ASC | KEEP _index, x'
+  - match: { values.0.1: "10.0.0.1" }
+  - match: { values.1.1: "1.1.10.1" }
+
 ############################################################################################################
 # Test four indices with both the client_IP (IP and KEYWORD) and event_duration (LONG and KEYWORD) mappings
 

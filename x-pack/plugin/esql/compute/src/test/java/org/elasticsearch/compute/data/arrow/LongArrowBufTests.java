@@ -242,6 +242,7 @@ public class LongArrowBufTests extends ESTestCase {
                 assertEquals(5, block.getPositionCount());
                 assertEquals(ElementType.LONG, block.elementType());
                 assertTrue(block.mayHaveNulls());
+                assertEquals(1, block.nullValuesCount());
                 assertFalse(block.mayHaveMultivaluedFields());
 
                 assertFalse(block.isNull(0));
@@ -274,6 +275,7 @@ public class LongArrowBufTests extends ESTestCase {
             try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertFalse(block.mayHaveNulls());
                 assertFalse(block.areAllValuesNull());
+                assertEquals(0, block.nullValuesCount());
                 assertEquals(3, block.getTotalValueCount());
 
                 // asVector() provides a view on the block and shouldn't be closed
@@ -298,8 +300,32 @@ public class LongArrowBufTests extends ESTestCase {
             try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertTrue(block.mayHaveNulls());
                 assertTrue(block.areAllValuesNull());
+                assertEquals(3, block.nullValuesCount());
                 assertEquals(0, block.getTotalValueCount());
                 assertNull(block.asVector());
+            }
+        }
+    }
+
+    /** Validity bitmaps span several 64-bit words, and the last one is only partially used. */
+    public void testBlockNullValuesCountAcrossWords() {
+        for (int size : new int[] { 1, 63, 64, 65, 127, 128, 129, 200 }) {
+            try (BigIntVector arrowVec = new BigIntVector("test", allocator)) {
+                arrowVec.allocateNew(size);
+                int expectedNulls = 0;
+                for (int i = 0; i < size; i++) {
+                    if (randomBoolean()) {
+                        arrowVec.setNull(i);
+                        expectedNulls++;
+                    } else {
+                        arrowVec.set(i, i);
+                    }
+                }
+                arrowVec.setValueCount(size);
+
+                try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
+                    assertEquals("size " + size, expectedNulls, block.nullValuesCount());
+                }
             }
         }
     }

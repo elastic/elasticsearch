@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -100,6 +103,7 @@ public class Mapper {
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        SubqueryJoin.rejectUntilSupported(versionedPlan.inner());
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
         return mapInner(versionedPlan.inner());
@@ -243,6 +247,11 @@ public class Mapper {
             );
         }
 
+        // A nested predicate reads child documents from the parent row, so its WHERE or EVAL has to stay inside the data-node fragment.
+        if ((unary instanceof Filter || unary instanceof Eval) && NestedPredicate.usedBy(unary)) {
+            throw new VerificationException("NESTED_ANY must run on the data nodes, so it cannot follow [{}]", unary.child().sourceText());
+        }
+
         // Into: two-phase WRITE (data nodes or coordinator) then MERGE_STATS (coordinator).
         if (unary instanceof Into into) {
             PhysicalPlan write = mappedChild instanceof FragmentExec
@@ -259,7 +268,16 @@ public class Mapper {
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof HashJoin hashJoin) {
+            if (hashJoin.unique() && hashJoin.repeatedKeys()) {
+                // A unique join matches a probe row to at most one build row, which only holds while the lookup table rejects
+                // repeated build keys.
+                throw new EsqlIllegalArgumentException("a unique hash join cannot allow repeated keys");
+            }
             PhysicalPlan left = mapInner(bp.left());
+            if (left instanceof FragmentExec) {
+                // The join runs on the coordinator: bring the left side's rows here, as for a coordinator LOOKUP JOIN.
+                left = new ExchangeExec(left.source(), left);
+            }
             PhysicalPlan right = mapInner(bp.right());
             if (right instanceof LocalSourceExec localData) {
                 var marker = newJoinMarker(hashJoin.source());
@@ -271,7 +289,8 @@ public class Mapper {
                     localData,
                     hashJoin.leftFields(),
                     hashJoin.rightFields(),
-                    addedFields
+                    addedFields,
+                    hashJoin.repeatedKeys()
                 );
                 // `INNER` tells operator to filter out non-matched outputs
                 if (hashJoin.config().type() == JoinTypes.INNER) {
@@ -320,7 +339,8 @@ public class Mapper {
                     localData,
                     config.leftFields(),
                     config.rightFields(),
-                    join.rightOutputFields()
+                    join.rightOutputFields(),
+                    false
                 );
             }
             if (right instanceof FragmentExec fragment) {

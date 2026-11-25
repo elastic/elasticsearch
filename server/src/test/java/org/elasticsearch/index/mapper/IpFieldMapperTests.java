@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -201,6 +202,19 @@ public class IpFieldMapperTests extends MapperTestCase {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(exampleMalformedValue(":1").errorMatches("':1' is not an IP string literal"));
+    }
+
+    public void testLegacyIndexRespectsDocValuesFalse() throws IOException {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "ip");
+            b.field("doc_values", false);
+        }));
+        MappedFieldType ft = service.fieldType("field");
+        assertFalse(ft.hasDocValues());
+        assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery("192.168.0.1", context));
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
     }
 
     public void testNullValue() throws IOException {

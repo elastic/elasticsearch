@@ -330,6 +330,12 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         }
     }
 
+    private void storePage(Page page) {
+        if (writer != null && page.getPositionCount() > 0) {
+            writer.appendPage((int) currentSeq, currentOffset, page);
+        }
+    }
+
     private void requestNextPage() {
         Flow.Subscription subscription = subscriber.subscription;
         if (storeFailure != null && limitReached()) {
@@ -351,9 +357,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         } finally {
             Page page = inFlightPage.getAndSet(null);
             if (page != null) {
-                if (writer != null) {
-                    writer.appendPage((int) currentSeq, currentOffset, page);
-                }
+                storePage(page);
                 page.releaseBlocks();
                 if (writer != null) {
                     requestNextPage();
@@ -475,9 +479,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 // ends here, incomplete. (If the result had ended instead, onComplete would have run.) The Driver drops empty
                 // pages, but one that got here would prove nothing, so it is skipped and the next signal decides.
                 boolean moreRows = positions > 0;
-                if (moreRows && writer != null) {
-                    writer.appendPage((int) currentSeq, currentOffset, page);
-                }
+                storePage(page);
                 page.releaseBlocks();
                 if (moreRows) {
                     finishAtLimit();
@@ -503,9 +505,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 nextBodyPartListener = null;
             }
             if (next == null) {
-                if (writer != null) {
-                    writer.appendPage((int) currentSeq, currentOffset, page);
-                }
+                storePage(page);
                 page.releaseBlocks();
                 if (writer != null) {
                     requestNextPage();
@@ -751,8 +751,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 bytesWritten.addAndGet(chunkStream.size());
                 if (nextRow == rowCount || limitInsidePage) {
                     encoded = true;
-                    if (writer != null && (limitInsidePage || options.store() == StreamOptions.Store.ALL)) {
-                        writer.appendPage((int) currentSeq, currentOffset, page);
+                    if (limitInsidePage || options.store() == StreamOptions.Store.ALL) {
+                        storePage(page);
                     }
                 }
                 if (limitInsidePage) {

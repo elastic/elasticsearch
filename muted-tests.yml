@@ -947,3 +947,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testEvaluateBlockWithNulls {TestCase=<integer>, <double>, <double>, <double>, <null>, <double>, <double>, <double>, <double>, <double>, <double>}
   issue: https://github.com/elastic/elasticsearch/issues/167439
+- class: org.elasticsearch.xpack.analytics.mapper.BatchBulkHistogramIT
+  tasks:
+  - :x-pack:plugin:analytics:internalClusterTest
+  method: testTranslogRecoveryKeepsAcknowledgedDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/167441

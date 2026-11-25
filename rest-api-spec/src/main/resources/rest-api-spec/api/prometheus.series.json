@@ -56,10 +56,6 @@
         "type": "int",
         "description": "The maximum number of series to return. `0` means no limit from the request"
       }
-    },
-    "body": {
-      "description": "For POST, the query parameters can be sent instead as a form-encoded body",
-      "required": false
     }
   }
 }

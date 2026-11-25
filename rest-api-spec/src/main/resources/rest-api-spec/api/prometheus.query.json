@@ -56,10 +56,6 @@
         "type": "string",
         "description": "The evaluation timeout, as a number of seconds or a duration such as `30s`. Capped by `xpack.prometheus.query.timeout`"
       }
-    },
-    "body": {
-      "description": "For POST, the query parameters can be sent instead as a form-encoded body",
-      "required": false
     }
   }
 }

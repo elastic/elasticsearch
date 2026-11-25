@@ -1854,9 +1854,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(newChild);
             }
             LogicalPlan current = changed ? plan.replaceChildren(newChildren) : plan;
-            if (context.mapTypes() && current instanceof BranchPlan branchPlan) {
+            if (context.mapTypes() && current instanceof MergePlan mergePlan) {
                 // Before the union and the commands above it are resolved, so that they see the children as they see columns
-                current = MapKeys.provideChildren(branchPlan, scopeNames);
+                current = MapKeys.provideChildren(mergePlan, scopeNames);
             }
             if (current.analyzed() || current.resolved()) {
                 return current;
@@ -1913,7 +1913,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.mapTypes()) {
                 // Maps are handled here for every command alike, see MapKeys for the contract
                 boolean sourcesProvideChildren = context.configuration().flattenedKeys(context.minimumVersion());
-                resolved = MapKeys.replaceSubtrees(MapKeys.resolveKeys(resolved, sourcesProvideChildren));
+                resolved = MapKeys.replaceSubtrees(MapKeys.copyChildren(MapKeys.resolveKeys(resolved, sourcesProvideChildren)));
             }
             return resolved;
         }

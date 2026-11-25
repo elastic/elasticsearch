@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -64,7 +65,8 @@ import java.util.Set;
  *     <li><b>Reading a key does not create a column.</b> An expression reads the key in place. A command that takes a column
  *     ({@code KEEP attrs.foo}, {@code RENAME attrs.foo AS f}, {@code STATS … BY attrs.foo}) makes the key a child column.</li>
  *     <li><b>Children follow their map.</b> Writing a map at a name replaces everything under that name, whichever command writes it:
- *     {@code EVAL}, {@code LOOKUP JOIN}, {@code ENRICH}, {@code RENAME}. Renaming a map renames its child columns with it.
+ *     {@code EVAL}, {@code LOOKUP JOIN}, {@code ENRICH}, {@code RENAME}. Renaming a map renames its child columns with it, and
+ *     copying one ({@code EVAL x = attrs}) gives the copy the same children, hidden.
  *     Writing a value that is not a map replaces only the value at that name: a node can have a value and children, and the
  *     children that a source provided stay.</li>
  *     <li><b>{@code KEEP} and {@code DROP} take their patterns literally.</b> They select nodes by name and do not change the value
@@ -213,7 +215,7 @@ public final class MapKeys {
     }
 
     /**
-     * Rule 1 and 5 at a union: every branch provides the children that the scope reading the union names. A branch that reads an
+     * Rule 1 and 5 at a union or a {@code FORK}: every branch provides the children that the scope reading the union names. A branch that reads an
      * index has them from its shards. A branch that only has the map provides the child by reading the key from the value, as a
      * hidden column on top of the branch, so that the union merges the children of its branches by name. Without it the rows of
      * such a branch would be null for a name that another branch answers.
@@ -223,7 +225,7 @@ public final class MapKeys {
      *
      * @param names the names the scope that reads the union refers to, see {@link #namesAskedOfSources}
      */
-    static BranchPlan provideChildren(BranchPlan union, Set<String> names) {
+    static MergePlan provideChildren(MergePlan union, Set<String> names) {
         if (names.isEmpty()) {
             return union;
         }
@@ -233,7 +235,7 @@ public final class MapKeys {
         for (int i = 0; i < branches.size(); i++) {
             LogicalPlan branch = branches.get(i);
             if (branch.resolved()) {
-                boolean isView = union.isViewBranch(i);
+                boolean isView = union instanceof BranchPlan withViews && withViews.isViewBranch(i);
                 List<Attribute> output = branch.output();
                 Set<String> columns = new HashSet<>();
                 for (Attribute attribute : output) {
@@ -261,12 +263,12 @@ public final class MapKeys {
             }
             newBranches.add(branch);
         }
-        return changed ? (BranchPlan) union.replaceChildren(newBranches) : union;
+        return changed ? (MergePlan) union.replaceChildren(newBranches) : union;
     }
 
     /**
      * The names that the sources of the scope {@code scope} are asked for: the dotted names it refers to outside view bodies, and
-     * for each of them the name it had before every {@code RENAME} of the scope. For {@code RENAME attrs AS a | WHERE a.foo == "x"}
+     * for each of them the name it had before every {@code RENAME} and every copy ({@code EVAL x = attrs}) of the scope. For {@code RENAME attrs AS a | WHERE a.foo == "x"}
      * the source answers {@code attrs.foo}, and the rename carries that child to {@code a.foo} (rule 3). This only adds names: a
      * name that is asked for without need is a hidden child that nothing reads.
      */
@@ -283,6 +285,13 @@ public final class MapKeys {
                 for (Alias renaming : rename.renamings()) {
                     if (renaming.child() instanceof NamedExpression before && before instanceof UnresolvedPattern == false) {
                         renames.put(renaming.name() + ".", before.name() + ".");
+                    }
+                }
+            } else if (node instanceof Eval eval) {
+                // a copy: EVAL x = attrs
+                for (Alias field : eval.fields()) {
+                    if (field.child() instanceof NamedExpression original && original instanceof UnresolvedPattern == false) {
+                        renames.put(field.name() + ".", original.name() + ".");
                     }
                 }
             } else if (node instanceof Project project) {
@@ -541,6 +550,44 @@ public final class MapKeys {
             }
         }
         return kept.size() == output.size() ? plan : new Project(plan.source(), plan, kept);
+    }
+
+    /**
+     * Rule 3 for a copy: {@code EVAL x = attrs} gives {@code x} the children of {@code attrs}. A copy of a map is the same map
+     * under a second name, so what is under {@code attrs} is also under {@code x}: the columns and the hidden children alike.
+     * The copies are hidden, so that copying a map adds one column to the output and not one per child.
+     */
+    static LogicalPlan copyChildren(LogicalPlan plan) {
+        if (plan instanceof Eval == false || plan.resolved() == false) {
+            return plan;
+        }
+        Eval eval = (Eval) plan;
+        List<Attribute> input = eval.child().output();
+        Set<String> written = new HashSet<>();
+        for (Alias field : eval.fields()) {
+            written.add(field.name());
+        }
+        List<Alias> children = new ArrayList<>();
+        for (Alias field : eval.fields()) {
+            if (field.child() instanceof Attribute == false || isMap(field.dataType()) == false) {
+                continue;
+            }
+            String original = ((Attribute) field.child()).name() + ".";
+            for (Attribute column : input) {
+                if (column.name().startsWith(original)) {
+                    String name = field.name() + "." + column.name().substring(original.length());
+                    if (written.add(name)) {
+                        children.add(new Alias(field.source(), name, column, null, true));
+                    }
+                }
+            }
+        }
+        if (children.isEmpty()) {
+            return plan;
+        }
+        List<Alias> fields = new ArrayList<>(eval.fields());
+        fields.addAll(children);
+        return new Eval(eval.source(), eval.child(), fields);
     }
 
     /**

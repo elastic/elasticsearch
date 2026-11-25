@@ -337,3 +337,95 @@ FROM flattened_paths_mapped
 id:keyword
 f1
 ;
+
+// Rule 3: a copy of a map has the children of the original, here the keyword field [attributes.host] of the other index
+copyOfAMapHasItsChildColumns
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped, flattened_paths_keyword
+| EVAL x = attributes
+| WHERE x.host IN ("a", "k")
+| EVAL host = x.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+k1         | k
+;
+
+// Rule 3 and 1: the children of a copy are what the shards answer, so the values an index has in _source are among them
+copyOfAMapHasItsChildrenUnderLoad
+required_capability: map_types_setting
+
+SET map_types=true\;
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, flattened_paths_unmapped
+| EVAL x = attributes
+| WHERE x.host IS NOT NULL
+| EVAL host = x.host
+| KEEP id, host
+| SORT id
+;
+warningRegex:Field \[attributes\] is unmapped in some indices and has no implicit conversion from KEYWORD.*
+
+id:keyword | host:keyword
+f1         | a
+f2         | c
+u1         | d
+;
+
+// Rule 2: the children of a copy are hidden, so the copy adds one column
+copyOfAMapAddsOneColumn
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| EVAL x = attributes.host
+| KEEP id, x*
+;
+
+id:keyword | x:keyword
+k1         | k
+;
+
+// Rule 5: FORK merges the children of its branches, as a union does. The value the unmapped index has in _source is only
+// there if the child from the shards went through the FORK.
+forkCarriesChildren
+required_capability: map_types_setting
+required_capability: fork_v9
+
+SET map_types=true\;
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, flattened_paths_unmapped
+| FORK (WHERE id == "f1") (WHERE id == "u1")
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+warningRegex:Field \[attributes\] is unmapped in some indices and has no implicit conversion from KEYWORD.*
+
+id:keyword | host:keyword
+f1         | a
+u1         | d
+;
+
+// Rule 4 inside a FORK branch: a branch that closes the map has no child of that name
+forkBranchThatClosesTheMap
+required_capability: map_types_setting
+required_capability: fork_v9
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| FORK (WHERE id == "f1") (WHERE id == "f2" | KEEP id, attributes)
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+f2         | null
+;

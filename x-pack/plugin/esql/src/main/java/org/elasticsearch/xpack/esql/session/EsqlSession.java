@@ -153,6 +153,7 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -2289,6 +2290,13 @@ public class EsqlSession {
             if (node instanceof Rename rename) {
                 for (Alias renaming : rename.renamings()) {
                     if (renaming.child() instanceof UnresolvedAttribute ua && ua instanceof UnresolvedPattern == false) {
+                        fieldNames.add(ua.name() + ".*");
+                    }
+                }
+            } else if (node instanceof Eval eval) {
+                // a copy of a column has its children too
+                for (Alias field : eval.fields()) {
+                    if (field.child() instanceof UnresolvedAttribute ua && ua instanceof UnresolvedPattern == false) {
                         fieldNames.add(ua.name() + ".*");
                     }
                 }

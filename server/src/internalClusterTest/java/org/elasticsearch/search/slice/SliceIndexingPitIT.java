@@ -115,7 +115,7 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
 
         var openAll = client().execute(
             TransportOpenPointInTimeAction.TYPE,
-            new OpenPointInTimeRequest(index).searchSlice(SliceIndexing.SLICE_ALL).keepAlive(TimeValue.timeValueMinutes(5))
+            new OpenPointInTimeRequest(index).keepAlive(TimeValue.timeValueMinutes(5))
         ).actionGet();
         assertThat(openAll.getTotalShards(), equalTo(2));
         client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(openAll.getPointInTimeId())).actionGet();

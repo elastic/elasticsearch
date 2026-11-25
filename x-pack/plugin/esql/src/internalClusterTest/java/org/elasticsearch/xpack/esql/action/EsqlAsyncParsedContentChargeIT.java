@@ -11,20 +11,17 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,11 +29,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.BreakerTestUtil.parsedRequestHeldBytes;
+import static org.elasticsearch.test.BreakerTestUtil.parsedRequestMeasurements;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests that an async query holds the charge of its parsed request after the submit responds, until the query ends.
@@ -75,12 +77,14 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
 
     private void assertChargeIsHeldUntilTheQueryEnds(boolean delete) throws Exception {
         scriptPermits.drainPermits();
+        scriptWaits.drainPermits();
         try {
             Map<String, Object> body = submitThroughRest("1ms", "FROM test | STATS SUM(pause_me)");
             assertEquals(Boolean.TRUE, body.get("is_running"));
             String id = (String) body.get("id");
-            // The response is sent, but the query waits in pause_me.
-            assertThat(parsedRequestHeldBytes(), greaterThan(0L));
+            // Wait until the query blocks in pause_me. A delete sent before then would stop it right away.
+            assertTrue("the query must reach pause_me", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
+            assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
 
             if (delete) {
                 // Cancels the query, which stops once pause_me lets it go on. The delete responds once it stops.
@@ -88,7 +92,13 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
                     TransportDeleteAsyncResultAction.TYPE,
                     new DeleteAsyncResultRequest(id)
                 );
-                assertThat(parsedRequestHeldBytes(), greaterThan(0L));
+                // Check after the cancel is processed, so a charge dropped on cancel is caught.
+                assertBusy(() -> {
+                    List<TaskInfo> tasks = asyncQueryTasks();
+                    assertThat(tasks, hasSize(1));
+                    assertTrue(tasks.getFirst().cancelled());
+                });
+                assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
                 scriptPermits.release(numberOfDocs());
                 assertTrue(deleted.actionGet(TimeValue.timeValueSeconds(60)).isAcknowledged());
             } else {
@@ -99,23 +109,41 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
                     }
                 });
             }
-            assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+            assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
             if (delete == false) {
                 assertTrue(deleteAsyncId(client(), id).isAcknowledged());
             }
         } finally {
-            scriptPermits.drainPermits();
+            // Unblock a query left in pause_me by a failure. Let it end before draining, or the drain could take its permits.
+            scriptPermits.release(numberOfDocs());
+            try {
+                assertBusy(() -> assertThat(asyncQueryTasks(), empty()));
+                scriptPermits.drainPermits();
+            } catch (Exception | AssertionError e) {
+                // Log rather than throw, so a failure of the test body is not hidden. The permits stay for a query that may still run.
+                logger.warn("failed to wait for the async query to end after releasing script permits", e);
+            }
+            scriptWaits.drainPermits();
         }
     }
 
+    private List<TaskInfo> asyncQueryTasks() {
+        return client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setActions(EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX)
+            .get()
+            .getTasks();
+    }
+
     public void testChargeIsReleasedWhenTheQueryEndsBeforeTheResponse() throws Exception {
-        int measurementsBefore = parsedRequestMeasurements().size();
+        int measurementsBefore = parsedRequestMeasurements(internalCluster()).size();
         // Long enough for the query to end before the submit responds.
         Map<String, Object> body = submitThroughRest("30s", "FROM test | STATS COUNT(*)");
         assertEquals(Boolean.FALSE, body.get("is_running"));
-        assertThat(parsedRequestMeasurements().size(), greaterThan(measurementsBefore));
+        assertThat(parsedRequestMeasurements(internalCluster()).size(), greaterThan(measurementsBefore));
         // The query can drop its hold just after the response is sent.
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
     }
 
     private Map<String, Object> submitThroughRest(String waitForCompletionTimeout, String query) throws IOException {
@@ -127,30 +155,5 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    /** The bytes the request breakers of all nodes hold for parsed requests, from the held memory metric. */
-    private long parsedRequestHeldBytes() {
-        return parsedRequestMeasurements().stream().mapToLong(Measurement::getLong).sum();
-    }
-
-    private List<Measurement> parsedRequestMeasurements() {
-        List<Measurement> measurements = new ArrayList<>();
-        for (String node : internalCluster().getNodeNames()) {
-            TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class, node)
-                .filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
-            for (Measurement measurement : telemetry.getLongUpDownCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)) {
-                Map<String, Object> attributes = measurement.attributes();
-                if (CircuitBreaker.REQUEST.equals(attributes.get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
-                    && ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST.equals(
-                        attributes.get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)
-                    )) {
-                    measurements.add(measurement);
-                }
-            }
-        }
-        return measurements;
     }
 }

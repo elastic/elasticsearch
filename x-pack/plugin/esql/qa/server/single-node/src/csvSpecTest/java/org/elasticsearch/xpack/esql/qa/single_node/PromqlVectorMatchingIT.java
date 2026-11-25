@@ -184,6 +184,10 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
      * rows as a default {@code or} whose right operand leaves out the left one's clusters.
      */
     public void testOrWithOnKeepsUnmatchedRightSeries() throws IOException {
+        assumeTrue(
+            "PromQL label container functions are required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.capabilityName()))
+        );
         requirePromqlUnion();
         assumeTrue(
             "PromQL set operator matching is required",

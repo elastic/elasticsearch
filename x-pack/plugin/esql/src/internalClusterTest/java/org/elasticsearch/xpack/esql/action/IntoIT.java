@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -437,25 +438,38 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     /**
      * The destination passes the coordinator's check and then gets an ingest pipeline, before a data node plans the write. The coordinator
      * is the one that authorizes the caller, so the data node must not tell the caller what is wrong with the destination. A single shard
-     * means a single data node request, so nothing else plans the write while the destination changes.
+     * means a single data node request, which is held until the destination has changed.
      */
-    public void testDestinationThatChangesBeforeADataNodePlansTheWriteFailsWithoutSayingWhy() {
+    public void testDestinationThatChangesBeforeADataNodePlansTheWriteFailsWithoutSayingWhy() throws Exception {
         createSource(indexSettings(1, 0), MAPPING);
         indexRandom(true, client().prepareIndex(SOURCE).setSource("k", "a"));
+        CountDownLatch requestArrived = new CountDownLatch(1);
+        CountDownLatch destinationChanged = new CountDownLatch(1);
         for (String node : internalCluster().getNodeNames()) {
             MockTransportService.getInstance(node)
                 .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
-                    assertAcked(
-                        indicesAdmin().prepareUpdateSettings(DESTINATION)
-                            .setSettings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "some-pipeline"))
-                    );
+                    requestArrived.countDown();
+                    destinationChanged.await();
                     handler.messageReceived(request, channel, task);
                 });
         }
         try {
+            var response = client().execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION).pragmas(getPragmas())
+            );
+            try {
+                safeAwait(requestArrived);
+                assertAcked(
+                    indicesAdmin().prepareUpdateSettings(DESTINATION)
+                        .setSettings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "some-pipeline"))
+                );
+            } finally {
+                destinationChanged.countDown();
+            }
             ElasticsearchStatusException e = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> run("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION).close()
+                () -> response.actionGet(DEFAULT_REQUEST_TIMEOUT).close()
             );
             assertThat(e.status(), equalTo(RestStatus.CONFLICT));
             assertThat(e.getMessage(), not(containsString("pipeline")));

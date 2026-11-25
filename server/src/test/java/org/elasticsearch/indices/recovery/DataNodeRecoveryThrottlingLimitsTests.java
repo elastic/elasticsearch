@@ -306,42 +306,52 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
         assertThat(outgoingObserved, equalTo(Collections.nCopies(watcherCount, 7)));
     }
 
-    /// Test that a settings update applied while a consumer is being registered reaches that consumer.
-    public void testConsumersRegisteredDuringAnUpdateDoNotMissIt() {
+    public void testIncomingConsumerRegisteredDuringAnUpdateDoesNotMissIt() {
         final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(Settings.EMPTY);
         final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO);
-        final List<IncomingRecoveryLimits> incomingObserved = new CopyOnWriteArrayList<>();
-        final List<Integer> outgoingObserved = new CopyOnWriteArrayList<>();
+        final List<IncomingRecoveryLimits> observed = new CopyOnWriteArrayList<>();
         final var initialCallStarted = new CountDownLatch(1);
         final var updateStarting = new CountDownLatch(1);
-
         runInParallel(() -> {
             safeAwait(initialCallStarted);
             updateStarting.countDown();
             clusterSettings.applySettings(
-                Settings.builder()
-                    .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
-                    .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 3)
-                    .build()
+                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3).build()
             );
         }, () -> limits.addIncomingRecoveryLimitsConsumer(newLimits -> {
+            observed.add(newLimits);
+            initialCallStarted.countDown();
+            safeAwait(updateStarting);
+            // Hold the lock to give the settings update time to be blocked on the registration
+            safeSleep(between(10, 100));
             // Consumers are called while holding the ClusterSettings monitor, the one applySettings holds when it runs
-            // updates, so registration and updates are serialized by that single lock.
+            // updates, so that registration and updates are serialized by that single lock.
             assertTrue(Thread.holdsLock(clusterSettings));
-            incomingObserved.add(newLimits);
-            if (incomingObserved.size() == 1) {
-                limits.addOutgoingRecoveryLimitConsumer(newLimit -> {
-                    assertTrue(Thread.holdsLock(clusterSettings));
-                    outgoingObserved.add(newLimit);
-                });
-                initialCallStarted.countDown();
-                safeAwait(updateStarting);
-                // Hold the lock to give the settings update time to be blocked on the registration
-                safeSleep(between(10, 100));
-            }
         }));
-        assertThat(incomingObserved, contains(IncomingRecoveryLimits.UNBOUNDED, new IncomingRecoveryLimits(3, 3)));
-        assertThat(outgoingObserved, contains(Integer.MAX_VALUE, 3));
+        assertThat(observed, contains(IncomingRecoveryLimits.UNBOUNDED, new IncomingRecoveryLimits(3, 3)));
+    }
+
+    public void testOutgoingConsumerRegisteredDuringAnUpdateDoesNotMissIt() {
+        final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(Settings.EMPTY);
+        final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO);
+        final List<Integer> observed = new CopyOnWriteArrayList<>();
+        final var initialCallStarted = new CountDownLatch(1);
+        final var updateStarting = new CountDownLatch(1);
+        runInParallel(() -> {
+            safeAwait(initialCallStarted);
+            updateStarting.countDown();
+            clusterSettings.applySettings(
+                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 3).build()
+            );
+        }, () -> limits.addOutgoingRecoveryLimitConsumer(newLimit -> {
+            observed.add(newLimit);
+            initialCallStarted.countDown();
+            safeAwait(updateStarting);
+            // Hold the lock to give the settings update time to be blocked on the registration
+            safeSleep(between(10, 100));
+            assertTrue(Thread.holdsLock(clusterSettings));
+        }));
+        assertThat(observed, contains(Integer.MAX_VALUE, 3));
     }
 
     public void testGettersWhenSettingsAreNotRegistered() {

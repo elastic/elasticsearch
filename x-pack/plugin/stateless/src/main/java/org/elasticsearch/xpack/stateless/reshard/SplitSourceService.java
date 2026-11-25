@@ -144,11 +144,6 @@ public class SplitSourceService {
         return shardsPreparingForHandoff.containsKey(shardId);
     }
 
-    // for testing
-    void finishPreparingForHandoff(ShardId sourceShardId) {
-        shardsPreparingForHandoff.remove(sourceShardId);
-    }
-
     public SplitSourceService(
         Client client,
         ClusterService clusterService,
@@ -419,13 +414,15 @@ public class SplitSourceService {
 
         logger.debug("preparing for handoff to {}", targetShardId);
         SubscribableListener<Releasable> withPermits = SubscribableListener.<Void>newForked(
-            beginHandoff -> awaitHandoffSlot(currentSplit.task, beginHandoff, sourceShard, targetShardId)
+            beginHandoff -> awaitHandoffSlot(currentSplit.task, beginHandoff, targetShardId)
         )
             .<Void>andThen(afterMutable -> sourceShard.ensureMutable(afterMutable, false, EsExecutors.DIRECT_EXECUTOR_SERVICE)).<
                 Engine.FlushResult>andThen(afterFirstFlush -> sourceShard.withEngine(engine -> {
                     logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
                     // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by
                     // the flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
+                    // Start cancelling completing merges at this point so that they don't delay flush during handoff.
+                    shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
                     engine.flush(/* force */ false, /* waitIfOngoing */ true, afterFirstFlush);
                     return null;
                 }))
@@ -471,10 +468,11 @@ public class SplitSourceService {
 
     /**
      * Throttles handoff for offline warming of the search shards, only allow {@link #RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE} of
-     * the split's target shards to be in or preparing for state HANDOFF. This is best-effort since {@link #shardsPreparingForHandoff} is
-     * local to each node. Proceeds after a 1 hour timeout and fails if the task is cancelled.
+     * the split's target shards to be in or preparing for state HANDOFF. This is best-effort, since if multiple shards are waiting a
+     * single cluster state could allow all of them to proceed, and {@link #shardsPreparingForHandoff} is local to each node.
+     * Proceeds after a 1 hour timeout and fails if the task is cancelled.
      */
-    void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, IndexShard sourceShard, ShardId targetShardId) {
+    void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, ShardId targetShardId) {
         final var threadPool = clusterService.threadPool();
         final var waitDurationHistogram = reshardIndexService.getReshardMetrics().targetHandoffThrottleWaitDurationHistogram();
         final long startMillis = threadPool.relativeTimeInMillis();
@@ -495,12 +493,7 @@ public class SplitSourceService {
             @Override
             public void onTimeout(TimeValue timeout) {
                 logger.debug("timed out waiting for handoff slot for {}, proceeding anyway", targetShardId);
-                threadPool.generic().execute(() -> {
-                    if (task.isCancelled() == false) {
-                        shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
-                    }
-                    beginHandoff.onResponse(null);
-                });
+                threadPool.generic().execute(() -> beginHandoff.onResponse(null));
             }
 
             @Override
@@ -517,9 +510,6 @@ public class SplitSourceService {
                 return true;
             }
             var split = reshardingMetadata.getSplit();
-            if (task.isCancelled()) {
-                return true;
-            }
             long totalTargetShards = split.targetStates().count();
             long preHandoffCount = shardsPreparingForHandoff.keySet()
                 .stream()
@@ -527,11 +517,7 @@ public class SplitSourceService {
                 .count();
             long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
             long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
-            if (preHandoffCount + handoffCount < maxConcurrentHandoffs) {
-                shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
-                return true;
-            }
-            return false;
+            return preHandoffCount + handoffCount < maxConcurrentHandoffs;
         }, TimeValue.timeValueHours(1), logger);
     }
 

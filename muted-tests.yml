@@ -941,3 +941,8 @@ tests:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
   method: test {yaml=multi_cluster/50_esql_datafeeds/Test preview ES|QL datafeed returns the rows of a remote cluster index}
   issue: https://github.com/elastic/elasticsearch/issues/167541
+- class: org.elasticsearch.get.MultiGetCircuitBreakerIT
+  tasks:
+  - :server:internalClusterTest
+  method: testDocumentFromTranslogWithoutRoomInBreakerFailsAlone
+  issue: https://github.com/elastic/elasticsearch/issues/167560

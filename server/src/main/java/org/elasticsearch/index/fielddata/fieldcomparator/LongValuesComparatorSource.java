@@ -9,7 +9,6 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -26,6 +25,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -141,8 +141,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
                         if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
-                        // check that last document has a value to confirm that all documents have a value
-                            || lastDocumentHasValue(context.reader(), fieldname) == false
+                        // documents without a value sort last, so they can fill the end of the segment
+                            || allDocsHaveValue(context.reader(), fieldname) == false
                         // the segment order uses one value of a multi-valued document, the sort can use another
                             || isSingleValued(context) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
@@ -259,10 +259,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         };
     }
 
-    private static boolean lastDocumentHasValue(LeafReader reader, String field) throws IOException {
-        return DocValues.getSortedNumeric(reader, field).advanceExact(reader.maxDoc() - 1);
-    }
-
     private boolean isSingleValued(LeafReaderContext context) {
         return loadDocValues(context).isSingleton();
     }
@@ -271,8 +267,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return values.advanceExact(0) && values.advanceExact(maxDoc - 1);
     }
 
-    // Checks that the current segment is either directly sorted by descending timestamp (with missing values last, or with no
-    // missing values at all),
+    // Checks that the current segment is either directly sorted by descending timestamp,
     // or that it is sorted by host.name and then timestamp, where host.name has either no
     // values or only a single value, so timestamp is effectively the primary sort.
     private static boolean segmentSortedByDescTimestamp(LeafReaderContext context) throws IOException {
@@ -282,13 +277,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         }
         for (SortField sortField : sort.getSort()) {
             if ("@timestamp".equals(sortField.getField())) {
-                if (sortField.getMissingValue() != null) {
-                    long missingValue = (long) sortField.getMissingValue();
-                    // Missing-first only matters if some documents lack a @timestamp, otherwise the segment order is the same.
-                    if (missingValue != Long.MIN_VALUE && allDocsHaveValue(context.reader(), "@timestamp") == false) {
-                        return false;
-                    }
-                }
                 return sortField.getReverse();
             }
             if (isHostNameSingletonInSegment(context, sortField)) {
@@ -306,7 +294,11 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             return skipper.docCount() == reader.maxDoc();
         }
         PointValues points = reader.getPointValues(field);
-        return points != null && points.getDocCount() == reader.maxDoc();
+        if (points != null) {
+            return points.getDocCount() == reader.maxDoc();
+        }
+        // A binary numeric column has no skipper and no points, but its metadata knows how many documents have a value
+        return reader.getBinaryDocValues(field) instanceof ColumnarNumericBinaryDocValues column && column.isDense();
     }
 
     private static boolean isHostNameSingletonInSegment(LeafReaderContext context, SortField sortField) throws IOException {

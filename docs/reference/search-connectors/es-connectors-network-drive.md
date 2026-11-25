@@ -92,7 +92,7 @@ The following configuration fields are required to set up the connector:
         ```
 
 `skip_extension_filter`
-:   Toggle labeled **Attempt extraction for all file types**. Disabled by default. When enabled, the connector skips the file extension check, so files with no extension or an unsupported extension are downloaded and extraction is attempted. The maximum file size limit still applies. This can significantly slow down syncs.
+:   Toggle labeled **Attempt extraction for all file types**. Disabled by default. When enabled, the connector skips the file extension check, so files with no extension or an unsupported extension are downloaded and extraction is attempted. The maximum file size limit still applies. This can significantly slow down syncs. Introduced in 9.5.8, 9.6.1, and 9.7.
 
 
 

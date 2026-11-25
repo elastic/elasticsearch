@@ -60,7 +60,7 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
     @Override
     protected String getTestRestCluster() {
         String[] addresses = Clusters.testRestCluster(cluster).split(",");
-        return String.join(",", Arrays.copyOfRange(addresses, 1, addresses.length));
+        return addresses.length == 1 ? addresses[0] : String.join(",", Arrays.copyOfRange(addresses, 1, addresses.length));
     }
 
     public void testRepliesOfSeveralNodesTripCircuitBreakerOfCoordinatingNode() throws Exception {

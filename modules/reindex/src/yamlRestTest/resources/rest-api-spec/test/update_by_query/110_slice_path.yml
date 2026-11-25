@@ -139,3 +139,39 @@ setup:
         id:      "10"
         routing: custom
   - match: {_source.company: updated}
+
+---
+"Scripted delete keeps the slice of a slice-enabled index":
+  # The delete built from the hit must carry its slice as a slice, or the slice-enabled index rejects it as ordinary routing.
+  - do:
+      update_by_query:
+        index:   sliced
+        refresh: true
+        body:
+          script:
+            lang: painless
+            source: if (ctx._source.company == "cat") { ctx.op = "delete" }
+  - match: {updated: 2}
+  - match: {deleted: 1}
+  - match: {failures: []}
+
+  - do:
+      catch: missing
+      get:
+        index:  sliced
+        id:     "1"
+        _slice: tenant-a
+
+  - do:
+      get:
+        index:  sliced
+        id:     "2"
+        _slice: tenant-a
+  - match: {_source.company: dog}
+
+  - do:
+      get:
+        index:  sliced
+        id:     "3"
+        _slice: tenant-b
+  - match: {_source.company: cow}

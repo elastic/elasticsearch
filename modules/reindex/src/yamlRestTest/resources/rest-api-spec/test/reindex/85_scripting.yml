@@ -438,6 +438,75 @@
   - match: { _source.user: foo }
 
 ---
+"Scripted delete removes the document from the intended slice only":
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires _slice support in reindex script metadata"
+
+  - do:
+      indices.create:
+        index: sliced_twitter
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_twitter
+        id:     "1"
+        _slice: tenant-a
+        body:   { "user": "kimchy" }
+
+  - do:
+      indices.create:
+        index: new_twitter
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  new_twitter
+        id:     "1"
+        _slice: tenant-a
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  new_twitter
+        id:     "1"
+        _slice: tenant-b
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  # The delete is routed by the copied slice, so only tenant-a's copy of id 1 goes.
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_twitter
+          dest:
+            index: new_twitter
+          script:
+            lang: painless
+            source: ctx.op = "delete"
+  - match: {deleted: 1}
+  - match: {failures: []}
+
+  - do:
+      catch: missing
+      get:
+        index:  new_twitter
+        id:     "1"
+        _slice: tenant-a
+
+  - do:
+      get:
+        index:  new_twitter
+        id:     "1"
+        _slice: tenant-b
+  - match: { _source.user: kimchy }
+
+---
 "Script that does not assign _slice fails gracefully for a slice-enabled destination":
   - requires:
       cluster_features: ["index.slice_indexing"]

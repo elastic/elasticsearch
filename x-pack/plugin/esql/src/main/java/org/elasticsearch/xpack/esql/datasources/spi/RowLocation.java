@@ -58,10 +58,12 @@ public final class RowLocation {
      * {@code counted within a split} for {@link #BYTE_UNKNOWN}. Zero takes neither, being a read from the start of
      * the file. An empty {@code objectName} leaves the object clause out rather than printing {@code of []}.
      *
-     * @param row            how many records this reader has begun to read from its own input, 1-based. Not a
-     *                       count of ACCEPTED records: CSV counts a record it then rejects, so two failures in a
-     *                       row render as 2 and 3; and NDJSON un-counts a record dropped for exceeding
-     *                       {@code external_max_record_size}, so a later record re-uses the ordinal.
+     * @param row            the reader's own record count at the failure, 1-based and local to what this reader
+     *                       read. Not a count of ACCEPTED records: CSV counts a record it then rejects, so two
+     *                       failures in a row render as 2 and 3; NDJSON un-counts a record dropped for exceeding
+     *                       {@code external_max_record_size}, so a later record re-uses the ordinal; and on the CSV
+     *                       reader's buffered paths a record that fails while being read is numbered ahead of the
+     *                       good records of its batch, so the count can be short by up to a batch.
      * @param objectName     the object as messages name it, already reduced to its displayable part
      * @param readStartByte  file-global byte offset of the first byte this reader was given, on the same axis as
      *                       its records: for compressed input, an offset into the decompressed stream. A

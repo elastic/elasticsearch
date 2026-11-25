@@ -42,7 +42,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -51,9 +50,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.Closeable;
@@ -180,8 +181,9 @@ public class NdJsonPageDecoder implements Closeable {
     /**
      * The byte a message may tell the user the ordinal was counted from, or {@link RowLocation#BYTE_UNKNOWN} once
      * {@link #withholdMessageStartByte()} is called. Tracks {@link #recordOffsetBase} by default and diverges only
-     * on a block-aligned split of a splittable compressed object, where the split offset is a boundary in the
-     * compressed file while this decoder counts decompressed records. {@code _rowPosition} keeps using
+     * on a later split that does not start at a record boundary, the block-aligned split of a compressed object among
+     * them, where the split offset is a boundary in the compressed file while this decoder counts decompressed
+     * records. {@code _rowPosition} keeps using
      * {@link #recordOffsetBase} either way.
      */
     private long messageOffsetBase = 0L;
@@ -885,11 +887,9 @@ public class NdJsonPageDecoder implements Closeable {
             // The remedy hint mirrors coercionFailure and CsvFormatReader.onRowErrorImpl, phrased for a
             // whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way
             // it is for a per-cell failure.
-            // ParsingException (client-class, 400) rather than EsqlIllegalArgumentException (Ql SERVER family,
-            // 500): a line this reader cannot interpret is bad input, not a broken invariant of ours, which is
-            // the split ExternalFailures documents and CsvFormatReader.onRowErrorImpl already implements. The
-            // single "{}" arg keeps LoggerMessageFormat away from the braces an NDJSON record is full of.
-            throw new ParsingException(e, Source.EMPTY, "{}", description + "; set [error_mode] to [skip_row] to skip the row instead");
+            // A 400: a line this reader cannot interpret is bad input, not a broken invariant of ours. Jackson's
+            // exception rides as the cause, which the read boundary logs on this node and drops before the response.
+            throw rowFailure(description + "; set [error_mode] to [skip_row] to skip the row instead", e);
         }
         if (e instanceof StreamConstraintsException) {
             // String length is validated LAZILY: only a projected column's decode arm reads the value, so a
@@ -991,6 +991,27 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
+     * The 400 every failure this decoder raises for the user's data is thrown as. Each names the object, and the
+     * object is whatever the user called it -- {@code logs.amazonaws.com.ndjson} included -- so the message is marked
+     * as quoting the read's input: unmarked, the read boundary's storage-path assertion reads the name as a host and
+     * turns the refusal into an {@link AssertionError} under {@code -ea}. A {@code ParsingException}, which these were,
+     * cannot carry the mark. The shape is the one the CSV reader's typed refusals take, and {@code cause}, when there
+     * is one, is the parser's exception: logged on this node and never sent.
+     */
+    private static ExternalClientException rowFailure(String detail, @Nullable Exception cause) {
+        ExternalClientException failure = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            cause
+        );
+        failure.setDetail(detail);
+        failure.markMessageQuotesInput();
+        return failure;
+    }
+
+    /**
      * Throws when the non-strict error budget ({@code max_errors}/{@code max_error_ratio}) has been
      * exceeded, naming the limit that tripped. Shared by every
      * non-strict error path ({@link #onNdjsonLineParseError} and {@link BlockDecoder#coercionFailure})
@@ -1004,13 +1025,17 @@ public class NdJsonPageDecoder implements Closeable {
             // and exhausted by the user's data.
             // Same window clause the per-row details take, from the same field, so the aggregate cannot imply a
             // file-global count the split-relative totalRowCount is not. CsvFormatReader.checkBudget matches.
-            throw new ParsingException(
-                "[{}] errors in [{}] rows{}{}; {}",
-                errorCount,
-                totalRowCount,
-                RowLocation.objectClause(" of", sourceLocation),
-                RowLocation.countedIn(messageOffsetBase),
-                errorPolicy.trippedLimit(errorCount)
+            throw rowFailure(
+                "["
+                    + errorCount
+                    + "] errors in ["
+                    + totalRowCount
+                    + "] rows"
+                    + RowLocation.objectClause(" of", sourceLocation)
+                    + RowLocation.countedIn(messageOffsetBase)
+                    + "; "
+                    + errorPolicy.trippedLimit(errorCount),
+                null
             );
         }
     }
@@ -2597,7 +2622,7 @@ public class NdJsonPageDecoder implements Closeable {
             if (errorPolicy.isStrict()) {
                 // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable,
                 // and its client-class exception so an unrepresentable value is a 400 rather than a 500.
-                throw new ParsingException(Source.EMPTY, "{}", message + "; set [error_mode] to [null_field] to return null instead");
+                throw rowFailure(message + "; set [error_mode] to [null_field] to return null instead", null);
             }
             // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
             // Mode.SKIP_ROW "drop the entire bad row" contract); null_field keeps the record and nulls this one cell.

@@ -171,12 +171,11 @@ public final class ExternalFailures {
      * and which {@code innerToXContent} serializes into the response, though only one level of those is read here:
      * {@link #suppressedNameNoLocation} says what that leaves.
      * <p>
-     * Two throw sites compose a marked failure over a cause, and they do not agree, so neither generalises:
-     * {@link #rowError} asserts its own cause before anything is detached, and the CSV reader's
-     * {@code failFastSamplingError} passes the row's failure in as a cause and asserts nothing about it. Both causes
-     * are dropped at this boundary and neither reaches the client. What a reader quotes out of such a cause does
-     * reach the client, inside the marked message, and is unchecked by construction -- that is the trade the mark
-     * makes, not an oversight of it.
+     * A marked failure may carry a cause, and whether anything checks that cause depends on how it was built, not on
+     * this boundary: {@link #rowError} asserts its own, and the typed constructors a reader's refusals use accept one
+     * and assert nothing. Either way the cause is dropped here and does not reach the client. What a reader quotes out
+     * of a cause does reach the client, inside the marked message, and is unchecked by construction -- that is the
+     * trade the mark makes, not an oversight of it.
      * <p>
      * Unmarked, every heuristic still applies, and that is the point of spending a mark rather than relaxing the
      * boundary itself: the storage providers build typed failures too, and an SDK endpoint host or a bare filesystem

@@ -96,18 +96,27 @@ final class CsvErrorMessages {
      * renders it.
      */
     static String summarizeEscapedAround(String value, int offset) {
+        return summarizeEscapedAround(value, offset, ErrorExcerpts.MAX_EXCERPT_CHARS);
+    }
+
+    /**
+     * {@link #summarizeEscapedAround(String, int)} within {@code cap} characters rather than the excerpt cap, for an
+     * excerpt that will sit inside wording of its own and be capped again as a whole: fitting it here is what keeps
+     * that second cap from cutting, which it would do without knowing where an escape begins.
+     */
+    static String summarizeEscapedAround(String value, int offset, int cap) {
         if (value == null) {
             return "null";
         }
-        if (value.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS) {
+        if (value.length() <= cap) {
             String escaped = RowLocation.escapedForDisplay(value);
-            if (escaped.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS) {
+            if (escaped.length() <= cap) {
                 return escaped;
             }
         }
         if (offset < 0) {
             String marker = "… (truncated, " + value.length() + " chars total)";
-            int budget = Math.max(0, ErrorExcerpts.MAX_EXCERPT_CHARS - marker.length());
+            int budget = Math.max(0, cap - marker.length());
             String window = value.substring(0, Math.min(value.length(), budget));
             int head = ErrorExcerpts.charsEscapingWithin(window, budget, true);
             return RowLocation.escapedForDisplay(value.substring(0, head)) + marker;
@@ -122,7 +131,7 @@ final class CsvErrorMessages {
             prefix = "… " + prefix + "… ";
         }
         String suffix = "…";
-        int budget = Math.max(0, ErrorExcerpts.MAX_EXCERPT_CHARS - prefix.length() - suffix.length());
+        int budget = Math.max(0, cap - prefix.length() - suffix.length());
         String forward = value.substring(start, Math.min(value.length(), start + budget));
         int end = start + ErrorExcerpts.charsEscapingWithin(forward, budget, true);
         if (end >= value.length()) {

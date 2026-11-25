@@ -352,8 +352,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
         if (withholdMessageStartByte) {
-            // A block-aligned split of a splittable compressed object: splitStartByte is a boundary in the
-            // compressed file, while the ordinal counts decompressed records. _rowPosition is unaffected -- the
+            // A later split that does not start at a record boundary -- the block-aligned split of a compressed
+            // object among them, whose splitStartByte is a boundary in the compressed file while the ordinal counts
+            // decompressed records. Whatever the cause, no byte here can be said to start the count. _rowPosition is unaffected -- the
             // operator factory null-splices its slot for a compressed-offset split.
             this.pageDecoder.withholdMessageStartByte();
         }

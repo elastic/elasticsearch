@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -55,7 +56,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -1054,7 +1054,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -1082,7 +1082,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(batchSize, first.getPositionCount());
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -1109,7 +1109,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(pageRows, first.getPositionCount());
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -1277,7 +1277,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -1374,7 +1374,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1490,7 +1490,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // column (previously the boolean was silently null). Lenient-mode behavior is covered by
         // testInferredCrossKindBooleanHonorsErrorMode.
         try (var iterator = reader.read(object, List.of("x", "y"), 100)) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1519,7 +1519,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1713,7 +1713,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
             )
         ) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1817,7 +1817,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -2407,7 +2407,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(0, first.getBlockCount());
             assertEquals(2, first.getPositionCount());
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -2581,7 +2581,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var ctx = FormatReadContext.builder().projectedColumns(List.of("a", "c")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }

@@ -2445,9 +2445,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link ExternalClientException} is returned whole by that path, which is why all seven schema-path
      * refusals use it; {@code testEverySchemaPathFailureNamesTheObject} walks the set.
      * <p>
-     * The read path applies the same predicate as an assertion. Every refusal in this reader quotes the read's
-     * own input -- an object's basename, a column name, a row, a clause of the declared schema -- so every one of
-     * them says so with {@code ExternalException.markMessageQuotesInput}, and that is what keeps each a 400 under
+     * The read path applies the same predicate as an assertion. A refusal in this reader that quotes the read's
+     * own input -- an object's basename, a column name, a row, a clause of the declared schema -- says so with
+     * {@code ExternalException.markMessageQuotesInput}, and that is what keeps each a 400 under
      * {@code -ea} rather than an {@link AssertionError}. The set is not enumerated here, because an enumeration
      * that falls behind the throw sites is how the omission this mark exists to prevent gets written: the mark is
      * at the sites, where {@code grep markMessageQuotesInput} finds all of them, and

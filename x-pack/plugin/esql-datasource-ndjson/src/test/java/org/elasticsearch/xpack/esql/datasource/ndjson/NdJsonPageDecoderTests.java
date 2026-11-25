@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
@@ -34,9 +35,10 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -1174,7 +1176,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     private void assertRepeatedKeyRejectedUnderStrict(String ndjson, String repeatedName, List<Attribute> projection) {
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (Page page = decodePage(ndjson, projection)) {
                 assertNull("unreachable: the repeat must fail before a page is returned", page);
             }
@@ -1256,6 +1258,49 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 "row [2] of [test://duplicate-escape]: duplicate field name (decodeObject): Duplicate field 'a\\u000Ab'"
             )
         );
+    }
+
+    /**
+     * A user may call an object anything, including a name the storage-path guard reads as a host. Every failure this
+     * decoder raises with the object's name in it has to classify as the 400 it is, rather than trip that guard's
+     * assertion: the line Jackson cannot parse, the value that cannot be read as its column's type, and the error
+     * budget running out.
+     */
+    public void testAFailureNamingAnObjectAfterAStorageHostStillClassifiesAsA400() {
+        String objectName = "logs.amazonaws.com.ndjson";
+        List<Exception> failures = List.of(
+            expectThrows(Exception.class, () -> decodeNamed("{\"v\":1}\n{not json\n", ErrorPolicy.STRICT, objectName)),
+            expectThrows(Exception.class, () -> decodeNamed("{\"v\":\"x\"}\n", ErrorPolicy.STRICT, objectName)),
+            expectThrows(Exception.class, () -> decodeNamed("{\"v\":\"x\"}\n", new ErrorPolicy(0, false), objectName))
+        );
+        for (Exception failure : failures) {
+            assertThat(failure.getMessage(), Matchers.containsString(objectName));
+            RuntimeException classified = ExternalFailures.classify(failure);
+            assertEquals(failure.getMessage(), RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+            assertThat(classified.getMessage(), Matchers.containsString(objectName));
+        }
+    }
+
+    private void decodeNamed(String ndjson, ErrorPolicy policy, String objectName) throws IOException {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                policy,
+                objectName,
+                new NdJsonReaderCounters(),
+                warning -> {}
+            )
+        ) {
+            Page page = decoder.decodePage();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
     }
 
     /** One lenient decode of {@code ndjson}, for a caller that cannot throw and wants only what it logged. */
@@ -1599,7 +1644,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
         drainWarnings();
         expectThrows(
-            ParsingException.class,
+            ExternalClientException.class,
             () -> decodeOneColumn("{\"v\":1719828000000000000}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT)
         );
     }
@@ -1643,7 +1688,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals("the good cell still decodes", 5_000_000L, block.getLong(block.getFirstValueIndex(1)));
         }
         drainWarnings();
-        expectThrows(ParsingException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
+        expectThrows(ExternalClientException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
     }
 
     /**
@@ -2092,7 +2137,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         int length = 2_000_000;
         String big = "Z".repeat(length);
         // The frame around the value is well under 64 chars, plus the object name the location clause carries,
-        // which RowLocation cuts at its own cap; the fail-fast hint and ParsingException's position prefix add
+        // which RowLocation cuts at its own cap; the fail-fast hint and ExternalClientException's position prefix add
         // under 96 more. A value embedded twice, or whole, overshoots either bound. The object-name term is
         // expressed through the constant so that raising the cap cannot quietly widen this guard.
         int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64 + RowLocation.MAX_OBJECT_NAME_CHARS;
@@ -2111,7 +2156,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 assertThat(detail, Matchers.containsString("(truncated, " + length + " chars total)"));
             }
 
-            ParsingException e = expectThrows(ParsingException.class, () -> decodeIdAndV(ndjson, ErrorPolicy.STRICT, new ArrayList<>()));
+            ExternalClientException e = expectThrows(
+                ExternalClientException.class,
+                () -> decodeIdAndV(ndjson, ErrorPolicy.STRICT, new ArrayList<>())
+            );
             String message = e.getMessage();
             assertThat("exception carried the whole value", message.length(), Matchers.lessThan(exceptionBound));
             assertThat(message, Matchers.containsString("column [id]: cannot read ["));
@@ -2173,7 +2221,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      */
     public void testOversizedNumberTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
-        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT)
+        );
         assertThat(e.getMessage(), Matchers.containsString("row [2] of [test://ul]: JSON over a parser limit"));
         assertThat(e.getMessage(), Matchers.not(Matchers.containsString("Number value length")));
         assertThat(e.getCause().getMessage(), Matchers.containsString("Number value length"));
@@ -2205,7 +2256,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /** fail_fast on a non-number limit, pinning that the routing is class-level rather than number-specific. */
     public void testExcessiveNestingFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + excessiveNestingRecord() + "\n";
-        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT)
+        );
         assertThat(e.getMessage(), Matchers.containsString("row [2] of [test://ul]: JSON over a parser limit"));
         assertThat(e.getMessage(), Matchers.not(Matchers.containsString("Document nesting depth")));
         assertThat(e.getCause().getMessage(), Matchers.containsString("Document nesting depth"));
@@ -2373,7 +2427,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testConstraintViolationCountsAgainstErrorBudget() {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
         ErrorPolicy noBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
-        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, noBudget));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> decodeOneColumn(ndjson, DataType.LONG, noBudget));
         assertThat(e.getMessage(), Matchers.containsString("[1] errors in [2] rows of [test://ul]; over [max_errors] of [0]"));
     }
 
@@ -2392,18 +2446,18 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertEquals(
             "whole-line parse failure",
             RestStatus.BAD_REQUEST,
-            expectThrows(ParsingException.class, () -> decodeOneColumn(oversized, DataType.LONG, ErrorPolicy.STRICT)).status()
+            expectThrows(ExternalClientException.class, () -> decodeOneColumn(oversized, DataType.LONG, ErrorPolicy.STRICT)).status()
         );
         assertEquals(
             "per-cell coercion failure",
             RestStatus.BAD_REQUEST,
-            expectThrows(ParsingException.class, () -> decodeOneColumn(badValue, DataType.LONG, ErrorPolicy.STRICT)).status()
+            expectThrows(ExternalClientException.class, () -> decodeOneColumn(badValue, DataType.LONG, ErrorPolicy.STRICT)).status()
         );
         assertEquals(
             "error budget exhausted",
             RestStatus.BAD_REQUEST,
             expectThrows(
-                ParsingException.class,
+                ExternalClientException.class,
                 () -> decodeOneColumn(oversized, DataType.LONG, new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false))
             ).status()
         );
@@ -2418,7 +2472,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      */
     public void testConstraintViolationOnRecordOpeningTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n";
-        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT)
+        );
         assertThat(
             e.getMessage(),
             Matchers.containsString("row [2] of [test://ul]: JSON over a parser limit; set [error_mode] to [skip_row]")
@@ -3383,7 +3440,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * the object fixes both at once.
      */
     public void testStrictLineParseErrorNamesTheObject() {
-        ParsingException e = expectThrows(ParsingException.class, () -> {
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (Page page = decodePage("{\"v\":1}\n{not json}\n", List.of(attribute("v", DataType.LONG)))) {
                 assertNull("unreachable: the malformed record must fail the query", page);
             }
@@ -3473,7 +3530,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             )
         ) {
             decoder.setRecordOffsetBase(4194304L);
-            ParsingException e = expectThrows(ParsingException.class, decoder::decodePage);
+            ExternalClientException e = expectThrows(ExternalClientException.class, decoder::decodePage);
             assertThat(
                 e.getMessage(),
                 Matchers.containsString(
@@ -3503,7 +3560,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             )
         ) {
             decoder.setRecordOffsetBase(4194304L);
-            ParsingException e = expectThrows(ParsingException.class, decoder::decodePage);
+            ExternalClientException e = expectThrows(ExternalClientException.class, decoder::decodePage);
             assertThat(
                 e.getMessage(),
                 Matchers.containsString(
@@ -3547,7 +3604,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     public void testDeclaredDoubleRefusesJavaOnlySpellings() {
         for (String text : List.of("10D", "14f", "0x1p3", "١٢٣")) {
-            expectThrows(ParsingException.class, () -> decodeOneColumn("{\"v\":\"" + text + "\"}\n", DataType.DOUBLE, ErrorPolicy.STRICT));
+            expectThrows(
+                ExternalClientException.class,
+                () -> decodeOneColumn("{\"v\":\"" + text + "\"}\n", DataType.DOUBLE, ErrorPolicy.STRICT)
+            );
         }
     }
 

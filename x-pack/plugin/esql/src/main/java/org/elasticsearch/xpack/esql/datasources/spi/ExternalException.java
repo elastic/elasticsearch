@@ -422,8 +422,10 @@ public abstract class ExternalException extends QlException {
      * {@link ExternalFailures#noStoragePathLeakedBesideQuotedInput} is the whole argument.
      * <p>
      * Quoting is the claim, not origin: say it where the message puts input text in verbatim, not merely because the
-     * failure arose while reading a file. Never say it of text a library handed us -- a cause is checked in full
-     * whatever this says, and third-party text belongs in {@link ExternalFailures#forwardableDetail}, which screens it.
+     * failure arose while reading a file. Saying it exempts everything in the message, so a message that also carries
+     * a library's own text -- a parser's diagnosis of the row it quotes -- is exempted with it, and that text should be
+     * escaped like the rest of what the message quotes. A storage client's text belongs in
+     * {@link ExternalFailures#forwardableDetail}, which screens it, and never in a marked message.
      */
     public void markMessageQuotesInput() {
         this.messageQuotesInput = true;

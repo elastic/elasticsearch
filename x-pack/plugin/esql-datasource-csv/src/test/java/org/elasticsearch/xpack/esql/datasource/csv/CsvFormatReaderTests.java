@@ -95,6 +95,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -8168,6 +8169,21 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat("nothing escapable is left raw", excerpt, not(containsString("[")));
         // And through the factory that prints it.
         assertThat(MalformedRowException.unclosedQuotedField(row, fault).getMessage(), containsString("\"FAULT"));
+    }
+
+    /**
+     * The reason a row failure prints is capped as a whole, and the line it quotes is fitted inside that cap rather
+     * than cut a second time: a record that runs on past many newlines escapes each one to six characters, and a
+     * second, unaware cut used to land inside an escape and add a marker counting the sentence instead of the line.
+     */
+    public void testARowFailuresReasonIsCutOnceAndNeverInsideAnEscape() {
+        String line = "1,\"" + "x\n".repeat(2500);
+        String reason = CsvFormatReader.rowErrorReason(MalformedRowException.unclosedQuotedField(line, 2), "csv");
+        assertThat(reason.length(), lessThanOrEqualTo(ErrorExcerpts.MAX_EXCERPT_CHARS));
+        assertThat("only the excerpt's own count of the line", reason, not(containsString("chars total")));
+        assertThat(reason, containsString("of " + line.length() + " chars"));
+        assertThat("the bracket closing the excerpt survives", reason, endsWith("…]"));
+        assertFalse("no escape is cut short", reason.matches("(?s).*\\\\u[0-9A-F]{0,3}[^0-9A-F].*"));
     }
 
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {

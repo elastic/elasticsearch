@@ -25,6 +25,9 @@ import java.util.Set;
  * <p>
  * {@code BINARY} dest is the uncompressed string payload, counted once. Extra BytesRef/block
  * copy overhead is not in this estimate; do not double-count uncompressed pages to cover it.
+ * Neither is the ordinal-compaction mark scratch of {@code PageColumnReader} (about 12 bits per
+ * dictionary entry): footers do not carry the dictionary entry count, and it is charged
+ * separately, as {@code parquet dictionary remap}.
  */
 final class ParquetDecodeWorkingSet {
 

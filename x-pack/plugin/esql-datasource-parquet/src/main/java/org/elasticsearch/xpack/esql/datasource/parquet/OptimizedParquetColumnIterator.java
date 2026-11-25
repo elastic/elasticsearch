@@ -398,9 +398,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Memoizes the dictionary-match bitmap computed by {@link ParquetPushedExpressions} for
      * every pushed leaf predicate, so the predicate is evaluated against the dictionary
-     * once per row group rather than once per batch. The underlying {@code BytesRefArray}
-     * is fixed for the lifetime of a row group (see {@code PageColumnReader#ensureCachedDictArray}),
-     * which is what makes the entries valid across batches.
+     * once per row group rather than once per batch. The bitmaps are indexed by row-group
+     * dictionary ordinal, so they are valid across batches only because predicate blocks are
+     * read <em>uncompacted</em>: their readers have ordinal compaction off (see
+     * {@link #initColumnReaders} and {@link #initPredicateColumnReaders}), so every batch carries
+     * the row group's whole dictionary, fixed for the lifetime of the row group (see
+     * {@code PageColumnReader#ensureCachedDictArray}). A compact per-batch dictionary renumbers the
+     * ordinals and must never meet this memo; predicate blocks are compacted only after evaluation.
      *
      * <p>Lifecycle by stamp, not by callback: {@link #dictionaryBitmapsForCurrentRowGroup}
      * compares the cached row-group ordinal with the current one and wipes the map on a
@@ -1957,7 +1961,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * resetting it on a row-group transition. The memo is owned by the iterator and shared
      * with {@link ParquetPushedExpressions#evaluateFilter}; the caller writes new bitmaps to
      * it as predicates are evaluated and reads them on subsequent batches within the same
-     * row group. Returns {@code null} when late materialization is off.
+     * row group. The memo is valid only over uncompacted predicate blocks (see
+     * {@link #dictionaryBitmaps}). Returns {@code null} when late materialization is off.
      */
     private Map<Expression, boolean[]> dictionaryBitmapsForCurrentRowGroup() {
         if (dictionaryBitmaps == null) {
@@ -3170,6 +3175,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
                 pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null, coercionWarnings(), warningSink);
+                // Predicate blocks are evaluated against the row-group dictionary-match memo, so their
+                // ordinals keep the row-group numbering; nextTwoPhaseBatch compacts them when emitted.
+                pageColumnReaders[i].setOrdinalCompaction(false);
             }
         }
         // Sink intentionally not armed: see Javadoc above.
@@ -3248,11 +3256,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         columnReaders = null;
         listColumnReaders = null;
         validateListExhaustion = currentRowRanges == null || currentRowRanges.isAll();
+        // Mirrors the nextStandard / nextWithLateMaterialization choice in next() and the sink arming
+        // below: on the late-materialization path, predicate blocks are evaluated against the
+        // row-group dictionary-match memo, so their ordinals must keep the row-group numbering;
+        // nextWithLateMaterialization compacts them when emitted. Row groups whose statistics prove
+        // the filter trivially passes go through nextStandard and get compacted blocks.
+        boolean lateMaterializedRowGroup = lateMaterialization && currentRowGroupTriviallyPasses == false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
                 pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges, coercionWarnings(), warningSink);
+                if (lateMaterializedRowGroup && isPredicateColumn[i]) {
+                    pageColumnReaders[i].setOrdinalCompaction(false);
+                }
             }
         }
         // Arm the sink only when this batch will be processed by nextStandard, which is the only
@@ -4010,6 +4027,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
             for (int col = 0; col < columnInfos.length; col++) {
                 if (isPredicateColumn[col]) {
+                    if (predicateBlocks[col] != null) {
+                        // Predicate readers keep the row-group dictionary (see initPredicateColumnReaders),
+                        // so compact it on emission. Not in decodePredicateBatch: the whole row group's
+                        // predicate batches are held there at once, and a compact copy per batch would
+                        // replace the one shared dictionary. Unlike sliceBlockHead above, compact closes
+                        // the source only on success, so the slot is NOT nulled first: on failure it still
+                        // owns the source and the catch closes it once; on success it takes the result.
+                        predicateBlocks[col] = OrdinalCompaction.compact(predicateBlocks[col], blockFactory);
+                    }
                     // Transfer ownership: hand the reference to blocks[] and clear the
                     // predicateBlocks[] slot so the catch closes each Block at most once.
                     blocks[col] = predicateBlocks[col];
@@ -4271,6 +4297,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         if (isPredicateColumn[col] && blocks[col] != null) {
                             blocks[col] = PageColumnReader.filterBlock(blocks[col], positions, survivorCount, blockFactory);
                         }
+                    }
+                }
+            }
+            if (positions == null) {
+                // The batch survives intact, so the predicate blocks are emitted as decoded. Their
+                // readers keep the row-group dictionary (see initColumnReaders): compact it now. On
+                // success compact closes the source and the slot takes the result; on failure the
+                // slot still owns the source and the catch below closes it.
+                for (int col = 0; col < columnInfos.length; col++) {
+                    if (isPredicateColumn[col] && blocks[col] != null) {
+                        blocks[col] = OrdinalCompaction.compact(blocks[col], blockFactory);
                     }
                 }
             }

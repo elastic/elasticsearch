@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -21,6 +22,7 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -68,9 +70,28 @@ import java.util.function.IntConsumer;
  *
  * <p>For dictionary-encoded BINARY/UTF8 columns, {@code readBytesBatch} takes an ordinal
  * fast path that emits an {@link OrdinalBytesRefBlock} so downstream {@code BlockHash} can
- * hash only the {@code k} dictionary entries instead of the {@code N} row values. The
- * dictionary bytes are deep-copied into a {@link BytesRefArray} once per chunk and that
- * array is shared across every batch in the chunk via its atomic ref-count
+ * hash dictionary entries once instead of the {@code N} row values.
+ * {@link OrdinalBytesRefBlock} consumers (hashing, {@code VALUES}, dictionary-aware evaluators)
+ * process the whole dictionary once and map the results back, so unreferenced entries add downstream
+ * work. A batch that references at most half of a sufficiently large chunk dictionary (clustered or
+ * sorted data, a dictionary larger than the batch) therefore gets its own compact dictionary of the
+ * referenced entries, in ascending chunk-dictionary order, with its ordinals renumbered to match.
+ * A batch shares the chunk dictionary when it references more than half of its entries, when the
+ * dictionary has at most one entry per {@link #SKIP_DICTIONARY_RATIO} non-null values, or for
+ * {@link #SHARED_BACKOFF_BATCHES} batches after a mostly-referenced batch. Compacting a mostly
+ * referenced dictionary copies almost the same data per batch for little downstream saving; these
+ * thresholds avoid that cost.
+ *
+ * <p>The back-off deliberately makes a transition to clustered data compact up to
+ * {@link #SHARED_BACKOFF_BATCHES} batches late; a layout whose every probe batch is mostly
+ * referenced can keep sharing indefinitely. A short contiguous read inside that window can also
+ * carry the whole chunk dictionary. These are cost trade-offs, not correctness requirements.
+ * Readers whose ordinals must keep the chunk numbering (late-materialization predicate readers)
+ * turn this off with {@link #setOrdinalCompaction}; their blocks are compacted when emitted, by
+ * {@link OrdinalCompaction#compact}.
+ *
+ * <p>Shared dictionary bytes are deep-copied into a {@link BytesRefArray} once per chunk and that
+ * array is shared across every such batch in the chunk via its atomic ref-count
  * ({@link BytesRefArray} extends {@code AbstractRefCounted}). Each emitted batch creates a
  * fresh {@code BytesRefArrayVector} wrapper that holds one ref to the shared array; the
  * wrapper itself is single-driver-owned (its non-thread-safe ref counter is never shared)
@@ -134,6 +155,35 @@ final class PageColumnReader implements Releasable {
      */
     private BytesRefArray cachedDictArray;
     private Dictionary cachedDictArraySource;
+
+    /** Whether ordinal batches use the compaction threshold. On by default; see {@link #setOrdinalCompaction}. */
+    private boolean ordinalCompaction = true;
+
+    /** Independent bitsets the mark pass spreads consecutive rows over; see {@link #markReferencedEntries}. */
+    private static final int MARK_LANES = 4;
+
+    /** Skip the mark pass when the dictionary has at most one entry per this many non-null values. */
+    static final int SKIP_DICTIONARY_RATIO = 8;
+
+    /** Skip this many mark passes after a batch references more than half of the dictionary. */
+    static final int SHARED_BACKOFF_BATCHES = 4;
+
+    /** Remaining compaction-eligible batches whose mark pass is skipped after a mostly-referenced batch. */
+    private int sharedDictionaryBackoff;
+
+    /**
+     * Compaction scratch of a reader with {@link #ordinalCompaction} on: {@link #MARK_LANES} bitsets of
+     * one bit per dictionary entry ({@code referencedEntries}, lane-major; lane 0 holds the merged marks),
+     * the per-word prefix sums of the marked bits ({@code rankBase}), and the sanitized dictionary
+     * entries, filled lazily ({@code sanitizedEntries}). Allocated on the first mark pass, sized once
+     * (a reader reads a single column chunk, so the dictionary never changes), charged to
+     * {@link #scratchBreaker} and released in {@link #close()}.
+     */
+    private long[] referencedEntries;
+    private int[] rankBase;
+    private BytesRef[] sanitizedEntries;
+    private CircuitBreaker scratchBreaker;
+    private long scratchBytes;
 
     private final DefinitionLevelDecoder defDecoder = new DefinitionLevelDecoder();
     private final PlainValueDecoder plainDecoder = new PlainValueDecoder();
@@ -210,7 +260,32 @@ final class PageColumnReader implements Releasable {
         this.failedPositionSink = sink;
     }
 
+    /**
+     * Sets whether ordinal batches use the compaction threshold (the default) or always carry the
+     * whole column-chunk dictionary. Turn it off when the ordinals must keep the chunk dictionary's
+     * numbering: late-materialization predicate readers, whose blocks are evaluated against a
+     * dictionary-match memo shared by the whole row group and compacted only when emitted (see
+     * {@link OrdinalCompaction#compact}), and readers whose blocks are always copied into plain blocks,
+     * where a compact dictionary would be built for nothing. A reader with compaction off never
+     * allocates the mark scratch.
+     */
+    void setOrdinalCompaction(boolean enabled) {
+        this.ordinalCompaction = enabled;
+    }
+
     Block readBatch(int maxRows, BlockFactory blockFactory) {
+        return readBatch(maxRows, blockFactory, ordinalCompaction);
+    }
+
+    /**
+     * Reads a batch whose ordinal blocks keep the chunk dictionary, whatever the reader's toggle: for
+     * callers that immediately copy, cast or filter the result into another block.
+     */
+    private Block readBatchUncompacted(int maxRows, BlockFactory blockFactory) {
+        return readBatch(maxRows, blockFactory, false);
+    }
+
+    private Block readBatch(int maxRows, BlockFactory blockFactory, boolean compact) {
         // A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
         // skipRows may spend that credit. Decoding here would read from the wrong source rows and
         // silently undercount an aggregate. The check is per-batch, so failing loudly costs nothing.
@@ -230,7 +305,8 @@ final class PageColumnReader implements Releasable {
             && declared != fileType
             && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
             && DeclaredTypeCoercions.supports(fileType, declared)) {
-            Block physical = readBatchAs(fileType, maxRows, blockFactory);
+            // The physical block is cast and closed right away, so a compact dictionary would be wasted.
+            Block physical = readBatchAs(fileType, maxRows, blockFactory, false);
             try {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
@@ -246,10 +322,10 @@ final class PageColumnReader implements Releasable {
                 physical.close();
             }
         }
-        return readBatchAs(declared, maxRows, blockFactory);
+        return readBatchAs(declared, maxRows, blockFactory, compact);
     }
 
-    private Block readBatchAs(DataType type, int maxRows, BlockFactory blockFactory) {
+    private Block readBatchAs(DataType type, int maxRows, BlockFactory blockFactory, boolean compact) {
         // WARNING: the dispatching logic below is duplicated in ParquetFormatReader#readColumnBlock
         // KEEP IN SYNC!
         return switch (type) {
@@ -266,7 +342,7 @@ final class PageColumnReader implements Releasable {
                 yield readLongBatch(maxRows, blockFactory, type == DataType.UNSIGNED_LONG);
             }
             case DOUBLE -> readDoubleBatch(maxRows, blockFactory);
-            case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory);
+            case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory, compact);
             case DATETIME -> readDatetimeBatch(maxRows, blockFactory);
             case DATE_NANOS -> readDateNanosBatch(maxRows, blockFactory);
             default -> {
@@ -328,7 +404,8 @@ final class PageColumnReader implements Releasable {
             skipRows(maxRows);
             return blockFactory.newConstantNullBlock(0);
         }
-        Block full = readBatch(maxRows, blockFactory);
+        // filterBlock materializes ordinal blocks into plain ones, so don't compact the dictionary first.
+        Block full = readBatchUncompacted(maxRows, blockFactory);
         try {
             // filterBlock closes `full` on success; on the `source.filter(...)` allocation
             // failure it does NOT, so we explicitly release the source here to avoid leaking
@@ -396,7 +473,8 @@ final class PageColumnReader implements Releasable {
 
         // General path: decompose survivorPositions into (skip, read) runs of contiguous
         // positions. Each run produces a small Block via readBatch; chunks are combined
-        // at the end.
+        // at the end. BlockChunks.concat copies the chunks into a plain block, so the runs are
+        // read without compacting their dictionaries.
         List<Block> chunks = new ArrayList<>();
         int cursor = 0;
         int runStart = 0;
@@ -417,7 +495,7 @@ final class PageColumnReader implements Releasable {
                 }
                 int runLength = runEnd - runStart;
 
-                chunks.add(readBatch(runLength, blockFactory));
+                chunks.add(readBatchUncompacted(runLength, blockFactory));
                 cursor += runLength;
                 runStart = runEnd;
             }
@@ -428,6 +506,9 @@ final class PageColumnReader implements Releasable {
                 skipRows(trailing);
             }
 
+            // The survivors are not contiguous (the fast path above took that case), so there are at
+            // least two runs. A single chunk would be returned as is, leaking its uncompacted dictionary.
+            assert chunks.size() > 1 : "non-contiguous survivors produced [" + chunks.size() + "] runs";
             if (chunks.size() == 1) {
                 return chunks.get(0);
             }
@@ -1246,13 +1327,16 @@ final class PageColumnReader implements Releasable {
 
     // --- BytesRef (KEYWORD/TEXT) ---
 
-    private Block readBytesBatch(int maxRows, BlockFactory blockFactory) {
+    private Block readBytesBatch(int maxRows, BlockFactory blockFactory, boolean compact) {
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         // Dictionary-encoded chunk: emit an OrdinalBytesRefBlock so downstream BlockHash can
-        // hash only k dictionary entries instead of N row values. Skip for UUID, where each
-        // value needs per-row byte formatting that the ordinal path does not perform.
+        // hash dictionary entries once instead of N row values. Below the compaction threshold the
+        // dictionary holds exactly the k referenced entries; above it the shared dictionary has
+        // fewer unreferenced than referenced entries (apart from the documented skip/back-off
+        // cases). Skip for UUID, where each value needs per-row byte formatting that the ordinal
+        // path does not perform.
         if (dictionary != null && isUuid == false) {
-            return readBytesBatchAsOrdinals(maxRows, blockFactory);
+            return readBytesBatchAsOrdinals(maxRows, blockFactory, compact);
         }
         if (maxDefLevel == 0) {
             return readRequiredBytesBatch(maxRows, blockFactory, isUuid);
@@ -1437,9 +1521,10 @@ final class PageColumnReader implements Releasable {
         return values;
     }
 
-    private Block readBytesBatchAsOrdinals(int maxRows, BlockFactory blockFactory) {
+    private Block readBytesBatchAsOrdinals(int maxRows, BlockFactory blockFactory, boolean compact) {
         int[] ordinals = ValueArrays.ints(maxRows, maxDefLevel > 0);
         WordMask nulls = maxDefLevel > 0 ? buffers.nullsMask(maxRows) : null;
+        int dictSize = dictDecoder.getDictionaryBytesRefs(dictionary).length;
         int produced = 0;
         int remaining = maxRows;
         boolean fallback = false;
@@ -1451,13 +1536,16 @@ final class PageColumnReader implements Releasable {
             int fromPage = Math.min(remaining, availableInPage());
             if (nulls == null) {
                 dictDecoder.readIndices(ordinals, produced, fromPage);
+                checkDictionaryIndices(ordinals, produced, fromPage, dictSize);
             } else {
                 int nonNull = defDecoder.readBatch(fromPage, nulls, produced);
                 if (nonNull == fromPage) {
                     dictDecoder.readIndices(ordinals, produced, fromPage);
+                    checkDictionaryIndices(ordinals, produced, fromPage, dictSize);
                 } else if (nonNull > 0) {
                     int[] packed = UninitializedArrays.newIntArray(nonNull);
                     dictDecoder.readIndices(packed, 0, nonNull);
+                    checkDictionaryIndices(packed, 0, nonNull, dictSize);
                     int pi = 0;
                     for (int i = 0; i < fromPage; i++) {
                         if (nulls.get(produced + i) == false) {
@@ -1473,10 +1561,34 @@ final class PageColumnReader implements Releasable {
         if (fallback) {
             return finishMaterializedFallback(ordinals, nulls, produced, remaining, blockFactory);
         }
-        return buildOrdinalResult(ordinals, nulls, produced, blockFactory);
+        return buildOrdinalResult(ordinals, nulls, produced, blockFactory, compact);
     }
 
-    private Block buildOrdinalResult(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory) {
+    /**
+     * Rejects decoded dictionary indices outside {@code [0, dictSize)}. {@link DictionaryValueDecoder}
+     * does no range check, and both the ordinal result and the PLAIN fallback index the dictionary
+     * with these values, so a corrupt page would otherwise fail with an
+     * {@link ArrayIndexOutOfBoundsException} (a server error) instead of a bad-input one. Runs right
+     * after each decode, on decoded values only, so null slots are never seen.
+     */
+    private void checkDictionaryIndices(int[] indices, int from, int count, int dictSize) {
+        for (int i = from, end = from + count; i < end; i++) {
+            int ord = indices[i];
+            if (ord < 0 || ord >= dictSize) {
+                throw new IllegalArgumentException(
+                    "Dictionary index ["
+                        + ord
+                        + "] out of range for dictionary of size ["
+                        + dictSize
+                        + "] in column ["
+                        + String.join(".", descriptor.getPath())
+                        + "]"
+                );
+            }
+        }
+    }
+
+    private Block buildOrdinalResult(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory, boolean compact) {
         BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
         if (produced == 0) {
             return blockFactory.newConstantNullBlock(0);
@@ -1484,13 +1596,54 @@ final class PageColumnReader implements Releasable {
         if (nulls != null && nulls.popCount() == produced) {
             return blockFactory.newConstantNullBlock(produced);
         }
-        // Non-null, all-equal indices: emit a constant block to skip the ordinal indirection.
+        int nullCount = nulls == null ? 0 : nulls.popCount();
+        boolean noNulls = nullCount == 0;
+        if (compact == false) {
+            return constantOrSharedOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+        }
+        int values = produced - nullCount;
+        if (sharedDictionaryBackoff > 0) {
+            sharedDictionaryBackoff--;
+            return constantOrSharedOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+        }
+        if ((long) dict.length * SKIP_DICTIONARY_RATIO <= values) {
+            return constantOrSharedOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+        }
+        int referenced = markReferencedEntries(ordinals, nulls, produced, dict.length, blockFactory.breaker());
+        if (referenced == 1 && noNulls) {
+            // All-equal indices: emit a constant block to skip the ordinal indirection.
+            return blockFactory.newConstantBytesRefBlockWith(sanitizedEntry(dict, ordinals[0]), produced);
+        }
+        if ((long) referenced * 2 > dict.length) {
+            sharedDictionaryBackoff = SHARED_BACKOFF_BATCHES;
+            return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+        }
+        // Batches that are not dense (fewer than two rows per referenced entry) get no ordinal shortcut from the
+        // hash or serialization, but still emit a compact ordinal block rather than a plain one: measured with
+        // ParquetOrdinalDictionaryBenchmark, the plain block was slower to build and to consume with VALUES, and
+        // held more memory when buffered.
+        return compactOrdinalBlock(ordinals, nulls, produced, dict, referenced, blockFactory);
+    }
+
+    /** Detects a constant batch without allocating mark scratch, otherwise shares the chunk dictionary. */
+    private Block constantOrSharedOrdinalBlock(int[] ordinals, WordMask nulls, int produced, BytesRef[] dict, BlockFactory blockFactory) {
         if (nulls == null || nulls.isEmpty()) {
             int constantOrdinal = detectConstantOrdinal(ordinals, produced);
             if (constantOrdinal >= 0) {
                 return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
             }
         }
+        return sharedDictionaryOrdinalBlock(ordinals, nulls, produced, dict, blockFactory);
+    }
+
+    /** Wraps the batch's ordinals around the chunk dictionary, shared with the other batches of the chunk. */
+    private OrdinalBytesRefBlock sharedDictionaryOrdinalBlock(
+        int[] ordinals,
+        WordMask nulls,
+        int produced,
+        BytesRef[] dict,
+        BlockFactory blockFactory
+    ) {
         IntBlock ordinalsBlock = null;
         BytesRefVector dictVector = null;
         try {
@@ -1500,6 +1653,170 @@ final class PageColumnReader implements Releasable {
         } catch (Throwable e) {
             ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
             throw e;
+        }
+    }
+
+    /**
+     * Rewrites the batch's ordinals in place to their rank among the referenced entries and wraps them
+     * around a dictionary of exactly those entries, in ascending chunk-dictionary order. Requires a
+     * preceding {@link #markReferencedEntries} over the same ordinals.
+     */
+    private OrdinalBytesRefBlock compactOrdinalBlock(
+        int[] ordinals,
+        WordMask nulls,
+        int produced,
+        BytesRef[] dict,
+        int referenced,
+        BlockFactory blockFactory
+    ) {
+        long[] marked = referencedEntries;
+        int total = OrdinalCompaction.fillRankBase(marked, rankBase);
+        assert total == referenced : "marked [" + total + "] != referenced [" + referenced + "]";
+        if (nulls == null || nulls.isEmpty()) {
+            for (int i = 0; i < produced; i++) {
+                ordinals[i] = OrdinalCompaction.rank(marked, rankBase, ordinals[i]);
+            }
+        } else {
+            // Null slots keep ordinal 0, which stays in range since at least one entry is referenced.
+            for (int i = 0; i < produced; i++) {
+                if (nulls.get(i) == false) {
+                    ordinals[i] = OrdinalCompaction.rank(marked, rankBase, ordinals[i]);
+                }
+            }
+        }
+        IntBlock ordinalsBlock = null;
+        BytesRefVector dictVector = null;
+        try {
+            ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
+            dictVector = compactDictionary(dict, marked, rankBase.length, referenced, blockFactory);
+            return new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, ordinalsBlock, dictVector);
+            throw e;
+        }
+    }
+
+    /**
+     * Copies the marked entries, sanitized, into one exactly sized {@code byte[]}. A paged
+     * {@code BytesRefArray} would round every batch's small dictionary up to whole {@code BigArrays}
+     * pages, which dominates the memory of buffered pages.
+     */
+    private BytesRefVector compactDictionary(BytesRef[] dict, long[] marked, int words, int referenced, BlockFactory blockFactory) {
+        long totalBytes = 0;
+        for (int w = 0; w < words; w++) {
+            for (long bits = marked[w]; bits != 0; bits &= bits - 1) {
+                totalBytes += sanitizedEntry(dict, (w << 6) + Long.numberOfTrailingZeros(bits)).length;
+            }
+        }
+        byte[] bytes = new byte[Math.toIntExact(totalBytes)];
+        int[] offsets = new int[referenced + 1];
+        int entry = 0;
+        int position = 0;
+        for (int w = 0; w < words; w++) {
+            for (long bits = marked[w]; bits != 0; bits &= bits - 1) {
+                BytesRef value = sanitizedEntries[(w << 6) + Long.numberOfTrailingZeros(bits)];
+                System.arraycopy(value.bytes, value.offset, bytes, position, value.length);
+                position += value.length;
+                offsets[++entry] = position;
+            }
+        }
+        return blockFactory.newDirectBytesRefVector(bytes, offsets, referenced);
+    }
+
+    /**
+     * The sanitized dictionary entry {@code ord}, computed on first use and kept for the chunk, so a
+     * batch that references an entry already seen doesn't validate it again.
+     */
+    private BytesRef sanitizedEntry(BytesRef[] dict, int ord) {
+        BytesRef sanitized = sanitizedEntries[ord];
+        if (sanitized == null) {
+            sanitized = Utf8Sanitizer.sanitize(dict[ord]);
+            sanitizedEntries[ord] = sanitized;
+        }
+        return sanitized;
+    }
+
+    /**
+     * Marks the dictionary entries referenced by the batch's non-null positions in
+     * {@link #referencedEntries} and returns how many there are. Null slots are skipped so they don't
+     * keep entry 0. The bitset is cleared first, so a failure after a previous pass can't leave stale
+     * marks behind.
+     * <p>
+     * Consecutive rows mark into {@link #MARK_LANES} separate bitsets, merged into the first one at the
+     * end. With a single bitset, rows that hit the same word (every row, for a small dictionary) form a
+     * chain of read-modify-writes to one memory location, each waiting on the previous store.
+     */
+    private int markReferencedEntries(int[] ordinals, WordMask nulls, int produced, int dictSize, CircuitBreaker breaker) {
+        ensureCompactionScratch(dictSize, breaker);
+        long[] marked = referencedEntries;
+        int words = rankBase.length;
+        Arrays.fill(marked, 0L);
+        boolean noNulls = nulls == null || nulls.isEmpty();
+        for (int i = 0; i < produced; i++) {
+            if (noNulls || nulls.get(i) == false) {
+                int ord = ordinals[i];
+                assert ord >= 0 && ord < dictSize : "unchecked dictionary index [" + ord + "]";
+                marked[(i & (MARK_LANES - 1)) * words + (ord >>> 6)] |= 1L << ord;
+            }
+        }
+        int referenced = 0;
+        for (int w = 0; w < words; w++) {
+            long word = marked[w];
+            for (int lane = 1; lane < MARK_LANES; lane++) {
+                word |= marked[lane * words + w];
+            }
+            marked[w] = word;
+            referenced += Long.bitCount(word);
+        }
+        return referenced;
+    }
+
+    /**
+     * Heap bytes of a compacting reader's scratch for a {@code dictSize}-entry dictionary: the
+     * {@link #MARK_LANES} mark bitsets, the rank prefix sums, and the sanitized-entry cache's array.
+     */
+    static long compactionScratchBytes(int dictSize) {
+        int words = OrdinalCompaction.words(dictSize);
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) MARK_LANES * words * Long.BYTES)
+            + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) words * Integer.BYTES) + RamUsageEstimator
+                .alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) dictSize * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+    }
+
+    /**
+     * Allocates the compaction scratch on the first mark pass, reserving it on the request breaker
+     * before allocating, so a trip leaves nothing allocated or charged.
+     */
+    private void ensureCompactionScratch(int dictSize, CircuitBreaker breaker) {
+        int words = OrdinalCompaction.words(dictSize);
+        if (referencedEntries != null) {
+            assert rankBase.length == words : "dictionary size changed within a column chunk";
+            return;
+        }
+        long bytes = compactionScratchBytes(dictSize);
+        breaker.addEstimateBytesAndMaybeBreak(bytes, OrdinalCompaction.SCRATCH_LABEL);
+        try {
+            long[] newReferencedEntries = new long[MARK_LANES * words];
+            int[] newRankBase = new int[words];
+            BytesRef[] newSanitizedEntries = new BytesRef[dictSize];
+            scratchBreaker = breaker;
+            scratchBytes = bytes;
+            referencedEntries = newReferencedEntries;
+            rankBase = newRankBase;
+            sanitizedEntries = newSanitizedEntries;
+        } catch (Throwable e) {
+            breaker.addWithoutBreaking(-bytes);
+            throw e;
+        }
+    }
+
+    private void releaseCompactionScratch() {
+        referencedEntries = null;
+        rankBase = null;
+        sanitizedEntries = null;
+        if (scratchBytes != 0) {
+            scratchBreaker.addWithoutBreaking(-scratchBytes);
+            scratchBytes = 0;
+            scratchBreaker = null;
         }
     }
 
@@ -1584,6 +1901,7 @@ final class PageColumnReader implements Releasable {
     @Override
     public void close() {
         releaseCachedDictArray();
+        releaseCompactionScratch();
     }
 
     private Block finishMaterializedFallback(int[] ordinals, WordMask nulls, int produced, int remaining, BlockFactory blockFactory) {
@@ -1703,7 +2021,8 @@ final class PageColumnReader implements Releasable {
             // both reused as-is), then parse each value with the column's declared format (ISO default) via the
             // shared scalar. An unparseable value follows the read's error policy through onCoercionFailure:
             // a live sink nulls the position + warns, a null sink (fail_fast) fails the read.
-            Block bytes = readBytesBatch(maxRows, blockFactory);
+            // The bytes block is parsed and closed right away, so a compact dictionary would be wasted.
+            Block bytes = readBytesBatch(maxRows, blockFactory, false);
             try {
                 return ParquetColumnDecoding.bytesBlockToDatetimeMillis(
                     bytes,

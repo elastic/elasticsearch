@@ -1165,6 +1165,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 warningSink
             )
         ) {
+            // Every bucket's block is copied into a plain block by BlockChunks.concat, so compacting
+            // ordinal dictionaries here would be wasted work.
+            pageReader.setOrdinalCompaction(false);
             return pageReader.readBatchSparse(rgRowCount, blockFactory, bucket.uniquePositions, bucket.uniqueCount);
         }
     }

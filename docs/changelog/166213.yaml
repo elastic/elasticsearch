@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166213
-summary: "ESQL:DS: Hash only referenced dictionary entries in ordinal groupings"
+summary: "ESQL:DS: Emit compact ordinal dictionaries from Parquet reader"
 type: enhancement

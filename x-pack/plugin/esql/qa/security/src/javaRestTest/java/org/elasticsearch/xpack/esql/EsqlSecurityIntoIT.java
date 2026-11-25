@@ -90,7 +90,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     /**
      * A writer passes the authorization without any read access to the destination, and may then be told what a bulk would tell
      * them: that the pipeline of the destination cannot be used. A missing destination is an error for them too, as INTO does not
-     * create indices.
+     * create indices. A writer can write to an existing destination that has no pipeline.
      */
     public void testWriterWithoutReadAccessIsAuthorized() throws IOException {
         createDestinationWithPipeline();
@@ -106,6 +106,17 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
             EntityUtils.toString(missing.getResponse().getEntity()),
             containsString("INTO destination [into-missing] does not exist")
         );
+
+        createIndex(
+            adminClient(),
+            "into-plain",
+            Settings.builder().put("index.batch_indexing", true).build(),
+            "\"properties\": {\"x\": {\"type\": \"long\"}}"
+        );
+        assertThat(into("into_writer_user", "into-plain").getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_OK));
+        assertOK(adminClient().performRequest(new Request("POST", "into-plain/_refresh")));
+        Response count = adminClient().performRequest(new Request("GET", "into-plain/_count"));
+        assertThat(entityAsMap(count).get("count"), equalTo(1));
     }
 
     private void createDestinationWithPipeline() throws IOException {

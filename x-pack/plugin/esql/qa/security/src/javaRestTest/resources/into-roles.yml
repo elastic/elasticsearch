@@ -20,7 +20,7 @@ into_writer:
   cluster:
     - cluster:monitor/main
   indices:
-    - names: ['into-existing', 'into-missing']
+    - names: ['into-existing', 'into-missing', 'into-plain']
       privileges:
         - create_doc
     # ES|QL needs some read privilege to run at all; it is on an unrelated index so the writer has no read access to a destination

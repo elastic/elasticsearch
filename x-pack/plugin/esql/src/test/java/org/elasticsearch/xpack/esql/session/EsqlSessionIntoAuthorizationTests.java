@@ -69,6 +69,12 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
     }
 
+    /** An EXPLAIN never writes, so a destination that is not there yet is fine, but the caller is still authorized. */
+    public void testExplainDoesNotNeedTheDestinationToExist() throws Exception {
+        authorize(grantingAuthorizer(), "ROW x = 1 | INTO nothing", false);
+        assertThat(asked, contains("nothing"));
+    }
+
     public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
         // A fixed date, as now/d could roll over to the next day between the name and the query
         LogicalPlan authorized = authorize(grantingAuthorizer(), "ROW x = 1 | INTO \"<logs-{2026.01.01||/d}>\"");
@@ -87,12 +93,16 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
 
     /** Authorizes the destination of the query, returning the plan that results, or throwing what the authorization failed with. */
     private static LogicalPlan authorize(IntoDestinationAuthorizer authorizer, String query) throws Exception {
+        return authorize(authorizer, query, true);
+    }
+
+    private static LogicalPlan authorize(IntoDestinationAuthorizer authorizer, String query, boolean requireExisting) throws Exception {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(index(EXISTING), false)
             .put(index(DATE_MATH_RESOLVED), false)
             .build();
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        EsqlSession.authorizeIntoDestinations(authorizer, TEST_PARSER.parseQuery(query), project, future);
+        EsqlSession.authorizeIntoDestinations(authorizer, TEST_PARSER.parseQuery(query), project, requireExisting, future);
         try {
             return future.get();
         } catch (ExecutionException e) {

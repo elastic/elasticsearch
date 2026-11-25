@@ -2096,6 +2096,7 @@ public class EsqlSession {
                     intoDestinationAuthorizer,
                     scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
                     projectMetadata,
+                    configuration.explainOnly() == false,
                     planningCpu.meteredCpu(
                         delegate.delegateFailureAndWrap(
                             (authorizedListener, authorized) -> analyzedPlanAfterDatasetResolution(
@@ -3790,7 +3791,7 @@ public class EsqlSession {
      * before this, so a caller who may not write cannot tell whether it exists.
      * <p>
      * A destination that does not exist is an error, since {@code INTO} does not create indices. Only a caller who was authorized is
-     * told so.
+     * told so. An {@code EXPLAIN} never writes, so it does not need the destination to exist, and is only authorized.
      * <p>
      * Date math is resolved here, once, and the resolved name replaces the typed one in the plan. The authorization, the planning
      * checks and the writer, on whichever node it runs, then all see one name, instead of each resolving the expression again and
@@ -3801,6 +3802,7 @@ public class EsqlSession {
         IntoDestinationAuthorizer authorizer,
         LogicalPlan parsed,
         ProjectMetadata project,
+        boolean requireExisting,
         ActionListener<LogicalPlan> listener
     ) {
         if (parsed.noneMatch(Into.class::isInstance)) {
@@ -3817,7 +3819,7 @@ public class EsqlSession {
         authorizer.authorize(target, listener.map(ignored -> {
             // TODO: the design allows a destination that a composable template matches, which the first bulk creates. Let it through
             // here once that is supported, and have the authorizer ask for the privileges that create it.
-            if (exists == false) {
+            if (requireExisting && exists == false) {
                 throw new ElasticsearchStatusException("INTO destination [{}] does not exist", RestStatus.NOT_FOUND, target);
             }
             return resolved;

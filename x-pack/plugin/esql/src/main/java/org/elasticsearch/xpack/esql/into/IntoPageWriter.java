@@ -209,21 +209,30 @@ public final class IntoPageWriter {
 
         /**
          * The check a node runs when it plans the write, after the coordinator has authorized the caller and checked the destination, so
-         * a failure here means the destination changed since. As with a bulk, which resolves templates once and does not derive them
-         * again on a later hop, the node does not say why: the caller was not authorized for what a template would describe. That does
-         * not hold for batch indexing, which is not about the destination, so its failure stays as it is.
+         * a failure here means the destination changed since, or no longer exists. As with a bulk, which resolves templates once and does
+         * not derive them again on a later hop, the node does not say why: the caller was not authorized for what a template would
+         * describe. That does not hold for batch indexing, which is not about the destination, so its failure stays as it is.
          */
         public static void requireBatchDestinationUnchanged(boolean batchIndexingSupported, ProjectMetadata project, String target) {
             requireBatchIndexing(batchIndexingSupported, target);
+            // TODO: a destination that is deleted after this check is created again by the first bulk, which has no option to fail
+            // instead. See https://github.com/elastic/elasticsearch/issues/167559
+            if (project.getIndicesLookup().containsKey(target) == false) {
+                throw destinationChanged(target);
+            }
             try {
                 requireEligibleDestination(project, target);
             } catch (ElasticsearchStatusException e) {
-                throw new ElasticsearchStatusException(
-                    "INTO [{}] can no longer be written as a batch, as its destination changed after the query was planned",
-                    RestStatus.CONFLICT,
-                    target
-                );
+                throw destinationChanged(target);
             }
+        }
+
+        private static ElasticsearchStatusException destinationChanged(String target) {
+            return new ElasticsearchStatusException(
+                "INTO [{}] can no longer be written as a batch, as its destination changed after the query was planned",
+                RestStatus.CONFLICT,
+                target
+            );
         }
 
         private static void requireBatchIndexing(boolean batchIndexingSupported, String target) {

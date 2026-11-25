@@ -16,6 +16,9 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -464,16 +467,32 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     }
 
     /**
-     * {@code include_in_parent} and {@code include_in_root} copy the child fields to another document. Strict columnar will reject them
-     * at mapping time once elastic/elasticsearch#166393 merges; until then the batch path refuses them.
+     * {@code include_in_parent} and {@code include_in_root} copy the child fields to another document. Strict columnar rejects them at
+     * mapping time on new indices, so the batch path never sees them there. Older indices still accept the parameters so their mappings
+     * parse on recovery, and the batch path must refuse their documents.
      */
     public void testIncludeInParentAndRootFallBack() throws IOException {
+        final IndexVersion olderVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_NESTED_INCLUDE_IN_PARENT);
         for (String include : List.of("include_in_parent", "include_in_root")) {
-            assertRefusedInAllModes(b -> {
+            final CheckedConsumer<XContentBuilder, IOException> fields = b -> {
                 b.startObject("n").field("type", "nested").field(include, true).startObject("properties");
                 b.startObject("k").field("type", "keyword").endObject();
                 b.endObject().endObject();
-            }, Map.of(), RowPath.ACCEPTS, mode -> new String[] { src(mode, "\"n\":[{\"k\":\"x\"},{\"k\":\"y\"}]") });
+            };
+            for (IndexMode mode : STRICT_COLUMNAR_MODES) {
+                final MapperParsingException e = expectThrows(
+                    MapperParsingException.class,
+                    () -> createMapperService(settings(mode), mappingFor(mode, fields))
+                );
+                assertThat(e.getMessage(), containsString("[include_in_parent] and [include_in_root] are not supported for nested field"));
+
+                final MapperService mapperService = createMapperService(olderVersion, settings(mode), mappingFor(mode, fields));
+                final String[] documents = new String[] { src(mode, "\"n\":[{\"k\":\"x\"},{\"k\":\"y\"}]") };
+                childCounts(mapperService, doc("p0", 0, documents[0]));
+                for (SourceEncoder encoder : SourceEncoder.available()) {
+                    assertBatchPathRefuses(mapperService, encoder, documents);
+                }
+            }
         }
     }
 

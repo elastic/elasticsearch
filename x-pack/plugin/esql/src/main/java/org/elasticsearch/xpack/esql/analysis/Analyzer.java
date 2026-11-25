@@ -1828,9 +1828,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (int i = 0; i < children.size(); i++) {
                 AnalyzerContext childContext = context;
                 if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
-                    childContext = context.withUnmappedResolution(
-                        resolutionForView(context, branchPlan.branchIdentity(i).settingsViewName())
-                    );
+                    childContext = context.forViewBody(resolutionForView(context, branchPlan.branchIdentity(i).settingsViewName()));
                 }
                 LogicalPlan newChild = applyInViewScope(children.get(i), childContext);
                 changed |= newChild != children.get(i);
@@ -1868,9 +1866,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
-                case Drop d -> resolveDrop(d, context.unmappedResolution());
-                case Rename r -> resolveRename(r, context.unmappedResolution());
-                case Keep k -> resolveKeep(k, context.unmappedResolution());
+                case Drop d -> resolveDrop(d, context.unmappedResolution(), context.mapTypes());
+                case Rename r -> resolveRename(r, context.unmappedResolution(), context.mapTypes());
+                case Keep k -> resolveKeep(k, context.unmappedResolution(), context.mapTypes());
                 case MergePlan mergePlan -> resolveMergePlan(mergePlan, context);
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
@@ -1889,6 +1887,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 default -> resolveExpressions(plan, childrenOutput);
             };
 
+            if (context.mapTypes()) {
+                // Maps are handled here for every command alike, see MapKeys for the contract
+                resolved = MapKeys.replaceSubtrees(MapKeys.resolveKeys(resolved));
+            }
             return resolved;
         }
 
@@ -3406,8 +3408,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep foo, *   ->  foo, bar
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
          */
-        private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
-            if (unmappedResolution != UnmappedResolution.DEFAULT) {
+        private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution, boolean mapTypes) {
+            // With map types the patterns are kept as written too: they decide which keys of a map stay readable (MapKeys, rule 4)
+            if (unmappedResolution != UnmappedResolution.DEFAULT || mapTypes) {
                 UnmatchedPatterns unmatchedPatterns = unmappedResolution.loadsAllUnmappedFields()
                     ? UnmatchedPatterns.IGNORE
                     : UnmatchedPatterns.FAIL;
@@ -3539,15 +3542,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedProjections;
         }
 
-        private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
-            return unmappedResolution != UnmappedResolution.DEFAULT
+        private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution, boolean mapTypes) {
+            UnmatchedPatterns unmatchedPatterns = unmappedResolution != UnmappedResolution.DEFAULT
+                ? UnmatchedPatterns.IGNORE
+                : UnmatchedPatterns.FAIL;
+            return unmappedResolution != UnmappedResolution.DEFAULT || mapTypes
                 ? new ResolvingProject(
                     drop.source(),
                     drop.child(),
                     new ResolvingProject.Command(
                         ResolvingProject.Kind.DROP,
                         drop.removals(),
-                        inputAttributes -> dropResolver(drop.removals(), inputAttributes, UnmatchedPatterns.IGNORE)
+                        inputAttributes -> dropResolver(drop.removals(), inputAttributes, unmatchedPatterns)
                     )
                 )
                 : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), UnmatchedPatterns.FAIL));
@@ -3616,7 +3622,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new ArrayList<>(resolvedProjections);
         }
 
-        private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {
+        private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution, boolean mapTypes) {
+            if (mapTypes) {
+                return new ResolvingProject(
+                    rename.source(),
+                    rename.child(),
+                    new ResolvingProject.Command(
+                        ResolvingProject.Kind.RENAME,
+                        rename.renamings(),
+                        // The child columns of a renamed map are renamed with it (MapKeys, rule 3)
+                        inputAttributes -> MapKeys.renameChildren(projectionsForRename(rename, inputAttributes, log))
+                    )
+                );
+            }
             return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
                 : new ResolvingProject(

@@ -90,10 +90,13 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.BoundSemantics;
@@ -155,6 +158,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -2243,13 +2247,67 @@ public class EsqlSession {
         boolean includePrefixFields = configuration.flattenedKeys()
             || unmappedResolution.loadsUnmappedFields()
             || viewSettings.values().stream().anyMatch(settings -> settings.unmappedFields().loadsUnmappedFields());
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false, includePrefixFields);
+        PreAnalysisResult result = withChildrenOfRenamedColumns(
+            parsed,
+            configuration,
+            FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false, includePrefixFields)
+        );
         boolean filterAppliesToViewOutput = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
             && parsed.anyMatch(p -> p instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty() == false);
         if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
             return result;
         }
         return addFilterFieldNames(result, requestFilter, configuration);
+    }
+
+    private static boolean mapTypes(Configuration configuration) {
+        return Boolean.TRUE.equals(QuerySettings.MAP_TYPES.get(configuration.resolvedSettings()));
+    }
+
+    /**
+     * With map types, renaming a map renames its child columns with it, so a query that says {@code a.foo} after
+     * {@code RENAME attrs AS a} reads the field {@code attrs.foo} where an index maps it. Field caps is asked by the name the
+     * field has in the index: everything under a renamed column. Whether the column is a map is not known yet.
+     */
+    private static PreAnalysisResult withChildrenOfRenamedColumns(
+        LogicalPlan parsed,
+        Configuration configuration,
+        PreAnalysisResult result
+    ) {
+        if (mapTypes(configuration) == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
+            return result;
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        ViewUtils.forEachOutsideViews(parsed, node -> {
+            if (node instanceof Rename rename) {
+                for (Alias renaming : rename.renamings()) {
+                    if (renaming.child() instanceof UnresolvedAttribute ua && ua instanceof UnresolvedPattern == false) {
+                        fieldNames.add(ua.name() + ".*");
+                    }
+                }
+            }
+        });
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), result.nestedScope(), result.wildcardJoinIndices());
+    }
+
+    /**
+     * The names that the index resolver turns into key fields of the indices: all the names of the query, or with map types only
+     * those of view bodies. {@code SET map_types} does not reach into a view, so a view body reads keys as it does without the
+     * setting; in the caller's query a key is read from its map, see {@code MapKeys}.
+     */
+    private static Set<String> namesOfKeyFields(LogicalPlan parsed, Configuration configuration) {
+        if (mapTypes(configuration) == false) {
+            return FieldNameUtils.namedFields(parsed);
+        }
+        Set<String> names = new HashSet<>();
+        parsed.forEachDown(BranchPlan.class, branch -> {
+            for (int i = 0; i < branch.children().size(); i++) {
+                if (branch.isViewBranch(i)) {
+                    names.addAll(FieldNameUtils.namedFields(branch.children().get(i)));
+                }
+            }
+        });
+        return names;
     }
 
     static PreAnalysisResult addFilterFieldNames(PreAnalysisResult result, QueryBuilder requestFilter, Configuration configuration) {
@@ -2310,7 +2368,7 @@ public class EsqlSession {
                 executionInfo,
                 trackedUnmappedFieldIndices,
                 configuration.flattenedKeys()
-                    ? new IndexResolver.NamedFields(FieldNameUtils.namedFields(parsed), result.parentPaths())
+                    ? new IndexResolver.NamedFields(namesOfKeyFields(parsed, configuration), result.parentPaths())
                     : null,
                 result,
                 requestFilter,

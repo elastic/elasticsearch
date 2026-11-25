@@ -1,0 +1,150 @@
+// SET map_types=true: a flattened field is a map, and the columns of a query form a tree. See MapKeys for the contract; each test
+// names the rule it follows from.
+//
+// flattened_paths_mapped:  [attributes] flattened, keys host (a, c) and env; [meta.labels] flattened, key team
+// flattened_paths_keyword: [attributes.host] keyword (k)
+// flattened_paths_lookup:  lookup index, [attributes] flattened, keys host (L) and zone (L)
+
+// Rule 2: an expression reads the key in place, and the output has no column for it
+keyReadInAnExpressionIsNotAColumn
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| WHERE attributes.host == "a"
+| KEEP id, attr*
+| KEEP id
+;
+
+id:keyword
+f1
+;
+
+// Rule 2: KEEP takes a column, so the key becomes one
+keepMakesTheKeyAColumn
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+f2         | c
+;
+
+// Rule 3: a renamed map is the same map under another name
+keysFollowARenamedMap
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| RENAME attributes AS a
+| WHERE a.host == "a"
+| EVAL env = a.env
+| KEEP id, env
+;
+
+id:keyword | env:keyword
+f1         | prod
+;
+
+// Rule 3 and 5: the child column [attributes.host] of one index is renamed with the map of the other
+childColumnsFollowARenamedMap
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped, flattened_paths_keyword
+| RENAME attributes AS a
+| KEEP id, a.host
+| SORT id
+;
+
+id:keyword | a.host:keyword
+f1         | a
+f2         | c
+k1         | k
+;
+
+// Rule 3: the join writes a map at [attributes], which replaces the column [attributes.host] that was under that name
+joinReplacesTheSubtreeOfAMap
+required_capability: map_types_setting
+required_capability: join_lookup_v12
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| EVAL host = attributes.host, zone = attributes.zone
+| KEEP id, host, zone
+;
+
+id:keyword | host:keyword | zone:keyword
+k1         | L            | L
+;
+
+// Rule 3: a value that is not a map replaces only its own name
+nonMapValueReplacesOnlyItsName
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| EVAL attributes = "x"
+| KEEP id, attributes, attributes.host
+;
+
+id:keyword | attributes:keyword | attributes.host:keyword
+k1         | x                  | k
+;
+
+// Rule 4: KEEP attributes* takes the map and does not exclude the names under it
+wildcardKeepLeavesTheMapOpen
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| KEEP id, attributes*
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+f2         | c
+;
+
+// Rule 5: [meta.labels] renamed under [attributes] gives maps at two levels, and the more specific one is read first
+mostSpecificMapIsReadFirst
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| RENAME meta.labels AS attributes.sub
+| EVAL team = attributes.sub.team, host = attributes.host
+| KEEP id, team, host
+| SORT id
+;
+
+id:keyword | team:keyword | host:keyword
+f1         | red          | a
+f2         | blue         | c
+;
+
+// Rule 6: a key of a map in scope wins over unmapped_fields
+keyWinsOverLoad
+required_capability: map_types_setting
+
+SET map_types=true\;
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped
+| RENAME attributes AS a
+| KEEP id, a.host
+| SORT id
+;
+
+id:keyword | a.host:keyword
+f1         | a
+f2         | c
+;

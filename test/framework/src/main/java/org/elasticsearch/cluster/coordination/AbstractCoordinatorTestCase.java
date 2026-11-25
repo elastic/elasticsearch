@@ -2199,6 +2199,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         ESTestCase::randomBoolean
                     );
 
+                    // Check for potential restart-time metadata changes (e.g. `elasticsearch-node` commands). We can't use the state inside
+                    // `oldState` because that might include changes that never made it to disk on master-ineligible nodes, so we load the
+                    // on-disk state here while the node is down. We do this even if no rewrite is needed, or if the state we're loading is
+                    // already in `oldState`, but that's ok as it's very small and these restarts are pretty rare.
                     final var onDiskState = persistedClusterStateService.loadBestOnDiskState();
                     final Metadata updatedMetadata = adaptGlobalMetadata.apply(onDiskState.metadata);
                     final long updatedTerm = adaptCurrentTerm.apply(onDiskState.currentTerm);

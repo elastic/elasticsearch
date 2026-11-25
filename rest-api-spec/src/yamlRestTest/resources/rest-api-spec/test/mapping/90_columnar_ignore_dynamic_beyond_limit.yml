@@ -1,0 +1,106 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index modes required"
+
+---
+"columnar: dynamic field beyond the limit is dropped and recorded in _ignored with ignore_dynamic_beyond_limit":
+  # The two mapped fields use up the whole budget of total_fields.limit, so every dynamic field is beyond the limit.
+  - do:
+      indices.create:
+        index: test_columnar_beyond_limit
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.total_fields.limit: 2
+            index.mapping.total_fields.ignore_dynamic_beyond_limit: true
+          mappings:
+            properties:
+              known:
+                type: keyword
+              other:
+                type: keyword
+
+  - do:
+      index:
+        index: test_columnar_beyond_limit
+        id: "1"
+        refresh: true
+        body:
+          known: "a"
+          other: "b"
+          beyond_limit: 42
+          beyond_object:
+            nested: "c"
+
+  - match: { result: created }
+
+  # The document without any dynamic field must not be reported as ignored.
+  - do:
+      index:
+        index: test_columnar_beyond_limit
+        id: "2"
+        refresh: true
+        body:
+          known: "a"
+          other: "b"
+
+  - do:
+      search:
+        index: test_columnar_beyond_limit
+        body:
+          query:
+            exists:
+              field: _ignored
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # Columnar modes rebuild _source from doc values only, so the dropped values are lost.
+  - do:
+      get:
+        index: test_columnar_beyond_limit
+        id: "1"
+  - match: { _source: { known: "a", other: "b" } }
+
+  # The dropped fields are never added to the mapping.
+  - do:
+      indices.get_mapping:
+        index: test_columnar_beyond_limit
+  - is_false: test_columnar_beyond_limit.mappings.properties.beyond_limit
+  - is_false: test_columnar_beyond_limit.mappings.properties.beyond_object
+
+---
+"columnar: dynamic field beyond the limit is rejected by default":
+  - do:
+      indices.create:
+        index: test_columnar_beyond_limit_rejected
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.total_fields.limit: 2
+          mappings:
+            properties:
+              known:
+                type: keyword
+              other:
+                type: keyword
+
+  - do:
+      indices.get_settings:
+        index: test_columnar_beyond_limit_rejected
+        include_defaults: true
+  - match: { test_columnar_beyond_limit_rejected.defaults.index.mapping.total_fields.ignore_dynamic_beyond_limit: "false" }
+
+  - do:
+      catch: /Limit of total fields \[2\] has been exceeded/
+      index:
+        index: test_columnar_beyond_limit_rejected
+        body:
+          known: "a"
+          other: "b"
+          beyond_limit: 42

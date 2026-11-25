@@ -1702,6 +1702,97 @@ public class BatchBulkIT extends ESIntegTestCase {
         );
     }
 
+    public void testBatchModeWithDynamicFieldsBeyondFieldLimit() throws IOException {
+        String index = "test-batch-beyond-field-limit";
+
+        // The two mapped fields use up the whole budget of the limit, so every dynamic field is beyond it.
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("name").field("type", "keyword").endObject();
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put("index.mapping.total_fields.limit", 2)
+                        .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        int numDocs = randomIntBetween(20, 100);
+        int numDocsWithExtraField = 0;
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("name", "doc-" + i);
+            source.put("host", "host-" + (i % 5));
+            if (i % 2 == 0) {
+                source.put("extra_field", i);
+                numDocsWithExtraField++;
+            }
+            bulkRequest.add(new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.CREATE).source(source));
+        }
+
+        BulkResponse bulkResponse = client(findCoordinatingNode()).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+        refresh(index);
+
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // Only the documents that carried a field beyond the limit are reported in _ignored.
+        final long expectedIgnored = numDocsWithExtraField;
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.existsQuery("_ignored")).setSize(0).setTrackTotalHits(true),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(expectedIgnored));
+            }
+        );
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.termQuery("_ignored", "extra_field")).setSize(0).setTrackTotalHits(true),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(expectedIgnored));
+            }
+        );
+
+        // Columnar modes rebuild _source from doc values, so the dropped values are lost.
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs), searchResponse -> {
+            assertNoFailures(searchResponse);
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                assertThat(hit.getSourceAsMap().keySet(), equalTo(Set.of("name", "host")));
+            }
+        });
+
+        // The fields beyond the limit are not mapped.
+        var mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get().getMappings().get(index);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.sourceAsMap().get("properties");
+        assertThat(properties.keySet(), equalTo(Set.of("name", "host")));
+    }
+
     public void testBulkWithExplicitRouting() throws IOException {
         // Exercises RoutingFieldMapper.preParse on the batch path. A routing-aware GET would still
         // succeed without the metadata hook running (sharding alone routes the GET to the right

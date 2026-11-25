@@ -1415,7 +1415,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
             "from test | describe",
             "from test | describe | keep name, type",
             "from test | describe | where type == \"keyword\" | eval n = name | sort name",
-            "from test | describe | stats c = count(*) by type",
             "from test | describe | dissect name \"%{a}_%{b}\""
         )) {
             var limit = as(basic().query(query), Limit.class);
@@ -1424,8 +1423,15 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     public void testImplicitLimitAfterDescribeAddingRows() {
-        var limit = as(basic().query("from test | describe | mv_expand unit"), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        for (String query : List.of("from test | describe | mv_expand unit", "from test | describe | stats c = count(*) by unit")) {
+            var limit = as(basic().query(query), Limit.class);
+            assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        }
+    }
+
+    public void testImplicitMaxLimitAfterDescribeAndLimit() {
+        var limit = as(basic().query("from test | describe | sort name | limit " + (MAX_LIMIT + 1)), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
     }
 
     public void testImplicitDefaultLimitAfterLimitBy() {

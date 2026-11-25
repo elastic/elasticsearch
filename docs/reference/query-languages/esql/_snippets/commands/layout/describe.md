@@ -13,7 +13,7 @@ DESCRIBE
 
 ## Description
 
-`DESCRIBE` takes no arguments. It describes the columns the query has at that point, after views, renames and computations are resolved, without running the query. Its output is a table like any other, so the rest of the query can filter, sort or aggregate it, and the default [`LIMIT`](/reference/query-languages/esql/commands/limit.md) applies to it, so add a larger `LIMIT` after `DESCRIBE` for an input with more columns.
+`DESCRIBE` takes no arguments. It describes the columns the query has at that point, after views, renames and computations are resolved, without running the query. Its output is a table like any other, so the rest of the query can filter, sort or aggregate it. When `DESCRIBE` is followed only by commands that don't add rows, such as `KEEP`, `WHERE`, `EVAL` or `SORT`, every column is returned. Otherwise the default [`LIMIT`](/reference/query-languages/esql/commands/limit.md) applies.
 
 `DESCRIBE` returns the following columns. New columns, and new values in columns such as `role` and `origin`, can be added in future versions, and the classification of a column can be refined. Use [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select the columns you need rather than relying on their position.
 

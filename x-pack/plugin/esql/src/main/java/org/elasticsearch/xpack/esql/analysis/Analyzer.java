@@ -4112,8 +4112,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * The {@code DESCRIBE} that {@code plan} ends with, followed only by commands that don't add rows, or {@code null}.
-     * Such a plan returns at most one row per column of the input of the {@code DESCRIBE}.
+     * The {@code DESCRIBE} that {@code plan} ends with, followed only by commands that don't add rows and no {@code LIMIT},
+     * or {@code null}. Such a plan returns at most one row per column of the input of the {@code DESCRIBE}.
      */
     @Nullable
     private static Describe boundingDescribe(LogicalPlan plan) {
@@ -4121,8 +4121,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             || plan instanceof Eval
             || plan instanceof Filter
             || plan instanceof OrderBy
-            || plan instanceof Limit
-            || plan instanceof Aggregate
             || plan instanceof RegexExtract) {
             plan = ((UnaryPlan) plan).child();
         }

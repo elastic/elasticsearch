@@ -197,6 +197,8 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 }
 
                 private void processResponse(MultiSearchResponse items) {
+                    ctx.getCancellationCheck().run();
+
                     List<ScoreDoc[]> topDocs = new ArrayList<>();
                     List<Exception> failures = new ArrayList<>();
                     // capture the max status code returned by any of the responses

@@ -50,6 +50,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
 
         // cache the similarity scores for the query vector vs. searchHits
         float[] querySimilarities = getQuerySimilarityForDocs(docs);
+        // scoring the whole window against the query can be costly, and a small size may never enter the selection loop
+        context.ensureNotCancelled();
         OptionalInt bestDocIdx = IntStream.range(0, querySimilarities.length)
             .filter(i -> context.getFieldVector(i + 1) != null)
             .reduce((a, b) -> querySimilarities[a] >= querySimilarities[b] ? a : b);
@@ -75,7 +77,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
             for (RankDoc doc : docs) {
                 int docRank = doc.rank;
 
-                if (isSelected[docRank - 1]) {
+                if (docRank > 0 && docRank <= isSelected.length && isSelected[docRank - 1]) {
                     continue;
                 }
 

@@ -590,6 +590,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final TestRule SUITE_UUID_SOURCE = new TestUUIDSourceRule();
 
     @BeforeClass
+    @SuppressForbidden(reason = "This replaces SuppressCodecs(\"*\")")
     public static void setDefaultCodec() {
         Codec.setDefault(CodecService.createESDefaultCodec(null, BigArrays.NON_RECYCLING_INSTANCE, null));
     }

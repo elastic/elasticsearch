@@ -84,7 +84,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     private transient Map<String, ViewQuerySettings> viewSettings = Map.of();
     /**
-     * The {@code @timestamp} range the request filter asks for, once the query has got far enough to extract it.
+     * The {@code @timestamp} range the query asks for, once the query has got far enough to extract it.
      * Runtime-only state of the node that runs the query: it is not serialized, and kept when the query fails.
      */
     private transient RequestedTimeRange requestedTimeRange;
@@ -464,16 +464,15 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return viewSettings;
     }
 
-    /** Records the {@code @timestamp} range the request filter asks for. Not serialized. */
+    /** Records the {@code @timestamp} range the query asks for. Not serialized. */
     public void setRequestedTimeRange(@Nullable RequestedTimeRange requestedTimeRange) {
         this.requestedTimeRange = requestedTimeRange;
     }
 
     /**
-     * The {@code @timestamp} range the request filter asks for, as the bounds that planning uses, or {@code null} if the filter has
-     * no range with both bounds or the query failed before it was extracted. It is extracted once the query's now is fixed, after
-     * parsing and view resolution, so a query that fails before that has none. A range in the query itself, such as
-     * {@code WHERE @timestamp > NOW() - 1 hour}, is not taken into account.
+     * The {@code @timestamp} range the query asks for, see {@link RequestedTimeRange}, or {@code null} if neither the request filter
+     * nor the query bounds {@code @timestamp} or the query failed before it was extracted. It is extracted once the query's now is
+     * fixed, after parsing and view resolution, so a query that fails before that has none.
      */
     @Nullable
     public RequestedTimeRange requestedTimeRange() {

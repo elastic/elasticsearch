@@ -31,9 +31,9 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
     public static final String VIEW_SETTINGS_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "view_settings";
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
     /**
-     * The bounds of the {@code @timestamp} range the request filter asks for, with date math resolved against the query's now. Absent
-     * unless the filter has a range with both bounds. Logged as dates rather than as a length so that the length, the age of the data,
-     * or whether the range is in the past can all be derived.
+     * The bounds of the {@code @timestamp} range the query asks for, through its request filter and the filters in the query itself,
+     * with relative bounds resolved against the query's now. Each is absent if the query does not bound that end. Logged as dates rather than as a length so that
+     * the length, the age of the data, or whether the range is in the past can all be derived.
      */
     public static final String TIME_RANGE_FILTER_FROM_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "time_range_filter.from";
     public static final String TIME_RANGE_FILTER_TO_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "time_range_filter.to";
@@ -45,8 +45,12 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
             .field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         context.getRequestedTimeRange().ifPresent(range -> {
-            msg.field(TIME_RANGE_FILTER_FROM_FIELD, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(range.start()));
-            msg.field(TIME_RANGE_FILTER_TO_FIELD, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(range.end()));
+            if (range.from() != null) {
+                msg.field(TIME_RANGE_FILTER_FROM_FIELD, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(range.from()));
+            }
+            if (range.to() != null) {
+                msg.field(TIME_RANGE_FILTER_TO_FIELD, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(range.to()));
+            }
         });
         context.getQueryProfile().ifPresent(profile -> {
             for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {

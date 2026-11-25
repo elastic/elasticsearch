@@ -287,6 +287,36 @@ public class HttpUsagePublisherTests extends ESTestCase {
         assertWholeBatchFailure(publisher.publish(List.of(record("big"))), PublishResult.FailureClass.RETRYABLE, "413");
     }
 
+    public void testRejectionsFoundBeforeAnOutageAreHeldWhenNothingWasAccepted() {
+        List<UsageRecord> batch = records(4);
+        // The batch and its first half are rejected, the first two records one by one, then the second half meets an outage.
+        statusFor = ids -> ids.size() == 4 || ids.contains("id-0") || ids.contains("id-1") ? 400 : 503;
+
+        PublishResult result = publisher.publish(batch);
+
+        assertWholeBatchFailure(result, PublishResult.FailureClass.RETRYABLE, "rejected records of the batch and accepted none");
+    }
+
+    public void testAnAuthRefusalAfterRejectionsStaysAnAuthFailureAndKeepsItsMessage() {
+        List<UsageRecord> batch = records(4);
+        statusFor = ids -> ids.size() == 4 || ids.contains("id-0") || ids.contains("id-1") ? 400 : 403;
+
+        PublishResult result = publisher.publish(batch);
+
+        assertWholeBatchFailure(result, PublishResult.FailureClass.AUTH, "accepted none");
+        assertThat(result.failures().get(0).message(), containsString("status [403]"));
+    }
+
+    public void testAnOversizedRecordDoesNotMakeTheOtherRejectionsDroppable() {
+        List<UsageRecord> batch = List.of(record("a"), record("b"), record("big"));
+        // Every request that fits is rejected and the oversized record cannot be split further: nothing shows that a or b are bad.
+        statusFor = ids -> ids.contains("big") ? 413 : 400;
+
+        PublishResult result = publisher.publish(batch);
+
+        assertWholeBatchFailure(result, PublishResult.FailureClass.RETRYABLE, "accepted none");
+    }
+
     public void testAuthStatusesKeepTheWholeBatchWithoutIsolation() {
         for (int status : new int[] { 401, 403 }) {
             requests.clear();
@@ -346,7 +376,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
         PublishResult result = publisher.publish(batch);
 
         // Bounded requests, but no record is reported INVALID: one retryable failure of the whole batch.
-        assertWholeBatchFailure(result, PublishResult.FailureClass.RETRYABLE, "rejected every record");
+        assertWholeBatchFailure(result, PublishResult.FailureClass.RETRYABLE, "accepted none");
         assertThat(requests, hasSize(2 * count - 1));
     }
 
@@ -358,7 +388,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
                     "batch held",
                     HttpUsagePublisher.class.getCanonicalName(),
                     Level.WARN,
-                    "the Usage API rejected every record of the batch*they stay pending*status [400]*"
+                    "the Usage API rejected records of the batch and accepted none*they stay pending*status [400]*"
                 )
             );
             publisher.publish(records(3));

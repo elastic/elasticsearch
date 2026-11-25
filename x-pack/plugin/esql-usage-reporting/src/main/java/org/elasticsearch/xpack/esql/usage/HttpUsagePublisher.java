@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -79,7 +80,7 @@ public final class HttpUsagePublisher implements UsagePublisher {
     /** The context the current client was built with; guarded by {@code clientLock} once the constructor has returned. */
     private volatile SSLContext clientContext;
     private boolean closed;
-    /** See {@link #wholeBatchRetryable}; only the reporter thread publishes, one batch at a time. */
+    /** See {@link #heldWholeBatch}; only the reporter thread publishes, one batch at a time. */
     private volatile boolean suspect = true;
 
     public HttpUsagePublisher(UsageReportingSettings settings, SslProfile sslProfile) {
@@ -146,17 +147,20 @@ public final class HttpUsagePublisher implements UsagePublisher {
                 }
             }
         }
-        boolean everyRecordRejected = accepted.isEmpty()
-            && failures.size() == records.size()
-            && failures.stream().allMatch(f -> f.failureClass() == PublishResult.FailureClass.INVALID);
+        Optional<PublishResult.Failure> rejection = failures.stream()
+            .filter(f -> f.failureClass() == PublishResult.FailureClass.INVALID)
+            .findFirst();
         if (accepted.isEmpty() == false) {
             suspect = false;
-        }
-        if (everyRecordRejected) {
+        } else if (rejection.isPresent()) {
+            // A rejection is dropped only when a record was accepted: otherwise nothing shows that the problem is the record's.
             boolean hold = records.size() > 1 || suspect;
             suspect = true;
             if (hold) {
-                return wholeBatchRetryable(records.size(), failures);
+                Optional<PublishResult.Failure> stop = failures.stream()
+                    .filter(f -> f.failureClass() != PublishResult.FailureClass.INVALID)
+                    .findFirst();
+                return heldWholeBatch(records.size(), rejection.get(), stop);
             }
         }
         return new PublishResult(accepted, failures);
@@ -165,20 +169,26 @@ public final class HttpUsagePublisher implements UsagePublisher {
     /**
      * What a rejection that no accepted record follows is held for: a record that the Usage API refuses is almost always the sign of
      * a problem on our side or on the way (a serializer bug, a schema change, a gateway answering 400), not of one bad record, and
-     * dropping it would lose the usage of every period for good. So a batch in which every record is rejected is not dropped, and
-     * neither is a single rejected record while {@code suspect} is set. The flag starts set, is set again by every rejection of
-     * everything, and is cleared by any accepted record: a record that is really bad is then isolated and dropped by the next batch
-     * that holds an accepted one, and a systematic problem costs at most one record.
+     * dropping it would lose the usage of every period for good. So when a publish accepts nothing, no rejection in it is dropped:
+     * the whole batch is held, if it has several records or while {@code suspect} is set. The flag starts set, is set again by every
+     * publish in which something was rejected and nothing accepted, and is cleared by any accepted record: a record that is really
+     * bad is then isolated and dropped by the next batch that holds an accepted one, and a systematic problem costs at most one record.
      */
-    private PublishResult wholeBatchRetryable(int size, List<PublishResult.Failure> failures) {
+    private PublishResult heldWholeBatch(int size, PublishResult.Failure rejection, Optional<PublishResult.Failure> stop) {
         String message = size > 1
-            ? "the Usage API rejected every record of the batch, which looks like a problem that is not the records': "
+            ? "the Usage API rejected records of the batch and accepted none, which looks like a problem that is not the records': "
             : "the Usage API rejected the only record of the batch and no record has been accepted since the last rejection, which "
                 + "looks like a problem that is not the record's: ";
-        message += "they stay pending (" + failures.get(0).message() + ")";
+        message += "they stay pending (" + rejection.message() + ")";
+        // The publish may also have stopped on a failure that has to be seen as what it is (an auth refusal raises the alert).
+        PublishResult.FailureClass failureClass = PublishResult.FailureClass.RETRYABLE;
+        if (stop.isPresent()) {
+            failureClass = stop.get().failureClass();
+            message += " and then stopped: " + stop.get().message();
+        }
         // The reporter logs a retryable failure at debug level only, and nothing else tells that records are held.
         logger.warn("{}", message);
-        return new PublishResult(Set.of(), List.of(new PublishResult.Failure(Set.of(), PublishResult.FailureClass.RETRYABLE, message)));
+        return new PublishResult(Set.of(), List.of(new PublishResult.Failure(Set.of(), failureClass, message)));
     }
 
     /** One request. Never throws: whatever goes wrong is a retryable failure, because a record is only dropped on a clear refusal. */

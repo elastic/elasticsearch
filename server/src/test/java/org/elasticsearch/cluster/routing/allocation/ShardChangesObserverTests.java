@@ -332,7 +332,9 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             "node-2"
         ).build();
         final var targetShard = shardRoutingBuilder(shardId, "node-2", primary, ShardRoutingState.INITIALIZING).build();
-        final var reason = new MoveReason(randomFrom(MoveType.values()), randomBoolean() ? null : randomIdentifier());
+        final var reason = randomBoolean()
+            ? MoveReason.of(randomFrom(MoveType.values()))
+            : new MoveReason(randomFrom(MoveType.CANNOT_REMAIN, MoveType.NOT_PREFERRED), randomIdentifier());
         final var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "boom");
 
         observer.shardInitialized(unassignedShard, initializingShard);

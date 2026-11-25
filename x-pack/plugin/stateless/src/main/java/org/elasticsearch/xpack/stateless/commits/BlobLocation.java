@@ -130,15 +130,7 @@ public record BlobLocation(Blob blob, long offset, long fileLength) implements W
             long offset = (long) args[2];
             long fileLength = (long) args[3];
 
-            final Blob blob;
-            if (BccBlob.startsWithBlobPrefix(blobName)) {
-                blob = new BccBlob(blobName, primaryTerm);
-            } else if (MergeBlob.startsWithPrefix(blobName)) {
-                blob = new MergeBlob(blobName, primaryTerm);
-            } else {
-                throw new IllegalArgumentException("unrecognized blob name [" + blobName + ']');
-            }
-            return new BlobLocation(blob, offset, fileLength);
+            return new BlobLocation(Blob.of(blobName, primaryTerm), offset, fileLength);
         }
     );
     static {

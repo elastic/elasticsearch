@@ -297,6 +297,7 @@ public class DataStreamAutoShardingService {
          *     {@link #DATA_STREAMS_AUTO_SHARDING_MIN_NUMBER_OF_SHARDS} and
          *     {@link #DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS} cluster settings)
          */
+        // TODO add ProjectId
         record Inputs(
             long timestampMillis,
             TimeValue increaseShardsCooldown,
@@ -399,7 +400,7 @@ public class DataStreamAutoShardingService {
          */
         String toCompactString() {
             return Strings.format(
-                "[%s] %s: %s | load all/recent/peak=%.2f/%.2f/%.2f | inc: %d (%s %.2f) | dec: %s | cooldown inc/dec=%s/%s, threads=%d-%d",
+                "[%s] %s: %s | load all/recent/peak=%g/%g/%g | inc: %d (%s %g) | dec: %s | cooldown inc/dec=%s/%s, threads=%d-%d",
                 TIMESTAMP_FORMATTER.formatMillis(inputs.timestampMillis),
                 inputs.writeIndex,
                 compactResult(result),
@@ -412,7 +413,7 @@ public class DataStreamAutoShardingService {
                 decreaseCalculation == null
                     ? "skipped"
                     : Strings.format(
-                        "%d (%s %.2f, %s, min %d)",
+                        "%d (%s %g, %s, min %d)",
                         decreaseCalculation.optimalShardCountForDecrease,
                         inputs.decreaseShardsMetric,
                         decreaseCalculation.maxLoadWithinCooldown.load,

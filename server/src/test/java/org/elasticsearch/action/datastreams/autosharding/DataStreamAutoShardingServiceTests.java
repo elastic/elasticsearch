@@ -1343,13 +1343,13 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         assertThat(DataStreamAutoShardingService.PeriodicDecisionLogger.formatDecisions(sortedByLoad), equalTo("""
 
              ds-a
-              - [2026-11-25T10:15:30.123Z] .ds-ds-a-000003: NO_CHANGE 3 | load all/recent/peak=0.10/0.20/7.25 | inc: 3 (PEAK 7.25) \
-            | dec: 3 (PEAK 9.10, .ds-ds-a-000002, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
-              - [2026-11-25T10:16:30.123Z] .ds-ds-a-000003: NO_CHANGE 3 | load all/recent/peak=0.10/0.20/9.50 | inc: 3 (PEAK 9.50) \
-            | dec: 3 (PEAK 9.50, write index, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
+              - [2026-11-25T10:15:30.123Z] .ds-ds-a-000003: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/7.25000 \
+            | inc: 3 (PEAK 7.25000) | dec: 3 (PEAK 9.10450, .ds-ds-a-000002, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
+              - [2026-11-25T10:16:30.123Z] .ds-ds-a-000003: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/9.50000 \
+            | inc: 3 (PEAK 9.50000) | dec: 3 (PEAK 9.50000, write index, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
              ds-b
-              - [2026-11-25T10:15:30.123Z] .ds-ds-b-000001: NO_CHANGE 3 | load all/recent/peak=0.10/0.20/8.25 | inc: 3 (PEAK 8.25) \
-            | dec: 3 (PEAK 9.10, .ds-ds-b-000000, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32"""));
+              - [2026-11-25T10:15:30.123Z] .ds-ds-b-000001: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/8.25000 \
+            | inc: 3 (PEAK 8.25000) | dec: 3 (PEAK 9.10450, .ds-ds-b-000000, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32"""));
     }
 
     /**
@@ -1374,13 +1374,13 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         assertThat(DataStreamAutoShardingService.PeriodicDecisionLogger.formatDecisions(sortedByLoad), equalTo("""
 
              ds-a
-              - [2026-11-25T10:15:30.123Z] .ds-ds-a-000001: NO_CHANGE 3 | load all/recent/peak=0.10/0.20/3.00 | inc: 3 (PEAK 3.00) \
-            | dec: 3 (PEAK 3.00, write index, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
-              - [2026-11-25T10:16:30.123Z] .ds-ds-a-000001: NO_CHANGE 3 | load all/recent/peak=0.10/0.20/2.00 | inc: 3 (PEAK 2.00) \
-            | dec: 3 (PEAK 2.00, write index, min 1) | cooldown inc/dec=10m/3d, threads=2-32
+              - [2026-11-25T10:15:30.123Z] .ds-ds-a-000001: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/3.00000 \
+            | inc: 3 (PEAK 3.00000) | dec: 3 (PEAK 3.00000, write index, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
+              - [2026-11-25T10:16:30.123Z] .ds-ds-a-000001: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/2.00000 \
+            | inc: 3 (PEAK 2.00000) | dec: 3 (PEAK 2.00000, write index, min 1) | cooldown inc/dec=10m/3d, threads=2-32
              data-stream-1
-              - [2026-11-25T10:15:30.123Z] the-write-index: INCREASE 3->4 | load all/recent/peak=0.10/0.20/1.00 | inc: 4 (PEAK 1.00) \
-            | dec: skipped | cooldown inc/dec=4.5m/3d, threads=2-32"""));
+              - [2026-11-25T10:15:30.123Z] the-write-index: INCREASE 3->4 | load all/recent/peak=0.100000/0.200000/1.00000 \
+            | inc: 4 (PEAK 1.00000) | dec: skipped | cooldown inc/dec=4.5m/3d, threads=2-32"""));
     }
 
     private static Decision createDecisionForFormatTests(

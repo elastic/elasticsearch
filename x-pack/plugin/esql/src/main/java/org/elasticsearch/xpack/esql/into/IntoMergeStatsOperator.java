@@ -28,14 +28,9 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -48,8 +43,6 @@ import java.util.function.Supplier;
  * refresh the destination exactly once.
  */
 public final class IntoMergeStatsOperator implements Operator {
-    private static final Logger logger = LogManager.getLogger(IntoMergeStatsOperator.class);
-
     /**
      * @param refresher refreshes the destination when the merged stats show writes, or {@code null} when no refresh is wanted
      */
@@ -200,8 +193,7 @@ public final class IntoMergeStatsOperator implements Operator {
      */
     private void recordRefreshFailure(Exception cause) {
         // Broadcast replication wraps the failure of a shard in an exception that has no message of its own, and a failure from another
-        // node is wrapped again with the details of that node, which are internal. The warning says what actually went wrong, and the
-        // cluster admin gets the wrappers, with the whole failure, from the log.
+        // node is wrapped again with the details of that node, which are internal. The warning says what actually went wrong.
         Throwable underlying = ExceptionsHelper.unwrapCause(cause);
         String hint = ExceptionsHelper.status(underlying) == RestStatus.FORBIDDEN
             ? " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
@@ -215,26 +207,6 @@ public final class IntoMergeStatsOperator implements Operator {
                 hint
             )
         );
-        logger.warn(
-            () -> Strings.format(
-                "INTO [%s] wrote [%d] documents but the refresh failed: %s",
-                refresher.destination(),
-                createdSum,
-                wrappers(cause)
-            ),
-            cause
-        );
-    }
-
-    /** The failure and what it wraps, outermost first, which is where the node that refused is named. */
-    private static String wrappers(Throwable cause) {
-        StringBuilder chain = new StringBuilder();
-        // A cause chain can be cyclic, and this runs in the failure callback, so it must end
-        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (Throwable t = cause; t != null && seen.add(t); t = t.getCause()) {
-            chain.append(chain.isEmpty() ? "" : " <- ").append(t);
-        }
-        return chain.toString();
     }
 
     private boolean refreshPending() {

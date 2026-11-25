@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.into;
 
-import org.apache.logging.log4j.Level;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -27,7 +25,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -35,7 +32,6 @@ import org.junit.After;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.DISCARD;
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
@@ -257,7 +253,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
     /**
      * Which node refused, and its transport address, are internal details: the warning, which every caller receives, must not carry
-     * them. The cluster admin gets them from the log instead.
+     * them.
      */
     public void testWarningDoesNotDiscloseTheRemoteNode() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
@@ -267,52 +263,6 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remoteBreaker()))));
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
         assertThat(warnings(), equalTo(List.of(WRITTEN + "[parent] Data too large")));
-    }
-
-    /** The node that refused is what the cluster admin needs, so it goes to the log, with the whole failure. */
-    public void testRemoteNodeOfAShardFailureIsLogged() {
-        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
-        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
-        op.finish();
-
-        try (MockLog mockLog = MockLog.capture(IntoMergeStatsOperator.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "refresh failure names the node",
-                    IntoMergeStatsOperator.class.getCanonicalName(),
-                    Level.WARN,
-                    "*[" + DEST + "]*node-b*"
-                )
-            );
-            client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remoteBreaker()))));
-            assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
-            mockLog.assertAllExpectationsMatched();
-        }
-    }
-
-    /** A cause chain can be cyclic, and describing it for the log must still end, or the refresh never settles. */
-    public void testCyclicCauseChainDoesNotBlockTheOperator() {
-        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
-        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
-        op.finish();
-
-        Throwable[] other = new Throwable[1];
-        AtomicInteger calls = new AtomicInteger();
-        RuntimeException first = new RuntimeException("first") {
-            @Override
-            public synchronized Throwable getCause() {
-                // Fail promptly if the walk does not end, instead of exhausting the heap of the test JVM
-                if (calls.incrementAndGet() > 1_000) {
-                    throw new AssertionError("the cause chain is walked without end");
-                }
-                return other[0];
-            }
-        };
-        other[0] = new RuntimeException("second", first);
-        client.failRefresh(new ElasticsearchException("refresh failed", first));
-
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
-        assertThat(warnings(), equalTo(List.of(WRITTEN + "refresh failed")));
     }
 
     private static RemoteTransportException remoteBreaker() {

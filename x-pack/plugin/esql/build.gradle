@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.antlr.PostProcessAntlrSourcesTask
+
 plugins {
   id 'idea'
 }
@@ -239,54 +241,23 @@ tasks.register("regenParser", JavaExec) {
     "${file(grammarPath)}/EsqlBaseParser.g4"
 }
 
-tasks.register("regen") {
+tasks.register("regen", PostProcessAntlrSourcesTask) {
   dependsOn "regenParser"
-  doLast {
-    // moves token files to grammar directory for use with IDE's
-    ant.move(file: "${outputPath}/EsqlBaseLexer.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/EsqlBaseParser.tokens", toDir: grammarPath)
-    // make the generated classes package private
-    ant.replaceregexp(
-      match: 'public ((interface|class) \\QEsqlBase(Parser|Lexer)\\E\\w+)',
-      replace: '\\1',
-      encoding: 'UTF-8'
-    ) {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
-    }
-    // nuke timestamps/filenames in generated files
-    ant.replaceregexp(
-      match: '\\Q// Generated from \\E.*',
-      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-      encoding: 'UTF-8'
-    ) {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
-    }
-    // remove tabs in antlr generated files
-    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'EsqlBase*.java')
-    }
-    // suppress this-escape warnings on EsqlBaseLexer
-    ant.replaceregexp(
-      match: 'public EsqlBaseLexer',
-      replace: '@SuppressWarnings("this-escape")${line.separator}  public EsqlBaseLexer',
-      encoding: 'UTF-8'
-    ) {
-      fileset(dir: outputPath, includes: 'EsqlBaseLexer.java')
-    }
-    // suppress this-escape warnings on all internal EsqlBaseParser class constructores
-    ant.replaceregexp(
-      match: '([ ]+)public ([A-Z][a-z]+[a-z,A-Z]+\\()',
-      flags: 'g',
-      replace: '\\1@SuppressWarnings("this-escape")${line.separator}\\1public \\2',
-      encoding: 'UTF-8'
-    ) {
-      fileset(dir: outputPath, includes: 'EsqlBaseParser.java')
-    }
-    // fix line endings
-    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-      patternset(includes: 'EsqlBase*.java')
-    }
-  }
+  generatedSourcesDir = file(outputPath)
+  // moves token files to grammar directory for use with IDE's
+  tokensDir = file(grammarPath)
+  tokenFiles = ["EsqlBaseLexer.tokens", "EsqlBaseParser.tokens"]
+  // make the generated classes package private
+  replaceFirst('EsqlBase*.java', 'public ((interface|class) \\QEsqlBase(Parser|Lexer)\\E\\w+)', '$1')
+  // nuke timestamps/filenames in generated files
+  replaceFirst('EsqlBase*.java', '\\Q// Generated from \\E.*', '// ANTLR GENERATED CODE: DO NOT EDIT')
+  // remove tabs in antlr generated files
+  replaceAll('EsqlBase*.java', '\t', '  ')
+  // suppress this-escape warnings on EsqlBaseLexer
+  replaceFirst('EsqlBaseLexer.java', 'public (EsqlBaseLexer)', '@SuppressWarnings("this-escape")\n  public $1')
+  // suppress this-escape warnings on all internal EsqlBaseParser class constructores
+  replaceAll('EsqlBaseParser.java', '([ ]+)public ([A-Z][a-z]+[a-z,A-Z]+\\()', '$1@SuppressWarnings("this-escape")\n$1public $2')
+  fixLineEndings('EsqlBase*.java')
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }

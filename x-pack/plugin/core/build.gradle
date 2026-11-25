@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens
 import org.elasticsearch.gradle.Version
 import java.nio.file.Paths
 import org.elasticsearch.gradle.internal.AbstractDependenciesTask

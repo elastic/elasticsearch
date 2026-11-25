@@ -8,21 +8,25 @@
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
 
 Version elasticsearchVersion = Version.fromString(versions.get("elasticsearch"))
 def fwcVersions = buildParams.bwcVersions.released.findAll { it.major == elasticsearchVersion.major &&  it.minor == elasticsearchVersion.minor }
 def targetMajor = elasticsearchVersion.minor > 0 ? elasticsearchVersion.major : elasticsearchVersion.major - 1
 def targetMinor = elasticsearchVersion.minor > 0 ? elasticsearchVersion.minor - 1 : buildParams.bwcVersions.unreleased.findAll { it.major == targetMajor }*.minor.max()
 def previousMinorSnapshot = buildParams.bwcVersions.unreleased.find { it.major == targetMajor && it.minor == targetMinor }
-if (previousMinorSnapshot != null) {
-  fwcVersions.each { fwcVersion ->
-    tasks.register("v${fwcVersion}#fwcTest", StandaloneRestIntegTestTask) {
-      usesBwcDistribution(previousMinorSnapshot)
-      usesBwcDistribution(fwcVersion)
-      systemProperty("tests.old_cluster_version", previousMinorSnapshot)
-      systemProperty("tests.new_cluster_version", fwcVersion)
-      nonInputProperties.systemProperty 'tests.fwc', 'true'
+// The fwc tasks are REST integ tests backed by JUnit rule based test clusters, so they need the
+// restTests extension and the usesBwcDistribution method that RestTestBasePlugin provides.
+plugins.withType(RestTestBasePlugin) {
+  if (previousMinorSnapshot != null) {
+    fwcVersions.each { fwcVersion ->
+      restTests.register("v${fwcVersion}#fwcTest") {
+        usesBwcDistribution(previousMinorSnapshot)
+        usesBwcDistribution(fwcVersion)
+        systemProperty("tests.old_cluster_version", previousMinorSnapshot)
+        systemProperty("tests.new_cluster_version", fwcVersion)
+        nonInputProperties.systemProperty 'tests.fwc', 'true'
+      }
     }
   }
 }

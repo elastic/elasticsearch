@@ -43,7 +43,7 @@ import org.gradle.api.tasks.SourceSetContainer;
  *     variant 'EsqlSpec', 'AbstractEsqlSpecIT'
  * }
  *
- * tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+ * restTests.register('csvSpecTests') {
  *     usesDefaultDistribution(...)
  *     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
  *     classpath       = sourceSets.csvSpecTest.runtimeClasspath

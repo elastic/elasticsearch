@@ -47,8 +47,6 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
     def "registers isolated coordinator tasks while preserving current tasks"() {
         given:
         buildFile << """
-            import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-
             ext.bwc_tests_enabled = true
             apply plugin: 'java'
             apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -78,7 +76,7 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
 
             // Stands in for the owning suites' own csvSpecTests runner, which selects the default
             // distribution itself. The convention must not select it a second time on this task.
-            tasks.register('ownerSpecTests', StandaloneRestIntegTestTask) {
+            restTests.register('ownerSpecTests') {
               usesDefaultDistribution("owner suite needs the full distribution")
               testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
               classpath = sourceSets.csvSpecTest.runtimeClasspath
@@ -96,7 +94,7 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
             assert tasks.named('test').get().enabled
             assert tasks.named('javaRestTest').get().enabled == false
 
-            def bwcTasks = tasks.withType(StandaloneRestIntegTestTask).findAll {
+            def bwcTasks = tasks.withType(Test).findAll {
               it.name.contains('#esqlDataSourceBwc') && it.name.endsWith('Coordinator') && it.enabled
             }
             assert bwcTasks.empty == false
@@ -116,7 +114,7 @@ class EsqlDataSourceBwcPluginFuncTest extends AbstractGradleInternalPluginFuncTe
             }
 
             // elasticsearch.bwc-test would otherwise select the default distribution for every
-            // standalone REST task here, including ownerSpecTests above, which already selects
+            // REST integ test task here, including ownerSpecTests above, which already selects
             // it and would then have its default_distro inputs registered twice. The convention
             // opts out and selects it per task instead.
             assert project.bwcTestApplyDefaultDistribution == false

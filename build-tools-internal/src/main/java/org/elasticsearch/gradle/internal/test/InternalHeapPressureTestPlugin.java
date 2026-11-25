@@ -16,8 +16,9 @@ import org.gradle.api.Project;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerPlainRestTestTask;
 
 /**
  * Adds a {@code heapPressureTest} source set for tests that require a heap-constrained
@@ -43,7 +44,7 @@ public class InternalHeapPressureTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet sourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, sourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
+        TaskProvider<Test> testTask = registerPlainRestTestTask(project, sourceSet, SOURCE_SET_NAME);
 
         testTask.configure(task -> {
             // Each class runs in its own JVM so heap-constrained clusters are fully isolated.

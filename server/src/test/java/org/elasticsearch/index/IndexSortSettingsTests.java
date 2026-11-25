@@ -240,6 +240,19 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("setting [index.sort] requires the ES|QL plugin"));
     }
 
+    public void testSortExpressionNeedsIndexVersion() {
+        Settings settings = Settings.builder().put("index.sort", "field1 DESC").build();
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORT_EXPRESSION);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexSettings(settings, previous).getIndexSortConfig()
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("setting [index.sort] requires an index created after all nodes support it, use [index.sort.field] instead")
+        );
+    }
+
     public void testBlankSortExpression() {
         Settings settings = Settings.builder().put("index.sort", "  ").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSortConfig.INDEX_SORT_SETTING.get(settings));

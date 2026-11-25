@@ -495,6 +495,16 @@ public final class IndexSortConfig {
             computedKeys = new ArrayList<>(Collections.nCopies(fields.size(), null));
             this.fields = Set.copyOf(fields);
         } else {
+            // Nodes that read older index versions don't know the setting
+            if (indexCreatedVersion.before(IndexVersions.INDEX_SORT_EXPRESSION)) {
+                throw new IllegalArgumentException(
+                    "setting ["
+                        + INDEX_SORT_SETTING.getKey()
+                        + "] requires an index created after all nodes support it, use ["
+                        + INDEX_SORT_FIELD_SETTING.getKey()
+                        + "] instead"
+                );
+            }
             List<SortEntry> entries = parseSortExpression(expression);
             // A computed key has no field, its spec is named after its text
             fields = new ArrayList<>(entries.stream().map(e -> e.computedKey() != null ? e.computedKey() : e.field()).toList());

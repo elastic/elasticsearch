@@ -1275,6 +1275,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 Function<Long, Long> adaptCurrentTerm,
                 Settings settings
             ) {
+                // Restart tests today largely take the roles from `localNode` rather than looking at `settings`, except for a few which
+                // demote a master-eligible node to be master-ineligible.
+                // TODO fix callers to specify roles properly in settings, and adapt this logic to ignore `localNode`.
                 final Set<DiscoveryNodeRole> newRoles = localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings)
                     ? ALL_ROLES_EXCEPT_VOTING_ONLY
                     : isMasterIneligibleDataNode(localNode) ? Set.of(DiscoveryNodeRole.DATA_ROLE)

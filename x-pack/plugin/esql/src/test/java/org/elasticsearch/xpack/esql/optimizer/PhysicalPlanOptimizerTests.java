@@ -3811,7 +3811,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var planWithInvalidJoinRightSide = plan.transformUp(
             LookupJoinExec.class,
             // LookupJoinExec.rightReferences() is currently EMPTY (hack); use a HashJoinExec instead.
-            join -> new HashJoinExec(join.source(), join.left(), join.left(), join.leftFields(), join.rightFields(), join.output())
+            join -> new HashJoinExec(join.source(), join.left(), join.left(), join.leftFields(), join.rightFields(), join.output(), false)
         );
 
         e = expectThrows(
@@ -9826,7 +9826,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
-        PhysicalPlan plan = physicalPlan(query);
+        PhysicalPlan plan = physicalPlanNoSerializationCheck(query); // HashJoinExec is not serialized
         var join = as(plan, HashJoinExec.class);
         assertMap(join.leftFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
@@ -9876,7 +9876,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .error(query, ParsingException.class, containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
-        PhysicalPlan plan = optimizedPlan(physicalPlan(query));
+        PhysicalPlan plan = optimizedPlan(physicalPlanNoSerializationCheck(query)); // HashJoinExec is not serialized
 
         var outerProject = as(plan, ProjectExec.class);
         assertThat(outerProject.projections().toString(), containsString("AS lang_name"));

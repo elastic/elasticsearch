@@ -23,12 +23,21 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Keeps all build-side row offsets for each hash group so repeated keys can produce one output row per match.
+ * <p>
+ * A build row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}. A multivalued row never enters
+ * the hash ({@link PackedValuesBlockHash#add(Page, GroupingAggregatorFunction.AddInput, boolean)} skips it). A row with a
+ * null key stays on the hash's fast path, which gives its key a group, but the row goes in no group's rows, so a probe row
+ * with the same key misses.
  */
 final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
+    /** Marks a build row that is in no group's rows, because one of its keys is null or multivalued. */
+    private static final int NO_GROUP = -1;
+
     private final PackedValuesBlockHash hash;
     /** The rows for group {@code g} are in {@code rowIds} from {@code rowOffsets[g]} to {@code rowOffsets[g + 1]} (exclusive). */
     private final IntArray rowOffsets;
@@ -38,16 +47,9 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
         int rowCount = keys[0].getPositionCount();
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keys.length);
         for (int k = 0; k < keys.length; k++) {
-            Block key = keys[k];
-            if (key.mayHaveNulls()) {
-                for (int p = 0; p < rowCount; p++) {
-                    if (key.isNull(p)) {
-                        throw new IllegalArgumentException("repeated-key lookup requires non-null build keys");
-                    }
-                }
-            }
-            groups.add(new BlockHash.GroupSpec(k, key.elementType()));
+            groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
         }
+        boolean checkNulls = Arrays.stream(keys).anyMatch(Block::mayHaveNulls);
 
         // The emit batch size counts ordinals, not bytes, and the hash keeps a buffer of that many ints while the table lives.
         PackedValuesBlockHash builtHash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, 4096);
@@ -70,38 +72,52 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                     @Override
                     public void add(int positionOffset, IntVector groupIds) {
                         for (int p = 0; p < groupIds.getPositionCount(); p++) {
-                            groupsByRow.set(positionOffset + p, groupIds.getInt(p));
+                            addRow(positionOffset + p, groupIds.getInt(p));
                         }
                     }
 
                     /**
-                     * Build keys are single-valued and non-null, so each row has exactly one group.
+                     * A skipped multivalued row has a {@code null} group, and every other row has exactly one.
                      */
                     private void addBlock(int positionOffset, IntBlock groupIds) {
                         for (int p = 0; p < groupIds.getPositionCount(); p++) {
-                            assert groupIds.getValueCount(p) == 1 : "expected one group per build row";
-                            groupsByRow.set(positionOffset + p, groupIds.getInt(groupIds.getFirstValueIndex(p)));
+                            if (groupIds.isNull(p)) {
+                                groupsByRow.set(positionOffset + p, NO_GROUP);
+                            } else {
+                                assert groupIds.getValueCount(p) == 1 : "expected one group per build row";
+                                addRow(positionOffset + p, groupIds.getInt(groupIds.getFirstValueIndex(p)));
+                            }
                         }
+                    }
+
+                    private void addRow(int row, int group) {
+                        groupsByRow.set(row, checkNulls && hasNull(keys, row) ? NO_GROUP : group);
                     }
 
                     @Override
                     public void close() {}
-                });
+                }, true);
                 int groupCount = builtHash.numKeys();
                 offsets = blockFactory.bigArrays().newIntArray((long) groupCount + 1, true);
                 for (int row = 0; row < rowCount; row++) {
-                    offsets.increment(groupsByRow.get(row), 1);
+                    int group = groupsByRow.get(row);
+                    if (group != NO_GROUP) {
+                        offsets.increment(group, 1);
+                    }
                 }
                 int end = 0;
                 for (int group = 0; group < groupCount; group++) {
                     end += offsets.get(group);
                     offsets.set(group, end);
                 }
-                offsets.set(groupCount, rowCount);
-                rows = blockFactory.bigArrays().newIntArray(rowCount, false);
+                offsets.set(groupCount, end);
+                rows = blockFactory.bigArrays().newIntArray(end, false);
                 // Fill backwards so decrementing the end offsets yields ascending row ids and leaves the start offsets.
                 for (int row = rowCount - 1; row >= 0; row--) {
-                    rows.set(offsets.increment(groupsByRow.get(row), -1), row);
+                    int group = groupsByRow.get(row);
+                    if (group != NO_GROUP) {
+                        rows.set(offsets.increment(group, -1), row);
+                    }
                 }
             }
             this.hash = builtHash;
@@ -113,6 +129,15 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                 Releasables.closeExpectNoException(builtHash, offsets, rows);
             }
         }
+    }
+
+    private static boolean hasNull(Block[] keys, int row) {
+        for (Block key : keys) {
+            if (key.isNull(row)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -182,7 +207,8 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                 return 1;
             }
             int group = groupIds.getInt(groupIds.getFirstValueIndex(p));
-            return rowOffsets.get(group + 1) - rowOffsets.get(group);
+            // The group of a key with a null has no rows, and is a miss.
+            return Math.max(1, rowOffsets.get(group + 1) - rowOffsets.get(group));
         }
 
         private void appendMatches(IntBlock.Builder result, int p) {
@@ -194,7 +220,9 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
             int group = groupIds.getInt(groupIds.getFirstValueIndex(p));
             int start = rowOffsets.get(group);
             int end = rowOffsets.get(group + 1);
-            if (end - start == 1) {
+            if (end == start) {
+                result.appendNull();
+            } else if (end - start == 1) {
                 result.appendInt(rowIds.get(start));
             } else {
                 result.beginPositionEntry();

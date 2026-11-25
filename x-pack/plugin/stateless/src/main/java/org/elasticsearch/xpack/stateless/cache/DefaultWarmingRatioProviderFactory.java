@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 
 import java.util.function.Supplier;
 
@@ -66,7 +66,7 @@ public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderF
 
         @Override
         public double getWarmingRatio(
-            @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampFieldValueRange,
+            @Nullable TimestampFieldValueRange timestampFieldValueRange,
             long resolvedCCTimestampMillis,
             long nowMillis
         ) {

@@ -150,6 +150,40 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(nanosMax));
     }
 
+    public void testRawEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nanosMax + 2_000L, nanosMax + 5_000L);
+
+        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed);
+
+        assertThat(end, equalTo(nanosMax));
+        assertTrue(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, nanosMax + 2_000L, end));
+    }
+
+    public void testAggregatingEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nanosMax + 2_000L, nanosMax + 5_000L);
+
+        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed);
+
+        assertTrue(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, nanosMax + 2_000L, end));
+    }
+
+    public void testEsqlPreviewWithStartBelowEndShouldNotBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 1_000L, 1_000L));
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 0L, 5_000L));
+    }
+
+    public void testClassicPreviewWithStartAboveEndShouldNotBeEmptyWindow() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
+
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 9_000L, 5_000L));
+    }
+
     public void testResolvePreviewEndTimeClassicDatafeedShouldNotAlignEnd() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 5_123L);

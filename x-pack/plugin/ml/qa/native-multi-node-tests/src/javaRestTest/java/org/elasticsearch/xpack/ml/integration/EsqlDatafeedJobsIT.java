@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
@@ -153,6 +154,21 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         for (Map<String, Object> row : rows) {
             assertThat(((Number) row.get("event_time")).longValue(), equalTo(firstEventTime));
         }
+    }
+
+    public void testEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldReturnNoRows() throws Exception {
+        String index = "esql-preview-beyond-nanos";
+        String jobId = "esql-preview-beyond-nanos-job";
+        String datafeedId = jobId + "-datafeed";
+        createSourceIndex(index);
+        indexDocuments(index, 1, BASE_TIME + 1_000L);
+        putJob(createJob(jobId));
+        putDatafeed(
+            createDatafeed(datafeedId, jobId, "FROM " + index + " | KEEP event_time, value", ChunkingConfig.newManual(BUCKET_SPAN))
+        );
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+
+        assertThat(previewRowCount(datafeedId, nanosMax + 2_000L, nanosMax + 5_000L), equalTo(0));
     }
 
     private void assertPreviewAndLookbackRowCount(String jobId, String query, long expectedRecords) throws Exception {

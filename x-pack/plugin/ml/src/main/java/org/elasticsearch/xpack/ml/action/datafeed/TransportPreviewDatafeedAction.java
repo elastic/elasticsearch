@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -247,8 +248,20 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     ) {
         final long start = request.getStartTime().orElse(0);
         final long end = resolvePreviewEndTime(request, isDateNanos, datafeed);
+        if (isEmptyEsqlPreviewWindow(datafeed, start, end)) {
+            listener.onResponse(new PreviewDatafeedAction.Response(new BytesArray("[]")));
+            return;
+        }
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, listener));
+    }
+
+    /**
+     * Whether the date_nanos cap in {@link #resolvePreviewEndTime} left an ES|QL window that ends before it starts, which
+     * the extractor factory rejects. Visible for testing.
+     */
+    static boolean isEmptyEsqlPreviewWindow(DatafeedConfig datafeed, long start, long end) {
+        return datafeed.getEsqlQuery() != null && start > end;
     }
 
     /**

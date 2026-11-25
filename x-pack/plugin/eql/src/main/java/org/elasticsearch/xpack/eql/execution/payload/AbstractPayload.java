@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.payload;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.session.Payload;
 
 import java.util.List;
@@ -18,11 +19,18 @@ public abstract class AbstractPayload implements Payload {
     private final boolean timedOut;
     private final TimeValue timeTook;
     private final List<ShardSearchFailure> shardFailures;
+    private final List<EqlClusterShards> clusterShards;
 
-    protected AbstractPayload(boolean timedOut, TimeValue timeTook, List<ShardSearchFailure> shardFailures) {
+    protected AbstractPayload(
+        boolean timedOut,
+        TimeValue timeTook,
+        List<ShardSearchFailure> shardFailures,
+        List<EqlClusterShards> clusterShards
+    ) {
         this.timedOut = timedOut;
         this.timeTook = timeTook;
         this.shardFailures = shardFailures;
+        this.clusterShards = List.copyOf(clusterShards);
     }
 
     @Override
@@ -38,5 +46,10 @@ public abstract class AbstractPayload implements Payload {
     @Override
     public List<ShardSearchFailure> shardFailures() {
         return shardFailures;
+    }
+
+    @Override
+    public List<EqlClusterShards> clusterShards() {
+        return clusterShards;
     }
 }

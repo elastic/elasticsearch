@@ -26,6 +26,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -51,6 +52,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -354,6 +356,35 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         return EqlSearchResponse::new;
     }
 
+    public void testClusterShardsRoundTrip() throws IOException {
+        List<EqlClusterShards> shards = List.of(new EqlClusterShards("", 3, 2, 1, 0), new EqlClusterShards("remote", 4, 4, 0, 0));
+        EqlSearchResponse response = new EqlSearchResponse(EqlSearchResponse.Hits.EMPTY, 5, false, List.of(), shards);
+        try {
+            EqlSearchResponse deserialized = copyWriteable(
+                response,
+                new NamedWriteableRegistry(List.of()),
+                EqlSearchResponse::new,
+                TransportVersion.current()
+            );
+            try {
+                assertThat(deserialized.clusterShards(), equalTo(shards));
+                assertThat(deserialized.took(), equalTo(5L));
+            } finally {
+                deserialized.decRef();
+            }
+            TransportVersion before = TransportVersionUtils.getPreviousVersion(EqlSearchResponse.EQL_RESPONSE_CLUSTER_SHARDS);
+            EqlSearchResponse old = copyWriteable(response, new NamedWriteableRegistry(List.of()), EqlSearchResponse::new, before);
+            try {
+                assertThat(old.clusterShards(), empty());
+                assertThat(old.took(), equalTo(5L));
+            } finally {
+                old.decRef();
+            }
+        } finally {
+            response.decRef();
+        }
+    }
+
     public void testDirectoryMetricsSerializationRoundTrip() throws IOException {
         long bytesRead = randomNonNegativeLong();
         EqlSearchResponse response = createTestInstance();
@@ -393,7 +424,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(randomEvents(xType), null, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), List.of());
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), List.of(), randomClusterShards());
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -402,7 +433,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomAlphaOfLength(10),
                 randomBoolean(),
                 randomBoolean(),
-                List.of()
+                List.of(),
+                randomClusterShards()
             );
         }
     }
@@ -426,7 +458,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(null, seq, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), List.of());
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), List.of(), randomClusterShards());
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -435,9 +467,21 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomAlphaOfLength(10),
                 randomBoolean(),
                 randomBoolean(),
-                List.of()
+                List.of(),
+                randomClusterShards()
             );
         }
+    }
+
+    private static List<EqlClusterShards> randomClusterShards() {
+        if (randomBoolean()) {
+            return List.of();
+        }
+        return randomList(
+            1,
+            3,
+            () -> new EqlClusterShards(randomAlphaOfLengthBetween(1, 8), randomInt(8), randomInt(8), randomInt(8), randomInt(8))
+        );
     }
 
     private static List<Supplier<Object[]>> getKeysGenerators() {
@@ -472,6 +516,9 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             }
         }
 
+        List<EqlClusterShards> clusterShards = version.supports(EqlSearchResponse.EQL_RESPONSE_CLUSTER_SHARDS)
+            ? instance.clusterShards()
+            : List.of();
         return new EqlSearchResponse(
             new EqlSearchResponse.Hits(mutatedEvents, mutatedSequences, instance.hits().totalHits()),
             instance.took(),
@@ -479,7 +526,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             instance.id(),
             instance.isRunning(),
             instance.isPartial(),
-            List.of()
+            List.of(),
+            clusterShards
         );
     }
 

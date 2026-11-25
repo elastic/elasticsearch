@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.eql;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -17,7 +18,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
@@ -188,6 +191,7 @@ public class EqlSourceOperator extends SourceOperator {
     }
 
     private void recordPartialResults(EqlSearchResponse response, String searchedCluster) {
+        recordShardCounts(response, searchedCluster);
         if (response.isTimeout()) {
             executionInfo.markPartial();
         }
@@ -235,6 +239,59 @@ public class EqlSourceOperator extends SourceOperator {
             builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
         }
         return builder.build();
+    }
+
+    private void recordShardCounts(EqlSearchResponse response, String searchedCluster) {
+        List<EqlClusterShards> shards = response.clusterShards();
+        if (shards.isEmpty()) {
+            return;
+        }
+        boolean singleLocal = shards.size() == 1 && RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(shards.get(0).clusterAlias());
+        boolean recordCounts = executionInfo.isMainPlan() || executionInfo.isSubqueryJoinSubPlan();
+        TimeValue took = TimeValue.timeValueMillis(response.took());
+        for (EqlClusterShards counts : shards) {
+            if (counts.total() == 0 && counts.successful() == 0 && counts.skipped() == 0 && counts.failed() == 0) {
+                continue;
+            }
+            String cluster = singleLocal ? searchedCluster : counts.clusterAlias();
+            if (executionInfo.getCluster(cluster) == null) {
+                continue;
+            }
+            boolean reported = executionInfo.clusterReportsSearchTook(cluster);
+            executionInfo.swapCluster(cluster, (alias, current) -> {
+                EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(current);
+                if (recordCounts) {
+                    EsqlExecutionInfo.applyShardCounts(
+                        builder,
+                        current,
+                        counts.total(),
+                        counts.successful(),
+                        counts.skipped(),
+                        counts.failed(),
+                        true
+                    );
+                }
+                if (current.getTook() != null && reported) {
+                    builder.setTook(TimeValue.timeValueNanos(current.getTook().nanos() + took.nanos()));
+                } else {
+                    builder.setTook(took);
+                }
+                if (counts.failed() > 0 && current.getFailures().isEmpty() && response.shardFailures().isEmpty()) {
+                    builder.addFailures(List.of(new ShardSearchFailure(new ElasticsearchException("all shards failed"))));
+                    boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias);
+                    if ((executionInfo.isMainPlan() || local)
+                        && (current.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING
+                            || current.getStatus() == EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)) {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                    }
+                }
+                executionInfo.markClusterSearchTook(alias);
+                return builder.build();
+            });
+            if (counts.failed() > 0) {
+                executionInfo.markPartial();
+            }
+        }
     }
 
     // EQL lists a shard once per search that lost it, and a FORK runs the search once per branch.

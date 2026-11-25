@@ -27,9 +27,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
+import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -50,6 +52,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
     private BytesReference pitId;
     private final TimeValue keepAlive;
     private final QueryBuilder filter;
+    private List<EqlClusterShards> clusterShards = List.of();
 
     public PITAwareQueryClient(EqlSession eqlSession) {
         super(eqlSession);
@@ -149,8 +152,14 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
+            clusterShards = EqlClusterShards.from(r);
             runnable.run();
         }));
+    }
+
+    @Override
+    public List<EqlClusterShards> clusterShards() {
+        return clusterShards;
     }
 
     @Override

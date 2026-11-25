@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.execution.sample;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.execution.payload.AbstractPayload;
 
@@ -25,9 +26,10 @@ class SamplePayload extends AbstractPayload {
         List<List<SearchHit>> docs,
         boolean timedOut,
         TimeValue timeTook,
-        List<ShardSearchFailure> shardFailures
+        List<ShardSearchFailure> shardFailures,
+        List<EqlClusterShards> clusterShards
     ) {
-        super(timedOut, timeTook, shardFailures);
+        super(timedOut, timeTook, shardFailures, clusterShards);
         values = new ArrayList<>(samples.size());
 
         for (int i = 0; i < samples.size(); i++) {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -55,7 +56,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     private final boolean isRunning;
     private final boolean isPartial;
     private final List<ShardSearchFailure> shardFailures;
+    private final List<EqlClusterShards> clusterShards;
     private DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
+
+    public static final TransportVersion EQL_RESPONSE_CLUSTER_SHARDS = TransportVersion.fromName("eql_response_cluster_shards");
 
     private static final class Fields {
         static final String TOOK = "took";
@@ -86,6 +90,29 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         boolean isPartial,
         List<ShardSearchFailure> shardFailures
     ) {
+        this(hits, tookInMillis, isTimeout, asyncExecutionId, isRunning, isPartial, shardFailures, List.of());
+    }
+
+    public EqlSearchResponse(
+        Hits hits,
+        long tookInMillis,
+        boolean isTimeout,
+        List<ShardSearchFailure> shardFailures,
+        List<EqlClusterShards> clusterShards
+    ) {
+        this(hits, tookInMillis, isTimeout, null, false, false, shardFailures, clusterShards);
+    }
+
+    public EqlSearchResponse(
+        Hits hits,
+        long tookInMillis,
+        boolean isTimeout,
+        String asyncExecutionId,
+        boolean isRunning,
+        boolean isPartial,
+        List<ShardSearchFailure> shardFailures,
+        List<EqlClusterShards> clusterShards
+    ) {
         super();
         this.hits = hits == null ? Hits.EMPTY : hits;
         this.tookInMillis = tookInMillis;
@@ -94,6 +121,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         this.isRunning = isRunning;
         this.isPartial = isPartial;
         this.shardFailures = List.copyOf(shardFailures);
+        this.clusterShards = List.copyOf(clusterShards);
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {
@@ -106,6 +134,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         shardFailures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
         if (in.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
             directoryMetrics = new DirectoryMetrics(in);
+        }
+        if (in.getTransportVersion().supports(EQL_RESPONSE_CLUSTER_SHARDS)) {
+            clusterShards = in.readCollectionAsImmutableList(EqlClusterShards::new);
+        } else {
+            clusterShards = List.of();
         }
     }
 
@@ -120,6 +153,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeCollection(shardFailures);
         if (out.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
             directoryMetrics.writeTo(out);
+        }
+        if (out.getTransportVersion().supports(EQL_RESPONSE_CLUSTER_SHARDS)) {
+            out.writeCollection(clusterShards);
         }
     }
 
@@ -188,6 +224,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         return shardFailures;
     }
 
+    public List<EqlClusterShards> clusterShards() {
+        return clusterShards;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -201,12 +241,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             && tookInMillis == that.tookInMillis
             && isTimeout == that.isTimeout
             && Objects.equals(asyncExecutionId, that.asyncExecutionId)
-            && Objects.equals(shardFailures, that.shardFailures);
+            && Objects.equals(shardFailures, that.shardFailures)
+            && Objects.equals(clusterShards, that.clusterShards);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, shardFailures);
+        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, shardFailures, clusterShards);
     }
 
     @Override

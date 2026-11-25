@@ -122,7 +122,7 @@ public class ComputeServiceBranchStatusTests extends ESTestCase {
     public void testSkippedThenSuccessDoesNotBecomeSuccessful() {
         EsqlExecutionInfo.Cluster existing = cluster(EsqlExecutionInfo.Cluster.Status.SKIPPED, 0, 0, 0, List.of());
         var builder = new EsqlExecutionInfo.Cluster.Builder(existing);
-        ComputeService.applyShardCounts(builder, existing, 2, 2, 0, 0, true);
+        EsqlExecutionInfo.applyShardCounts(builder, existing, 2, 2, 0, 0, true);
         ComputeService.applyClusterStatusAfterBranch(builder, existing, false, true);
         EsqlExecutionInfo.Cluster updated = builder.build();
         assertThat(updated.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
@@ -139,6 +139,45 @@ public class ComputeServiceBranchStatusTests extends ESTestCase {
         assertThat(updated.getSuccessfulShards(), equalTo(0));
         assertThat(updated.getFailures(), not(empty()));
         assertThat(updated.getFailures().get(0).reason(), containsString("unavailable"));
+    }
+
+    public void testFailIfAllShardsFailedThrowsWhenEveryShardFailed() {
+        ShardSearchFailure failure = new ShardSearchFailure(new IllegalStateException("all failed"));
+        EsqlExecutionInfo executionInfo = executionInfoWith(
+            cluster(EsqlExecutionInfo.Cluster.Status.PARTIAL, 2, 0, 2, List.of(failure))
+        );
+        Exception e = expectThrows(Exception.class, () -> ComputeService.failIfAllShardsFailed(executionInfo, List.of()));
+        assertThat(e.getMessage(), containsString("all failed"));
+    }
+
+    public void testFailIfAllShardsFailedReturnsWhenAShardSucceeded() {
+        ShardSearchFailure failure = new ShardSearchFailure(new IllegalStateException("one failed"));
+        EsqlExecutionInfo executionInfo = executionInfoWith(
+            cluster(EsqlExecutionInfo.Cluster.Status.PARTIAL, 2, 1, 1, List.of(failure))
+        );
+        ComputeService.failIfAllShardsFailed(executionInfo, List.of());
+    }
+
+    public void testMarkedSearchTookSurvivesCoordinatorOnlyFinalization() {
+        EsqlExecutionInfo executionInfo = executionInfoWith(cluster(EsqlExecutionInfo.Cluster.Status.RUNNING, 1, 1, 0, List.of()));
+        executionInfo.swapCluster(
+            REMOTE,
+            (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(TimeValue.timeValueMillis(60_000)).build()
+        );
+        executionInfo.markClusterSearchTook(REMOTE);
+        executionInfo.queryProfile().planning().start();
+        executionInfo.queryProfile().planning().stop();
+        ComputeService.updateExecutionInfoAfterCoordinatorOnlyQuery(executionInfo, true);
+        assertThat(executionInfo.getCluster(REMOTE).getTook(), equalTo(TimeValue.timeValueMillis(60_000)));
+    }
+
+    public void testUnmarkedClusterTookBecomesOverallTook() {
+        EsqlExecutionInfo executionInfo = executionInfoWith(cluster(EsqlExecutionInfo.Cluster.Status.RUNNING, null, null, null, List.of()));
+        executionInfo.queryProfile().planning().start();
+        executionInfo.queryProfile().planning().stop();
+        ComputeService.updateExecutionInfoAfterCoordinatorOnlyQuery(executionInfo, true);
+        assertThat(executionInfo.getCluster(REMOTE).getTook(), equalTo(executionInfo.overallTook()));
+        assertThat(executionInfo.getCluster(REMOTE).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
     }
 
     public void testThisBranchReceivedResultsMarksPartial() {

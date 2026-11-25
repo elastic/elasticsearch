@@ -24,6 +24,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
@@ -760,7 +761,14 @@ public class TumblingWindow implements Executable {
         log.trace("Sending payload for [{}] sequences", completed.size());
 
         if (completed.isEmpty() || (allowPartialSequenceResults == false && shardFailures.isEmpty() == false)) {
-            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook(), List.copyOf(shardFailures.values())));
+            listener.onResponse(
+                new EmptyPayload(
+                    Type.SEQUENCE,
+                    timeTook(),
+                    List.copyOf(shardFailures.values()),
+                    EqlClusterShards.withSearchFailures(client.clusterShards(), shardFailures.values())
+                )
+            );
             return;
         }
 
@@ -774,7 +782,8 @@ public class TumblingWindow implements Executable {
                 addMissingEventPlaceholders(listOfHits),
                 false,
                 timeTook(),
-                List.copyOf(shardFailures.values())
+                List.copyOf(shardFailures.values()),
+                EqlClusterShards.withSearchFailures(client.clusterShards(), shardFailures.values())
             );
         }));
     }

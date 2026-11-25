@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end integration test for the {@code EQL <indexPattern> "<query>"} source command. Loads the EQL plugin
@@ -352,7 +353,9 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     public void testEventQueryReportsALostShard() throws Exception {
         setupFailingShardIndices();
-        assertPartialResults(partialQuery(PARTIAL_EVENT), List.of("ok1"));
+        CapturedQuery result = assertPartialResults(partialQuery(PARTIAL_EVENT), List.of("ok1"));
+        assertShardCounts(result.localCluster(), 2, 1, 0, 1);
+        assertThat(result.localCluster().getTook(), notNullValue());
     }
 
     public void testQueryThatLosesNoShardIsNotPartial() throws Exception {
@@ -363,18 +366,31 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         assertFalse(result.partial());
         assertThat(result.localCluster().getFailures(), empty());
         assertThat(result.localCluster().getStatus(), not(equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL)));
+        assertShardCounts(result.localCluster(), 2, 2, 0, 0);
+        assertThat(result.localCluster().getTook(), notNullValue());
     }
 
     public void testSampleQueryReportsALostShard() throws Exception {
         setupFailingShardIndices();
-        assertPartialResults(partialQuery(PARTIAL_SAMPLE), PARTIAL_MATCH_IDS);
+        CapturedQuery result = assertPartialResults(partialQuery(PARTIAL_SAMPLE), PARTIAL_MATCH_IDS);
+        assertPitShardCounts(result.localCluster());
         assertThat(eqlSearchIds(partialSearch(PARTIAL_SAMPLE)), equalTo(PARTIAL_MATCH_IDS));
     }
 
     public void testForkBranchesReportALostShard() throws Exception {
         setupFailingShardIndices();
         String query = "EQL " + PARTIAL_PATTERN + " \"" + PARTIAL_EVENT + "\" METADATA _id | FORK (WHERE true) (WHERE true) | KEEP _id";
-        assertPartialResults(query, List.of("ok1", "ok1"));
+        CapturedQuery result = assertPartialResults(query, List.of("ok1", "ok1"));
+        assertShardCounts(result.localCluster(), 4, 2, 0, 2);
+        assertThat(result.localCluster().getTook(), notNullValue());
+    }
+
+    public void testAllShardsFailedFailsTheQuery() {
+        setupFailingShardIndices();
+        String query = "EQL eql_partial_fail \"process where fail_me == 1\" METADATA _id | KEEP _id";
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).allowPartialResults(true);
+        Exception e = expectThrows(Exception.class, () -> run(request).close());
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("Accessing failing field"));
     }
 
     public void testInSubqueryReportsALostShard() throws Exception {
@@ -410,15 +426,25 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     public void testPartialSequenceResultsFollowTheEqlClusterDefault() throws Exception {
         setupFailingShardIndices();
-        assertPartialResults(partialSequenceQuery(""), List.of());
+        CapturedQuery empty = assertPartialResults(partialSequenceQuery(""), List.of());
+        assertPitShardCounts(empty.localCluster());
         assertThat(eqlSearchIds(partialSearch(PARTIAL_SEQUENCE)), empty());
         updateClusterSettings(Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey(), true));
         try {
-            assertPartialResults(partialSequenceQuery(""), PARTIAL_MATCH_IDS);
+            CapturedQuery partial = assertPartialResults(partialSequenceQuery(""), PARTIAL_MATCH_IDS);
+            assertPitShardCounts(partial.localCluster());
             assertThat(eqlSearchIds(partialSearch(PARTIAL_SEQUENCE)), equalTo(PARTIAL_MATCH_IDS));
         } finally {
             updateClusterSettings(Settings.builder().putNull(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey()));
         }
+    }
+
+    public void testSequenceWithNoMatchesReportsPitShardCounts() throws Exception {
+        String query = "EQL " + INDEX + " \"sequence [process where process.pid == 999] [network where true]\" | KEEP _sequence";
+        CapturedQuery result = runCapturingWarnings(syncEsqlQueryRequest(query));
+        assertThat(result.rows(), empty());
+        assertShardCounts(result.localCluster(), 1, 1, 0, 0);
+        assertThat(result.localCluster().getTook(), notNullValue());
     }
 
     public void testWithOptionOverridesTheEqlClusterDefaultForPartialSequences() throws Exception {
@@ -589,7 +615,7 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             .get();
     }
 
-    private void assertPartialResults(String query, List<String> expectedIds) throws Exception {
+    private CapturedQuery assertPartialResults(String query, List<String> expectedIds) throws Exception {
         CapturedQuery result = runCapturingWarnings(syncEsqlQueryRequest(query).allowPartialResults(true));
         assertThat(ids(result), equalTo(expectedIds));
         assertTrue("a lost shard must mark the response partial", result.partial());
@@ -602,6 +628,19 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         assertThat(lost.index(), equalTo("eql_partial_fail"));
         assertThat(lost.shardId(), equalTo(0));
         assertThat(lost.reason(), containsString("Accessing failing field"));
+        return result;
+    }
+
+    private static void assertPitShardCounts(EsqlExecutionInfo.Cluster cluster) {
+        assertShardCounts(cluster, 2, 1, 0, 1);
+        assertThat(cluster.getTook(), notNullValue());
+    }
+
+    private static void assertShardCounts(EsqlExecutionInfo.Cluster cluster, int total, int successful, int skipped, int failed) {
+        assertThat(cluster.getTotalShards(), equalTo(total));
+        assertThat(cluster.getSuccessfulShards(), equalTo(successful));
+        assertThat(cluster.getSkippedShards(), equalTo(skipped));
+        assertThat(cluster.getFailedShards(), equalTo(failed));
     }
 
     private static List<String> ids(CapturedQuery result) {

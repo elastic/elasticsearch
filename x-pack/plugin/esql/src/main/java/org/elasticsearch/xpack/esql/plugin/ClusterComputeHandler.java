@@ -175,7 +175,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             // Merge branches (FORK / UNION ALL / FROM subquery) share one execInfo and must add, not replace,
             // so failIfAllShardsFailed at the root merge sees every branch's targets.
             if (executionInfo.isMainPlan() || executionInfo.isSubqueryJoinSubPlan()) {
-                ComputeService.applyShardCounts(
+                EsqlExecutionInfo.applyShardCounts(
                     builder,
                     v,
                     resp.getTotalShards(),

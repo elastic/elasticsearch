@@ -21,6 +21,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.action.EqlClusterShards;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleCriterion;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest;
@@ -293,7 +294,14 @@ public class SampleIterator implements Executable {
         log.trace("Sending payload for [{}] samples", samples.size());
 
         if (samples.isEmpty()) {
-            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook(), List.copyOf(shardFailures.values())));
+            listener.onResponse(
+                new EmptyPayload(
+                    Type.SAMPLE,
+                    timeTook(),
+                    List.copyOf(shardFailures.values()),
+                    EqlClusterShards.withSearchFailures(client.clusterShards(), shardFailures.values())
+                )
+            );
             return;
         }
 
@@ -302,7 +310,14 @@ public class SampleIterator implements Executable {
             hits(samples),
             ActionListeners.map(
                 listener,
-                listOfHits -> new SamplePayload(samples, listOfHits, false, timeTook(), List.copyOf(shardFailures.values()))
+                listOfHits -> new SamplePayload(
+                    samples,
+                    listOfHits,
+                    false,
+                    timeTook(),
+                    List.copyOf(shardFailures.values()),
+                    EqlClusterShards.withSearchFailures(client.clusterShards(), shardFailures.values())
+                )
             )
         );
     }

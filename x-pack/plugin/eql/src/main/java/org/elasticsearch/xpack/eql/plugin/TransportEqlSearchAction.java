@@ -340,10 +340,17 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 id.getEncoded(),
                 false,
                 false,
-                results.shardFailures()
+                results.shardFailures(),
+                results.clusterShards()
             );
         } else {
-            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), results.shardFailures());
+            return new EqlSearchResponse(
+                hits,
+                results.tookTime().getMillis(),
+                results.timedOut(),
+                results.shardFailures(),
+                results.clusterShards()
+            );
         }
     }
 

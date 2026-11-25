@@ -51,8 +51,8 @@ public class Space extends UnaryScalarFunction implements AnyNullIsNull {
         returnType = "keyword",
         briefSummary = "Returns a string made of the specified number of spaces.",
         description = "Returns a string made of `number` spaces.",
-        note = "The result can be at most 1MB long. For a `number` over 1048576, `SPACE` returns `null` and emits a warning, "
-            + "or fails the query when `number` is a constant.",
+        note = "If `number` is greater than 1048576, `SPACE` returns `null` and emits a warning. "
+            + "If `number` is a constant, the query fails instead.",
         examples = @Example(file = "string", tag = "space")
     )
     public Space(

@@ -46,6 +46,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -481,12 +482,13 @@ public final class FetchService {
                     null,
                     new PlanTimeProfile(),
                     0L,
+                    new QueryLoad(),
                     false,
                     null,
                     null
                 );
             }
-            return DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
+            return DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, new QueryLoad(), false);
         }
 
         private void fail(Exception e) {

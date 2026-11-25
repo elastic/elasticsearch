@@ -2130,9 +2130,13 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     private void indexPromqlSample(String index, Object... fields) {
+        indexPromqlSampleAt(index, PROMQL_QUERY_TIME, fields);
+    }
+
+    private void indexPromqlSampleAt(String index, String timestamp, Object... fields) {
         Object[] source = new Object[fields.length + 2];
         source[0] = "@timestamp";
-        source[1] = PROMQL_QUERY_TIME;
+        source[1] = timestamp;
         System.arraycopy(fields, 0, source, 2, fields.length);
         client().prepareIndex(index).setSource(source).get();
     }
@@ -2152,6 +2156,12 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     private void assertRowsAnyOrder(String query, List<List<Object>> expected) {
         try (EsqlQueryResponse response = run(query)) {
             assertThat(EsqlTestUtils.getValuesList(response), containsInAnyOrder(expected.toArray()));
+        }
+    }
+
+    private void assertPromqlColumns(String index, String expression, String columns, List<List<Object>> expected) {
+        try (EsqlQueryResponse response = run(promqlQuery(index, expression) + " | KEEP result, " + columns + " | SORT result")) {
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(expected));
         }
     }
 

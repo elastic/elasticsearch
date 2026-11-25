@@ -65,7 +65,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
@@ -1023,12 +1022,9 @@ public class EsqlSession {
         Map<NameId, Map<String, Object>> bucketMetadata = Map.of();
         if (columnMetadataEnabled) {
             bucketMetadata = BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext);
-            // The DESCRIBE columns are reported in snapshot builds only for now.
-            if (EsqlCapabilities.Cap.COLUMN_METADATA_DESCRIBE_COLUMNS.isEnabled()) {
-                bucketMetadata = Maps.merge(bucketMetadata, fieldColumnMetadata(optimizedPlan), (a, b) -> Maps.merge(a, b, (m1, m2) -> {
-                    throw new IllegalStateException("Should not produce metadata with the same key");
-                }));
-            }
+            bucketMetadata = Maps.merge(bucketMetadata, fieldColumnMetadata(optimizedPlan), (a, b) -> Maps.merge(a, b, (m1, m2) -> {
+                throw new IllegalStateException("Should not produce metadata with the same key");
+            }));
         }
         return Maps.merge(
             bucketMetadata,
@@ -2108,11 +2104,10 @@ public class EsqlSession {
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis parsedPreAnalysis = preAnalyzer.preAnalyze(parsed);
-        // Field semantics for column_metadata, in snapshot builds only for now.
-        PreAnalyzer.PreAnalysis preAnalysis = EsqlCapabilities.Cap.COLUMN_METADATA_DESCRIBE_COLUMNS.isEnabled()
-            && QuerySettings.COLUMN_METADATA.get(configuration.resolvedSettings())
-                ? parsedPreAnalysis.withFieldSemantics()
-                : parsedPreAnalysis;
+        // column_metadata reports the field semantics of every column.
+        PreAnalyzer.PreAnalysis preAnalysis = QuerySettings.COLUMN_METADATA.get(configuration.resolvedSettings())
+            ? parsedPreAnalysis.withFieldSemantics()
+            : parsedPreAnalysis;
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also
         // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
@@ -3742,8 +3737,7 @@ public class EsqlSession {
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
         // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
         // during pre-analysis.
-        if (EsqlCapabilities.Cap.COLUMN_METADATA_DESCRIBE_COLUMNS.isEnabled()
-            && QuerySettings.COLUMN_METADATA.get(configuration.resolvedSettings())) {
+        if (QuerySettings.COLUMN_METADATA.get(configuration.resolvedSettings())) {
             List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
             semanticSources.addAll(r.lookupIndices().values());
             columnDescriptions.putAll(ColumnDescription.collect(plan, semanticSources, configuration.newFoldContext()));

@@ -4966,7 +4966,7 @@ public class EsqlCapabilities {
          * {@code _meta} entries of the same names: {@code role}, {@code field}, {@code origin}, {@code metric_type}, {@code unit},
          * {@code interval}, {@code time_zone} and {@code description}.
          */
-        COLUMN_METADATA_DESCRIBE_COLUMNS(Build.current().isSnapshot()),
+        COLUMN_METADATA_DESCRIBE_COLUMNS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which

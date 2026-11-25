@@ -244,13 +244,41 @@ Which returns:
 ```
 % TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
+### Setting query settings [esql-rest-query-settings]
+```{applies_to}
+stack: ga 9.5+
+serverless: ga
+```
+
+You can pass [query settings](directives/set.md#esql-set-sources) in the `settings` object of the request body. Each key is the name of a query setting. This is useful when an application builds the request and keeps settings apart from the query text.
+
+For example, this request sets the time zone of the query:
+
+```console
+POST /_query
+{
+  "query": "ROW date = TO_DATETIME(\"2023-01-15T00:00:00\")",
+  "settings": {
+    "time_zone": "Europe/Paris"
+  }
+}
+```
+
+It is equivalent to starting the query with a [`SET` directive](directives/set.md): `SET time_zone = "Europe/Paris"; ROW date = TO_DATETIME("2023-01-15T00:00:00")`.
+
+The `settings` object works the same way in [`POST /_query/async`]({{es-apis}}operation/operation-esql-async-query).
+
+* A `SET` directive in the query overrides the same setting in `settings`. A setting with a map value can combine the values from several places instead of replacing them. Refer to the documentation of the [setting](directives/set.md#allowed-settings).
+* Only settings that support the request body are accepted, which the documentation of each [setting](directives/set.md#allowed-settings) says. An unknown setting, or a setting that does not support the request body, is rejected with a `400` error.
+* A few settings that were in the request body before the `settings` object existed, such as `time_zone`, can also be passed as top-level fields. If you pass such a setting at the top level and in `settings`, the values must be the same, otherwise the request is rejected with a `400` error.
+
 ### Setting the query timezone [esql-timezones]
 ```{applies_to}
 stack: ga 9.4
 serverless: ga
 ```
 
-To set the default timezone for the query, use the `time_zone` parameter in the request body. If not specified, the default timezone is UTC.
+To set the default timezone for the query, use the `time_zone` parameter in the request body. If not specified, the default timezone is UTC. {applies_to}`stack: ga 9.5+` You can also pass it as `settings.time_zone`, like any [query setting](#esql-rest-query-settings).
 
 This parameter accepts both an offset (e.g. `+01:00`) or a timezone ID (e.g. `Europe/Paris`).
 
@@ -324,7 +352,7 @@ serverless: ga
 ```
 
 Use the `approximation` parameter to enable [fast approximation for `STATS` queries](esql-query-approximation.md).
-If not specified, defaults to `false`.
+If not specified, defaults to `false`. {applies_to}`stack: ga 9.5+` You can also pass it as `settings.approximation`, like any [query setting](#esql-rest-query-settings).
 
 For example:
 ```console

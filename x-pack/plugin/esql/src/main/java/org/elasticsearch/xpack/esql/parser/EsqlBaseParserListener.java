@@ -601,6 +601,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#nestedExpandCommand}.
+   * @param ctx the parse tree
+   */
+  void enterNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#nestedExpandCommand}.
+   * @param ctx the parse tree
+   */
+  void exitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#explainCommand}.
    * @param ctx the parse tree
    */
@@ -866,6 +876,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#intoCommand}.
+   * @param ctx the parse tree
+   */
+  void enterIntoCommand(EsqlBaseParser.IntoCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#intoCommand}.
+   * @param ctx the parse tree
+   */
+  void exitIntoCommand(EsqlBaseParser.IntoCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
    * @param ctx the parse tree
@@ -1603,15 +1623,25 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#subqueryJoinTarget}.
    * @param ctx the parse tree
    */
-  void enterJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  void enterSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#subqueryJoinTarget}.
    * @param ctx the parse tree
    */
-  void exitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  void exitSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#lookupJoinTarget}.
+   * @param ctx the parse tree
+   */
+  void enterLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#lookupJoinTarget}.
+   * @param ctx the parse tree
+   */
+  void exitLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree

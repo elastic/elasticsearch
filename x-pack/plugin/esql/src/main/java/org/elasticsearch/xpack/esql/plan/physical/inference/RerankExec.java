@@ -41,7 +41,7 @@ public class RerankExec extends InferenceExec {
     private final List<Alias> rerankFields;
     private final Attribute scoreAttribute;
     private final TimeValue timeout;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public RerankExec(
         Source source,

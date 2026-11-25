@@ -8,6 +8,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -30,7 +31,11 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
+import static org.elasticsearch.common.util.PartitionedHashTable.PARTITION_WRITE_BATCH;
 
 public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
 
@@ -572,6 +577,211 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         }
     }
 
+    @Override
+    public boolean supportPartitioning(AggregatorMode mode) {
+        return mode.isInputPartial();
+    }
+
+    @Override
+    public PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+        if (rawBuffer.sliceCount > 0 || rawBuffer.timestamps.size() > 0) {
+            throw new IllegalStateException("can't partition rate raw buffer");
+        }
+        assert assertNoDeltaStates();
+        return new RatePartitionSplitter(breaker);
+    }
+
+    private boolean assertNoDeltaStates() {
+        for (long groupId = 0; groupId < deltaStates.size(); groupId++) {
+            assert deltaStates.get(groupId) == null : "unflushed delta samples for group " + groupId;
+        }
+        return true;
+    }
+
+    @Override
+    public void combinePartition(PartitionedState source, int partition, boolean appendOnly, int[] dstIds, int length) {
+        final RatePartition src = ((RatePartitionedState) source).partitions[partition];
+        int interval = 0;
+        for (int i = 0; i < length; i++) {
+            final int count = src.intervalCounts[i];
+            if (src.samples[i] == 0) {
+                assert count == 0;
+                continue;
+            }
+            ReducedState state = getOrInitializeReducedState(dstIds[i]);
+            state.samples += src.samples[i];
+            state.resets += src.resets[i];
+            state.appendIntervals(src.intervalTs, src.intervalValues, interval, count);
+            interval += count;
+        }
+    }
+
+    static long arrayBytes(int length, int bytesPerElement) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) bytesPerElement * length);
+    }
+
+    static final class RatePartition {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(RatePartition.class);
+        long[] samples;
+        double[] resets;
+        int[] intervalCounts;
+        long[] intervalTs;
+        double[] intervalValues;
+        int numIntervals;
+
+        RatePartition(int keys) {
+            samples = new long[keys];
+            resets = new double[keys];
+            intervalCounts = new int[keys];
+            intervalTs = new long[keys * 2];
+            intervalValues = new double[keys * 2];
+        }
+
+        static long keyBytes(int keys) {
+            return arrayBytes(keys, Long.BYTES) + arrayBytes(keys, Double.BYTES) + arrayBytes(keys, Integer.BYTES);
+        }
+
+        static long intervalBytes(int slots) {
+            return arrayBytes(slots, Long.BYTES) + arrayBytes(slots, Double.BYTES);
+        }
+
+        long bytes() {
+            return BASE_RAM_USAGE + keyBytes(samples.length) + intervalBytes(intervalTs.length);
+        }
+    }
+
+    static final class RatePartitionedState implements PartitionedState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOf(RatePartitionedState.class) + arrayBytes(
+            NUM_PARTITIONS,
+            RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        );
+        final RatePartition[] partitions = new RatePartition[NUM_PARTITIONS];
+
+        RatePartitionedState(int partitionSize) {
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                partitions[p] = new RatePartition(partitionSize);
+            }
+        }
+
+        @Override
+        public boolean hasAllValues(int partition) {
+            return false;
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            if (partitions[partition] != null) {
+                breaker.addWithoutBreaking(-partitions[partition].bytes());
+                partitions[partition] = null;
+            }
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            long usedBytes = BASE_RAM_USAGE;
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                if (partitions[p] != null) {
+                    usedBytes += partitions[p].bytes();
+                    partitions[p] = null;
+                }
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+    }
+
+    private final class RatePartitionSplitter implements PartitionSplitter {
+        private final CircuitBreaker breaker;
+        private RatePartitionedState state;
+
+        RatePartitionSplitter(CircuitBreaker breaker) {
+            this.breaker = breaker;
+            final int numGroups = Math.toIntExact(reducedStates.size());
+            final int partitionSize = ArrayUtil.oversize(Math.max(1, Math.ceilDiv(numGroups, NUM_PARTITIONS)), Long.BYTES);
+            final long partitionBytes = RatePartition.BASE_RAM_USAGE + RatePartition.keyBytes(partitionSize) + RatePartition.intervalBytes(
+                partitionSize * 2
+            );
+            breaker.addEstimateBytesAndMaybeBreak(
+                RatePartitionedState.BASE_RAM_USAGE + NUM_PARTITIONS * partitionBytes,
+                "RateDoubleGroupingAggregatorFunction#partition"
+            );
+            state = new RatePartitionedState(partitionSize);
+            assert state.partitions[0].bytes() == partitionBytes;
+        }
+
+        @Override
+        public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+            for (int p = 0; p < NUM_PARTITIONS; p++) {
+                final int count = batchPartitionCounts[p];
+                if (count == 0) {
+                    continue;
+                }
+                final int offset = partitionOffsets[p];
+                final RatePartition dst = state.partitions[p];
+                if (dst.samples.length < offset + count) {
+                    growKeys(dst, offset + count);
+                }
+                final int base = p * PARTITION_WRITE_BATCH;
+                for (int i = 0; i < count; i++) {
+                    final int id = firstId + shiftedIds[base + i];
+                    final ReducedState src = id < reducedStates.size() ? reducedStates.get(id) : null;
+                    if (src == null || src.samples == 0) {
+                        continue;
+                    }
+                    dst.samples[offset + i] = src.samples;
+                    dst.resets[offset + i] = src.resets;
+                    dst.intervalCounts[offset + i] = src.intervals.length;
+                    int slot = dst.numIntervals * 2;
+                    final int end = slot + src.intervals.length * 2;
+                    if (dst.intervalTs.length < end) {
+                        growIntervals(dst, end);
+                    }
+                    for (int intervalId : src.intervals) {
+                        dst.intervalTs[slot] = intervalBuffer.lastTs(intervalId);
+                        dst.intervalValues[slot] = intervalBuffer.lastValue(intervalId);
+                        dst.intervalTs[slot + 1] = intervalBuffer.firstTs(intervalId);
+                        dst.intervalValues[slot + 1] = intervalBuffer.firstValue(intervalId);
+                        slot += 2;
+                    }
+                    dst.numIntervals += src.intervals.length;
+                }
+            }
+        }
+
+        private void growKeys(RatePartition dst, int minLength) {
+            final int oldLength = dst.samples.length;
+            final int newLength = ArrayUtil.oversize(minLength, Long.BYTES);
+            breaker.addEstimateBytesAndMaybeBreak(RatePartition.keyBytes(newLength), "RateDoubleGroupingAggregatorFunction#partition");
+            dst.samples = Arrays.copyOf(dst.samples, newLength);
+            dst.resets = Arrays.copyOf(dst.resets, newLength);
+            dst.intervalCounts = Arrays.copyOf(dst.intervalCounts, newLength);
+            breaker.addWithoutBreaking(-RatePartition.keyBytes(oldLength));
+        }
+
+        private void growIntervals(RatePartition dst, int minLength) {
+            final int oldLength = dst.intervalTs.length;
+            final int newLength = ArrayUtil.oversize(minLength, Long.BYTES);
+            breaker.addEstimateBytesAndMaybeBreak(RatePartition.intervalBytes(newLength), "RateDoubleGroupingAggregatorFunction#partition");
+            dst.intervalTs = Arrays.copyOf(dst.intervalTs, newLength);
+            dst.intervalValues = Arrays.copyOf(dst.intervalValues, newLength);
+            breaker.addWithoutBreaking(-RatePartition.intervalBytes(oldLength));
+        }
+
+        @Override
+        public RatePartitionedState finish() {
+            final RatePartitionedState result = state;
+            state = null;
+            return result;
+        }
+
+        @Override
+        public void release(CircuitBreaker breaker) {
+            if (state != null) {
+                state.releaseAll(breaker);
+                state = null;
+            }
+        }
+    }
+
     static final class DoubleRawBuffer extends RawBuffer {
         private final DoubleBuffer values;
 
@@ -726,6 +936,18 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         GroupingAggregatorEvaluationContext ctx
     ) {
         flushRawBuffers();
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int group = selected.getInt(p);
+            var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+            if (state != null && state.samples > 1) {
+                state.combineIntervals();
+            }
+        }
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            tsContext.computeAdjacentGroupIds();
+            // https://github.com/elastic/elasticsearch/issues/152758
+            assert assertTimestampsWithinBuckets(selected, tsContext);
+        }
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 
@@ -733,18 +955,6 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
         try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
-            for (int p = 0; p < positionCount; p++) {
-                int group = selectedInPage.getInt(p);
-                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-                if (state != null && state.samples > 1) {
-                    state.combineIntervals();
-                }
-            }
-            if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                tsContext.computeAdjacentGroupIds();
-                // https://github.com/elastic/elasticsearch/issues/152758
-                assert assertTimestampsWithinBuckets(selectedInPage, tsContext);
-            }
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
@@ -891,6 +1101,19 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             return id;
         }
 
+        int appendIntervals(long[] ts, double[] vs, int fromInterval, int count) {
+            final int from = fromInterval * 2;
+            final int n = count * 2;
+            timestamps.ensureCapacity(timestamps.size() + n);
+            values.ensureCapacity(values.size() + n);
+            final int firstId = count();
+            for (int i = from; i < from + n; i++) {
+                timestamps.append(ts[i]);
+                values.append(vs[i]);
+            }
+            return firstId;
+        }
+
         int appendIntervalsFromBlocks(LongBlock ts, DoubleBlock vs, int position) {
             int tsFirst = ts.getFirstValueIndex(position);
             int vsFirst = vs.getFirstValueIndex(position);
@@ -934,6 +1157,15 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             int currentSize = intervals.length;
             this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
             this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
+        }
+
+        void appendIntervals(long[] ts, double[] vs, int fromInterval, int count) {
+            int firstIntervalId = intervalBuffer.appendIntervals(ts, vs, fromInterval, count);
+            int currentSize = intervals.length;
+            intervals = ArrayUtil.growExact(intervals, currentSize + count);
+            for (int i = 0; i < count; i++) {
+                intervals[currentSize++] = firstIntervalId + i;
+            }
         }
 
         void appendIntervalsFromBlocks(LongBlock ts, DoubleBlock vs, int position) {

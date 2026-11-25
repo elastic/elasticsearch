@@ -60,6 +60,11 @@ public class ImmediateLocalSupplier implements LocalSupplier {
     }
 
     @Override
+    public Page peek() {
+        return page;
+    }
+
+    @Override
     public String toString() {
         return page.toString();
     }

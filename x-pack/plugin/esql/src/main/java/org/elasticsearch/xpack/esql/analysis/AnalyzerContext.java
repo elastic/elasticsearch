@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.Collections;
@@ -61,6 +63,7 @@ public class AnalyzerContext {
     /** Per-view SET settings from each resolved view's definition, keyed by view name; see {@link ViewQuerySettings}. */
     private final Map<String, ViewQuerySettings> viewSettings;
     private final EsqlFlags flags;
+    private final Set<String> fieldNames;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -83,6 +86,57 @@ public class AnalyzerContext {
         EsqlFlags flags,
         Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps
     ) {
+        this(
+            configuration,
+            functionRegistry,
+            promqlFunctionRegistry,
+            analysisRegistry,
+            projectMetadata,
+            indexResolution,
+            lookupResolution,
+            linkedResolution,
+            enrichResolution,
+            inferenceResolution,
+            externalSourceResolution,
+            minimumVersion,
+            unmappedResolution,
+            timestampBounds,
+            ipLocationResolution,
+            preserveViewBoundaries,
+            viewSettings,
+            flags,
+            eqlFieldCaps,
+            IndexResolver.ALL_FIELDS
+        );
+    }
+
+    /**
+     * @param fieldNames the field names the field caps requests ask for, as {@link IndexResolver#ALL_FIELDS} when every field is asked
+     *                   for. A field no request asks for is not in the mapping of a relation, whether or not the indices map it.
+     */
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
+        ProjectMetadata projectMetadata,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        Map<LinkedIndexPattern, IndexResolution> linkedResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        ExternalSourceResolution externalSourceResolution,
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds,
+        IpLocationResolution ipLocationResolution,
+        boolean preserveViewBoundaries,
+        Map<String, ViewQuerySettings> viewSettings,
+        EsqlFlags flags,
+        Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps,
+        Set<String> fieldNames
+    ) {
+        this.fieldNames = fieldNames;
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
@@ -143,6 +197,7 @@ public class AnalyzerContext {
         this.preserveViewBoundaries = other.preserveViewBoundaries;
         this.viewSettings = other.viewSettings;
         this.flags = other.flags;
+        this.fieldNames = other.fieldNames;
     }
 
     // for testing only
@@ -275,19 +330,12 @@ public class AnalyzerContext {
     }
 
     /**
-     * Where a loading {@code unmapped_fields} mode stopped: {@code resolution} was set by the caller's query, or by the
-     * definition of {@code settingView} if not {@code null}, and does not apply inside view {@code viewName}.
-     * {@code enclosingView} names the view that reads {@code viewName} and whose output the null-fill was placed at, when
-     * {@code viewName} was merged into it. {@code viewLoadsUnmappedFields} says whether {@code viewName}'s own definition
-     * already SETs a loading mode, in which case it only has to reference the fields to load them.
+     * Where a loading {@code unmapped_fields} mode stopped: the mode was set by the caller's query, or by the definition of
+     * {@code settingView} if not {@code null}, and does not apply inside view {@code viewName}. {@code viewName} is the view
+     * the {@code SET}'s scope reads directly: the views nested in it are behind the same boundary, even when compaction
+     * lifted their branches up to the scope's level.
      */
-    public record ViewBoundary(
-        UnmappedResolution resolution,
-        @Nullable String settingView,
-        String viewName,
-        @Nullable String enclosingView,
-        boolean viewLoadsUnmappedFields
-    ) {}
+    public record ViewBoundary(@Nullable String settingView, String viewName) {}
 
     /** {@code fieldName} was answered with null at the output of {@code boundary}'s view. */
     public record ViewBoundaryNullFill(ViewBoundary boundary, String fieldName) {}
@@ -341,6 +389,22 @@ public class AnalyzerContext {
     }
 
     /** Cluster flags for this request. Tests that omit them get {@link EsqlFlags#DEFAULTS}. */
+    /**
+     * Whether the field caps requests of this query ask for the field {@code name}. A relation that does not have a column of that name
+     * does not map it, or was not asked about it, and the query does not read the column if it was not asked about.
+     */
+    public boolean fieldCapsAsksFor(String name) {
+        if (IndexResolver.ALL_FIELDS.equals(fieldNames)) {
+            return true;
+        }
+        for (String pattern : fieldNames) {
+            if (Regex.simpleMatch(pattern, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public EsqlFlags flags() {
         return flags;
     }
@@ -399,7 +463,8 @@ public class AnalyzerContext {
             preserveViewBoundaries,
             viewSettings,
             flags,
-            result.eqlFieldCaps()
+            result.eqlFieldCaps(),
+            result.fieldNames()
         );
     }
 }

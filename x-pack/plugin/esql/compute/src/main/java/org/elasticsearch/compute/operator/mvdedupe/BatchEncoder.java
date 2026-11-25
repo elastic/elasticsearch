@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -361,6 +362,22 @@ public abstract class BatchEncoder implements Releasable, Accountable {
                     e.length -= Integer.BYTES;
                 }
             }
+        }
+    }
+
+    protected static final class DirectFloats extends DirectEncoder {
+        DirectFloats(FloatBlock block) {
+            super(block);
+        }
+
+        @Override
+        protected int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst) {
+            int before = dst.length();
+            int after = before + Integer.BYTES;
+            dst.grow(after);
+            intHandle.set(dst.bytes(), before, Float.floatToRawIntBits(((FloatBlock) block).getFloat(valueIndex)));
+            dst.setLength(after);
+            return Integer.BYTES;
         }
     }
 

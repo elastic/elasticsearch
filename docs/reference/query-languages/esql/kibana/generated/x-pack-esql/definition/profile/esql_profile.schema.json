@@ -300,11 +300,31 @@
         "node_name" : {
           "type" : "string"
         },
+        "kind" : {
+          "type" : "string"
+        },
+        "branch" : {
+          "type" : "string"
+        },
+        "phase" : {
+          "type" : "string"
+        },
+        "phase_kind" : {
+          "type" : "string"
+        },
         "plan" : {
           "type" : "string"
         },
+        "plan_json" : {
+          "type" : "object",
+          "additionalProperties" : { }
+        },
         "logical_plan" : {
           "type" : "string"
+        },
+        "logical_plan_json" : {
+          "type" : "object",
+          "additionalProperties" : { }
         },
         "logical_optimization_nanos" : {
           "type" : "integer"
@@ -334,6 +354,18 @@
           "type" : "string"
         },
         "node_name" : {
+          "type" : "string"
+        },
+        "kind" : {
+          "type" : "string"
+        },
+        "branch" : {
+          "type" : "string"
+        },
+        "phase" : {
+          "type" : "string"
+        },
+        "phase_kind" : {
           "type" : "string"
         },
         "start" : {
@@ -714,6 +746,89 @@
         "rows_extracted",
         "extract_nanos",
         "extract_cpu_nanos"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_fetch" : {
+      "type" : "object",
+      "properties" : {
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "documents" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "plan_nanos" : {
+          "type" : "integer"
+        },
+        "plan_time" : {
+          "type" : "string"
+        },
+        "gather_nanos" : {
+          "type" : "integer"
+        },
+        "gather_time" : {
+          "type" : "string"
+        },
+        "nodes" : {
+          "type" : "array",
+          "items" : {
+            "type" : "object",
+            "properties" : {
+              "node" : {
+                "type" : "string"
+              },
+              "shards" : {
+                "type" : "integer"
+              },
+              "documents" : {
+                "type" : "integer"
+              },
+              "request_nanos" : {
+                "type" : "integer"
+              },
+              "request_time" : {
+                "type" : "string"
+              },
+              "took_nanos" : {
+                "type" : "integer"
+              },
+              "took_time" : {
+                "type" : "string"
+              },
+              "setup_nanos" : {
+                "type" : "integer"
+              },
+              "setup_time" : {
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "node",
+              "shards",
+              "documents",
+              "request_nanos",
+              "took_nanos",
+              "setup_nanos"
+            ],
+            "additionalProperties" : false
+          }
+        }
+      },
+      "required" : [
+        "pages_received",
+        "rows_received",
+        "documents",
+        "pages_emitted",
+        "plan_nanos",
+        "gather_nanos",
+        "nodes"
       ],
       "additionalProperties" : false
     },
@@ -1553,6 +1668,12 @@
           "properties" : {
             "operator" : {
               "type" : "string"
+            },
+            "plan_node_id" : {
+              "type" : "string"
+            },
+            "exchange_id" : {
+              "type" : "string"
             }
           },
           "required" : [
@@ -1564,6 +1685,12 @@
           "type" : "object",
           "properties" : {
             "operator" : {
+              "type" : "string"
+            },
+            "plan_node_id" : {
+              "type" : "string"
+            },
+            "exchange_id" : {
               "type" : "string"
             },
             "status" : {
@@ -1594,6 +1721,9 @@
                 },
                 {
                   "$ref" : "#/definitions/OperatorStatus_external_field_extract"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_fetch"
                 },
                 {
                   "$ref" : "#/definitions/OperatorStatus_fetch_docs_source"
@@ -1802,6 +1932,9 @@
         "row_groups_kept" : {
           "type" : "integer"
         },
+        "row_groups_dictionary_filter_skipped" : {
+          "type" : "integer"
+        },
         "page_index_used" : {
           "type" : "boolean"
         },
@@ -1851,6 +1984,7 @@
         "row_groups_in_file",
         "row_groups_total",
         "row_groups_kept",
+        "row_groups_dictionary_filter_skipped",
         "page_index_used",
         "rows_in_kept_row_groups",
         "rows_after_page_index",

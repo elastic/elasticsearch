@@ -25,6 +25,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
@@ -95,6 +96,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -144,6 +146,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -391,6 +394,39 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testMergedSegmentWarmerRunsBeforeMergeIsCommitted() throws Exception {
+        final int numSegments = between(2, 5);
+        final AtomicInteger warmedSegments = new AtomicInteger();
+        final AtomicInteger warmedMaxDoc = new AtomicInteger();
+        final AtomicInteger segmentsVisibleToWriterWhenWarming = new AtomicInteger();
+        final AtomicReference<InternalEngine> engineRef = new AtomicReference<>();
+        try (Store store = createStore()) {
+            final EngineConfig config = EngineConfig.builder(config(defaultSettings, store, createTempDir(), new TieredMergePolicy()))
+                .mergedSegmentWarmer(reader -> {
+                    warmedSegments.incrementAndGet();
+                    warmedMaxDoc.set(reader.maxDoc());
+                    // the merge has not been committed yet, so the merged segment is not visible to the writer
+                    segmentsVisibleToWriterWhenWarming.set(engineRef.get().segments().size());
+                })
+                .build();
+            try (InternalEngine engine = createEngine(config)) {
+                engineRef.set(engine);
+                for (int i = 0; i < numSegments; i++) {
+                    indexDoc(engine, indexForDoc(testParsedDocument(Integer.toString(i), null, testDocument(), B_1)));
+                    engine.flush();
+                }
+                assertThat(warmedSegments.get(), equalTo(0));
+
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+
+                assertThat(warmedSegments.get(), greaterThanOrEqualTo(1));
+                assertThat(warmedMaxDoc.get(), equalTo(numSegments));
+                assertThat(segmentsVisibleToWriterWhenWarming.get(), equalTo(numSegments));
+                assertThat(engine.segments().size(), equalTo(1));
+            }
+        }
+    }
+
     public void testSegmentsWithMergeFlag() throws Exception {
         try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1);
@@ -631,9 +667,15 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
         engine.close();
 
-        engine = new InternalEngine(engine.config());
-        expectThrows(IllegalStateException.class, engine::ensureCanFlush);
-        expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).flushMetrics(new FlushMetrics(meterRegistry)).build());
+        expectThrows(PendingTranslogRecoveryException.class, engine::ensureCanFlush);
+        expectThrows(PendingTranslogRecoveryException.class, () -> engine.flush(true, true));
+        assertThat(
+            "a pending translog recovery is not a flush failure",
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL),
+            empty()
+        );
         if (randomBoolean()) {
             recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         } else {
@@ -643,6 +685,34 @@ public class InternalEngineTests extends EngineTestCase {
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE);
         indexDoc(engine, indexForDoc(doc));
         engine.flush();
+    }
+
+    public void testFlushListenerCompletesWhenReportingFlushFailureFails() throws IOException {
+        engine.close();
+        final AtomicBoolean rethrowFlushFailure = new AtomicBoolean();
+        final FlushMetrics failingMetrics = new FlushMetrics(TelemetryProvider.NOOP.getMeterRegistry()) {
+            @Override
+            public void onFailure(IndexMode indexMode, Throwable error) {
+                if (rethrowFlushFailure.get()) {
+                    // the flush failure below is unchecked
+                    throw (RuntimeException) error;
+                }
+                throw new IllegalStateException("simulated metrics failure");
+            }
+        };
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).flushMetrics(failingMetrics).build()) {
+            @Override
+            protected void ensureCanFlush() {
+                throw new IllegalArgumentException("simulated flush failure");
+            }
+        };
+
+        for (boolean rethrow : new boolean[] { false, true }) {
+            rethrowFlushFailure.set(rethrow);
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flush(true, true, future);
+            assertThat(expectThrows(IllegalArgumentException.class, future::actionGet).getMessage(), equalTo("simulated flush failure"));
+        }
     }
 
     public void testTranslogMultipleOperationsSameDocument() throws IOException {
@@ -4103,6 +4173,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     private static class ThrowingIndexWriter extends IndexWriter {
         private AtomicReference<Supplier<Exception>> failureToThrow = new AtomicReference<>();
+        private final AtomicReference<Throwable> tragicException = new AtomicReference<>();
 
         ThrowingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
@@ -4140,6 +4211,22 @@ public class InternalEngineTests extends EngineTestCase {
         public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
             maybeThrowFailure();
             return super.softUpdateDocument(term, doc, softDeletes);
+        }
+
+        @Override
+        public long addBatch(ColumnBatch columnBatch) throws IOException {
+            maybeThrowFailure();
+            return super.addBatch(columnBatch);
+        }
+
+        public void setTragicException(Throwable tragic) {
+            tragicException.set(tragic);
+        }
+
+        @Override
+        public Throwable getTragicException() {
+            final Throwable tragic = tragicException.get();
+            return tragic != null ? tragic : super.getTragicException();
         }
 
         @Override
@@ -8378,6 +8465,127 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    /**
+     * A batch in which only some documents are preflight errors still goes to Lucene as a column batch, without those documents.
+     * Lucene adds a document for every doc id of a column batch, whether or not a column has a value for it, so the failed
+     * documents must not keep a doc id: they used to be indexed as documents without any field, which a search then counted.
+     */
+    public void testIndexBatchSomePreflightErrorsWritesNoLuceneDocsForThem() throws IOException {
+        final Map<String, Long> expectedSeqNos = new HashMap<>();
+        final List<Engine.Index> ops = new ArrayList<>();
+        final int existingDocs = between(1, 5);
+        for (int i = 0; i < existingDocs; i++) {
+            ParsedDocument doc = createParsedDoc("existing-" + i, null);
+            Engine.IndexResult result = indexDoc(engine, indexForDoc(doc));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            expectedSeqNos.put(doc.id(), result.getSeqNo());
+            // conflicting op: stale if-seq-no
+            ops.add(
+                new Engine.Index(
+                    newUid(doc),
+                    doc,
+                    UNASSIGNED_SEQ_NO,
+                    primaryTerm.get(),
+                    Versions.MATCH_ANY,
+                    VersionType.INTERNAL,
+                    Engine.Operation.Origin.PRIMARY,
+                    System.nanoTime(),
+                    IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                    false,
+                    result.getSeqNo() + 100,
+                    result.getTerm()
+                )
+            );
+        }
+        final boolean evictedFromVersionMap = randomBoolean();
+        if (evictedFromVersionMap) {
+            // a refresh empties the version map, so the batch has to find the existing docs in Lucene
+            engine.refresh("test");
+        }
+        final int newDocs = between(1, 5);
+        for (int i = 0; i < newDocs; i++) {
+            ops.add(indexForDoc(createParsedDoc("new-" + i, null)));
+        }
+        // The conflicts land anywhere in the batch: before, between and after the docs that are written.
+        Collections.shuffle(ops, random());
+
+        final long luceneLookupsBefore = engine.getNumIndexVersionsLookups();
+        List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
+
+        // The new docs are never in the version map. The existing ones are, unless the refresh evicted them.
+        assertThat(
+            engine.getNumIndexVersionsLookups() - luceneLookupsBefore,
+            equalTo((long) newDocs + (evictedFromVersionMap ? existingDocs : 0))
+        );
+        assertThat(results, hasSize(ops.size()));
+        for (int i = 0; i < ops.size(); i++) {
+            String id = ops.get(i).id();
+            if (id.startsWith("existing-")) {
+                assertThat(id, results.get(i).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                assertThat(id, results.get(i).getFailure(), instanceOf(VersionConflictEngineException.class));
+            } else {
+                assertThat(id, results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                expectedSeqNos.put(id, results.get(i).getSeqNo());
+            }
+        }
+        assertBatchLeftExactly(expectedSeqNos);
+    }
+
+    /**
+     * A recovering replica can receive an operation twice, from the recovery and in a replicated bulk. It processes the second
+     * copy without writing it to Lucene, so the column batch that carries the rest of the bulk must not add a document for it
+     * either. This is what left an index with one document too many in #166250.
+     */
+    public void testIndexBatchOnReplicaWritesNoLuceneDocsForOpsAlreadyProcessed() throws IOException {
+        final int numOps = between(2, 10);
+        // The recovery delivers some of the operations of the bulk first, but not all of them.
+        final int recoveredFirst = between(0, numOps - 1);
+        final int notRecovered = randomValueOtherThan(recoveredFirst, () -> between(0, numOps - 1));
+        final Map<String, Long> expectedSeqNos = new HashMap<>();
+        final List<Engine.Index> ops = new ArrayList<>();
+        for (int seqNo = 0; seqNo < numOps; seqNo++) {
+            ParsedDocument doc = createParsedDoc(Integer.toString(seqNo), null);
+            if (seqNo == recoveredFirst || (seqNo != notRecovered && randomBoolean())) {
+                Engine.IndexResult recovered = engine.index(replicaIndexForDoc(doc, 1, seqNo, false));
+                assertThat(recovered.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            }
+            ops.add(replicaIndexForDoc(doc, 1, seqNo, false));
+            expectedSeqNos.put(doc.id(), (long) seqNo);
+        }
+
+        EngineBatch batch = engineBatch(ops, encodeAsEscfBatch(ops));
+        for (int i = 0; i < numOps; i++) {
+            batch.columns().setSeqNo(i, i); // the test batch builder does not copy the op's seq#, the engine reads it from the columns
+        }
+        List<Engine.IndexResult> results = engine.indexBatch(batch);
+
+        assertThat(results, hasSize(numOps));
+        for (int i = 0; i < numOps; i++) {
+            assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(results.get(i).getSeqNo(), equalTo((long) i));
+        }
+        assertBatchLeftExactly(expectedSeqNos);
+    }
+
+    /**
+     * Asserts that Lucene holds one document per entry of {@code expectedSeqNos}, with that id and seq#, and nothing else. The
+     * count comes from the reader as a document without any field has no id to be listed under.
+     */
+    private void assertBatchLeftExactly(Map<String, Long> expectedSeqNos) throws IOException {
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
+            assertThat(
+                "no ghost documents should be written for the batch docs that are not indexed",
+                searcher.getIndexReader().numDocs(),
+                equalTo(expectedSeqNos.size())
+            );
+        }
+        assertThat(
+            getDocIds(engine, false).stream().collect(Collectors.toMap(DocIdSeqNoAndSource::id, DocIdSeqNoAndSource::seqNo)),
+            equalTo(expectedSeqNos)
+        );
+    }
+
     public void testIndexBatchMixedNewAndExisting() throws IOException {
         // Pre-index doc "0"
         indexDoc(engine, indexForDoc(createParsedDoc("0", null)));
@@ -8661,6 +8869,152 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(results.get(1).getSeqNo(), equalTo(checkpointBefore + 1));
         // processed checkpoint advances by exactly one (the one real op)
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(checkpointBefore + 1));
+    }
+
+    public void testPlanningFailureFailsRemainingOpsAndKeepsEngineOpen() throws IOException {
+        engine.close();
+        final EngineException lookupFailure = new EngineException(shardId, "simulated version lookup failure");
+        final AtomicInteger luceneLookups = new AtomicInteger();
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            // non-tragic exception
+            protected <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
+                throws EngineException {
+                if (luceneLookups.incrementAndGet() == 2) {
+                    throw lookupFailure;
+                }
+                return super.performActionWithDirectoryReader(scope, action);
+            }
+        };
+        engine.skipTranslogRecovery();
+
+        // "1" and "2" form the first sub-batch and are resolved with one Lucene lookup.
+        // The duplicate "1" cannot join it.
+        // "1" and "3" form a second sub-batch whose planning needs a second lookup, for "3".
+        // At this point, our override will invoke the failure.
+        List<Engine.Index> ops = List.of(
+            indexForDoc(createParsedDoc("1", null)),
+            indexForDoc(createParsedDoc("2", null)),
+            indexForDoc(createParsedDoc("1", null)),
+            indexForDoc(createParsedDoc("3", null))
+        );
+        List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
+
+        assertThat(results, hasSize(4));
+        assertThat(results.get(0).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(results.get(0).getSeqNo(), equalTo(0L));
+        assertThat(results.get(1).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(results.get(1).getSeqNo(), equalTo(1L));
+        for (int i = 2; i < 4; i++) {
+            assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertTrue(results.get(i).isBatchAborted());
+            assertThat(results.get(i).getFailure(), sameInstance(lookupFailure));
+            assertThat(results.get(i).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(results.get(i).getTranslogLocation(), nullValue());
+        }
+        assertThat(engine.failedEngine.get(), nullValue());
+        assertThat(engine.getMaxSeqNo(), equalTo(1L));
+        assertThat(engine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+        // the engine keeps indexing, and the next sequence number follows the last one that was actually used
+        Engine.IndexResult next = engine.index(indexForDoc(createParsedDoc("3", null)));
+        assertThat(next.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(next.getSeqNo(), equalTo(2L));
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            assertThat(searcher.getIndexReader().numDocs(), equalTo(3));
+        }
+    }
+
+    public void testPlanningFailureOnReplicaFailsEngine() throws IOException {
+        engine.close();
+        final EngineException lookupFailure = new EngineException(shardId, "simulated seq_no lookup failure");
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+                if ("load_seq_no".equals(source)) {
+                    throw lookupFailure;
+                }
+                return super.acquireSearcher(source, scope);
+            }
+        };
+        engine.skipTranslogRecovery();
+        // make the replica resolve the op against Lucene instead of taking the append-only shortcut
+        engine.advanceMaxSeqNoOfUpdatesOrDeletes(10);
+
+        List<Engine.Index> ops = List.of(replicaIndexForDoc(createParsedDoc("1", null), 1, 0, false));
+        EngineBatch batch = engineBatch(ops, encodeAsEscfBatch(ops));
+        batch.columns().setSeqNo(0, 0); // the test batch builder does not copy the op's seq#, the engine reads it from the columns
+        EngineException e = expectThrows(EngineException.class, () -> engine.indexBatch(batch));
+        assertThat(e, sameInstance(lookupFailure));
+        assertThat(engine.failedEngine.get(), sameInstance(lookupFailure));
+        assertTrue(engine.isClosed.get());
+    }
+
+    public void testIndexBatchFailureAfterSeqNoReservationFailsEngine() throws IOException {
+        engine.close();
+        final SetOnce<ThrowingIndexWriter> iw = new SetOnce<>();
+        try (Store store = createStore(); InternalEngine engine = createEngine((dir, iwc) -> {
+            // ThrowingIndexWriter simulates a Lucene IndexWriter after reserving seqnos.
+            iw.set(new ThrowingIndexWriter(dir, iwc));
+            return iw.get();
+        }, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE))) {
+            final IOException writeFailure = new IOException("simulated write failure");
+            iw.get().setThrowFailure(() -> writeFailure);
+            iw.get().setTragicException(new IOException("tragic event recorded by another thread"));
+
+            List<Engine.Index> ops = List.of(indexForDoc(createParsedDoc("1", null)), indexForDoc(createParsedDoc("2", null)));
+
+            // indexBatch will now throw a tragic exception
+            IOException e = expectThrows(IOException.class, () -> engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops))));
+            assertThat(e, sameInstance(writeFailure));
+            assertThat(engine.failedEngine.get(), sameInstance(writeFailure));
+            assertTrue(engine.isClosed.get());
+        }
+    }
+
+    public void testIndexBatchFailureAfterSeqNoReservationFailsEngineWhileClosing() throws Exception {
+        engine.close();
+        final SetOnce<ThrowingIndexWriter> iw = new SetOnce<>();
+        try (Store store = createStore(); InternalEngine engine = createEngine((dir, iwc) -> {
+            iw.set(new ThrowingIndexWriter(dir, iwc));
+            return iw.get();
+        }, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE))) {
+            final IOException writeFailure = new IOException("simulated write failure");
+            final CountDownLatch writing = new CountDownLatch(1);
+            // The Lucene write, i.e. the applying phase after the sequence numbers were reserved, fails only once a close has
+            // started draining in-flight operations: the engine is marked as closing but still fully open, waiting for this batch
+            iw.get().setThrowFailure(() -> {
+                writing.countDown();
+                try {
+                    assertBusy(() -> assertTrue(engine.isClosing()));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                return writeFailure;
+            });
+            iw.get().setTragicException(new IOException("tragic event recorded by another thread"));
+
+            final Thread closer = new Thread(() -> {
+                safeAwait(writing);
+                try {
+                    engine.flushAndClose();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closer.start();
+
+            List<Engine.Index> ops = List.of(indexForDoc(createParsedDoc("1", null)), indexForDoc(createParsedDoc("2", null)));
+            IOException e = expectThrows(IOException.class, () -> engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops))));
+            closer.join();
+
+            // the batch failed the engine while the close was waiting for it, so the closing flush could not commit a partial
+            // sub-batch; the close then completed on the failed engine
+            assertThat(e, sameInstance(writeFailure));
+            assertThat(engine.failedEngine.get(), sameInstance(writeFailure));
+            assertTrue(engine.isClosed.get());
+        }
     }
 
     public void testBatchIndexRecordsRowIndex() throws IOException {

@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -43,7 +42,7 @@ public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCas
                 response.getTotalShards(),
                 response.getSuccessfulShards(),
                 response.getFailedShards(),
-                Arrays.asList(response.getShardFailures())
+                response.getShardFailures()
             );
         }
     );

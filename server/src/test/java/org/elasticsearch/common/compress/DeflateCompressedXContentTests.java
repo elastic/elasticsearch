@@ -10,6 +10,8 @@
 package org.elasticsearch.common.compress;
 
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -23,9 +25,11 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.zip.DataFormatException;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class DeflateCompressedXContentTests extends ESTestCase {
@@ -137,5 +141,21 @@ public class DeflateCompressedXContentTests extends ESTestCase {
             (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON2))
         );
         assertNotEquals(one.uncompressed(), two.uncompressed());
+    }
+
+    public void testCompressedInputMissingLastByteFails() throws IOException {
+        final BytesReference compressed = compressor.compress(new BytesArray(randomAlphaOfLengthBetween(64, 1024)));
+        assertTruncatedInputFails(compressed.slice(0, compressed.length() - 1));
+    }
+
+    public void testCompressedInputWithOnlyHeaderFails() throws IOException {
+        final BytesReference compressed = compressor.compress(new BytesArray(randomAlphaOfLengthBetween(64, 1024)));
+        assertTruncatedInputFails(compressed.slice(0, DeflateCompressor.HEADER_SIZE));
+    }
+
+    private static void assertTruncatedInputFails(BytesReference truncated) {
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new CompressedXContent(truncated));
+        assertThat(e.getCause(), instanceOf(DataFormatException.class));
+        assertThat(e.getCause().getMessage(), equalTo("Unexpected end of ZLIB input stream"));
     }
 }

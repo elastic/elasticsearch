@@ -164,6 +164,7 @@ left         | 99                    | right         | null
 ;
 
 leftOuterJoinSubqueryOnTwoKeys
+skip_flattened_rewrite: join_subquery_on_rejects_flattened
 required_capability: join_on_subquery
 
 FROM employees

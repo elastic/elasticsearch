@@ -367,6 +367,109 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A {@code LIST} whose element is a group has several leaves that the flattener collapses onto the one
+     * logical name of the enclosing list, exactly as a MAP's key and value do. When that list is nested in a
+     * STRUCT it took neither the {@code isTopLevelListLeaf} arm (which reads {@code path[0]}) nor the
+     * map/variant skip, so its differently typed leaf extrema — a {@code String} {@code sku} against a
+     * {@code Long} {@code price} — met in {@code compareStatExtremum}: an {@code AssertionError} under
+     * {@code -ea}, and a meaningless last-writer-wins min/max otherwise. Metadata resolution alone was enough
+     * to hit it, so even {@code STATS COUNT(*)} over such a file failed in any test or CI run.
+     * <p>
+     * {@code isUnsupportedGroupDescendedLeaf} now skips every leaf under a group whose own ESQL type is
+     * {@code UNSUPPORTED}, which covers this shape while leaving {@code struct<list<primitive>>} publishing as
+     * {@link #testStructNestedListPublishedWithUnknownNullCount} pins.
+     */
+    public void testStructNestedListOfStructsPublishesNoFoldedStat() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list {
+                    optional group element {
+                      optional binary sku (UTF8);
+                      optional int64 price;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group items = g.addGroup("outer").addGroup("items");
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r).append("price", (long) r * 10);
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r + "b").append("price", (long) r * 10 + 1);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        // Resolving metadata at all is half the assertion: the fold used to throw here under -ea.
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        assertTrue(metadata.statistics().isPresent());
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+
+        assertFalse("no folded stats for the list of structs", cols.containsKey("outer.items"));
+        assertFalse("no phantom marker under the struct root", cols.containsKey("outer"));
+        // The flat control keeps its concrete null count, so the skip is scoped to the folded leaves.
+        assertTrue(cols.containsKey("id"));
+        assertEquals(OptionalLong.of(0L), cols.get("id").nullCount());
+    }
+
+    /**
+     * The {@code buildRowGroupStats} half of {@link #testStructNestedListOfStructsPublishesNoFoldedStat}. That
+     * path has no UNSUPPORTED publish filter, so the skip is the only thing keeping folded
+     * last-writer-wins keys out of a split's serialized statistics, where a planner would then push them
+     * down. Mirrors {@link #testHomogeneousMapPublishesNoFoldedSplitStat}.
+     */
+    public void testStructNestedListOfStructsPublishesNoFoldedSplitStat() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list {
+                    optional group element {
+                      optional binary sku (UTF8);
+                      optional int64 price;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group items = g.addGroup("outer").addGroup("items");
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r).append("price", (long) r * 10);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(createStorageObject(parquetData));
+        assertEquals(1, ranges.size());
+        Map<String, Object> stats = ranges.getFirst().statistics();
+        assertNull("no folded min in split stats", stats.get("_stats.columns.outer.items.min"));
+        assertNull("no folded max in split stats", stats.get("_stats.columns.outer.items.max"));
+        assertNull("no folded null_count in split stats", stats.get("_stats.columns.outer.items.null_count"));
+        assertNull("no folded size in split stats", stats.get("_stats.columns.outer.items.size_bytes"));
+        // The flat control is still serialized, so the skip is scoped to the folded leaves.
+        assertNotNull("flat column still serialized", stats.get("_stats.columns.id.size_bytes"));
+    }
+
+    /**
      * Regression for the Parquet MAP footer-stats crash: a {@code MAP<K,V>} has two physical leaves
      * ({@code m.key_value.key}, {@code m.key_value.value}) that the flattener collapses to one logical
      * name {@code m}. Folding their heterogeneously typed footer stats (String key vs Long value) into

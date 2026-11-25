@@ -1930,12 +1930,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
-                if (desc != null && isMapOrVariantDescendedLeaf(parquetSchema, path)) {
-                    // A MAP's key/value leaves — and a VARIANT's metadata/value/typed_value.* leaves — all
-                    // collapse to the same logical name (they stop at the enclosing MAP/VARIANT group) and can
-                    // be heterogeneously typed, so folding their footer stats into one entry trips the
-                    // heterogeneity net in the min/max merge. Both groups are UNSUPPORTED downstream and their
-                    // stats are never consumed, so skip those leaves entirely. See isMapOrVariantDescendedLeaf.
+                if (desc != null && isUnsupportedGroupDescendedLeaf(parquetSchema, path)) {
+                    // A MAP's key/value leaves, a VARIANT's metadata/value/typed_value.* leaves, and the
+                    // leaves of a LIST whose element is a group all collapse to the same logical name (they
+                    // stop at the enclosing annotated group) and can be heterogeneously typed, so folding
+                    // their footer stats into one entry trips the heterogeneity net in the min/max merge.
+                    // Every such group is UNSUPPORTED downstream and its stats are never consumed, so skip
+                    // those leaves entirely. See isUnsupportedGroupDescendedLeaf.
                     continue;
                 }
                 if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
@@ -1952,7 +1953,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // Key non-top-level leaves on the flattener's logical leaf name so the stats bind to the
                 // same attribute name the planner uses (a struct-nested list leaf answers.text.list.element
                 // is surfaced as answers.text). MAP and VARIANT leaves are excluded above
-                // (isMapOrVariantDescendedLeaf) because several of them share this one name yet can be
+                // (isUnsupportedGroupDescendedLeaf) because several of them share this one name yet can be
                 // heterogeneously typed, which would fold into one entry and trip the min/max merge net.
                 String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
                 colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
@@ -2327,13 +2328,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String[] path = col.getPath().toArray();
             ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
-            if (desc != null && isMapOrVariantDescendedLeaf(parquetSchema, path)) {
-                // Skip map- and variant-descended leaves: their several leaves collapse to one logical name
-                // that put() here would silently record as wrong last-writer-wins stats (value-over-key for a
-                // MAP, one Variant internal over another for a VARIANT), and both groups are UNSUPPORTED
-                // downstream so the stats are never consumed. Unlike extractStatistics there is no UNSUPPORTED
-                // publish filter here, so this skip is the only thing keeping those keys out of a split's
-                // serialized stats. Mirrors extractStatistics.
+            if (desc != null && isUnsupportedGroupDescendedLeaf(parquetSchema, path)) {
+                // Skip leaves under a group that folds several of them onto one logical name — a MAP, a
+                // VARIANT, or a LIST whose element is a group. put() here would silently record wrong
+                // last-writer-wins stats (value-over-key for a MAP, one Variant internal over another, one
+                // element field over its sibling), and every such group is UNSUPPORTED downstream so the
+                // stats are never consumed. Unlike extractStatistics there is no UNSUPPORTED publish filter
+                // here, so this skip is the only thing keeping those keys out of a split's serialized stats.
+                // Mirrors extractStatistics.
                 continue;
             }
             if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
@@ -2350,7 +2352,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // enclosing LIST/MAP/VARIANT) so a COUNT/MIN/MAX(answers.text) lookup resolves. The raw leaf path
             // "answers.text.list.element" would never be found by the planner's attribute name.
             // See extractStatistics for the logical-name keying rationale; MAP and VARIANT leaves are skipped
-            // above (isMapOrVariantDescendedLeaf) since several of theirs collapse to one shared name.
+            // above (isUnsupportedGroupDescendedLeaf) since several of theirs collapse to one shared name.
             String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
             stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
@@ -2480,8 +2482,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         // Last-resort net: heterogeneously typed extrema (e.g. a MAP key String against a value Long, or a
         // VARIANT's BINARY metadata against a shredded INT32 typed_value) must not cross-cast into a raw
-        // ClassCastException. The statistics producers already skip map- and variant-descended leaves
-        // (isMapOrVariantDescendedLeaf), so in production only same-type extrema reach here — a mismatch means
+        // ClassCastException. The statistics producers already skip leaves folded onto a shared name
+        // (isUnsupportedGroupDescendedLeaf), so in production only same-type extrema reach here — a mismatch means
         // a fold regression upstream. Fail loudly under -ea (tests/CI) to catch it, and fall back to a safe 0
         // in production rather than crashing on the cross-cast.
         if (a.getClass() != b.getClass()) {
@@ -2490,7 +2492,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     + a.getClass()
                     + "] vs ["
                     + b.getClass()
-                    + "]; map- and variant-descended leaves must be skipped upstream";
+                    + "]; leaves folded onto a shared logical name must be skipped upstream";
             return 0;
         }
         return a.compareTo(b);
@@ -3730,9 +3732,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * </ul>
      * Driven off the schema's logical annotation (like {@link #logicalLeafName}) rather than a name or depth
      * heuristic, so it covers every shape at any depth: {@code struct<map>}, {@code map<string,list>},
-     * {@code map<string,struct>}, and both unshredded and shredded VARIANT.
+     * {@code map<string,struct>}, both unshredded and shredded VARIANT, and a {@code LIST} whose element is a
+     * group — {@code struct<list<struct>>}, whose string and long leaves otherwise met in
+     * {@link #compareStatExtremum}.
+     * <p>
+     * The condition is the enclosing group's own ESQL type rather than a list of shapes:
+     * {@link #convertGroupTypeToEsql} resolves a {@code LIST} of a single primitive to that element's type, so
+     * a list of primitives keeps publishing min/max under its one logical name, while every group that folds
+     * several leaves onto one name resolves {@code UNSUPPORTED} and is skipped here.
      */
-    private static boolean isMapOrVariantDescendedLeaf(GroupType schema, String[] descriptorPath) {
+    private static boolean isUnsupportedGroupDescendedLeaf(GroupType schema, String[] descriptorPath) {
         Type current = schema;
         for (String segment : descriptorPath) {
             // The descriptor path is always resolvable within the schema it came from, so every
@@ -3740,9 +3749,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             Type child = current.asGroupType().getType(segment);
             if (child.isPrimitive() == false) {
                 LogicalTypeAnnotation logical = child.asGroupType().getLogicalTypeAnnotation();
-                if (logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
+                if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
+                    || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
                     || logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation) {
-                    return true;
+                    // Stopping at the first annotated group is the same rule logicalLeafName applies, so the
+                    // two provably agree about which group a leaf's statistics are keyed under.
+                    return convertGroupTypeToEsql(child.asGroupType()) == DataType.UNSUPPORTED;
                 }
             }
             current = child;

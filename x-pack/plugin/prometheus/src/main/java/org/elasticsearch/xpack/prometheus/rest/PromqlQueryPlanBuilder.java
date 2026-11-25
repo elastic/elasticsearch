@@ -82,7 +82,7 @@ class PromqlQueryPlanBuilder {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
         Duration stepDuration = parseDuration(stepStr);
-        if (stepDuration.isPositive() && Duration.between(startInstant, endInstant).dividedBy(stepDuration) > MAX_POINTS_PER_SERIES) {
+        if (stepDuration.isPositive() && exceedsMaxPointsPerSeries(Duration.between(startInstant, endInstant), stepDuration)) {
             throw new IllegalArgumentException(
                 "exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)"
             );
@@ -91,6 +91,18 @@ class PromqlQueryPlanBuilder {
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
         return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, limit, mode);
+    }
+
+    /**
+     * Whether a range query over {@code range} with a positive {@code step} has more than {@link #MAX_POINTS_PER_SERIES} points
+     * per series. A point count that does not fit in a {@code long} exceeds it too.
+     */
+    private static boolean exceedsMaxPointsPerSeries(Duration range, Duration step) {
+        try {
+            return range.dividedBy(step) > MAX_POINTS_PER_SERIES;
+        } catch (ArithmeticException e) {
+            return range.isPositive();
+        }
     }
 
     static PromqlStatementResult buildStatement(

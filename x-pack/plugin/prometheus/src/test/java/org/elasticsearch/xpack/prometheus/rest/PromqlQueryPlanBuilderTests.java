@@ -146,6 +146,16 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
                 QueryMode.RANGE
             )
         );
+
+        // a range whose point count does not fit in a long is rejected the same way, not as a server error
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PromqlQueryPlanBuilder.buildStatement("up", "*", "-1e16", "1e16", "1ms", QueryMode.RANGE)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)")
+        );
     }
 
     public void testBuildStatementWithNumericStep() {

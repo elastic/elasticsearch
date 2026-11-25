@@ -46,11 +46,21 @@ public final class MinHashIndexParamBounds {
     public static final String DEPRECATION_HELP_URL = "https://www.elastic.co/docs/reference/text-analysis/analysis-minhash-tokenfilter";
 
     /**
-     * How to unblock a reindex, such as an upgrade migration, that copies the source index's settings to the new index.
+     * How to unblock the reindex of a standalone index, such as an upgrade migration, that copies the source index's settings to the
+     * new index.
      */
-    public static final String REINDEX_REMEDIATION = "Before reindexing, close the affected indices, lower hash_count, bucket_count, "
-        + "or hash_set_size in their settings, and reopen them, or mark them read-only instead. Lowering the parameters changes the "
-        + "hashes the filter produces.";
+    public static final String INDEX_REINDEX_REMEDIATION = "Before reindexing, close the affected indices, lower hash_count, "
+        + "bucket_count, or hash_set_size in their settings, and reopen them, or mark them read-only instead. Lowering the parameters "
+        + "changes the hashes the filter produces.";
+
+    /**
+     * How to unblock the reindex of a data stream's backing indices. The write index can't be marked read-only and rollover creates
+     * the new write index from the index template, so the data stream must be rolled over, with the template fixed, first.
+     */
+    public static final String DATA_STREAM_REINDEX_REMEDIATION = "If the write index of the data stream is affected, roll the data "
+        + "stream over first, after lowering the same parameters in its index template if it defines them. Then close the affected "
+        + "backing indices, lower hash_count, bucket_count, or hash_set_size in their settings, and reopen them, or mark them "
+        + "read-only instead. Lowering the parameters changes the hashes the filter produces.";
 
     private MinHashIndexParamBounds() {}
 

@@ -202,7 +202,7 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
                     .map(e -> "index [" + e.getKey() + "] " + String.join(" ", e.getValue()))
                     .collect(Collectors.joining(" "))
                 + " "
-                + MinHashIndexParamBounds.REINDEX_REMEDIATION,
+                + MinHashIndexParamBounds.DATA_STREAM_REINDEX_REMEDIATION,
             false,
             ofEntries(
                 entry("reindex_required", true),

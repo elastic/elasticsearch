@@ -336,7 +336,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     + "] will fail: it defines [min_hash] filters that new indices reject: "
                     + String.join(" ", violations)
                     + " "
-                    + MinHashIndexParamBounds.REINDEX_REMEDIATION,
+                    + MinHashIndexParamBounds.INDEX_REINDEX_REMEDIATION,
                 false,
                 null
             );

@@ -156,7 +156,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
                     + "] would fail: backing indices define [min_hash] filters that new indices reject: "
                     + String.join(" ", minHashViolations)
                     + " "
-                    + MinHashIndexParamBounds.REINDEX_REMEDIATION
+                    + MinHashIndexParamBounds.DATA_STREAM_REINDEX_REMEDIATION
             );
         }
     }

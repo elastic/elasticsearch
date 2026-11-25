@@ -54,7 +54,7 @@ public class ReindexDataStreamTransportActionTests extends ESTestCase {
                 + "index [old-invalid] [big]: "
                 + MinHashIndexParamBounds.violation(1, 512, 200)
                 + " "
-                + MinHashIndexParamBounds.REINDEX_REMEDIATION,
+                + MinHashIndexParamBounds.DATA_STREAM_REINDEX_REMEDIATION,
             e.getMessage()
         );
     }

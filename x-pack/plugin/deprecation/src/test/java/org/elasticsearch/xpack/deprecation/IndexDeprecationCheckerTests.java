@@ -575,7 +575,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "Reindexing index [test] will fail: it defines [min_hash] filters that new indices reject: "
                         + bigViolation
                         + " "
-                        + MinHashIndexParamBounds.REINDEX_REMEDIATION,
+                        + MinHashIndexParamBounds.INDEX_REINDEX_REMEDIATION,
                     false,
                     null
                 )

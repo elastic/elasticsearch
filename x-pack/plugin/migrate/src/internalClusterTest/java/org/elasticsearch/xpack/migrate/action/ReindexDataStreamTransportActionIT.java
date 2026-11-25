@@ -215,7 +215,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
                     + "] [big]: "
                     + MinHashIndexParamBounds.violation(1, 512, 200)
                     + " "
-                    + MinHashIndexParamBounds.REINDEX_REMEDIATION
+                    + MinHashIndexParamBounds.DATA_STREAM_REINDEX_REMEDIATION
             )
         );
 

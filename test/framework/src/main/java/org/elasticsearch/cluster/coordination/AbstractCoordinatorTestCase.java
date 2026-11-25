@@ -1173,6 +1173,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     Cluster.this::provideSeedHosts,
                     clusterApplierService,
                     onJoinValidators,
+                    JoinAttributes.NONE,
                     Randomness.get(),
                     (s, p, r) -> {},
                     coordinationServices.getElectionStrategy(),

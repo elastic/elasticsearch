@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -93,7 +94,8 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            JoinAttributes.NONE
         );
         transportService.start();
 
@@ -273,7 +275,8 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            JoinAttributes.NONE
         );
         transportService.start();
 
@@ -349,12 +352,13 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            JoinAttributes.NONE
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         final var joinListener = new PlainActionFuture<Void>();
-        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinListener);
+        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), Map.of(), joinListener);
         assert joinListener.isDone() == false;
 
         try (var mockLog = MockLog.capture(JoinHelper.class)) {

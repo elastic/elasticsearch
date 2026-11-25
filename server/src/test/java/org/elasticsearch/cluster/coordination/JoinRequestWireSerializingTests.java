@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -46,13 +47,25 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
                 ? Optional.empty()
                 : Optional.of(
                     new Join(sourceNode, randomDiscoveryNode(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
-                )
+                ),
+            randomJoinAttributes()
         );
+    }
+
+    private static Map<String, String> randomJoinAttributes() {
+        return randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(8), randomAlphaOfLength(5)));
+    }
+
+    public void testJoinAttributesAreDroppedForOlderVersions() throws IOException {
+        JoinRequest request = createTestInstance();
+        JoinRequest read = copyInstance(request, TransportVersionUtils.getPreviousVersion(JoinRequest.JOIN_REQUEST_ATTRIBUTES));
+        assertEquals(Map.of(), read.getJoinAttributes());
+        assertEquals(request.getFeatures(), read.getFeatures());
     }
 
     @Override
     protected JoinRequest mutateInstance(JoinRequest joinRequest) throws IOException {
-        return switch (randomInt(4)) {
+        return switch (randomInt(5)) {
             case 0 -> {
                 DiscoveryNode discoveryNode = randomDiscoveryNode();
                 yield new JoinRequest(
@@ -71,7 +84,8 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
                                 randomNonNegativeLong()
                             )
                         )
-                        : Optional.empty()
+                        : Optional.empty(),
+                    joinRequest.getJoinAttributes()
                 );
             }
             case 1 -> new JoinRequest(
@@ -82,21 +96,24 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
                 ),
                 joinRequest.getFeatures(),
                 joinRequest.getMinimumTerm(),
-                joinRequest.getOptionalJoin()
+                joinRequest.getOptionalJoin(),
+                joinRequest.getJoinAttributes()
             );
             case 2 -> new JoinRequest(
                 joinRequest.getSourceNode(),
                 joinRequest.getCompatibilityVersions(),
                 randomValueOtherThan(joinRequest.getFeatures(), () -> Set.of(generateRandomStringArray(10, 10, false))),
                 joinRequest.getMinimumTerm(),
-                joinRequest.getOptionalJoin()
+                joinRequest.getOptionalJoin(),
+                joinRequest.getJoinAttributes()
             );
             case 3 -> new JoinRequest(
                 joinRequest.getSourceNode(),
                 joinRequest.getCompatibilityVersions(),
                 joinRequest.getFeatures(),
                 randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
-                joinRequest.getOptionalJoin()
+                joinRequest.getOptionalJoin(),
+                joinRequest.getJoinAttributes()
             );
             case 4 -> {
                 Join newJoin = new Join(
@@ -111,9 +128,18 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
                     joinRequest.getCompatibilityVersions(),
                     joinRequest.getFeatures(),
                     joinRequest.getMinimumTerm(),
-                    joinRequest.getOptionalJoin().isPresent() && randomBoolean() ? Optional.empty() : Optional.of(newJoin)
+                    joinRequest.getOptionalJoin().isPresent() && randomBoolean() ? Optional.empty() : Optional.of(newJoin),
+                    joinRequest.getJoinAttributes()
                 );
             }
+            case 5 -> new JoinRequest(
+                joinRequest.getSourceNode(),
+                joinRequest.getCompatibilityVersions(),
+                joinRequest.getFeatures(),
+                joinRequest.getMinimumTerm(),
+                joinRequest.getOptionalJoin(),
+                randomValueOtherThan(joinRequest.getJoinAttributes(), JoinRequestWireSerializingTests::randomJoinAttributes)
+            );
             default -> throw new AssertionError();
         };
     }

@@ -206,6 +206,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
      * @param onJoinValidators A collection of join validators to restrict which nodes may join the cluster.
+     * @param joinAttributes The attributes this node sends with its join requests, and the validators that check those of joining nodes.
      */
     @SuppressWarnings("this-escape")
     public Coordinator(
@@ -221,6 +222,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         SeedHostsProvider seedHostsProvider,
         ClusterApplier clusterApplier,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators,
+        JoinAttributes joinAttributes,
         Random random,
         RerouteService rerouteService,
         ElectionStrategy electionStrategy,
@@ -257,7 +259,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             reconfigurator::maybeReconfigureAfterNewMasterIsElected,
             this::getLatestStoredStateAfterWinningAnElection,
             compatibilityVersions,
-            featureService
+            featureService,
+            joinAttributes
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -915,6 +918,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     joinRequest.getSourceNode(),
                     joinRequest.getCompatibilityVersions(),
                     joinRequest.getFeatures(),
+                    joinRequest.getJoinAttributes(),
                     joinListener
                 );
 

@@ -12,6 +12,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.JoinAttributesValidator;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
@@ -39,6 +40,23 @@ public interface ClusterCoordinationPlugin {
      * {@link IllegalStateException} if the node and the cluster-state are incompatible.
      */
     default BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
+        return null;
+    }
+
+    /**
+     * Returns attributes of this node to send with each join request, for the validator from {@link #getJoinAttributesValidator()} on the
+     * elected master. Called under the coordinator's mutex for every join request, so it must be cheap and must not throw. Keys must be
+     * unique across plugins.
+     */
+    default Map<String, String> getJoinAttributes() {
+        return Map.of();
+    }
+
+    /**
+     * Returns a validator the elected master runs, with the join attributes the node sent, for each node it adds to the cluster, or
+     * {@code null}. Unlike {@link #getJoinValidator()}, it runs in the cluster state update that adds the node.
+     */
+    default JoinAttributesValidator getJoinAttributesValidator() {
         return null;
     }
 

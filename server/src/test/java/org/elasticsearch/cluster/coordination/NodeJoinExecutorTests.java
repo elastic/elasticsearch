@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
@@ -640,6 +641,112 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         // extra check that the recorded cluster features are as they should be, and newNodeNextMajor hasn't gained af1
         assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
+    public void testJoinAttributesValidatorChecksNewNodesAgainstTheStateTheyJoin() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode existingNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(existingNode)
+            )
+            .build();
+
+        Set<String> validatedNodeIds = new HashSet<>();
+        NodeJoinExecutor executor = new NodeJoinExecutor(
+            allocationService,
+            rerouteService,
+            createFeatureService(),
+            Function.identity(),
+            List.of((node, joinAttributes, state) -> {
+                assertSame(clusterState, state);
+                validatedNodeIds.add(node.getId());
+                if ("false".equals(joinAttributes.get("test.can_join"))) {
+                    throw new IllegalStateException("node [" + node.getName() + "] cannot join");
+                }
+            })
+        );
+
+        DiscoveryNode acceptedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode rejectedNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                joinTask(acceptedNode, Map.of("test.can_join", "true"), NO_FAILURE_LISTENER),
+                joinTask(
+                    rejectedNode,
+                    Map.of("test.can_join", "false"),
+                    ActionListener.wrap(o -> fail("should have failed"), e -> assertThat(e.getMessage(), containsString("cannot join")))
+                ),
+                joinTask(existingNode, Map.of("test.can_join", "false"), NO_FAILURE_LISTENER)
+            )
+        );
+
+        assertEquals(Set.of(acceptedNode.getId(), rejectedNode.getId()), validatedNodeIds);
+        assertTrue(resultingState.nodes().nodeExists(acceptedNode));
+        assertFalse(resultingState.nodes().nodeExists(rejectedNode));
+        assertTrue(resultingState.nodes().nodeExists(existingNode));
+    }
+
+    /** A new master builds its first state from its latest accepted state, and validates joins against that one. */
+    public void testJoinAttributesValidatorChecksElectionJoinsAgainstTheLatestAcceptedState() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState appliedState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
+            .version(1L)
+            .build();
+        ClusterState acceptedState = ClusterState.builder(appliedState).version(2L).build();
+
+        AtomicReference<ClusterState> validatedState = new AtomicReference<>();
+        NodeJoinExecutor executor = new NodeJoinExecutor(
+            allocationService,
+            rerouteService,
+            createFeatureService(),
+            Function.identity(),
+            List.of((node, joinAttributes, state) -> validatedState.set(state))
+        );
+
+        DiscoveryNode joiningNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            appliedState,
+            executor,
+            List.of(
+                JoinTask.completingElection(
+                    Stream.of(
+                        new JoinTask.NodeJoinTask(
+                            masterNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        ),
+                        new JoinTask.NodeJoinTask(
+                            joiningNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        )
+                    ),
+                    1L
+                ).alsoRefreshState(acceptedState)
+            )
+        );
+
+        assertSame(acceptedState, validatedState.get());
+    }
+
+    private static JoinTask joinTask(DiscoveryNode node, Map<String, String> joinAttributes, ActionListener<Void> listener) {
+        return JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinAttributes, TEST_REASON, listener, 0L);
     }
 
     public void testSuccess() {

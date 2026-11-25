@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
@@ -312,21 +313,25 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
         final List<IncomingRecoveryLimits> observed = new CopyOnWriteArrayList<>();
         final var initialCallStarted = new CountDownLatch(1);
         final var updateStarting = new CountDownLatch(1);
+        final var updaterThread = new AtomicReference<Thread>();
         runInParallel(() -> {
             safeAwait(initialCallStarted);
+            updaterThread.set(Thread.currentThread());
             updateStarting.countDown();
             clusterSettings.applySettings(
                 Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3).build()
             );
         }, () -> limits.addIncomingRecoveryLimitsConsumer(newLimits -> {
             observed.add(newLimits);
-            initialCallStarted.countDown();
-            safeAwait(updateStarting);
-            // Hold the lock to give the settings update time to be blocked on the registration
-            safeSleep(between(10, 100));
-            // Consumers are called while holding the ClusterSettings monitor, the one applySettings holds when it runs
-            // updates, so that registration and updates are serialized by that single lock.
-            assertTrue(Thread.holdsLock(clusterSettings));
+            if (observed.size() == 1) {
+                initialCallStarted.countDown();
+                safeAwait(updateStarting);
+                // Hold the lock until the settings update is blocked on the registration
+                assertTrue(waitUntil(() -> updaterThread.get().getState() == Thread.State.BLOCKED));
+                // Consumers are called while holding the ClusterSettings monitor, the one applySettings holds when it runs
+                // updates, so that registration and updates are serialized by that single lock.
+                assertTrue(Thread.holdsLock(clusterSettings));
+            }
         }));
         assertThat(observed, contains(IncomingRecoveryLimits.UNBOUNDED, new IncomingRecoveryLimits(3, 3)));
     }
@@ -337,19 +342,23 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
         final List<Integer> observed = new CopyOnWriteArrayList<>();
         final var initialCallStarted = new CountDownLatch(1);
         final var updateStarting = new CountDownLatch(1);
+        final var updaterThread = new AtomicReference<Thread>();
         runInParallel(() -> {
             safeAwait(initialCallStarted);
+            updaterThread.set(Thread.currentThread());
             updateStarting.countDown();
             clusterSettings.applySettings(
                 Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 3).build()
             );
         }, () -> limits.addOutgoingRecoveryLimitConsumer(newLimit -> {
             observed.add(newLimit);
-            initialCallStarted.countDown();
-            safeAwait(updateStarting);
-            // Hold the lock to give the settings update time to be blocked on the registration
-            safeSleep(between(10, 100));
-            assertTrue(Thread.holdsLock(clusterSettings));
+            if (observed.size() == 1) {
+                initialCallStarted.countDown();
+                safeAwait(updateStarting);
+                // Hold the lock until the settings update is blocked on the registration
+                assertTrue(waitUntil(() -> updaterThread.get().getState() == Thread.State.BLOCKED));
+                assertTrue(Thread.holdsLock(clusterSettings));
+            }
         }));
         assertThat(observed, contains(Integer.MAX_VALUE, 3));
     }

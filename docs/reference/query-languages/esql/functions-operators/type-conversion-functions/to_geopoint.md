@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_GEOPOINT` function [esql-to_geopoint]
 
-:::{include} ../../_snippets/functions/layout/to_geopoint.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_geopoint.md
 :::

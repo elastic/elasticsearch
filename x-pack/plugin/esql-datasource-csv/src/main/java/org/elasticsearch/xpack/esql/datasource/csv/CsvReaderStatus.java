@@ -1,0 +1,79 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.csv;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
+
+import java.io.IOException;
+
+/**
+ * Typed {@link FormatReaderStatus} for the delimited-text reader. One implementation serves both
+ * {@code csv} and {@code tsv}; {@link #format} carries which one produced the snapshot — the
+ * format (csv/tsv), not the quoting {@code mode}.
+ */
+public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors, boolean headerDetected) implements FormatReaderStatus {
+
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        FormatReaderStatus.class,
+        "csv",
+        CsvReaderStatus::new
+    );
+    public static final ProfileSchema<CsvReaderStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        CsvReaderStatus.class,
+        (builder, status, params) -> {
+            builder.field("format", status.format);
+            builder.field("rows_emitted", status.rowsEmitted);
+            builder.field("parse_errors", status.parseErrors);
+            builder.field("header_detected", status.headerDetected);
+            return builder;
+        }
+    )
+        .required("format", ProfileSchema.enumeration("csv", "tsv"))
+        .required("rows_emitted", ProfileSchema.integer())
+        .required("parse_errors", ProfileSchema.integer())
+        .required("header_detected", ProfileSchema.bool())
+        .build();
+
+    public CsvReaderStatus(StreamInput in) throws IOException {
+        this(in.readString(), in.readVLong(), in.readVLong(), in.readBoolean());
+        in.readVLong(); // readNanos: removed field, preserved for wire compatibility
+        if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            in.readVLong(); // readCpuNanos: removed field, preserved for wire compatibility
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(format);
+        out.writeVLong(rowsEmitted);
+        out.writeVLong(parseErrors);
+        out.writeBoolean(headerDetected);
+        out.writeVLong(0L); // readNanos: removed field, preserved for wire compatibility
+        if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            out.writeVLong(0L); // readCpuNanos: removed field, preserved for wire compatibility
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return PROFILE_SCHEMA.write(builder, this, params);
+    }
+}

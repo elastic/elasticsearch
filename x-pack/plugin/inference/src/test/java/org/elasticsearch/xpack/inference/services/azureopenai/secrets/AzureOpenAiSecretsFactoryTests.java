@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.secrets.NoopSecretsApplier;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2SettingsTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettingsTests;
 import org.junit.After;
@@ -24,8 +25,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsFactory.NOOP_SECRETS_APPLIER;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsFactory.USE_CLIENT_SECRET_ERROR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.is;
@@ -54,20 +54,20 @@ public class AzureOpenAiSecretsFactoryTests extends ESTestCase {
             AzureOpenAiCompletionServiceSettingsTests.createRandomWithoutOAuth2()
         );
 
-        assertThat(secretsApplier, sameInstance(NOOP_SECRETS_APPLIER));
+        assertThat(secretsApplier, sameInstance(NoopSecretsApplier.INSTANCE));
 
-        var listener = new TestPlainActionFuture<HttpRequestBase>();
-        var httpPost = new HttpPost();
+        var listener = new TestPlainActionFuture<SimpleHttpRequest>();
+        var httpPost = SimpleRequestBuilder.post().build();
         secretsApplier.applyTo(httpPost, listener);
 
         var resultRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(resultRequest, sameInstance(httpPost));
-        assertThat(resultRequest.getAllHeaders(), emptyArray());
+        assertThat(resultRequest.getHeaders(), emptyArray());
     }
 
     public void testCreateSecretsApplier_ApiKey() {
         var apiKey = randomSecureStringOfLength(10);
-        var httpPost = new HttpPost();
+        var httpPost = SimpleRequestBuilder.post().build();
         var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
         var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
             TEST_INFERENCE_ID,
@@ -86,7 +86,7 @@ public class AzureOpenAiSecretsFactoryTests extends ESTestCase {
 
     public void testCreateSecretsApplier_EntraId() {
         var entraId = randomSecureStringOfLength(10);
-        var httpPost = new HttpPost();
+        var httpPost = SimpleRequestBuilder.post().build();
         var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
         var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
             TEST_INFERENCE_ID,

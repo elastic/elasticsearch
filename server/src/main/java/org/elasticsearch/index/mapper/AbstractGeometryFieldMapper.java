@@ -45,15 +45,12 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         "org.elasticsearch.index.mapper.GeoShapeFieldMapper"
     );
 
-    public static Parameter<Explicit<Boolean>> ignoreMalformedParam(
-        Function<FieldMapper, Explicit<Boolean>> initializer,
-        boolean ignoreMalformedByDefault
-    ) {
-        return Parameter.explicitBoolParam("ignore_malformed", true, initializer, ignoreMalformedByDefault);
+    public static Parameter<Explicit<Boolean>> ignoreMalformedParam(boolean ignoreMalformedByDefault) {
+        return Parameter.explicitBoolParam("ignore_malformed", true, ignoreMalformedByDefault);
     }
 
-    public static Parameter<Explicit<Boolean>> ignoreZValueParam(Function<FieldMapper, Explicit<Boolean>> initializer) {
-        return Parameter.explicitBoolParam("ignore_z_value", true, initializer, true);
+    public static Parameter<Explicit<Boolean>> ignoreZValueParam() {
+        return Parameter.explicitBoolParam("ignore_z_value", true, true);
     }
 
     /**
@@ -319,7 +316,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
-    public final void parse(DocumentParserContext context) throws IOException {
+    public final ParseResult parse(DocumentParserContext context) throws IOException {
         if (builderParams.hasScript()) {
             throw new DocumentParsingException(
                 context.parser().getTokenLocation(),
@@ -327,7 +324,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
         }
+        boolean wasAlreadyIgnored = context.isFieldIgnored(fullPath());
         parser.parse(context.parser(), v -> index(context, v), new DefaultMalformedValueHandler((e, b) -> onMalformedValue(context, b, e)));
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     protected void onMalformedValue(DocumentParserContext context, XContentBuilder malformedDataForSyntheticSource, Exception cause)

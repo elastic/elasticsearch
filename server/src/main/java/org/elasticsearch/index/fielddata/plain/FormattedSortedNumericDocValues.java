@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -36,5 +37,10 @@ public final class FormattedSortedNumericDocValues implements FormattedDocValues
     @Override
     public Object nextValue() throws IOException {
         return format.format(values.nextValue());
+    }
+
+    @Override
+    public DocIdSetIterator docIdIterator() {
+        return values.docIdIterator();
     }
 }

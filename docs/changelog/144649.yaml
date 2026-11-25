@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 144649
-summary: "[Native] `int4` x86 SIMD optimizations"
-type: enhancement

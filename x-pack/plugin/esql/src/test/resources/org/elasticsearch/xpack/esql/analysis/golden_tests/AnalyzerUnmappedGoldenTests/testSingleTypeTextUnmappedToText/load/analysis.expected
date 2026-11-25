@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[txt_text{r}#0]]
+  \_Eval[[$$txt$converted_to$text{f(CompactMultiTypeEsField)$}#1 AS txt_text#0]]
+    \_EsRelation[text_state_mapped,text_state_unmapped][doc_id{f}#2, txt{f}#3, $$txt$converted_to$text{f(CompactMultiTypeEsField)$}#1]

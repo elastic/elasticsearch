@@ -1,0 +1,116 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
+apply plugin: 'elasticsearch.publish'
+
+dependencies {
+  // ActionListener lives in :server; CheckedConsumer (used by ActionListener.run) lives in :libs:core
+  // (module org.elasticsearch.base). Both are always present at runtime in the consuming plugin,
+  // so they are compile-only here.
+  compileOnly project(':libs:core')
+  compileOnly project(':libs:logging')
+  compileOnly project(':server')
+
+  // AWS SDK v2 types referenced at compile time and exposed on this library's public API,
+  // so they are declared as api dependencies and propagate to consumers.
+  api "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:sts:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+
+  // Remaining AWS SDK v2 modules that the STS client pulls in at runtime (HTTP SPI, signing, endpoints,
+  // retries, regions, protocol marshalling). Never referenced at compile time, so they are runtimeOnly.
+  // Declaring the full set keeps the published artifact a self-contained STS stack.
+  runtimeOnly "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth-aws:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:json-utils:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:retries:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:retries-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
+  runtimeOnly "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+
+  testImplementation project(':test:framework')
+  // Tests need the AWS SDK types on the runtime classpath (compileOnly does not extend to tests).
+  testImplementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:sts:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.withType(AbstractDependenciesTask).configureEach {
+  mapping from: 'annotations',              to: 'aws-sdk-2'
+  mapping from: 'auth',                     to: 'aws-sdk-2'
+  mapping from: 'aws-core',                 to: 'aws-sdk-2'
+  mapping from: 'aws-query-protocol',       to: 'aws-sdk-2'
+  mapping from: 'checksums',                to: 'aws-sdk-2'
+  mapping from: 'checksums-spi',            to: 'aws-sdk-2'
+  mapping from: 'endpoints-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-auth',                to: 'aws-sdk-2'
+  mapping from: 'http-auth-aws',            to: 'aws-sdk-2'
+  mapping from: 'http-auth-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-client-spi',          to: 'aws-sdk-2'
+  mapping from: 'identity-spi',             to: 'aws-sdk-2'
+  mapping from: 'json-utils',               to: 'aws-sdk-2'
+  mapping from: 'metrics-spi',              to: 'aws-sdk-2'
+  mapping from: 'profiles',                 to: 'aws-sdk-2'
+  mapping from: 'protocol-core',            to: 'aws-sdk-2'
+  mapping from: 'regions',                  to: 'aws-sdk-2'
+  mapping from: 'retries',                  to: 'aws-sdk-2'
+  mapping from: 'retries-spi',              to: 'aws-sdk-2'
+  mapping from: 'sdk-core',                 to: 'aws-sdk-2'
+  mapping from: 'sts',                      to: 'aws-sdk-2'
+  mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
+  mapping from: 'utils',                    to: 'aws-sdk-2'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // slf4j (the AWS SDK's optional logging bridge) is not bundled; ES uses its own logging.
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.event.Level',
+
+    // We use the JVM signer rather than an AWS common runtime (CRT) one, so we don't need any of these classes:
+    'software.amazon.awssdk.crt.auth.credentials.Credentials',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigner',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignatureType',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignedBodyHeaderType',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSigningAlgorithm',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningResult',
+    'software.amazon.awssdk.crt.http.HttpHeader',
+    'software.amazon.awssdk.crt.http.HttpRequest',
+    'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
+
+    // We don't use anything eventstream-based so these classes are not needed:
+    'software.amazon.eventstream.HeaderValue',
+    'software.amazon.eventstream.Message',
+    'software.amazon.eventstream.MessageDecoder'
+  )
+}

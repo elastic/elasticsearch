@@ -1,0 +1,40 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.simdvec.internal;
+
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
+
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.util.function.IntFunction;
+
+/**
+ * Reusable, lazily-grown scratch buffer for an array of native addresses
+ * (pointer-width values), used to hand a contiguous {@code MemorySegment}
+ * of {@code MemorySegment#address()}-style values (array of pointers).
+ *
+ * <p>Not thread-safe; instances must not be shared across threads.
+ */
+public final class AddressesScratch implements IntFunction<MemorySegment> {
+
+    private final SegmentBufferScratch buffer = new SegmentBufferScratch();
+
+    /**
+     * Returns a {@link MemorySegment} of at least {@code count} native-address slots.
+     * The buffer may be larger than requested (it is grown lazily and never shrunk
+     * across calls); callers must respect their own {@code count} when reading or
+     * writing addresses. Always returns the same backing segment for a given
+     * instance until a larger one is needed.
+     */
+    @Override
+    public MemorySegment apply(int count) {
+        return buffer.apply(count * Math.toIntExact(ValueLayout.ADDRESS.byteSize()));
+    }
+}

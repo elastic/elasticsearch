@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -70,8 +69,8 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
     /**
      * The mapping source definition.
      */
-    public PutMappingRequestBuilder setSource(String mappingSource, XContentType xContentType) {
-        request.source(mappingSource, xContentType);
+    public PutMappingRequestBuilder setSource(String mappingSource) {
+        request.source(mappingSource);
         return this;
     }
 

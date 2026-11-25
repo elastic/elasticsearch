@@ -32,6 +32,7 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     public static final int SIDE_BACK = 2;
     private final int side;
     private final boolean preserveOriginal;
+    private final Object sharingKey;
     private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     EdgeNGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
@@ -47,6 +48,7 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         this.side = parseSide(settings.get("side", "front"));
         this.preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, false);
+        this.sharingKey = new Key(minGram, maxGram, side, preserveOriginal);
     }
 
     static int parseSide(String side) {
@@ -85,4 +87,11 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenFilterFactory getSynonymFilter() {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int minGram, int maxGram, int side, boolean preserveOriginal) {}
 }

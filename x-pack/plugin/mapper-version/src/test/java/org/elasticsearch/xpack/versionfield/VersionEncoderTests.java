@@ -91,6 +91,35 @@ public class VersionEncoderTests extends ESTestCase {
         assertEquals("Groups of digits cannot be longer than 127, but found: 128", ex.getMessage());
     }
 
+    public void testTooManyIdentifiersIsMarkedIllegal() {
+        // One more identifier than allowed is rejected before the recursive validation runs, so a
+        // crafted value cannot drive the matcher into a StackOverflowError.
+        String tooMany = "1.".repeat(VersionEncoder.MAX_LEGAL_VERSION_IDENTIFIERS) + "1";
+        EncodedVersion encoded = VersionEncoder.encodeVersion(tooMany);
+        assertFalse(encoded.isLegal);
+        assertEquals(tooMany, decodeVersion(encoded.bytesRef).utf8ToString());
+
+        // The same shape at the limit is still validated normally and is a legal numeric version.
+        String atLimit = "1.".repeat(VersionEncoder.MAX_LEGAL_VERSION_IDENTIFIERS - 1) + "1";
+        assertTrue(VersionEncoder.encodeVersion(atLimit).isLegal);
+    }
+
+    public void testTooManyIdentifiersInPreReleaseAndBuildAreMarkedIllegal() {
+        // The limit applies to the pre-release and build parts too, since their patterns are recursive.
+        int over = VersionEncoder.MAX_LEGAL_VERSION_IDENTIFIERS + 1;
+        assertFalse(VersionEncoder.encodeVersion("1.0.0-" + "a.".repeat(over) + "a").isLegal);
+        assertFalse(VersionEncoder.encodeVersion("1.0.0+" + "a.".repeat(over) + "a").isLegal);
+    }
+
+    public void testIdentifierLimitAppliesPerPartNotInTotal() {
+        // The limit is per part, so a version that stays within it in every part is still legal even
+        // when the parts together hold more than the limit.
+        int atLimit = VersionEncoder.MAX_LEGAL_VERSION_IDENTIFIERS;
+        String main = "1.".repeat(atLimit - 1) + "1";       // atLimit numeric identifiers
+        String preRelease = "a.".repeat(atLimit - 1) + "a"; // atLimit identifiers
+        assertTrue(VersionEncoder.encodeVersion(main + "-" + preRelease).isLegal);
+    }
+
     /**
      * test that encoding and decoding leads back to the same version string
      */

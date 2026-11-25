@@ -1,0 +1,329 @@
+import { execSync } from "child_process";
+import { resolve } from "path";
+import { stringify } from "yaml";
+
+import {
+  COMPILE_FAILED_ENV,
+  COMPILE_TASKS,
+  FLAKINESS_PLAN_ARTIFACT,
+  FLAKINESS_PROVEN_EXIT_CODE,
+  FLAKINESS_REFS_ARTIFACT,
+  FLAKINESS_TARGETS_ARCHIVE,
+  FLAKINESS_TARGETS_DIR,
+  JOB_STATUS_FILE_PREFIX,
+  SKIPPED_COUNT_ENV,
+  STATUS_DIR_NAME,
+  TASK_STATUS_FILE_PREFIX,
+} from "../domain.ts";
+import type { AgentConfig, ReportInputs, RunnableCommand, TestKind } from "../domain.ts";
+
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
+
+interface PipelineStep {
+  label: string;
+  key: string;
+  command: string;
+  timeout_in_minutes: number;
+  // Optional so the analyze step can inherit the parent pipeline's default agent, which has npm.
+  agents?: AgentConfig["agents"];
+  parallelism?: number;
+  env?: Record<string, string>;
+  depends_on?: { step: string; allow_failure: boolean }[];
+  artifact_paths?: string | string[];
+  retry?: { automatic: boolean };
+}
+
+// Smart retry skips tests that already passed on a prior attempt - the opposite of what these steps need,
+// since the batch steps deliberately re-run tests to surface flakiness. These steps are uploaded straight
+// via `buildkite-agent pipeline upload`, so they never pass through injectAutoRetry
+// (.buildkite/scripts/pull-request/pipeline.ts) and have to opt out here.
+const NO_AUTO_RETRY: PipelineStep["retry"] = { automatic: false };
+
+// Headroom between our inner `timeout` and Buildkite's outer `timeout_in_minutes`, which the agent
+// enforces by SIGKILLing the step. Ours must win so the wrapper can still annotate and exit 0; if the
+// agent fires first the step ends up in state "timed_out".
+export const NEVER_FAIL_GRACE_MINUTES = 2;
+
+// Where gradle-runner (the Tooling API client `.ci/scripts/run-gradle.sh` invokes) writes each task's
+// outcome. Keep in sync with GradleRunner.writeStatusReport.
+const TASK_STATUS_FILE = "build/task-status.json";
+
+// The wrapped command and its task paths travel in env vars rather than being baked into the wrapper, so
+// one copy of the wrapper serves every batch of a step. Indexed by BUILDKITE_PARALLEL_JOB at run time.
+const CMD_VAR_PREFIX = "FLAKINESS_CMD_";
+const TASK_PATHS_VAR_PREFIX = "FLAKINESS_TASK_PATHS_";
+
+const NEVER_FAIL_SCRIPT = ".buildkite/scripts/flakiness-detection/runners/never-fail.sh";
+
+/**
+ * Runs command so that the Buildkite step ALWAYS exits 0. Why the step must exit 0, why soft_fail
+ * is not an option, and what the per-job status file carries are all documented in the script itself.
+ *
+ * The inner timeout has to beat Buildkite's outer `timeout_in_minutes`, which the agent enforces by
+ * SIGKILLing the step: ours must win so the runner can still annotate and exit 0, otherwise the step ends
+ * up in state "timed_out".
+ *
+ * Omitting `kind` gives never-fail behaviour with no batch outcome, which is what the analyze step wants.
+ *
+ * `hardFail` lets the proven-flakiness exit code - and only that code - through. It is the analyze step's
+ * other special case, and deliberately NOT applied to a batch step: a gradle invocation that happened to
+ * exit with that value would otherwise redden a PR without any verdict behind it.
+ */
+function wrapNeverFail(
+  contextKey: string,
+  outerTimeoutMin: number,
+  opts: { kind?: TestKind; hardFail?: boolean } = {}
+): string {
+  const args = [`--context ${contextKey}`, `--inner-timeout-minutes ${innerTimeout(outerTimeoutMin)}`];
+  if (opts.kind) {
+    args.push(`--kind ${opts.kind}`);
+  }
+  if (opts.hardFail) {
+    args.push(`--hard-fail-rc ${FLAKINESS_PROVEN_EXIT_CODE}`);
+  }
+  return `${NEVER_FAIL_SCRIPT} ${args.join(" ")}`;
+}
+
+// Steps get fresh agents with no shared workspace, so batch steps upload their JUnit XML and analyze
+// downloads it per job (`--step <jobId>`) to keep results attributed to a job.
+const TEST_RESULTS_ARTIFACTS = "**/build/test-results/**/TEST-*.xml";
+
+// Per-job status files (rc + duration) written by the never-fail wrapper and
+// consumed by the analyze step. Glob is shallow so the upload is cheap.
+const FLAKINESS_STATUS_ARTIFACTS = `${STATUS_DIR_NAME}/*.json`;
+
+// Single structured artifact the analyze step uploads: a JSON array of per-job
+// outcomes consumed by the external observability pipeline. Uploaded as an
+// artifact (not an annotation) to keep the developer-facing build view clean.
+// Keep this filename in sync with entrypoints/analyze.ts.
+const FLAKINESS_OUTCOMES_ARTIFACT = "flakiness-outcomes.json";
+
+// Written by the generate step from the plan's `skip` entries, whatever their reason: a source set with
+// no enabled Test task, a packaging-host-only target, a class no Test task can address. Uploaded by
+// generate.ts itself and downloaded by analyze, which folds each one in as `not_applicable`.
+// Keep in sync with SKIPPED_FILE in entrypoints/generate.ts and entrypoints/analyze.ts.
+const FLAKINESS_SKIPPED_ARTIFACT = "flakiness-skipped.json";
+
+// The pipeline topology and the reasoning behind its step split are described in README.md
+// ("Pipeline topology"). Kept here are only the facts that would be silently re-broken if forgotten,
+// each next to the code that depends on it.
+
+const ORCHESTRATION_KEY = "flakiness-orchestration:run";
+const GENERATE_KEY = "flakiness-orchestration:generate";
+
+// Per-phase gradle budgets (each phase's own `timeout --foreground`). The resolve/compile/scan phases run
+// back-to-back on one agent, so the orchestration step's outer timeout is their sum. generate runs on a
+// separate step/agent with its own budget.
+const RESOLVE_TIMEOUT_MINUTES = 30;
+const COMPILE_TIMEOUT_MINUTES = 30;
+const SCAN_TIMEOUT_MINUTES = 30;
+const GENERATE_TIMEOUT_MINUTES = 15;
+const ORCHESTRATION_TIMEOUT_MINUTES =
+  RESOLVE_TIMEOUT_MINUTES + COMPILE_TIMEOUT_MINUTES + SCAN_TIMEOUT_MINUTES;
+
+const GENERATE_ENTRYPOINT = "node .buildkite/scripts/flakiness-detection/entrypoints/generate.ts";
+
+/**
+ * The timeout a runner script should apply, in minutes: far enough inside Buildkite's outer
+ * `timeout_in_minutes` that the script wins the race and can still classify the failure. If the agent
+ * fires first it SIGKILLs the step and the run is reported as "timed_out" with nothing attributed.
+ */
+function innerTimeout(outerTimeoutMin: number): number {
+  return Math.max(1, outerTimeoutMin - NEVER_FAIL_GRACE_MINUTES);
+}
+
+const ORCHESTRATE_SCRIPT = ".buildkite/scripts/flakiness-detection/runners/orchestrate.sh";
+
+/**
+ * Everything the orchestration step needs.
+ */
+function orchestrationEnv(): Record<string, string> {
+  return {
+    FLAKINESS_REFS_ARTIFACT,
+    FLAKINESS_PLAN_ARTIFACT,
+    FLAKINESS_TARGETS_DIR,
+    FLAKINESS_TARGETS_ARCHIVE,
+    FLAKINESS_COMPILE_TASKS: COMPILE_TASKS.join(" "),
+    FLAKINESS_RESOLVE_INNER_TIMEOUT: String(innerTimeout(RESOLVE_TIMEOUT_MINUTES)),
+    FLAKINESS_COMPILE_INNER_TIMEOUT: String(innerTimeout(COMPILE_TIMEOUT_MINUTES)),
+    FLAKINESS_SCAN_INNER_TIMEOUT: String(innerTimeout(SCAN_TIMEOUT_MINUTES)),
+  };
+}
+
+/**
+ * Pure: the orchestration sub-pipeline the bootstrap step uploads - the orchestration step plus the
+ * separate generate step.
+ *
+ * Both keys MUST stay under `flakiness-orchestration:`, never `flakiness-detection:`. An external metric
+ * predicate treats a job as a test batch iff `step_key.startsWith("flakiness-detection:")` and it is not
+ * `flakiness-detection:analyze`, so the wrong prefix here makes a failed orchestration run get recorded as
+ * a test batch.
+ */
+export function toResolvePipeline(cfg: AgentConfig): Pipeline {
+  const orchestration: PipelineStep = {
+    label: "Flakiness / resolve · compile · scan",
+    key: ORCHESTRATION_KEY,
+    command: ORCHESTRATE_SCRIPT,
+    timeout_in_minutes: ORCHESTRATION_TIMEOUT_MINUTES,
+    env: orchestrationEnv(),
+    // gradle-tuned image; it has no node (that is the generate step below).
+    agents: { ...cfg.agents },
+    // What a later, separate agent needs: the plan, and the debug tarball.
+    artifact_paths: [FLAKINESS_TARGETS_ARCHIVE, FLAKINESS_PLAN_ARTIFACT],
+    retry: NO_AUTO_RETRY,
+  };
+  const generate: PipelineStep = {
+    label: "Flakiness / generate",
+    key: GENERATE_KEY,
+    command: GENERATE_ENTRYPOINT,
+    timeout_in_minutes: GENERATE_TIMEOUT_MINUTES,
+    // No `agents:` pin, so this gets the default node-capable image - the reason generate is not inline in
+    // the orchestration step, whose gradle-tuned image has no node.
+    // allow_failure so a compile-failed (red) orchestration run still triggers generate, which then uploads
+    // the analyze-only pipeline that records the single build_failed.
+    depends_on: [{ step: ORCHESTRATION_KEY, allow_failure: true }],
+    retry: NO_AUTO_RETRY,
+  };
+  return { steps: [{ group: cfg.groupName, steps: [orchestration, generate] }] };
+}
+
+/** Impure: serialize and upload the orchestration sub-pipeline. Called by the bootstrap entrypoints. */
+export function uploadResolvePipeline(cfg: AgentConfig, opts: { cwd?: string } = {}): void {
+  const cwd = opts.cwd ?? PROJECT_ROOT;
+  const yaml = stringify(toResolvePipeline(cfg));
+  console.log("--- Generated resolve pipeline");
+  console.log(yaml);
+  if (process.env.CI) {
+    console.log("Uploading resolve pipeline...");
+    execSync(`buildkite-agent pipeline upload`, { input: yaml, stdio: ["pipe", "inherit", "inherit"], cwd });
+  }
+}
+
+interface PipelineGroup {
+  group: string;
+  steps: PipelineStep[];
+}
+
+interface Pipeline {
+  // Pipeline-level env, so the layout constants appear once rather than on every step. The runner scripts
+  // read them from here, which keeps domain.ts the single source for the names.
+  env?: Record<string, string>;
+  steps: [PipelineGroup];
+}
+
+/** The artifact layout both runner scripts need, named once for the whole pipeline. */
+const RUNNER_LAYOUT_ENV: Record<string, string> = {
+  FLAKINESS_STATUS_DIR: STATUS_DIR_NAME,
+  FLAKINESS_JOB_STATUS_PREFIX: JOB_STATUS_FILE_PREFIX,
+  FLAKINESS_TASK_STATUS_PREFIX: TASK_STATUS_FILE_PREFIX,
+  FLAKINESS_TASK_STATUS_FILE: TASK_STATUS_FILE,
+};
+
+/**
+ * Pure: build the BK pipeline structure. Groups commands by step `key`; a key with more than one batch
+ * fans out via `parallelism` + BUILDKITE_PARALLEL_JOB.
+ */
+export function toBuildkitePipeline(
+  commands: RunnableCommand[],
+  cfg: AgentConfig,
+  // What the analyze step has to report. The analyze step is emitted even with zero batch steps (a compile
+  // failure, or every target skipped); when there is nothing to report, the caller uploads no pipeline.
+  report: ReportInputs
+): Pipeline {
+  const byKey = new Map<string, RunnableCommand[]>();
+  for (const c of commands) {
+    const list = byKey.get(c.key);
+    if (list) list.push(c);
+    else byKey.set(c.key, [c]);
+  }
+
+  const steps: PipelineStep[] = [];
+  for (const [key, batches] of byKey) {
+    const head = batches[0];
+    // Every batch contributes its raw command and its own task paths; the wrapper is emitted once and
+    // indexes into these at run time. All batches of a step share a kind (they are grouped by key), so
+    // kind stays a build-time literal.
+    const env: Record<string, string> = {};
+    batches.forEach((b, i) => {
+      env[`${CMD_VAR_PREFIX}${i}`] = b.command;
+      env[`${TASK_PATHS_VAR_PREFIX}${i}`] = JSON.stringify(b.taskPaths ?? []);
+    });
+
+    const step: PipelineStep = {
+      label: head.label,
+      key,
+      command: wrapNeverFail(key, cfg.timeoutInMinutes, { kind: head.kind }),
+      timeout_in_minutes: cfg.timeoutInMinutes,
+      agents: { ...cfg.agents },
+      artifact_paths: [TEST_RESULTS_ARTIFACTS, FLAKINESS_STATUS_ARTIFACTS],
+      env,
+      retry: NO_AUTO_RETRY,
+    };
+    if (batches.length > 1) {
+      step.parallelism = batches.length;
+    }
+
+    steps.push(step);
+  }
+
+  // allow_failure so the report still runs when a batch fails - it has to record those outcomes too.
+  const deps = steps.map((s) => ({ step: s.key, allow_failure: true }));
+  const downloads = [`buildkite-agent artifact download "${FLAKINESS_STATUS_ARTIFACTS}" . || true`];
+  if (report.skippedCount > 0) {
+    // Scoped to the one job that published it. `|| true` because analyze.ts checks the file against
+    // the declared count, and reports a missing or short list itself.
+    downloads.push(
+      `buildkite-agent artifact download "${FLAKINESS_SKIPPED_ARTIFACT}" . --step "${report.producerJobId}" || true`
+    );
+  }
+  steps.push({
+    label: "Flakiness / report",
+    key: "flakiness-detection:analyze",
+    // The analyzer downloads each job's JUnit XML itself (`--step <jobId>`) so results stay attributed
+    // to a job before classification. `|| true` tolerates a build with no status artifacts.
+    command: wrapNeverFail("flakiness-detection:analyze", 10, { hardFail: true }),
+    // Never-fail like a batch step, but with no `kind`, so it writes no batch outcome of its own. The
+    // exception is `hardFail`: this is the one step allowed to go red, and only on its proven-flakiness
+    // code. Whether it ever reaches that code is analyze.ts's call (`shouldBlock`).
+    env: {
+      [`${CMD_VAR_PREFIX}0`]: [...downloads, "node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts"].join("\n"),
+      [COMPILE_FAILED_ENV]: String(report.compileFailed),
+      [SKIPPED_COUNT_ENV]: String(report.skippedCount),
+    },
+    timeout_in_minutes: 10,
+    // No `agents:` on purpose: this is lightweight markdown rendering, and the gradle-tuned image has no
+    // npm. The parent pipeline's default agent has the standard Node toolchain.
+    artifact_paths: FLAKINESS_OUTCOMES_ARTIFACT,
+    depends_on: deps,
+    retry: NO_AUTO_RETRY,
+  });
+
+  return {
+    env: { ...RUNNER_LAYOUT_ENV },
+    steps: [{ group: cfg.groupName, steps }],
+  };
+}
+
+/**
+ * Impure: serialize and upload the pipeline via buildkite-agent.
+ */
+export function uploadBuildkitePipeline(
+  commands: RunnableCommand[],
+  cfg: AgentConfig,
+  report: ReportInputs,
+  opts: { cwd?: string } = {}
+): void {
+  const cwd = opts.cwd ?? PROJECT_ROOT;
+  const yaml = stringify(toBuildkitePipeline(commands, cfg, report));
+  console.log("--- Generated pipeline");
+  console.log(yaml);
+
+  if (process.env.CI) {
+    console.log("Uploading pipeline...");
+    execSync(`buildkite-agent pipeline upload`, {
+      input: yaml,
+      stdio: ["pipe", "inherit", "inherit"],
+      cwd,
+    });
+  }
+}

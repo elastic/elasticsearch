@@ -10,6 +10,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -20,6 +21,9 @@ import java.util.List;
  * <p>
  * Only errors which should be sandboxed and not cause the node to crash are wrapped.
  */
+@SuppressForbidden(
+    reason = "ErrorCauseWrapper sandboxes StackOverflowError within Painless scripts; must reference the class to identify it"
+)
 class ErrorCauseWrapper extends ElasticsearchException {
 
     private static final List<Class<? extends Error>> wrappedErrors = List.of(
@@ -37,7 +41,9 @@ class ErrorCauseWrapper extends ElasticsearchException {
         this.realCause = realCause;
     }
 
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
+    @Override
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+        throws IOException {
         builder.field("type", getExceptionName(realCause));
         builder.field("reason", realCause.getMessage());
         return builder;

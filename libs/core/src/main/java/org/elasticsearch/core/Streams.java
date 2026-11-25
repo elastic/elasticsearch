@@ -22,7 +22,14 @@ import java.nio.ByteBuffer;
  */
 public class Streams {
 
-    private static final ThreadLocal<byte[]> LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+    private static final ThreadLocal<byte[]> LOCAL_READ_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+    // Separate buffer for copy since a nested read within a copy on the same thread can overwrite the buffer
+    private static final ThreadLocal<byte[]> LOCAL_COPY_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+
+    // Flag used to assert LOCAL_COPY_BUFFER isn't used reentrantly
+    private static final ThreadLocal<Boolean> COPY_IN_USE = Assertions.ENABLED ? new ThreadLocal<>() : null;
+    // Flag used to assert LOCAL_READ_BUFFER isn't used reentrantly
+    private static final ThreadLocal<Boolean> READ_IN_USE = Assertions.ENABLED ? new ThreadLocal<>() : null;
 
     private Streams() {
 
@@ -63,7 +70,12 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out, boolean close) throws IOException {
-        return copy(in, out, LOCAL_BUFFER.get(), close);
+        assert assertEnter(COPY_IN_USE, "Streams.copy");
+        try {
+            return copy(in, out, LOCAL_COPY_BUFFER.get(), close);
+        } finally {
+            assert assertExit(COPY_IN_USE, "Streams.copy");
+        }
     }
 
     /**
@@ -77,7 +89,7 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out) throws IOException {
-        return copy(in, out, LOCAL_BUFFER.get(), true);
+        return copy(in, out, true);
     }
 
     /**
@@ -106,18 +118,37 @@ public class Streams {
     }
 
     private static int readToDirectBuffer(InputStream input, ByteBuffer b, int count) throws IOException {
-        int totalRead = 0;
-        final byte[] buffer = LOCAL_BUFFER.get();
-        while (totalRead < count) {
-            final int len = Math.min(count - totalRead, buffer.length);
-            final int read = input.read(buffer, 0, len);
-            if (read == -1) {
-                break;
+        assert assertEnter(READ_IN_USE, "Streams.read");
+        final byte[] buffer = LOCAL_READ_BUFFER.get();
+        try {
+            int totalRead = 0;
+            while (totalRead < count) {
+                final int len = Math.min(count - totalRead, buffer.length);
+                final int read = input.read(buffer, 0, len);
+                if (read == -1) {
+                    break;
+                }
+                b.put(buffer, 0, read);
+                totalRead += read;
             }
-            b.put(buffer, 0, read);
-            totalRead += read;
+            return totalRead;
+        } finally {
+            assert assertExit(READ_IN_USE, "Streams.read");
         }
-        return totalRead;
+    }
+
+    // Mark flag as in-use for this thread, only invoked when assertions enabled
+    private static boolean assertEnter(ThreadLocal<Boolean> flag, String operation) {
+        assert flag.get() != Boolean.TRUE : operation + " re-entered on " + Thread.currentThread().getName();
+        flag.set(Boolean.TRUE);
+        return true;
+    }
+
+    // Clears the in-use flag, only invoked when assertions enabled
+    private static boolean assertExit(ThreadLocal<Boolean> flag, String operation) {
+        assert flag.get() == Boolean.TRUE : operation + " exited without matching enter on " + Thread.currentThread().getName();
+        flag.remove();
+        return true;
     }
 
     public static int readFully(InputStream reader, byte[] dest) throws IOException {

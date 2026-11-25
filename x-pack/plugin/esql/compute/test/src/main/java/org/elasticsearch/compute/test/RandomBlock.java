@@ -11,10 +11,17 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramArrayBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -27,11 +34,15 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
@@ -42,8 +53,9 @@ import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
  * A block of random values.
  * @param values the values as java object
  * @param block randomly built block
+ * @param valueMaxByteSize the maximum byte size of any single value
  */
-public record RandomBlock(List<List<Object>> values, Block block) {
+public record RandomBlock(List<List<Object>> values, Block block, int valueMaxByteSize) {
     /**
      * A random {@link ElementType} for which we can build a {@link RandomBlock}.
      */
@@ -57,10 +69,66 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
-                || e == ElementType.LONG_RANGE
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
+    }
+
+    /**
+     * A {@link DocBlock} whose rows left the node that read them: they reference random documents of {@code originCount}
+     * random origins. Rows repeat a document only if the block says it {@link DocVector#mayContainDuplicates()}. The
+     * dictionary may hold origins no row references. Each value is a {@link BlockUtils.DetachedDoc}.
+     */
+    public static RandomBlock randomDetachedDocBlock(BlockFactory blockFactory, int positionCount, int originCount) {
+        List<DocOrigin> origins = randomDocOrigins(originCount);
+        boolean mayContainDuplicates = ESTestCase.randomBoolean();
+        Set<BlockUtils.DetachedDoc> seen = new HashSet<>();
+        List<List<Object>> values = new ArrayList<>(positionCount);
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, positionCount)) {
+            while (values.size() < positionCount) {
+                int ordinal = ESTestCase.between(0, originCount - 1);
+                BlockUtils.DetachedDoc doc = new BlockUtils.DetachedDoc(
+                    origins.get(ordinal),
+                    ESTestCase.between(0, 10),
+                    ESTestCase.between(0, 10_000)
+                );
+                if (mayContainDuplicates || seen.add(doc)) {
+                    builder.appendShard(ordinal).appendSegment(doc.segment()).appendDoc(doc.doc());
+                    values.add(List.of(doc));
+                }
+            }
+            DocVector.Config config = DocVector.config().origins(DocOrigins.of(origins)).mayContainDuplicates(mayContainDuplicates);
+            return new RandomBlock(values, builder.build(config), 3 * Integer.BYTES);
+        }
+    }
+
+    /**
+     * {@code count} distinct random origins.
+     */
+    public static List<DocOrigin> randomDocOrigins(int count) {
+        List<DocOrigin> origins = new ArrayList<>(count);
+        while (origins.size() < count) {
+            DocOrigin origin = randomDocOrigin();
+            if (origins.contains(origin) == false) {
+                origins.add(origin);
+            }
+        }
+        return origins;
+    }
+
+    /**
+     * A random reader, local or on a remote cluster, with or without a searcher id.
+     */
+    public static DocOrigin randomDocOrigin() {
+        String clusterAlias = ESTestCase.randomBoolean() ? "" : ESTestCase.randomAlphaOfLength(5);
+        ShardId shardId = new ShardId(ESTestCase.randomAlphaOfLength(8), ESTestCase.randomAlphaOfLength(22), ESTestCase.between(0, 4));
+        String searcherId = ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(20);
+        ShardSearchContextId contextId = new ShardSearchContextId(
+            ESTestCase.randomAlphaOfLength(22),
+            ESTestCase.randomNonNegativeLong(),
+            searcherId
+        );
+        return new DocOrigin(clusterAlias, ESTestCase.randomAlphaOfLength(22), shardId, contextId);
     }
 
     // TODO Some kind of builder for this with nice defaults. We do this all the time and there's like a zillion parameters.
@@ -110,6 +178,21 @@ public record RandomBlock(List<List<Object>> values, Block block) {
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
             boolean bytesRefFromPoints = ESTestCase.randomBoolean();
             Supplier<Point> pointSupplier = ESTestCase.randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
+            int valueMaxByteSize = switch (elementType) {
+                case BOOLEAN -> Byte.BYTES;
+                case INT -> Integer.BYTES;
+                case LONG -> Long.BYTES;
+                case FLOAT -> Float.BYTES;
+                case DOUBLE -> Double.BYTES;
+                case NULL -> 0;
+                case DOC -> 3 * Integer.BYTES;
+                case LONG_RANGE -> 2 * Long.BYTES;
+                case DOUBLE_RANGE -> 2 * Double.BYTES;
+                case BYTES_REF, EXPONENTIAL_HISTOGRAM -> 0; // Updated per value below
+                case AGGREGATE_METRIC_DOUBLE -> 3 * Double.BYTES + Integer.BYTES;
+                case TDIGEST -> 0; // TDIGEST has no well-defined single-value byte size
+                case COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("can't build a random " + elementType + " block");
+            };
             for (int p = 0; p < positionCount; p++) {
                 if (elementType == ElementType.NULL) {
                     assert nullAllowed;
@@ -157,6 +240,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                                 : new BytesRef(ESTestCase.randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);
+                            valueMaxByteSize = Math.max(valueMaxByteSize, b.length);
                         }
                         case BOOLEAN -> {
                             boolean b = ESTestCase.randomBoolean();
@@ -180,12 +264,17 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             ExponentialHistogram histogram = BlockTestUtils.randomExponentialHistogram();
                             b.append(histogram);
                             valuesAtPosition.add(histogram);
+                            valueMaxByteSize = Math.max(
+                                valueMaxByteSize,
+                                5 * Double.BYTES + ExponentialHistogramArrayBlock.encode(histogram).encodedHistogram().length
+                            );
                         }
                         case TDIGEST -> {
                             TDigestBlockBuilder b = (TDigestBlockBuilder) builder;
                             TDigestHolder digest = BlockTestUtils.randomTDigest();
                             b.appendTDigest(digest);
                             valuesAtPosition.add(digest);
+                            valueMaxByteSize = Math.max(valueMaxByteSize, 3 * Double.BYTES + Long.BYTES + digest.getEncodedDigest().length);
                         }
                         case LONG_RANGE -> {
                             var b = (LongRangeBlockBuilder) builder;
@@ -194,6 +283,14 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             b.from().appendLong(from);
                             b.to().appendLong(to);
                             valuesAtPosition.add(new LongRangeBlockBuilder.LongRange(from, to));
+                        }
+                        case DOUBLE_RANGE -> {
+                            var b = (DoubleRangeBlockBuilder) builder;
+                            var from = ESTestCase.randomDouble();
+                            var to = from + ESTestCase.randomDoubleBetween(0.0, Double.MAX_VALUE / 2, false);
+                            b.from().appendDouble(from);
+                            b.to().appendDouble(to);
+                            valuesAtPosition.add(new DoubleRangeBlockBuilder.DoubleRange(from, to));
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }
@@ -211,14 +308,15 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                     if (dedupedAndSortedList.size() != valuesAtPosition.size()) {
                         mvOrdering = Block.MvOrdering.UNORDERED;
                     } else if (dedupedAndSortedList.equals(valuesAtPosition) == false) {
-                        mvOrdering = Block.MvOrdering.DEDUPLICATED_UNORDERD;
+                        mvOrdering = Block.MvOrdering.DEDUPLICATED_UNORDERED;
                     }
                 }
             }
             if (ESTestCase.randomBoolean()) {
                 builder.mvOrdering(mvOrdering);
             }
-            return new RandomBlock(values, builder.build());
+            Block builtBlock = builder.build();
+            return new RandomBlock(values, builtBlock, valueMaxByteSize);
         }
     }
 
@@ -256,7 +354,9 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                 mergedBlock.copyFrom(rhs.block, r, r + 1);
                 r++;
             }
-            return new RandomBlock(mergedValues, mergedBlock.build());
+            Block builtBlock = mergedBlock.build();
+            return new RandomBlock(mergedValues, builtBlock, Math.max(valueMaxByteSize, rhs.valueMaxByteSize));
         }
     }
+
 }

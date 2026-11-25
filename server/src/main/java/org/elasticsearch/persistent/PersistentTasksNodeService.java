@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.cluster.metadata.ProjectMetadata.isProjectUnderDeletion;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.persistent.PersistentTasks.taskTypeString;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
@@ -112,7 +113,13 @@ public class PersistentTasksNodeService implements ClusterStateListener {
          */
 
         if (persistentTasksChanged(event) || event.nodesChanged()) {
-            final var tuplesOfProjectAndTasks = PersistentTasks.getAllTasks(event.state()).toList();
+            // Tasks of a project under deletion are treated similarly to tasks that are gone already.
+            // They are not started and running ones get cancelled below. Don't include them in the list of tasks to process.
+            final var tuplesOfProjectAndTasks = PersistentTasks.getAllTasks(event.state()).filter(projectIdAndTasks -> {
+                final ProjectId projectId = projectIdAndTasks.v1(); // null for cluster-scoped tasks
+                // cluster-scoped or project-scoped but not under deletion
+                return projectId == null || !isProjectUnderDeletion(event.state().blocks(), projectId);
+            }).toList();
             // We have some changes let's check if they are related to our node
             String localNodeId = event.state().getNodes().getLocalNodeId();
             Set<Long> notVisitedTasks = new HashSet<>(runningTasks.keySet());

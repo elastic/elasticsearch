@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -43,8 +44,10 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -244,7 +247,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         assertThat(indexService.mapperService().mappingLookup().getMapper("parent.field").getOffsetFieldName(), nullValue());
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             var ignoredSourceDV = MultiDocValues.getBinaryValues(reader, IgnoredSourceFieldMapper.NAME);
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
@@ -267,11 +270,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         var mapping = jsonBuilder().startObject().startObject("properties").startObject("field");
         minimalMapping(mapping);
         mapping.endObject().endObject().endObject();
-        verifySyntheticArray(arrays, mapping, "_id");
+        verifySyntheticArray(arrays, mapping);
     }
 
-    protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, String... expectedStoredFields) throws IOException {
-        verifySyntheticArray(arrays, arrays, mapping, expectedStoredFields);
+    protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping) throws IOException {
+        verifySyntheticArray(arrays, arrays, mapping);
     }
 
     private XContentBuilder arrayToSource(Object obj) throws IOException {
@@ -284,12 +287,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         return source.endObject();
     }
 
-    protected void verifySyntheticArray(
-        Object[][] inputArrays,
-        Object[] expectedArrays,
-        XContentBuilder mapping,
-        String... expectedStoredFields
-    ) throws IOException {
+    protected void verifySyntheticArray(Object[][] inputArrays, Object[] expectedArrays, XContentBuilder mapping) throws IOException {
         assertThat(inputArrays.length, equalTo(expectedArrays.length));
 
         var indexService = createIndex(
@@ -323,13 +321,17 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             }
         }
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < expectedArrays.length; i++) {
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                assertThat(storedFieldNames, contains(expectedStoredFields));
+                if (isUseColumnarId(reader)) {
+                    assertThat(storedFieldNames, empty());
+                } else {
+                    assertThat(storedFieldNames, contains("_id"));
+                }
             }
             var fieldInfos = getFieldInfos(reader);
             var fieldInfo = fieldInfos.fieldInfo("field.offsets");
@@ -386,12 +388,18 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
 
         indexService.getShard(0).forceMerge(new ForceMergeRequest("test-index").maxNumSegments(1));
-        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, hasItem("_id"));
+                // The object array is preserved via _ignored_source, so only assert on _id: with columnar id it moves to
+                // binary doc values and is no longer a stored field, otherwise it remains a stored field.
+                if (isUseColumnarId(reader)) {
+                    assertThat(storedFieldNames, not(hasItem("_id")));
+                } else {
+                    assertThat(storedFieldNames, hasItem("_id"));
+                }
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();
@@ -451,13 +459,17 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
 
         indexService.getShard(0).forceMerge(new ForceMergeRequest("test-index").maxNumSegments(1));
-        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                assertThat(storedFieldNames, contains("_id"));
+                if (isUseColumnarId(reader)) {
+                    assertThat(storedFieldNames, empty());
+                } else {
+                    assertThat(storedFieldNames, contains("_id"));
+                }
             }
             var fieldInfos = getFieldInfos(reader);
             var fieldInfo = fieldInfos.fieldInfo("object.field.offsets");
@@ -501,5 +513,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             parser.nextToken(); // value token
             return XContentDataHelper.encodeToken(parser);
         }
+    }
+
+    private static boolean isUseColumnarId(DirectoryReader reader) {
+        FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(reader);
+        return fieldInfos.fieldInfo("_id").getDocValuesType() == DocValuesType.BINARY;
     }
 }

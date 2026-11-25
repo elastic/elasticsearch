@@ -67,6 +67,11 @@ public final class IntArrowBufVector extends AbstractArrowBufVector<IntVector, I
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }

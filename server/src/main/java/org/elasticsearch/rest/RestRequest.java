@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
@@ -99,6 +100,9 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     private boolean contentConsumed = false;
 
+    @Nullable
+    private ParsedContentReservation parsedContentReservation;
+
     private final long requestId;
 
     public boolean isContentConsumed() {
@@ -173,6 +177,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         this.rawPath = other.rawPath;
         this.headers = other.headers;
         this.requestId = other.requestId;
+        this.parsedContentReservation = other.parsedContentReservation;
     }
 
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
@@ -414,6 +419,30 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     /**
+     * Decodes an {@code application/x-www-form-urlencoded} request body and adds
+     * the resulting parameters to this request.
+     * <p>
+     * Form-body parameters must not use the same names as existing URI or path parameters.
+     * Repeated parameters are supported within the form body itself. This consumes
+     * the request body so handlers can treat the decoded values like ordinary
+     * request parameters.
+     */
+    public void consumeFormEncodedBodyParameters() {
+        if (hasContent() == false) {
+            return;
+        }
+        final RequestParams formParams = RequestParams.fromQueryString(content().utf8ToString());
+        for (String key : formParams.keySet()) {
+            if (params.containsKey(key)) {
+                throw new IllegalArgumentException("form parameter [" + key + "] conflicts with an existing request parameter");
+            }
+            for (String value : formParams.getAll(key)) {
+                params.addValue(key, value);
+            }
+        }
+    }
+
+    /**
      * Returns all values for the given query parameter, preserving the order in which they appeared in the URL.
      * This is useful for parameters that may be repeated (e.g. {@code match[]=foo&match[]=bar}).
      * Unlike {@link #param(String)}, path parameters are not visible through this method.
@@ -564,7 +593,24 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     private XContentParser contentParser(XContentParserConfiguration parserConfig) throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
+        return trackContentParser(XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get()));
+    }
+
+    /**
+     * Sets the reservation that this request's parsers charge, see {@link #trackContentParser}. It is released when the response is sent,
+     * or when the work that keeps the parsed request ends if that is later, not when the parsers close.
+     */
+    void setParsedContentReservation(ParsedContentReservation parsedContentReservation) {
+        this.parsedContentReservation = parsedContentReservation;
+    }
+
+    /**
+     * Returns a parser that charges this request's {@link ParsedContentReservation} for what it reads from {@code parser}, or
+     * {@code parser} itself if the request has none. The parsers this request creates are tracked already. Use this for a parser that a
+     * handler creates from the content itself, such as one per line of a multi-search.
+     */
+    public XContentParser trackContentParser(XContentParser parser) {
+        return parsedContentReservation == null ? parser : parsedContentReservation.track(parser);
     }
 
     /**
@@ -605,7 +651,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
-        return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
+        return trackContentParser(XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type()));
     }
 
     /**
@@ -616,7 +662,9 @@ public class RestRequest implements ToXContent.Params, Traceable {
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
             Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
-            try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
+            try (
+                XContentParser parser = trackContentParser(XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1()))
+            ) {
                 withParser.accept(parser);
             }
         } else {

@@ -97,6 +97,10 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
                 .endObject();
             prepareIndex(index).setId("id-" + i).setSource(doc).get();
         }
+        // A one-doc segment stores the single _seq_no value as a constant in doc values metadata, which the analyzer counts as 0 bytes.
+        // Wait for all copies to start, then merge each into one segment so that some segment holds 2+ docs (numDocs >= 10 > shards).
+        ensureGreen(index);
+        forceMerge();
         AnalyzeIndexDiskUsageResponse resp = client().execute(
             TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
@@ -129,11 +133,11 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
         value = extractValue("test-index.fields._id.inverted_index.total_in_bytes", objects);
         assertThat(value, greaterThan(0));
         value = extractValue("test-index.fields._id.stored_fields_in_bytes", objects);
-        assertThat(value, greaterThan(0));
+        assertThat(value, indexColumnarIdMode(index) ? equalTo(0) : greaterThan(0));
         value = extractValue("test-index.fields._id.points_in_bytes", objects);
         assertThat(value, equalTo(0));
         value = extractValue("test-index.fields._id.doc_values_in_bytes", objects);
-        assertThat(value, equalTo(0));
+        assertThat(value, indexColumnarIdMode(index) ? greaterThan(0) : equalTo(0));
 
         value = extractValue("test-index.fields._seq_no.inverted_index.total_in_bytes", objects);
         assertThat(value, equalTo(0));

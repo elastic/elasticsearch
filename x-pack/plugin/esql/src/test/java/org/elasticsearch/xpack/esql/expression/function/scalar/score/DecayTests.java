@@ -18,17 +18,20 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay.DecayFunction;
 import org.hamcrest.Matcher;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +39,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.closeTo;
@@ -105,6 +110,36 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // Long random
         testCaseSuppliers.addAll(longRandomTestCases());
+
+        // Unsigned Long Linear
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(0), ul(10), ul(10000000), ul(200), 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(10), ul(10), ul(10000000), ul(200), 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(50000), ul(10), ul(10000000), ul(200), 0.33, "linear", 0.99666407));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(300000), ul(10), ul(10000000), ul(200), 0.33, "linear", 0.97991407));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(123_456_789_112_123L), ul(10), ul(10000000), ul(200), 0.33, "linear", 0.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(UNSIGNED_LONG_MAX, UNSIGNED_LONG_MAX, ul(10), ul(0), 0.5, "linear", 1.0));
+
+        // Unsigned Long Exponential
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(0), ul(10), ul(10000000), ul(200), 0.33, "exp", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(10), ul(10), ul(10000000), ul(200), 0.33, "exp", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(50000), ul(10), ul(10000000), ul(200), 0.33, "exp", 0.9944951761701727));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(300000), ul(10), ul(10000000), ul(200), 0.33, "exp", 0.9673096701204178));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(123_456_789_112_123L), ul(10), ul(10000000), ul(200), 0.33, "exp", 0.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(UNSIGNED_LONG_MAX, UNSIGNED_LONG_MAX, ul(10), ul(0), 0.5, "exp", 1.0));
+
+        // Unsigned Long Gaussian
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(0), ul(10), ul(10000000), ul(200), 0.33, "gauss", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(10), ul(10), ul(10000000), ul(200), 0.33, "gauss", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(50000), ul(10), ul(10000000), ul(200), 0.33, "gauss", 0.999972516142306));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(300000), ul(10), ul(10000000), ul(200), 0.33, "gauss", 0.9990040963055015));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(123_456_789_112_123L), ul(10), ul(10000000), ul(200), 0.33, "gauss", 0.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(UNSIGNED_LONG_MAX, UNSIGNED_LONG_MAX, ul(10), ul(0), 0.5, "gauss", 1.0));
+
+        // Unsigned Long defaults
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(10), ul(0), ul(10), null, null, null, 0.5));
+
+        // Unsigned Long random
+        testCaseSuppliers.addAll(unsignedLongRandomTestCases());
 
         // Double Linear
         testCaseSuppliers.addAll(doubleTestCase(0.0, 10.0, 10000000.0, 200.0, 0.25, "linear", 1.0));
@@ -223,8 +258,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datetime Linear
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -234,8 +269,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -245,8 +280,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -256,8 +291,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -267,8 +302,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -280,8 +315,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datetime Exponential
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -291,8 +326,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -302,8 +337,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -313,8 +348,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -324,8 +359,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -337,8 +372,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datetime Gaussian
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -348,8 +383,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -359,8 +394,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -370,8 +405,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -381,8 +416,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -394,8 +429,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datetime Defaults
         testCaseSuppliers.addAll(
             datetimeTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 null,
                 null,
@@ -410,8 +445,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos Linear
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -421,8 +456,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -432,8 +467,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -443,8 +478,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -454,8 +489,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -467,8 +502,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos Exponential
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -478,8 +513,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -489,8 +524,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -500,8 +535,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -511,8 +546,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -524,8 +559,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos Gaussian
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -535,8 +570,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2020, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -546,8 +581,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -557,8 +592,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1970, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -568,8 +603,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(1900, 12, 12, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 Duration.ofDays(10),
                 0.33,
@@ -581,8 +616,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos default
         testCaseSuppliers.addAll(
             dateNanosTestCase(
-                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                LocalDateTime.of(2025, 8, 20, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                LocalDateTime.of(2000, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 Duration.ofDays(10000),
                 null,
                 null,
@@ -593,6 +628,23 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // Datenanos random
         testCaseSuppliers.addAll(dateNanosRandomTestCases());
+
+        // Day-based periods: distance 3.5 days minus a 1 day offset, scale 7 days, so (14 - 2.5) / 14
+        long periodOrigin = LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+        long periodValue = LocalDateTime.of(2023, 1, 4, 12, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+        testCaseSuppliers.addAll(
+            temporalPeriodTestCase(DataType.DATETIME, periodValue, periodOrigin, Period.ofWeeks(1), Period.ofDays(1), 0.8214285714285714)
+        );
+        testCaseSuppliers.addAll(
+            temporalPeriodTestCase(
+                DataType.DATE_NANOS,
+                periodValue * 1_000_000L,
+                periodOrigin * 1_000_000L,
+                Period.ofDays(7),
+                Period.ofDays(1),
+                0.8214285714285714
+            )
+        );
 
         return parameterSuppliersFromTypedData(testCaseSuppliers);
     }
@@ -641,7 +693,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             int randomOrigin = randomInt();
             // scale must be > 0
             int randomScale = randomIntBetween(1, Integer.MAX_VALUE);
-            int randomOffset = randomInt();
+            int randomOffset = randomNonNegativeInt();
             double randomDecay = randomDecayOpenUnitInterval();
             String randomType = getRandomType();
 
@@ -715,7 +767,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             long randomValue = randomLong();
             long randomOrigin = randomLong();
             long randomScale = randomLongBetween(1L, Long.MAX_VALUE);
-            long randomOffset = randomLong();
+            long randomOffset = randomNonNegativeLong();
             double randomDecay = randomDecayOpenUnitInterval();
             String randomType = randomFrom("linear", "gauss", "exp");
 
@@ -748,6 +800,112 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             case "linear" -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
             case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
             case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
+    }
+
+    private static BigInteger ul(long v) {
+        return BigInteger.valueOf(v);
+    }
+
+    private static List<TestCaseSupplier> unsignedLongTestCase(
+        BigInteger value,
+        BigInteger origin,
+        BigInteger scale,
+        BigInteger offset,
+        Double decay,
+        String functionType,
+        double expected
+    ) {
+        return List.of(
+            new TestCaseSupplier(
+                List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.SOURCE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(value, DataType.UNSIGNED_LONG, "value"),
+                        new TestCaseSupplier.TypedData(origin, DataType.UNSIGNED_LONG, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.UNSIGNED_LONG, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
+                    ),
+                    startsWith("DecayUnsignedLongEvaluator["),
+                    DataType.DOUBLE,
+                    closeTo(expected, Math.ulp(expected))
+                )
+            )
+        );
+    }
+
+    private static List<TestCaseSupplier> unsignedLongRandomTestCases() {
+        return List.of(
+            new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.SOURCE), () -> {
+                BigInteger randomValueBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomOriginBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomScaleBig = randomUnsignedLongBetween(BigInteger.ONE, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomOffsetBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+
+                // Convert to the signed long representation used internally
+                long randomValue = NumericUtils.asLongUnsigned(randomValueBig);
+                long randomOrigin = NumericUtils.asLongUnsigned(randomOriginBig);
+                long randomScale = NumericUtils.asLongUnsigned(randomScaleBig);
+                long randomOffset = NumericUtils.asLongUnsigned(randomOffsetBig);
+
+                double randomDecay = randomDecayOpenUnitInterval();
+                String randomType = randomFrom("linear", "gauss", "exp");
+
+                double scoreScriptNumericResult = unsignedLongDecayWithScoreScript(
+                    randomValue,
+                    randomOrigin,
+                    randomScale,
+                    randomOffset,
+                    randomDecay,
+                    randomType
+                );
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(randomValue, DataType.UNSIGNED_LONG, "value"),
+                        new TestCaseSupplier.TypedData(randomOrigin, DataType.UNSIGNED_LONG, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(randomScale, DataType.UNSIGNED_LONG, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(
+                            createOptionsMap(randomOffsetBig, randomDecay, randomType),
+                            DataType.SOURCE,
+                            "options"
+                        ).forceLiteral()
+                    ),
+                    startsWith("DecayUnsignedLongEvaluator["),
+                    DataType.DOUBLE,
+                    equalTo(scoreScriptNumericResult)
+                );
+            })
+        );
+    }
+
+    private static double unsignedLongDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
+        var valueUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(value);
+        var originUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(origin);
+        var scaleUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(scale);
+        var offsetUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(offset);
+
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericLinear(valueUnsignedLongAsDouble);
+            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericGauss(valueUnsignedLongAsDouble);
+            case "exp" -> new ScoreScriptUtils.DecayNumericExp(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericExp(valueUnsignedLongAsDouble);
             default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
         };
     }
@@ -785,7 +943,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             double randomValue = randomLong();
             double randomOrigin = randomLong();
             double randomScale = randomLongBetween(1L, Long.MAX_VALUE);
-            double randomOffset = randomLong();
+            double randomOffset = randomNonNegativeLong();
             double randomDecay = randomDecayOpenUnitInterval();
             String randomType = randomFrom("linear", "gauss", "exp");
 
@@ -882,8 +1040,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return List.of(new TestCaseSupplier(List.of(DataType.GEO_POINT, DataType.GEO_POINT, DataType.KEYWORD, DataType.SOURCE), () -> {
             GeoPoint randomValue = randomGeoPoint();
             GeoPoint randomOrigin = randomGeoPoint();
-            String randomScale = randomDistance();
-            String randomOffset = randomDistance();
+            String randomScale = randomDistance(1);
+            String randomOffset = randomDistance(0);
             double randomDecay = randomDecayOpenUnitInterval();
             String randomType = randomDecayType();
 
@@ -927,11 +1085,11 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return randomDoubleBetween(-90.0, 90.0, true);
     }
 
-    private static String randomDistance() {
+    private static String randomDistance(int min) {
         return String.format(
             Locale.ROOT,
             "%d%s",
-            randomNonNegativeInt(),
+            randomIntBetween(min, Integer.MAX_VALUE),
             randomFrom(
                 DistanceUnit.INCH,
                 DistanceUnit.YARD,
@@ -954,7 +1112,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         double decay,
         String type
     ) {
-        String originStr = origin.getX() + "," + origin.getY();
+        // GeoUtils.parseGeoPoint expects coordinate strings in "lat,lon" order; use getY (lat) then getX (lon).
+        String originStr = origin.getY() + "," + origin.getX();
 
         return switch (type) {
             case "linear" -> new ScoreScriptUtils.DecayGeoLinear(originStr, scale, offset, decay).decayGeoLinear(value);
@@ -1058,7 +1217,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             long randomOrigin = randomLongBetween(minEpoch, maxEpoch);
 
             // Max 1 year
-            long randomScaleMillis = randomNonNegativeLong() % (365L * 24 * 60 * 60 * 1000);
+            long randomScaleMillis = randomLongBetween(1L, 365L * 24 * 60 * 60 * 1000);
             // Max 30 days
             long randomOffsetMillis = randomNonNegativeLong() % (30L * 24 * 60 * 60 * 1000);
             Duration randomScale = Duration.ofMillis(randomScaleMillis);
@@ -1144,7 +1303,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 long randomOrigin = randomLongBetween(minEpochNanos, maxEpochNanos);
 
                 // Max 1 year in milliseconds
-                long randomScaleMillis = randomNonNegativeLong() % (365L * 24 * 60 * 60 * 1000);
+                long randomScaleMillis = randomLongBetween(1L, 365L * 24 * 60 * 60 * 1000);
                 // Max 30 days in milliseconds
                 long randomOffsetMillis = randomNonNegativeLong() % (30L * 24 * 60 * 60 * 1000);
                 Duration randomScale = Duration.ofMillis(randomScaleMillis);
@@ -1153,7 +1312,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 double randomDecay = randomDecayOpenUnitInterval();
                 String randomType = randomFrom("linear", "gauss", "exp");
 
-                double scoreScriptNumericResult = expectedDateNanosTemporalDecay(
+                double scoreScriptNumericResult = longDecayWithScoreScript(
                     randomValue,
                     randomOrigin,
                     randomScale.toNanos(),
@@ -1178,28 +1337,38 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static double expectedDateNanosTemporalDecay(
-        long valueNanos,
-        long originNanos,
-        long scaleNanos,
-        long offsetNanos,
-        double decay,
-        String type
+    private static List<TestCaseSupplier> temporalPeriodTestCase(
+        DataType type,
+        long value,
+        long origin,
+        Period scale,
+        Period offset,
+        double expected
     ) {
-        return decayFunctionForType(type).temporalDecay(valueNanos, originNanos, scaleNanos, offsetNanos, decay);
-    }
-
-    private static DecayFunction decayFunctionForType(String type) {
-        return switch (type) {
-            case "linear" -> DecayFunction.LINEAR;
-            case "gauss" -> DecayFunction.GAUSSIAN;
-            case "exp" -> DecayFunction.EXPONENTIAL;
-            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
-        };
+        return List.of(
+            new TestCaseSupplier(
+                List.of(type, type, DataType.DATE_PERIOD, DataType.SOURCE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(value, type, "value"),
+                        new TestCaseSupplier.TypedData(origin, type, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.DATE_PERIOD, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, 0.5, "linear"), DataType.SOURCE, "options").forceLiteral()
+                    ),
+                    startsWith(type == DataType.DATETIME ? "DecayDatetimeEvaluator[" : "DecayDateNanosEvaluator["),
+                    DataType.DOUBLE,
+                    closeTo(expected, Math.ulp(expected))
+                )
+            )
+        );
     }
 
     private static double randomDecayOpenUnitInterval() {
         return randomDoubleBetween(1e-12, Math.nextDown(1.0), true);
+    }
+
+    private static Literal unsignedLongLiteral(BigInteger value) {
+        return new Literal(Source.EMPTY, asLongUnsigned(value), DataType.UNSIGNED_LONG);
     }
 
     private static MapExpression createOptionsMap(Object offset, Double decay, String functionType) {
@@ -1211,9 +1380,11 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             switch (offset) {
                 case Integer value -> keyValuePairs.add(Literal.integer(Source.EMPTY, value));
                 case Long value -> keyValuePairs.add(Literal.fromLong(Source.EMPTY, value));
+                case BigInteger value -> keyValuePairs.add(unsignedLongLiteral(value));
                 case Double value -> keyValuePairs.add(Literal.fromDouble(Source.EMPTY, value));
                 case String value -> keyValuePairs.add(Literal.text(Source.EMPTY, value));
                 case Duration value -> keyValuePairs.add(Literal.timeDuration(Source.EMPTY, value));
+                case Period value -> keyValuePairs.add(new Literal(Source.EMPTY, value, DataType.DATE_PERIOD));
                 default -> {
                 }
             }

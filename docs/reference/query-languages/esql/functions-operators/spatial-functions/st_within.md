@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_WITHIN` function [esql-st_within]
 
-:::{include} ../../_snippets/functions/layout/st_within.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_within.md
 :::

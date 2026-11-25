@@ -34,6 +34,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.Map;
@@ -65,6 +66,7 @@ public final class MlInitializationService implements ClusterStateListener {
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
+        AnomalyDetectionAuditor auditor,
         Client client,
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
         MlAssignmentNotifier mlAssignmentNotifier,
@@ -83,6 +85,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 threadPool,
                 client,
                 clusterService,
+                auditor,
                 mlAssignmentNotifier,
                 indexNameExpressionResolver,
                 isAnomalyDetectionEnabled,
@@ -121,6 +124,11 @@ public final class MlInitializationService implements ClusterStateListener {
                         MachineLearning.RESULTS_INDEX_ROLLOVER_MAX_SIZE,
                         mlDailyMaintenanceService::setRolloverMaxSize
                     );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.IDLE_JOB_AUTO_CLOSE_TIMEOUT,
+                        mlDailyMaintenanceService::setIdleJobAutoCloseTimeout
+                    );
 
             }
 
@@ -151,6 +159,7 @@ public final class MlInitializationService implements ClusterStateListener {
         }
 
         final boolean prevIsMaster = this.isMaster;
+        // no need for isLocalNodeElectedMaster(): we're only starting/stopping listeners and timers, nothing needs to re-examine state
         if (prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {

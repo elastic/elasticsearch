@@ -301,6 +301,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         if (value instanceof Boolean) {
             return (Boolean) value;
         }
+        if (value instanceof BytesRef ref && caseInsensitive == false) {
+            // shortcut for allocation-free case-sensitive checking on a BytesRef
+            return Booleans.parseBoolean(ref.bytes, ref.offset, ref.length);
+        }
+
         String sValue;
         if (value instanceof BytesRef) {
             sValue = ((BytesRef) value).utf8ToString();

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +24,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for invalidating API key(s) so that it can no longer be used
  */
-public final class InvalidateApiKeyRequest extends LegacyActionRequest {
+public final class InvalidateApiKeyRequest extends UntypedActionRequest {
 
     private final String realmName;
     private final String userName;

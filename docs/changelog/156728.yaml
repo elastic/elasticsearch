@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 154361
+pr: 156728
+summary: Return no docs for unmapped `dense_vector` query
+type: bug

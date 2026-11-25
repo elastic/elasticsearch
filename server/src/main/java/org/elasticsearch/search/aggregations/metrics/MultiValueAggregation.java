@@ -11,7 +11,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public interface MultiValueAggregation extends Aggregation {
 
@@ -32,4 +36,33 @@ public interface MultiValueAggregation extends Aggregation {
      * @return list of all values formatted as string
      */
     List<String> getValuesAsStrings(String name);
+
+    /**
+     * Configured maximum number of ranked source documents this aggregation may emit per bucket.
+     * Dest writers such as transforms use this together with {@link #getRankedHits()} to decide
+     * whether to persist a {@code top} array. Default is {@code 1}.
+     */
+    default int getRankedHitSize() {
+        return 1;
+    }
+
+    /**
+     * Actual ranked hits in sort order. Length may be less than {@link #getRankedHitSize()}
+     * when the bucket has fewer matching documents. Default is empty.
+     */
+    default List<RankedHit> getRankedHits() {
+        return List.of();
+    }
+
+    /**
+     * One ranked source document: sort values and metrics, matching {@code top_metrics} xcontent.
+     */
+    record RankedHit(List<Object> sort, Map<String, Object> metrics) {
+        public RankedHit {
+            Objects.requireNonNull(sort, "sort");
+            Objects.requireNonNull(metrics, "metrics");
+            sort = List.copyOf(sort);
+            metrics = Collections.unmodifiableMap(new LinkedHashMap<>(metrics));
+        }
+    }
 }

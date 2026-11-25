@@ -8,19 +8,17 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Extension of {@link LuceneSourceOperator} for time-series aggregation that inserts metadata blocks,
@@ -38,7 +36,9 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
             int docThresholdForAutoStrategy,
             int taskConcurrency,
             int maxPageSize,
-            int limit
+            int limit,
+            LongSupplier directoryBytesRead,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -49,13 +49,25 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
                 taskConcurrency,
                 maxPageSize,
                 limit,
-                false
+                false,
+                directoryBytesRead,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                singleValueQueryWarnings
             );
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new TimeSeriesSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter);
+            return new TimeSeriesSourceOperator(
+                refCounteds,
+                driverContext,
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                directoryBytesRead,
+                singleValueQueryWarnings
+            );
         }
 
         @Override
@@ -66,13 +78,27 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
 
     public TimeSeriesSourceOperator(
         IndexedByShardId<? extends RefCounted> shardContextCounters,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
-        Limiter limiter
+        Limiter limiter,
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false);
+        super(
+            shardContextCounters,
+            driverContext,
+            maxPageSize,
+            sliceQueue,
+            limit,
+            limiter,
+            false,
+            directoryBytesRead,
+            singleValueQueryWarnings,
+            null,
+            true
+        );
     }
 
     @Override
@@ -110,15 +136,11 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
     }
 
     private static DataPartitioning.AutoStrategy partitioningStrategy(IndexedByShardId<? extends ShardContext> contexts) {
-        try {
-            for (ShardContext ctx : contexts.iterable()) {
-                if (PartitionedDocValues.canPartitionByTsidPrefix(ctx.searcher()) == false) {
-                    return limit -> q -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-                }
+        for (ShardContext ctx : contexts.iterable()) {
+            if (ctx.canPartitionByTsidPrefix() == false) {
+                return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
-        return limit -> q -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
+        return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
     }
 }

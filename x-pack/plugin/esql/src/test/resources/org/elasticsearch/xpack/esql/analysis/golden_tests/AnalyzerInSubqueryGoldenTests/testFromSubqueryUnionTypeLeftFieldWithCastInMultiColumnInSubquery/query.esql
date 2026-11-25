@@ -1,0 +1,4 @@
+FROM employees, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
+| EVAL id = emp_no::long, sal = salary::long
+| WHERE (id, sal) IN (FROM employees_incompatible | KEEP emp_no, salary)
+| KEEP id, sal

@@ -7,17 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.llama.request.completion;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -32,7 +31,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the Llama chat completion model.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class LlamaChatCompletionRequest implements ChatCompletionRequest {
+public class LlamaChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
     private final LlamaChatCompletionModel model;
     private final UnifiedChatInput chatInput;
@@ -50,15 +49,14 @@ public class LlamaChatCompletionRequest implements ChatCompletionRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(new LlamaChatCompletionRequestEntity(chatInput, model.getServiceSettings().modelId()))
-                .getBytes(StandardCharsets.UTF_8)
+                .getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         if (model.getSecretSettings() instanceof DefaultSecretSettings secretSettings) {
             httpPost.setHeader(createAuthBearerHeader(secretSettings.apiKey()));
         }
@@ -68,11 +66,11 @@ public class LlamaChatCompletionRequest implements ChatCompletionRequest {
 
     @Override
     public URI getURI() {
-        return model.uri();
+        return model.getServiceSettings().uri();
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // No truncation for Llama chat completions
         return this;
     }

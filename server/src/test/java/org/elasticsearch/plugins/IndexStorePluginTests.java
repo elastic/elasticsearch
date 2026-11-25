@@ -68,7 +68,7 @@ public class IndexStorePluginTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        public Map<String, IndexStorePlugin.RecoveryStateFactory> getRecoveryStateFactories() {
             return Collections.singletonMap("recovery-type", new RecoveryFactory());
         }
     }
@@ -80,15 +80,20 @@ public class IndexStorePluginTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        public Map<String, IndexStorePlugin.RecoveryStateFactory> getRecoveryStateFactories() {
             return Collections.singletonMap("recovery-type", new RecoveryFactory());
         }
     }
 
     public static class RecoveryFactory implements IndexStorePlugin.RecoveryStateFactory {
         @Override
-        public RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
-            return new RecoveryState(shardRouting, targetNode, sourceNode);
+        public RecoveryState newRecoveryState(
+            ShardRouting shardRouting,
+            DiscoveryNode targetNode,
+            DiscoveryNode sourceNode,
+            int localRetries
+        ) {
+            return new RecoveryState(shardRouting, targetNode, sourceNode, localRetries);
         }
     }
 

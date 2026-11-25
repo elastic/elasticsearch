@@ -330,7 +330,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             metadata.getProject().indexGraveyard().toString(),
             metadata.getProject().indexGraveyard().containsIndex(new Index(INDEX_NAME, danglingIndexUUID))
         );
-        assertNull(Strings.toString(metadata, true, true), metadata.getProject().index(INDEX_NAME));
+        assertNull(Strings.toTruncatedString(metadata, true, true), metadata.getProject().index(INDEX_NAME));
     }
 
     /**

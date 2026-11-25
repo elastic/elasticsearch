@@ -11,10 +11,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class LimitByExecSerializationTests extends AbstractPhysicalPlanSerializationTests<LimitByExec> {
 
@@ -31,7 +32,7 @@ public class LimitByExecSerializationTests extends AbstractPhysicalPlanSerializa
     }
 
     private static List<Expression> randomGroupings() {
-        return randomList(1, 3, () -> FieldAttributeTests.createFieldAttribute(0, false));
+        return randomList(1, 3, () -> createFieldAttribute(0, false));
     }
 
     @Override

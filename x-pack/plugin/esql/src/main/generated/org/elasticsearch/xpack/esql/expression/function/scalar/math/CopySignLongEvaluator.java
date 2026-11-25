@@ -71,12 +71,13 @@ public final class CopySignLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock magnitudeBlock, DoubleBlock signBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (magnitudeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (magnitudeBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -84,10 +85,11 @@ public final class CopySignLongEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (signBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (signBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -104,7 +106,7 @@ public final class CopySignLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount, LongVector magnitudeVector, DoubleVector signVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long magnitude = magnitudeVector.getLong(p);
         double sign = signVector.getDouble(p);
@@ -126,7 +128,7 @@ public final class CopySignLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
@@ -26,14 +25,13 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CohereV1RerankRequestTests extends ESTestCase {
-    public void testRequest() {
+    public void testRequest() throws URISyntaxException {
         var request = new CohereV1RerankRequest(
             "query",
             List.of("abc"),
@@ -43,12 +41,11 @@ public class CohereV1RerankRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v1/rerank"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("https://api.cohere.ai/v1/rerank"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
@@ -127,7 +124,9 @@ public class CohereV1RerankRequestTests extends ESTestCase {
     private CohereRerankModel createModel(String modelId, CohereRerankTaskSettings taskSettings) {
         return new CohereRerankModel(
             "inference_id",
-            new CohereRerankServiceSettings((URI) null, modelId, null, CohereServiceSettings.CohereApiVersion.V2),
+            new CohereRerankServiceSettings(
+                new CohereCommonServiceSettings(modelId, null, CohereCommonServiceSettings.CohereApiVersion.V2)
+            ),
             taskSettings,
             new DefaultSecretSettings(new SecureString("secret".toCharArray()))
         );

@@ -23,14 +23,19 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -766,12 +771,39 @@ public class RelocationIT extends ESIntegTestCase {
                 )
         );
         ensureGreen("test");
-        assertBusy(() -> assertAllShardsOnNodes(indexName, blueNodes));
+        awaitClusterState(state -> allShardsOnNodes(state, indexName, blueNodes));
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.include.color", "red"), indexName);
-        assertBusy(() -> assertAllShardsOnNodes(indexName, redNodes));
+        awaitClusterState(state -> allShardsOnNodes(state, indexName, redNodes));
         ensureGreen("test");
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
+    }
+
+    public void testRelocationForClosedIndex() {
+        final var oldNodes = internalCluster().startNodes(2);
+        ensureStableCluster(2);
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        indexRandom(randomBoolean(), indexName, 10);
+        safeGet(indicesAdmin().prepareClose(indexName).execute());
+
+        final var newNodes = internalCluster().startNodes(2);
+        ensureStableCluster(4);
+
+        logger.info("--> force relocation to new nodes");
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", oldNodes)), indexName);
+        ensureGreen(indexName);
+
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.copyOf(newNodes)));
+
+        // Re-open works
+        safeGet(indicesAdmin().prepareOpen(indexName).execute());
+        ensureGreen(indexName);
+        // Index also works and we get expected number of docs
+        indexRandom(true, indexName, 10);
+        assertResponse(prepareSearch(indexName).setSize(0), response -> { assertHitCount(response, 20); });
     }
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
@@ -801,6 +833,24 @@ public class RelocationIT extends ESIntegTestCase {
                 }
             }
         });
+    }
+
+    private static boolean allShardsOnNodes(ClusterState state, String index, String... nodePatterns) {
+        for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShard.size(); copy++) {
+                    ShardRouting shardRouting = indexShard.shard(copy);
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
+                        String name = state.nodes().get(shardRouting.currentNodeId()).getName();
+                        if (Regex.simpleMatch(nodePatterns, name) == false) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     class RecoveryCorruption implements StubbableTransport.SendRequestBehavior {

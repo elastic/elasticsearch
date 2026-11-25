@@ -39,14 +39,14 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         for (int i = first; i < end; i++) {
@@ -70,7 +70,7 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -93,14 +93,14 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
   private Block evalAscendingNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
         builder.appendLong(result);
@@ -115,7 +115,7 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
   private Block evalAscendingNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       MvMedian.Longs work = new MvMedian.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);

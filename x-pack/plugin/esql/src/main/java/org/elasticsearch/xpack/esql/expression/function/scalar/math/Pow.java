@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -32,15 +38,24 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
-public class Pow extends EsqlScalarFunction {
+public class Pow extends EsqlScalarFunction implements AnyNullIsNull, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Pow", Pow::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Pow.class).binary(Pow::new).name("pow");
 
     private final Expression base;
     private final Expression exponent;
 
+    /**
+     * When {@code true}, a non-finite result ({@code NaN}/{@code ±Inf}) is returned as-is instead of being rejected
+     * to {@code null}. Set only by the PromQL translation so that {@code base ^ exponent} follows IEEE-754 semantics;
+     * the default is {@code false}, preserving ES|QL's finite-only contract.
+     */
+    private final boolean allowNonFinite;
+
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
+        briefSummary = "Returns a value raised to the power of an exponent.",
         description = "Returns the value of `base` raised to the power of `exponent`.",
         note = "It is still possible to overflow a double result here; in that case, null will be returned.",
         examples = { @Example(file = "math", tag = "powDI"), @Example(file = "math", tag = "powID-sqrt", description = """
@@ -60,13 +75,28 @@ public class Pow extends EsqlScalarFunction {
             description = "Numeric expression for the exponent. If `null`, the function returns `null`."
         ) Expression exponent
     ) {
+        this(source, base, exponent, false);
+    }
+
+    public Pow(Source source, Expression base, Expression exponent, boolean allowNonFinite) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
         this.exponent = exponent;
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Pow(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            NonFiniteSupport.readNonFinite(in, NonFiniteSupport.ESQL_PROMQL_NON_FINITE_ARITHMETIC)
+        );
+    }
+
+    @Override
+    public TransportVersion nonFiniteTransportVersion() {
+        return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_ARITHMETIC;
     }
 
     @Override
@@ -74,6 +104,7 @@ public class Pow extends EsqlScalarFunction {
         source().writeTo(out);
         out.writeNamedWriteable(base);
         out.writeNamedWriteable(exponent);
+        writeNonFinite(out);
     }
 
     @Override
@@ -101,18 +132,29 @@ public class Pow extends EsqlScalarFunction {
     }
 
     @Evaluator(warnExceptions = { ArithmeticException.class })
-    static double process(double base, double exponent) {
-        return NumericUtils.asFiniteNumber(Math.pow(base, exponent));
+    static double process(double base, double exponent, @Fixed(includeInToString = false) boolean allowNonFinite) {
+        double result = Math.pow(base, exponent);
+        return allowNonFinite ? result : NumericUtils.asFiniteNumber(result);
     }
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new Pow(source(), newChildren.get(0), newChildren.get(1));
+        return new Pow(source(), newChildren.get(0), newChildren.get(1), allowNonFinite);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Pow::new, base(), exponent());
+        return NodeInfo.create(this, Pow::new, base(), exponent(), allowNonFinite);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Pow(source(), base(), exponent(), false);
     }
 
     public Expression base() {
@@ -132,6 +174,6 @@ public class Pow extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.apply(base));
         var expEval = Cast.cast(source(), exponent.dataType(), DataType.DOUBLE, toEvaluator.apply(exponent));
-        return new PowEvaluator.Factory(source(), baseEval, expEval);
+        return new PowEvaluator.Factory(source(), baseEval, expEval, allowNonFinite);
     }
 }

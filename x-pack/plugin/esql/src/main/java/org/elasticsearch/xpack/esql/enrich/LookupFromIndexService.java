@@ -18,8 +18,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
@@ -31,6 +33,7 @@ import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeSer
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
@@ -54,12 +57,14 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LookupLogicalOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -85,6 +90,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -132,7 +138,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             projectResolver,
             plannerSettings
         );
-        this.executionPlanner = new LookupExecutionPlanner(blockFactory, bigArrays, localBreakerSettings);
+        this.executionPlanner = new LookupExecutionPlanner(
+            blockFactory,
+            bigArrays,
+            localBreakerSettings,
+            directoryBytesReadSupplier(indicesService)
+        );
         this.exchangeService = exchangeService;
     }
 
@@ -260,13 +271,22 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
-        return new LookupResponse(pages, blockFactory);
+    protected LookupResponse createLookupResponse(
+        List<Page> pages,
+        BlockFactory blockFactory,
+        long bytesRead,
+        Collection<String> warnings
+    ) {
+        return new LookupResponse(pages, blockFactory, null, bytesRead, List.copyOf(warnings));
     }
 
     @Override
-    protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
-        return new LookupResponse(in, blockFactory);
+    protected AbstractLookupService.LookupResponse readLookupResponse(
+        StreamInput in,
+        BlockFactory blockFactory,
+        ThreadContext threadContext
+    ) throws IOException {
+        return new LookupResponse(in, blockFactory, threadContext);
     }
 
     public static class Request extends AbstractLookupService.Request {
@@ -520,30 +540,57 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected static class LookupResponse extends AbstractLookupService.LookupResponse {
         // Reuse the streaming session ID version since streaming is not in production yet
         private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_streaming_lookup_join");
+        // Lookup-response warnings ship as part of the same per-driver warnings feature as the DriverCompletionInfo
+        // warnings field, so they are gated behind the same transport version.
+        private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
         private List<Page> pages;
         @Nullable
         private final String planString;
+        private final long bytesRead;
+        private final List<String> warnings;
 
-        LookupResponse(List<Page> pages, BlockFactory blockFactory) {
-            this(pages, blockFactory, null);
-        }
-
-        LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString) {
+        LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString, long bytesRead, List<String> warnings) {
             super(blockFactory);
             this.pages = pages;
             this.planString = planString;
+            this.bytesRead = bytesRead;
+            this.warnings = warnings == null ? List.of() : warnings;
         }
 
-        LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        LookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
             super(blockFactory);
+            List<Page> readPages;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                this.pages = bsi.readCollectionAsList(Page::new);
+                readPages = bsi.readReleasableCollectionAsList(Page::new);
             }
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
-                this.planString = in.readOptionalString();
-            } else {
-                this.planString = null;
+            boolean success = false;
+            try {
+                if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                    this.planString = in.readOptionalString();
+                } else {
+                    this.planString = null;
+                }
+                this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
+                    ? in.readVLong()
+                    : 0L;
+                if (in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                    this.warnings = in.readStringCollectionAsList();
+                } else {
+                    // Old nodes send warnings as transport response headers; the transport layer has already
+                    // deposited them into the current thread's context before this constructor is called.
+                    // Parse the RFC 7234 warning format to extract the plain warning text.
+                    this.warnings = threadContext.takeResponseHeaders("Warning")
+                        .stream()
+                        .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
+                        .toList();
+                }
+                this.pages = readPages;
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(readPages);
+                }
             }
         }
 
@@ -556,11 +603,27 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
                 out.writeOptionalString(planString);
             }
+            if (out.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                out.writeStringCollection(warnings);
+            }
         }
 
         @Nullable
         public String planString() {
             return planString;
+        }
+
+        @Override
+        public long bytesRead() {
+            return bytesRead;
+        }
+
+        @Override
+        public List<String> warnings() {
+            return warnings;
         }
 
         @Override
@@ -587,12 +650,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 return false;
             }
             LookupResponse that = (LookupResponse) o;
-            return Objects.equals(pages, that.pages) && Objects.equals(planString, that.planString);
+            return Objects.equals(pages, that.pages)
+                && Objects.equals(planString, that.planString)
+                && bytesRead == that.bytesRead
+                && Objects.equals(warnings, that.warnings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pages, planString);
+            return Objects.hash(pages, planString, bytesRead, warnings);
         }
 
         @Override
@@ -601,8 +667,18 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
     }
 
+    /**
+     * The pre-join plan arrives over the wire and is planned here with the lookup optimizers. An external source has
+     * no place in it: {@code LOOKUP JOIN} against a dataset is refused at analysis, so a plan carrying one was not
+     * built by a coordinator, and nothing on this path authorizes or rebinds a dataset. Refused before any planning
+     * rule sees it, with the same refusal the compute handlers give such a plan.
+     */
     @Override
     protected void doLookup(LookupRequest request, CancellableTask task, ActionListener<AbstractLookupService.LookupResponse> listener) {
+        if (ExternalSourceDatasets.hasExternalNode(request.rightPreJoinPlan)) {
+            listener.onFailure(ExternalSourceAuthorizer.unexpectedShape("a lookup join"));
+            return;
+        }
         if (request.getClientToServerId() != null) {
             doLookupStreaming(request, task, listener);
         } else {
@@ -669,7 +745,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             LookupExecutionPlanner.QueryListFromPlanFactory queryListFactory;
             if (configuration != null) {
                 LogicalPlan logicalPlan = extractOrBuildLogicalPlan(request);
-                physicalPlan = createLookupPhysicalPlan(logicalPlan, configuration, plannerSettings, foldCtx, searchStats, flags);
+                physicalPlan = createLookupPhysicalPlan(
+                    logicalPlan,
+                    configuration,
+                    plannerSettings,
+                    foldCtx,
+                    searchStats,
+                    flags,
+                    aliasFilter
+                );
                 queryListFactory = this::queryListFromPlan;
             } else {
                 // BWC: old data node without Configuration
@@ -766,7 +850,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             clusterService.getClusterName().value(),
             releasables,
             ActionListener.wrap(
-                ignored -> responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString)),
+                /*
+                 * Send an empty page without warnings to signal the end of the stream.
+                 */
+                ignored -> responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString, 0L, List.of())),
                 responseListener::onFailure
             )
         );
@@ -903,17 +990,20 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         PlannerSettings plannerSettings,
         FoldContext foldCtx,
         SearchStats searchStats,
-        EsqlFlags flags
+        EsqlFlags flags,
+        AliasFilter aliasFilter
     ) {
-        LogicalPlan optimizedLogical = new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats))
-            .localOptimize(logicalPlan);
+        LogicalPlan optimizedLogical = new LookupLogicalOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        ).localOptimize(logicalPlan);
         PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(optimizedLogical);
-        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+        LookupPhysicalOptimizerContext context = new LookupPhysicalOptimizerContext(
             plannerSettings,
             flags,
             configuration,
             foldCtx,
-            searchStats
+            searchStats,
+            aliasFilter
         );
         return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
     }

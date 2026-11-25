@@ -13,7 +13,6 @@ import com.gradle.develocity.agent.gradle.DevelocityConfiguration;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
@@ -49,6 +48,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPOutputStream;
 
 import javax.inject.Inject;
 
@@ -78,19 +78,33 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);
             File daemonsLogDir = new File(target.getGradle().getGradleUserHomeDir(), "daemon/" + target.getGradle().getGradleVersion());
 
+            File preemptionMarker = new File(projectDir, "build/.preemption-marker.json");
             getFlowScope().always(BuildFinishedFlowAction.class, spec -> {
                 spec.getParameters().getBuildScan().set(extension);
                 spec.getParameters().getUploadFile().set(targetFile);
                 spec.getParameters().getProjectDir().set(projectDir);
                 spec.getParameters().getFilteredFiles().addAll(getFlowProviders().getBuildWorkResult().map((result) -> {
+                    if (preemptionMarker.exists()) {
+                        System.out.println("Build Finished Action: Skipping archive collection (build was preempted)");
+                        return List.<File>of();
+                    }
+                    // the archive is for investigating failures; a successful build's results are in its build scan
+                    if (result.getFailure().isEmpty()) {
+                        System.out.println("Build Finished Action: Skipping archive collection (build succeeded)");
+                        return List.<File>of();
+                    }
                     System.out.println("Build Finished Action: Collecting archive files...");
+                    long start = System.nanoTime();
                     List<File> files = new ArrayList<>();
-                    files.addAll(resolveProjectLogs(projectDir));
+                    files.addAll(resolveProjectLogs(projectDir, preemptionMarker));
                     if (files.isEmpty() == false) {
                         files.addAll(resolveDaemonLogs(daemonsLogDir));
                         files.addAll(getFileOperations().fileTree(gradleWorkersDir).getFiles());
                         files.addAll(getFileOperations().fileTree(new File(projectDir, ".gradle/reaper/")).getFiles());
                     }
+                    System.out.println(
+                        "Build Finished Action: Collected " + files.size() + " archive files in " + secondsSince(start) + "s"
+                    );
                     return files;
                 }));
             });
@@ -98,15 +112,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
     }
 
     private File calculateTargetFile(Project target, String buildNumber) {
-        File uploadFile = target.file("build/" + buildNumber + ".tar.bz2");
+        File uploadFile = target.file("build/" + buildNumber + ".tar.gz");
         int artifactIndex = 1;
         while (uploadFile.exists()) {
-            uploadFile = target.file("build/" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
+            uploadFile = target.file("build/" + buildNumber + "-" + artifactIndex++ + ".tar.gz");
         }
         return uploadFile;
     }
 
-    private List<File> resolveProjectLogs(File projectDir) {
+    private List<File> resolveProjectLogs(File projectDir, File preemptionMarker) {
         // HACK: Some tests leave behind symlinks, and gradle throws an exception if it encounters symlinks.
         // Here we remove them before collecting logs to upload. We could instead build our own path matcher
         // but that seemed more complex than just deleting the irrelevant files.
@@ -114,6 +128,9 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             Files.walkFileTree(projectDir.toPath(), new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (preemptionMarker.exists()) {
+                        return FileVisitResult.TERMINATE;
+                    }
                     try {
                         if (Files.isSymbolicLink(file)) {
                             Files.delete(file);
@@ -126,6 +143,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             });
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+
+        if (preemptionMarker.exists()) {
+            System.out.println("Build Finished Action: Aborting file collection (preemption detected during walk)");
+            return List.of();
         }
 
         var projectDirFiles = getFileOperations().fileTree(projectDir);
@@ -148,7 +170,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         projectDirFiles.exclude("**/build/testrun/*/temp/**/repo/**");
         projectDirFiles.exclude("**/build/testrun/*/temp/**/extract/**");
         projectDirFiles.exclude("**/build/testrun/*/temp/**/tmp/**");
+        // GeoIP .mmdb files are static test fixtures copied onto every ES|QL test-cluster
+        // node. They account for most of the archive size. The same files come from the
+        // geolite2-databases test dependency, not from the failing test.
+        projectDirFiles.exclude("**/*.mmdb");
         return projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
+    }
+
+    private static long secondsSince(long startNanos) {
+        return TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startNanos);
     }
 
     private List<File> resolveDaemonLogs(File daemonsLogDir) {
@@ -183,13 +213,29 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             if (filesToArchive.isEmpty()) {
                 return;
             }
+            File projectDir = parameters.getProjectDir().get();
+            File preemptionMarker = new File(projectDir, "build/.preemption-marker.json");
+            if (preemptionMarker.exists()) {
+                System.out.println("Build Finished Action: Skipping archive/upload (build was preempted)");
+                return;
+            }
             File uploadFile = parameters.getUploadFile().get();
             if (uploadFile.exists()) {
                 getFileSystemOperations().delete(spec -> spec.delete(uploadFile));
             }
             uploadFile.getParentFile().mkdirs();
 
+            long start = System.nanoTime();
             createBuildArchiveTar(filesToArchive, parameters.getProjectDir().get(), uploadFile);
+            System.out.println(
+                "Build Finished Action: Wrote "
+                    + uploadFile.getName()
+                    + " ("
+                    + uploadFile.length() / (1024 * 1024)
+                    + " MB) in "
+                    + secondsSince(start)
+                    + "s"
+            );
             if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {
                 String uploadFilePath = uploadFile.getName();
                 File uploadFileDir = uploadFile.getParentFile();
@@ -266,12 +312,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
 
         }
 
-        private static void createBuildArchiveTar(List<File> files, File projectDir, File uploadFile) {
+        // gzip rather than bzip2: the archive is often well over 1 GB before compression (every test's results and
+        // the test clusters' logs), and bzip2 took about 5 minutes for that at the end of a CI job, against seconds
+        // for gzip, at the cost of an archive about 40% larger
+        static void createBuildArchiveTar(List<File> files, File projectDir, File uploadFile) {
             try (
                 OutputStream fOut = Files.newOutputStream(uploadFile.toPath());
                 BufferedOutputStream buffOut = new BufferedOutputStream(fOut);
-                BZip2CompressorOutputStream bzOut = new BZip2CompressorOutputStream(buffOut);
-                TarArchiveOutputStream tOut = new TarArchiveOutputStream(bzOut)
+                GZIPOutputStream gzOut = new GZIPOutputStream(buffOut, 64 * 1024);
+                TarArchiveOutputStream tOut = new TarArchiveOutputStream(gzOut)
             ) {
                 Path projectPath = projectDir.toPath();
                 tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
@@ -318,9 +367,9 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             long fileSizeBytes = file.length();
             long fileSizeMB = fileSizeBytes / (1024 * 1024);
 
-            // Allocate 4 seconds per MB (assumes ~250 KB/s upload speed)
+            // Allocate 8 seconds per MB (assumes ~125 KB/s upload speed)
             // with min 10 seconds and max 30 minutes
-            return Math.max(10, Math.min(1800, fileSizeMB * 4));
+            return Math.max(10, Math.min(1800, fileSizeMB * 8));
         }
     }
 }

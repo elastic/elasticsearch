@@ -49,8 +49,6 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public static final ParseField INPUT_FIELD = new ParseField("input");
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
 
-    public static final TimeValue DEFAULT_TIMEOUT = InferenceAction.Request.DEFAULT_TIMEOUT;
-
     public static final NodeFeature EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE = new NodeFeature("embedding_query_vector_builder");
 
     public static final ConstructingObjectParser<EmbeddingQueryVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
@@ -122,8 +120,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         }
 
         var embeddingRequest = new EmbeddingRequest(List.of(input), InputType.SEARCH, null);
-        var actualTimeout = Objects.requireNonNullElse(timeout, DEFAULT_TIMEOUT);
-        var request = new EmbeddingAction.Request(inferenceId, TaskType.ANY, embeddingRequest, actualTimeout);
+        var request = new EmbeddingAction.Request(inferenceId, TaskType.ANY, embeddingRequest, timeout);
         executeAsyncWithOrigin(
             client,
             INFERENCE_ORIGIN,

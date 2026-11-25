@@ -23,7 +23,6 @@ public final class TSDBDocValuesTestUtil {
     private static final int NUMERIC_LARGE_BLOCK_SHIFT = 9;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -18,12 +19,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
@@ -46,11 +46,13 @@ import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSetti
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeGreaterThanOrEqualNumberErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeLessThanOrEqualNumberErrorMessage;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.rest.Paths.STREAM_SUFFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public final class ServiceUtils {
     /**
@@ -65,6 +67,7 @@ public final class ServiceUtils {
      * @param <T> The expected type
      */
     @SuppressWarnings("unchecked")
+    @Nullable
     public static <T> T removeAsType(Map<String, Object> sourceMap, String key, Class<T> type) {
         Object o = sourceMap.remove(key);
         if (o == null) {
@@ -153,22 +156,21 @@ public final class ServiceUtils {
     }
 
     @SuppressWarnings("unchecked")
+    @Nullable
     public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
-        return (Map<String, Object>) sourceMap.remove(fieldName);
+        return removeAsType(sourceMap, fieldName, Map.class);
     }
 
-    @SuppressWarnings("unchecked")
     public static Map<String, Object> removeFromMapOrThrowIfNull(Map<String, Object> sourceMap, String fieldName) {
-        Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
+        Map<String, Object> value = removeFromMap(sourceMap, fieldName);
         if (value == null) {
             throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, fieldName);
         }
         return value;
     }
 
-    @SuppressWarnings("unchecked")
     public static Map<String, Object> removeFromMapOrDefaultEmpty(Map<String, Object> sourceMap, String fieldName) {
-        Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
+        Map<String, Object> value = removeFromMap(sourceMap, fieldName);
         if (value == null) {
             return new HashMap<>();
         }
@@ -189,6 +191,12 @@ public final class ServiceUtils {
         }
     }
 
+    public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String field, SettingsScope scope) {
+        if (settingsMap != null && settingsMap.isEmpty() == false) {
+            throw ServiceUtils.unknownSettingsError(settingsMap, field, scope);
+        }
+    }
+
     public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String field, String scope) {
         if (settingsMap != null && settingsMap.isEmpty() == false) {
             throw ServiceUtils.unknownSettingsError(settingsMap, field, scope);
@@ -202,6 +210,16 @@ public final class ServiceUtils {
             RestStatus.BAD_REQUEST,
             config,
             serviceName
+        );
+    }
+
+    public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String field, SettingsScope scope) {
+        return new ElasticsearchStatusException(
+            "Configuration contains unknown settings [{}] while parsing field [{}] for settings [{}]",
+            RestStatus.BAD_REQUEST,
+            config,
+            field,
+            scope
         );
     }
 
@@ -222,16 +240,7 @@ public final class ServiceUtils {
         );
     }
 
-    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(
-        Class<? extends Model> invalidModelType
-    ) {
-        throw new ElasticsearchStatusException(
-            Strings.format("Can't update chat completion details for model with unexpected type %s", invalidModelType),
-            RestStatus.BAD_REQUEST
-        );
-    }
-
-    public static String missingOneOfSettingsErrorMsg(List<String> settingNames, String scope) {
+    public static String missingOneOfSettingsErrorMsg(List<String> settingNames, SettingsScope scope) {
         return Strings.format("[%s] does not contain one of the required settings [%s]", scope, String.join(", ", settingNames));
     }
 
@@ -254,19 +263,19 @@ public final class ServiceUtils {
         );
     }
 
-    public static String invalidUrlErrorMsg(String url, String settingName, String settingScope, String error) {
+    public static String invalidUrlErrorMsg(String url, String settingName, SettingsScope settingScope, String error) {
         return Strings.format("[%s] Invalid url [%s] received for field [%s]. Error: %s", settingScope, url, settingName, error);
     }
 
-    public static String mustBeNonEmptyString(String settingName, String scope) {
+    public static String mustBeNonEmptyString(String settingName, SettingsScope scope) {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
-    public static String mustBeNonEmptyMap(String settingName, String scope) {
+    public static String mustBeNonEmptyMap(String settingName, SettingsScope scope) {
         return Strings.format("[%s] Invalid value empty map. [%s] must be a non-empty map", scope, settingName);
     }
 
-    public static String invalidTimeValueMsg(String timeValueStr, String settingName, String scope, String exceptionMsg) {
+    public static String invalidTimeValueMsg(String timeValueStr, String settingName, SettingsScope scope, String exceptionMsg) {
         return Strings.format(
             "[%s] Invalid time value [%s]. [%s] must be a valid time value string: %s",
             scope,
@@ -276,27 +285,18 @@ public final class ServiceUtils {
         );
     }
 
-    public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredValues) {
-        var copyOfRequiredValues = requiredValues.clone();
-        Arrays.sort(copyOfRequiredValues);
-
-        return Strings.format(
-            "[%s] Invalid value [%s] received. [%s] must be one of [%s]",
-            scope,
-            invalidType,
-            settingName,
-            String.join(", ", copyOfRequiredValues)
-        );
-    }
-
     public static String invalidSettingError(String settingName, String scope) {
         return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
     }
 
-    public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
-        String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+    public static String invalidSettingError(String settingName, SettingsScope scope) {
+        return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
+    }
 
-        return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+    public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
+        String parsedUrl = extractRequiredString(map, fieldName, SERVICE_SETTINGS, validationException);
+
+        return convertToUri(parsedUrl, fieldName, SERVICE_SETTINGS, validationException);
     }
 
     /**
@@ -308,11 +308,16 @@ public final class ServiceUtils {
      * @return the extracted URI or null if not present
      */
     public static URI extractOptionalUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
-        String parsedUrl = extractOptionalString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String parsedUrl = extractOptionalString(map, fieldName, SERVICE_SETTINGS, validationException);
+        return convertToUri(parsedUrl, fieldName, SERVICE_SETTINGS, validationException);
     }
 
-    public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
+    public static URI convertToUri(
+        @Nullable String url,
+        String settingName,
+        SettingsScope settingScope,
+        ValidationException validationException
+    ) {
         try {
             return createOptionalUri(url);
         } catch (IllegalArgumentException cause) {
@@ -331,6 +336,22 @@ public final class ServiceUtils {
         }
     }
 
+    /**
+     * Creates a {@link URI}, reporting an invalid url with the same field-context message as {@link #convertToUri}. Intended for
+     * {@link org.elasticsearch.xcontent.ObjectParser}-based service settings, which throw directly instead of collecting errors into a
+     * {@link ValidationException} but should still tell the user which service settings field held the unparsable url.
+     *
+     * @param url the url to parse; must not be {@code null}
+     * @param settingName the name of the service settings field the url came from, used in the error message
+     */
+    public static URI createUri(String url, String settingName) throws IllegalArgumentException {
+        try {
+            return createUri(url);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(invalidUrlErrorMsg(url, settingName, SERVICE_SETTINGS, e.getMessage()), e);
+        }
+    }
+
     public static URI createOptionalUri(String url) {
         if (url == null) {
             return null;
@@ -339,10 +360,22 @@ public final class ServiceUtils {
         return createUri(url);
     }
 
+    /**
+     * Builds the URI while keeping colons in path segments unencoded. The HttpClient 4.x {@code URIBuilder} never percent-encoded
+     * colons in path segments (they are legal per RFC 3986), but the 5.x builder does, which breaks Google-style method URLs
+     * such as {@code models/gemini-pro:generateContent}.
+     *
+     * TODO (httpclient5 migration): this post-processing also un-encodes a literal ':' contained in user-provided segments
+     * (project/model ids), exactly matching the 4.x behavior. Revisit if the library ever offers per-segment encoding control.
+     */
+    public static URI buildUriPreservingColons(URIBuilder uriBuilder) throws URISyntaxException {
+        return new URI(uriBuilder.build().toString().replace("%3A", ":"));
+    }
+
     public static SecureString extractRequiredSecureString(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         String requiredField = extractRequiredString(map, settingName, scope, validationException);
@@ -357,7 +390,7 @@ public final class ServiceUtils {
     public static SecureString extractOptionalSecureString(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         String optionalField = extractOptionalString(map, settingName, scope, validationException);
@@ -369,7 +402,11 @@ public final class ServiceUtils {
         return new SecureString(optionalField.toCharArray());
     }
 
-    public static SimilarityMeasure extractSimilarity(Map<String, Object> map, String scope, ValidationException validationException) {
+    public static SimilarityMeasure extractSimilarity(
+        Map<String, Object> map,
+        SettingsScope scope,
+        ValidationException validationException
+    ) {
         return extractOptionalEnum(
             map,
             SIMILARITY,
@@ -395,9 +432,9 @@ public final class ServiceUtils {
         }
 
         if (requiredField == null) {
-            validationException.addValidationError(missingSettingErrorMsg(settingName, scope));
+            validationException.addValidationError(InferenceUtils.missingSettingErrorMsg(settingName, scope));
         } else if (requiredField.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
+            validationException.addValidationError(InferenceUtils.mustBeNonEmptyString(settingName, scope));
         }
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
@@ -405,6 +442,15 @@ public final class ServiceUtils {
         }
 
         return requiredField;
+    }
+
+    public static String extractRequiredString(
+        Map<String, Object> map,
+        String settingName,
+        SettingsScope scope,
+        ValidationException validationException
+    ) {
+        return extractRequiredString(map, settingName, scope.toString(), validationException);
     }
 
     public static String extractOptionalEmptyString(Map<String, Object> map, String settingName, ValidationException validationException) {
@@ -428,13 +474,22 @@ public final class ServiceUtils {
         return InferenceUtils.extractOptionalString(map, settingName, scope, validationException);
     }
 
+    public static String extractOptionalString(
+        Map<String, Object> map,
+        String settingName,
+        SettingsScope scope,
+        ValidationException validationException
+    ) {
+        return InferenceUtils.extractOptionalString(map, settingName, scope.toString(), validationException);
+    }
+
     public static Integer extractRequiredPositiveInteger(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
-        return InferenceUtils.extractRequiredPositiveInteger(map, settingName, scope, validationException);
+        return InferenceUtils.extractRequiredPositiveInteger(map, settingName, scope.toString(), validationException);
     }
 
     @SuppressWarnings("unchecked")
@@ -452,9 +507,11 @@ public final class ServiceUtils {
         }
 
         if (requiredField == null) {
-            validationException.addValidationError(missingSettingErrorMsg(settingName, scope));
+            validationException.addValidationError(InferenceUtils.missingSettingErrorMsg(settingName, scope));
         } else if (requiredField.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyMap(settingName, scope));
+            validationException.addValidationError(
+                Strings.format("[%s] Invalid value empty map. [%s] must be a non-empty map", scope, settingName)
+            );
         }
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
@@ -462,6 +519,15 @@ public final class ServiceUtils {
         }
 
         return requiredField;
+    }
+
+    public static Map<String, Object> extractRequiredMap(
+        Map<String, Object> map,
+        String settingName,
+        SettingsScope scope,
+        ValidationException validationException
+    ) {
+        return extractRequiredMap(map, settingName, scope.toString(), validationException);
     }
 
     @SuppressWarnings("unchecked")
@@ -491,7 +557,7 @@ public final class ServiceUtils {
     public static List<Tuple<String, String>> extractOptionalListOfStringTuples(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
@@ -549,7 +615,7 @@ public final class ServiceUtils {
     private static void validateString(
         Object tupleValue,
         String settingName,
-        String scope,
+        SettingsScope scope,
         String elementDescription,
         int index,
         ValidationException validationException
@@ -716,17 +782,19 @@ public final class ServiceUtils {
         String settingName,
         int minValue,
         int maxValue,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
 
         if (field != null && field < minValue) {
-            validationException.addValidationError(mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, field, minValue));
+            validationException.addValidationError(
+                mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope.toString(), field, minValue)
+            );
             return null;
         }
         if (field != null && field > maxValue) {
-            validationException.addValidationError(mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue));
+            validationException.addValidationError(mustBeLessThanOrEqualNumberErrorMessage(settingName, scope.toString(), field, maxValue));
             return null;
         }
 
@@ -736,7 +804,7 @@ public final class ServiceUtils {
     public static Integer extractOptionalPositiveInteger(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         return extractOptionalInteger(map, settingName, scope, validationException, true);
@@ -746,13 +814,15 @@ public final class ServiceUtils {
         Map<String, Object> map,
         String settingName,
         int maxValue,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         Integer optionalField = extractOptionalPositiveInteger(map, settingName, scope, validationException);
 
         if (optionalField != null && optionalField > maxValue) {
-            validationException.addValidationError(mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, optionalField, maxValue));
+            validationException.addValidationError(
+                mustBeLessThanOrEqualNumberErrorMessage(settingName, scope.toString(), optionalField, maxValue)
+            );
         }
 
         return optionalField;
@@ -761,7 +831,7 @@ public final class ServiceUtils {
     public static Integer extractOptionalInteger(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         return extractOptionalInteger(map, settingName, scope, validationException, false);
@@ -770,7 +840,7 @@ public final class ServiceUtils {
     private static Integer extractOptionalInteger(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException,
         boolean mustBePositive
     ) {
@@ -782,7 +852,7 @@ public final class ServiceUtils {
         }
 
         if (optionalField != null && mustBePositive && optionalField <= 0) {
-            validationException.addValidationError(mustBeAPositiveIntegerErrorMessage(settingName, scope, optionalField));
+            validationException.addValidationError(mustBeAPositiveIntegerErrorMessage(settingName, scope.toString(), optionalField));
             return null;
         }
 
@@ -798,7 +868,7 @@ public final class ServiceUtils {
         String settingName,
         @Nullable Double minValue,
         @Nullable Double maxValue,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
@@ -809,11 +879,15 @@ public final class ServiceUtils {
         }
 
         if (doubleReturn != null && minValue != null && doubleReturn < minValue) {
-            validationException.addValidationError(mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, doubleReturn, minValue));
+            validationException.addValidationError(
+                mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope.toString(), doubleReturn, minValue)
+            );
         }
 
         if (doubleReturn != null && maxValue != null && doubleReturn > maxValue) {
-            validationException.addValidationError(mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, doubleReturn, maxValue));
+            validationException.addValidationError(
+                mustBeLessThanOrEqualNumberErrorMessage(settingName, scope.toString(), doubleReturn, maxValue)
+            );
         }
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
@@ -826,7 +900,7 @@ public final class ServiceUtils {
     public static <E extends Enum<E>> E extractRequiredEnum(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         InferenceUtils.EnumConstructor<E> constructor,
         EnumSet<E> validValues,
         ValidationException validationException
@@ -839,7 +913,7 @@ public final class ServiceUtils {
         }
 
         if (enumReturn == null) {
-            validationException.addValidationError(missingSettingErrorMsg(settingName, scope));
+            validationException.addValidationError(missingSettingErrorMsg(settingName, scope.toString()));
         }
 
         return enumReturn;
@@ -848,7 +922,7 @@ public final class ServiceUtils {
     public static Long extractOptionalPositiveLong(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         // We don't want callers to handle the implementation detail that a long is expected (also treat integers like a long)
@@ -889,6 +963,17 @@ public final class ServiceUtils {
         return InferenceUtils.extractOptionalEnum(map, settingName, scope, constructor, validValues, validationException);
     }
 
+    public static <E extends Enum<E>> E extractOptionalEnum(
+        Map<String, Object> map,
+        String settingName,
+        SettingsScope scope,
+        InferenceUtils.EnumConstructor<E> constructor,
+        EnumSet<E> validValues,
+        ValidationException validationException
+    ) {
+        return InferenceUtils.extractOptionalEnum(map, settingName, scope.toString(), constructor, validValues, validationException);
+    }
+
     public static Boolean extractOptionalBoolean(Map<String, Object> map, String settingName, ValidationException validationException) {
         return ServiceUtils.removeAsType(map, settingName, Boolean.class, validationException);
     }
@@ -896,7 +981,7 @@ public final class ServiceUtils {
     public static TimeValue extractOptionalTimeValue(
         Map<String, Object> map,
         String settingName,
-        String scope,
+        SettingsScope scope,
         ValidationException validationException
     ) {
         var timeValueString = extractOptionalString(map, settingName, scope, validationException);
@@ -913,7 +998,7 @@ public final class ServiceUtils {
         return null;
     }
 
-    public static String mustBeAPositiveLongErrorMessage(String settingName, String scope, Long value) {
+    public static String mustBeAPositiveLongErrorMessage(String settingName, SettingsScope scope, Long value) {
         return format("[%s] Invalid value [%s]. [%s] must be a positive long", scope, value, settingName);
     }
 
@@ -1003,12 +1088,59 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion with reasoning inputs");
     }
 
+    public static void throwUnsupportedCacheControlUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with cache control");
+    }
+
+    public static void throwUnsupportedSessionIdUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with session id");
+    }
+
+    public static void throwUnsupportedTemplateUnifiedCompletionOperation(String serviceName) {
+        throw createUnsupportedTemplateUnifiedCompletionException(serviceName);
+    }
+
+    /**
+     * For services that do not go through {@code SenderService} and therefore report failures through a listener instead of
+     * throwing.
+     */
+    public static UnsupportedOperationException createUnsupportedTemplateUnifiedCompletionException(String serviceName) {
+        return createUnsupportedTaskOperationException(serviceName, "unified completion with templates");
+    }
+
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }
 
+    public static void throwUnsupportedDecisionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "decision");
+    }
+
+    public static void throwUnsupportedDocumentExtractionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "document extraction");
+    }
+
     private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
-        throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
+        throw createUnsupportedTaskOperationException(serviceName, taskName);
+    }
+
+    private static UnsupportedOperationException createUnsupportedTaskOperationException(String serviceName, String taskName) {
+        return new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
+    }
+
+    public static ElasticsearchStatusException createUnsupportedNonStreamingChatCompletionException(String serviceName) {
+        return new ElasticsearchStatusException(
+            "The [{}] service does not support non-streaming for the chat completion task type",
+            RestStatus.BAD_REQUEST,
+            serviceName
+        );
+    }
+
+    public static ElasticsearchStatusException createUnsupportedMultimodalRerankException(String serviceName) {
+        return new ElasticsearchStatusException(
+            Strings.format("The %s service does not support rerank with non-text inputs or queries", serviceName),
+            RestStatus.BAD_REQUEST
+        );
     }
 
     public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {
@@ -1083,19 +1215,39 @@ public final class ServiceUtils {
     }
 
     /**
-     * Resolves the inference timeout based on input type and cluster settings.
+     * Resolves the inference timeout based on input type, task type and cluster settings. If the supplied timeout is not {@code null} or
+     * {@link BaseInferenceActionRequest#TIMEOUT_NOT_DETERMINED}, the supplied timeout is returned.
+     * <p>
+     * If the supplied timeout is {@code null} or {@link BaseInferenceActionRequest#TIMEOUT_NOT_DETERMINED} <b>and</b> the {@link InputType}
+     * is {@link InputType#SEARCH} or {@link InputType#INTERNAL_SEARCH}, the configured {@link InferencePlugin#INFERENCE_QUERY_TIMEOUT}
+     * from the cluster settings is returned.
+     * <p>
+     * If the {@link InputType} is not {@link InputType#SEARCH} or {@link InputType#INTERNAL_SEARCH}, the default timeout for the
+     * {@link TaskType} is returned.
      *
-     * @param timeout The provided timeout value, may be null
-     * @param inputType The input type for the inference request
+     * @param timeout        The provided timeout value, may be null
+     * @param inputType      The input type for the inference request
      * @param clusterService The cluster service to get timeout settings from
+     * @param taskType       The task type of the request
      * @return The resolved timeout value
      */
-    public static TimeValue resolveInferenceTimeout(@Nullable TimeValue timeout, InputType inputType, ClusterService clusterService) {
-        if (timeout == null) {
+    public static TimeValue resolveInferenceTimeout(
+        @Nullable TimeValue timeout,
+        InputType inputType,
+        ClusterService clusterService,
+        TaskType taskType
+    ) {
+        if (timeout == null || timeout.equals(TIMEOUT_NOT_DETERMINED)) {
             if (inputType == InputType.SEARCH || inputType == InputType.INTERNAL_SEARCH) {
                 return clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
             } else {
-                return InferenceAction.Request.DEFAULT_TIMEOUT;
+                var defaultTimeoutForTaskType = BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType);
+                if (defaultTimeoutForTaskType.equals(TIMEOUT_NOT_DETERMINED)) {
+                    throw new IllegalArgumentException(
+                        Strings.format("Default inference timeout could not be determined for task type [%s]", taskType)
+                    );
+                }
+                return defaultTimeoutForTaskType;
             }
         }
         return timeout;

@@ -18,6 +18,37 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Limits the number of output rows. Generally written like {@code | LIMIT 10}.
+ * <p>
+ *     If a page fits in the limit then it is returned as is:
+ * </p>
+ * {@snippet lang="txt" :
+ *    | LIMIT 1000
+ * ┌────┬────┐   ┌────┬────┐
+ * │  a │  b │   │  a │  b │
+ * ├────┼────┤   ├────┼────┤
+ * │  1 │  1 │   │  1 │  1 │
+ * │  2 │  2 │ ⟶ │  2 │  2 │
+ * │  3 │  3 │   │  3 │  3 │
+ * │  4 │  4 │   │  4 │  4 │
+ * └────┴────┘   └────┴────┘
+ * }
+ * <p>
+ *     If it is longer then we keep the as many rows as we need
+ * </p>
+ * {@snippet lang="txt" :
+ *    | LIMIT 2
+ * ┌────┬────┐   ┌────┬────┐
+ * │  a │  b │   │  a │  b │
+ * ├────┼────┤   ├────┼────┤
+ * │  9 │  9 │   │  9 │  9 │
+ * │ 10 │ 10 │ ⟶ │ 10 │ 10 │
+ * │ 11 │ 11 │   └────┴────┘
+ * │ 12 │ 12 │
+ * └────┴────┘
+ * }
+ */
 public class LimitOperator implements Operator {
 
     /**
@@ -49,6 +80,14 @@ public class LimitOperator implements Operator {
 
         public Factory(int limit) {
             this.limiter = new Limiter(limit);
+        }
+
+        /**
+         * The limiter shared by every {@link LimitOperator} this factory creates. External sources
+         * may observe {@link Limiter#remaining()} to stop producing once the limit is filled.
+         */
+        public Limiter limiter() {
+            return limiter;
         }
 
         @Override
@@ -135,6 +174,16 @@ public class LimitOperator implements Operator {
             "limit",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder, params)
+        )
+            .required("limit", ProfileSchema.integer())
+            .required("limit_remaining", ProfileSchema.integer())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         /**
          * Total number of position that are emitted by this operator.
@@ -226,8 +275,7 @@ public class LimitOperator implements Operator {
             return rowsEmitted;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("limit", limit);
             builder.field("limit_remaining", limitRemaining);
@@ -235,6 +283,11 @@ public class LimitOperator implements Operator {
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

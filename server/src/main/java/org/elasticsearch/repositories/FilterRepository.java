@@ -24,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -54,6 +55,11 @@ public class FilterRepository implements Repository {
     @Override
     public RepositoryMetadata getMetadata() {
         return in.getMetadata();
+    }
+
+    @Override
+    public void setShardGenerationSizeListener(ShardGenerationSizeListener listener) {
+        in.setShardGenerationSizeListener(listener);
     }
 
     @Override
@@ -89,7 +95,7 @@ public class FilterRepository implements Repository {
 
     @Override
     public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,

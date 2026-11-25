@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -14,6 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.io.IOException;
+import java.util.Map;
 
 public record NoopResponseParser() implements CustomResponseParser {
 
@@ -42,5 +44,10 @@ public record NoopResponseParser() implements CustomResponseParser {
     @Override
     public InferenceServiceResults parse(HttpResult result) {
         return null;
+    }
+
+    @Override
+    public CustomResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException) {
+        return INSTANCE;
     }
 }

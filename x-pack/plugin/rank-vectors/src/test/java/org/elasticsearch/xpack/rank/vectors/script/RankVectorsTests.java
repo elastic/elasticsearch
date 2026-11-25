@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.vectors.script;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.script.field.vectors.BFloat16RankVectors;
 import org.elasticsearch.script.field.vectors.ByteRankVectors;
 import org.elasticsearch.script.field.vectors.FloatRankVectors;
 import org.elasticsearch.script.field.vectors.RankVectors;
@@ -58,9 +59,28 @@ public class RankVectorsTests extends ESTestCase {
         assertEquals(e.getMessage(), "use [float maxSimDotProduct(float[][] queryVector)] instead");
     }
 
+    /**
+     * Each query vector contributes only its best match against the document's vectors, and those per-query maxima are
+     * summed. An equivalence test between implementations cannot catch a change to that composition.
+     */
+    public void testMaxSimDotProductSumsPerQueryMaxima() {
+        float[][] docVectors = { { 1, 0 }, { 0, 1 } };
+        // dot products per query vector: [2, 0] -> max 2, [0, 3] -> max 3, [1, 1] -> max 1
+        float[][] queryVectors = { { 2, 0 }, { 0, 3 }, { 1, 1 } };
+
+        assertEquals(6.0f, newFloatVector(docVectors).maxSimDotProduct(queryVectors), 0.0f);
+        // these values are all exactly representable as bfloat16
+        assertEquals(6.0f, newBFloat16Vector(docVectors).maxSimDotProduct(queryVectors), 0.0f);
+    }
+
     static RankVectors newFloatVector(float[][] vector) {
         BytesRef magnitudes = magnitudes(vector.length, i -> (float) Math.sqrt(VectorUtil.dotProduct(vector[i], vector[i])));
         return new FloatRankVectors(VectorIterator.from(vector), magnitudes, vector.length, vector[0].length);
+    }
+
+    static RankVectors newBFloat16Vector(float[][] vector) {
+        BytesRef magnitudes = magnitudes(vector.length, i -> (float) Math.sqrt(VectorUtil.dotProduct(vector[i], vector[i])));
+        return new BFloat16RankVectors(VectorIterator.from(vector), magnitudes, vector.length, vector[0].length, null);
     }
 
     static RankVectors newByteVector(byte[][] vector) {

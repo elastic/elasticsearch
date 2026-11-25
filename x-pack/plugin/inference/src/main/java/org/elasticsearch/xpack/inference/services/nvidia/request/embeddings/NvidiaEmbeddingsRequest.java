@@ -7,19 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.request.embeddings;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 
 import java.net.URI;
@@ -33,7 +32,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the Nvidia embeddings endpoint.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class NvidiaEmbeddingsRequest implements DenseEmbeddingRequest {
+public class NvidiaEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
     private final NvidiaEmbeddingsModel model;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
@@ -61,9 +60,9 @@ public class NvidiaEmbeddingsRequest implements DenseEmbeddingRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(getURI());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(getURI()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(
                 new NvidiaEmbeddingsRequestEntity(
                     truncationResult.input(),
@@ -71,11 +70,10 @@ public class NvidiaEmbeddingsRequest implements DenseEmbeddingRequest {
                     extractInputTypeToUse(),
                     model.getTaskSettings().getTruncation()
                 )
-            ).getBytes(StandardCharsets.UTF_8)
+            ).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
@@ -104,7 +102,7 @@ public class NvidiaEmbeddingsRequest implements DenseEmbeddingRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
         return new NvidiaEmbeddingsRequest(truncator, truncatedInput, model, inputType);
     }

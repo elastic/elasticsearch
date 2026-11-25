@@ -22,9 +22,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
@@ -212,20 +214,32 @@ public class InferenceFunctionEvaluator {
                     case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
+                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext),
+                        InputType.UNSPECIFIED,
+                        // Folding embeds a single constant text, so the batch size is irrelevant here.
+                        InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
+                        textEmbedding.inputTimeout(),
+                        Source.EMPTY,
+                        false
                     );
                     case Embedding embedding -> new EmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(embedding.inputText(), foldContext),
                         embedding.inputDataType(),
-                        embedding.inputTimeout()
+                        InputType.UNSPECIFIED,
+                        // Folding embeds a single constant text, so the batch size is irrelevant here.
+                        InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
+                        embedding.inputTimeout(),
+                        Source.EMPTY,
+                        false
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(completion.prompt(), foldContext),
-                        completion.taskSettings().toFoldedMap(foldContext)
+                        completion.taskSettings().toFoldedMap(foldContext),
+                        completion.timeout()
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };

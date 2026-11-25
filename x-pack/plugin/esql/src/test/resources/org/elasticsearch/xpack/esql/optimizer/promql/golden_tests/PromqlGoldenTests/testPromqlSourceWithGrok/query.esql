@@ -1,0 +1,5 @@
+PROMQL index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",pod!="two"})
+| GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}"
+| URI_PARTS parts = _timeseries
+| DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa
+| LIMIT 1

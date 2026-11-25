@@ -289,7 +289,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     @Override
     public String toString() {
-        return indexResponses.isEmpty() ? Strings.toString(this) : "FieldCapabilitiesResponse{unmerged}";
+        return indexResponses.isEmpty() ? Strings.toTruncatedString(this) : "FieldCapabilitiesResponse{unmerged}";
     }
 
     public static class Builder {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -34,8 +35,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
     private ThreadPool.ThreadPoolType threadPoolType;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initThreadPoolType() throws Exception {
         threadPoolType = randomFrom(ThreadPool.ThreadPoolType.values());
     }
 
@@ -78,7 +78,12 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
         Settings settings = Settings.builder().put("node.name", "write").put("thread_pool.write.queue_size", "-1").build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new ThreadPool(
+            new ThreadContext(settings),
+            settings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        );
         assertThat(threadPool.info("write").getQueueSize(), is(nullValue()));
         terminate(threadPool);
     }

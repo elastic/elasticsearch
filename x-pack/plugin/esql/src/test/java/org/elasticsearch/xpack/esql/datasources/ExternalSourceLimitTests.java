@@ -22,10 +22,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -52,7 +59,7 @@ import static org.mockito.Mockito.when;
 public class ExternalSourceLimitTests extends ESTestCase {
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testMultiFileLimitOpensFewerFiles() throws Exception {
@@ -84,20 +91,15 @@ public class ExternalSourceLimitTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
         // With rowLimit=50, should stop after 1 file (100 rows >= 50)
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            50, // rowLimit
-            (Runnable r) -> r.run(),
-            fileList,
-            null,
-            null,
-            null
-        );
+            (Runnable r) -> r.run()
+        ).rowLimit(50).fileList(fileList).build();
 
         try (SourceOperator operator = factory.get(driverContext)) {
             List<Page> pages = drainOperator(operator);
@@ -143,16 +145,15 @@ public class ExternalSourceLimitTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
         // NO_LIMIT should read all files
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            fileList
-        );
+            (Runnable r) -> r.run()
+        ).fileList(fileList).build();
 
         try (SourceOperator operator = factory.get(driverContext)) {
             List<Page> pages = drainOperator(operator);
@@ -190,20 +191,15 @@ public class ExternalSourceLimitTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
         // Single file with rowLimit=10 — the LimitingIterator should stop early
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             50, // batchSize
             10,
-            10, // rowLimit
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            null
-        );
+            (Runnable r) -> r.run()
+        ).rowLimit(10).build();
 
         try (SourceOperator operator = factory.get(driverContext)) {
             List<Page> pages = drainOperator(operator);
@@ -230,7 +226,12 @@ public class ExternalSourceLimitTests extends ESTestCase {
         return pages;
     }
 
-    private static class RowGeneratingFormatReader implements FormatReader {
+    private static class RowGeneratingFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         private final AtomicInteger filesRead;
         private final int rowsPerFile;
 
@@ -301,6 +302,11 @@ public class ExternalSourceLimitTests extends ESTestCase {
 
     private static class StubStorageProvider implements StorageProvider {
         @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
         public StorageObject newObject(StoragePath path) {
             return stubObject(path);
         }
@@ -348,6 +354,19 @@ public class ExternalSourceLimitTests extends ESTestCase {
 
         private static StorageObject stubObject(StoragePath path) {
             return new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
+
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
                 @Override
                 public InputStream newStream() throws IOException {
                     return new ByteArrayInputStream(new byte[0]);

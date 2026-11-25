@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -27,7 +28,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -38,6 +41,9 @@ import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+import static org.elasticsearch.test.ESTestCase.asInstanceOf;
+import static org.elasticsearch.test.ESTestCase.assertEquals;
+import static org.elasticsearch.test.ESTestCase.assertNull;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public final class XContentTestUtils {
@@ -73,6 +79,21 @@ public final class XContentTestUtils {
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
             builder.map(map);
             return BytesReference.bytes(builder);
+        }
+    }
+
+    /**
+     * Asserts that a value read from {@link XContentParser#map()} or {@link #convertToMap} equals {@code expected}.
+     * <p>
+     * Those maps box a JSON number that fits in 32 bits as an {@link Integer} and a larger number as a {@link Long}, so the parsed
+     * value cannot be compared to a {@code long} with {@code assertEquals}. A null {@code expected} value requires {@code actual}
+     * to be null.
+     */
+    public static void assertLongValueEquals(Object actual, Long expected) {
+        if (expected == null) {
+            assertNull(actual);
+        } else {
+            assertEquals(expected.longValue(), asInstanceOf(Number.class, actual).longValue());
         }
     }
 
@@ -176,6 +197,15 @@ public final class XContentTestUtils {
             } else {
                 return path + ": the second element is not a map (got " + second + ")";
             }
+        } else if (first instanceof byte[] firstBytes) {
+            if (second instanceof byte[] secondBytes && Arrays.equals(firstBytes, secondBytes)) {
+                return null;
+            }
+            return path
+                + ": the byte arrays don't match: "
+                + summarizeByteArray(firstBytes)
+                + " != "
+                + (second instanceof byte[] sb ? summarizeByteArray(sb) : String.valueOf(second));
         } else {
             if (first.equals(second)) {
                 return null;
@@ -184,6 +214,13 @@ public final class XContentTestUtils {
             }
 
         }
+    }
+
+    /** Renders a length-prefixed hex preview, truncated, so failure messages don't dump multi-KB payloads. */
+    private static String summarizeByteArray(byte[] bytes) {
+        String hex = HexFormat.of().formatHex(bytes);
+        int previewHexChars = 32;
+        return "byte[" + bytes.length + "] 0x" + Strings.cleanTruncate(hex, previewHexChars) + (hex.length() > previewHexChars ? "…" : "");
     }
 
     /**

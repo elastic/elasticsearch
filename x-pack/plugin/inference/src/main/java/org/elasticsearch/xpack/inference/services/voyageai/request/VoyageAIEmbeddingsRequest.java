@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 
@@ -26,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIRequestUtils.decorateWithHeaders;
 
-public class VoyageAIEmbeddingsRequest implements DenseEmbeddingRequest {
+public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final List<String> input;
     private final InputType inputType;
@@ -40,20 +41,19 @@ public class VoyageAIEmbeddingsRequest implements DenseEmbeddingRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(embeddingsModel.uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(embeddingsModel.uri()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(
                 new VoyageAIEmbeddingsRequestEntity(
                     input,
                     inputType,
                     embeddingsModel.getServiceSettings(),
-                    embeddingsModel.getTaskSettings(),
-                    embeddingsModel.getServiceSettings().modelId()
+                    embeddingsModel.getTaskSettings()
                 )
-            ).getBytes(StandardCharsets.UTF_8)
+            ).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
         decorateWithHeaders(httpPost, embeddingsModel);
 
@@ -76,7 +76,7 @@ public class VoyageAIEmbeddingsRequest implements DenseEmbeddingRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

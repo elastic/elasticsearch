@@ -148,14 +148,14 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
         assertThat(group1.shardId(), equalTo(new ShardId("index-1", "uuid-1", 0)));
         assertThat(group1.allocatedNodes(), equalTo(List.of("node-1", "node-2")));
         assertFalse(group1.skipped());
-        assertThat(group1.reshardSplitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
+        assertThat(group1.splitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
         assertFalse(group1.preFiltered());
 
         SearchShardsGroup group2 = Iterables.get(newResponse.getGroups(), 1);
         assertThat(group2.shardId(), equalTo(new ShardId("index-2", "uuid-2", 7)));
         assertThat(group2.allocatedNodes(), equalTo(List.of("node-1")));
         assertFalse(group2.skipped());
-        assertThat(group2.reshardSplitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
+        assertThat(group2.splitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
         assertFalse(group2.preFiltered());
 
         TransportVersion version = TransportVersionUtils.randomCompatibleVersion();

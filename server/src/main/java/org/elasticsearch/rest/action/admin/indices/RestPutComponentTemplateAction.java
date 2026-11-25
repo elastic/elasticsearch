@@ -12,9 +12,10 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -30,17 +31,22 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComponentTemplateAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "create", "cause");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
+
     public static final String SUPPORTS_FAILURE_STORE_LIFECYCLE = "data_stream_options.failure_store.lifecycle";
     public static final String SUPPORTS_FAILURE_STORE = "data_stream_options.failure_store";
     private static final String COMPONENT_TEMPLATE_TRACKING_INFO = "component_template_tracking_info";
     public static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
     public static final String SUPPORTS_FROZEN_AFTER = "dlm.frozen_after";
+    public static final String FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER = "failure_store.lifecycle.frozen_after_rejected";
     private static final Set<String> CAPABILITIES = Set.of(
         SUPPORTS_FAILURE_STORE,
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
         COMPONENT_TEMPLATE_TRACKING_INFO,
         SUPPORTS_DOWNSAMPLING_METHOD,
-        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? SUPPORTS_FROZEN_AFTER : ""
+        SUPPORTS_FROZEN_AFTER,
+        FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER
     );
 
     @Override
@@ -71,4 +77,15 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return CAPABILITIES;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

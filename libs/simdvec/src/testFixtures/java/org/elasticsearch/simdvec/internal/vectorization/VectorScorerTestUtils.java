@@ -9,35 +9,39 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Random;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class VectorScorerTestUtils {
 
-    public static int[] generateFilteredOffsets(Random random, int numVectors, int filteredVectors) {
-        var allOffsets = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
-        for (int i = 0; i < filteredVectors; i++) {
-            int allOffsetsLength = allOffsets.size();
-            allOffsets.remove(random.nextInt(0, allOffsetsLength));
+    /** A mask over the first {@code count} vectors of a block with {@code filtered} of them, chosen at random, not selected. */
+    public static int generateFilteredMask(Random random, int count, int filtered) {
+        int[] positions = new int[count];
+        Arrays.setAll(positions, i -> i);
+        int mask = BulkMask.all(count);
+        for (int i = 0; i < filtered; i++) {
+            int pick = random.nextInt(i, count);
+            int dropped = positions[pick];
+            positions[pick] = positions[i];
+            mask &= ~(1 << dropped);
         }
-        return allOffsets.stream().mapToInt(i -> i).toArray();
+        return mask;
     }
 
     public record VectorData(
@@ -57,6 +61,12 @@ public class VectorScorerTestUtils {
     ) {}
 
     private VectorScorerTestUtils() {}
+
+    private static int stripedD2Q4DiscretizedDimensions(int dimensions) {
+        int queryDiscretized = (dimensions * 4 + 7) / 8 * 8 / 4;
+        int docDiscretized = (dimensions + 7) / 8 * 8;
+        return Math.max(queryDiscretized, docDiscretized);
+    }
 
     public static VectorData createBinarizedIndexData(
         float[] values,
@@ -79,7 +89,7 @@ public class VectorScorerTestUtils {
             centroid
         );
         // pack and store document bit vector
-        ESVectorUtil.packAsBinary(quantizationScratch, toIndex);
+        ESVectorUtil.pack1BitValues(quantizationScratch, toIndex);
 
         assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
 
@@ -108,7 +118,7 @@ public class VectorScorerTestUtils {
         );
 
         // pack and store the 4bit query vector
-        ESVectorUtil.transposeHalfByte(quantizationScratch, toQuery);
+        ESVectorUtil.stride4BitValues(quantizationScratch, toQuery);
         assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
 
         return new VectorData(toQuery, r.lowerInterval(), r.upperInterval(), r.additionalCorrection(), (short) r.quantizedComponentSum());
@@ -160,10 +170,18 @@ public class VectorScorerTestUtils {
         int dimensions,
         byte indexBits,
         int vectorPackedLengthInBytes,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
+        ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits);
+        if (bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+            quantEncoding = switch (indexBits) {
+                case 4 -> ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED;
+                case 2 -> ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED;
+                default -> quantEncoding;
+            };
+        }
         final float[] residualScratch = new float[dimensions];
-        final int[] scratch = new int[ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
+        final int[] scratch = new int[quantEncoding.discretizedDimensions(dimensions)];
         final byte[] qVector = new byte[vectorPackedLengthInBytes];
 
         OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
@@ -173,12 +191,7 @@ public class VectorScorerTestUtils {
             indexBits,
             centroid
         );
-        if (indexBits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
-            ESVectorUtil.transposeHalfByte(scratch, qVector);
-        } else {
-            ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).pack(scratch, qVector);
-        }
-
+        quantEncoding.pack(scratch, qVector);
         return new OSQVectorData(
             qVector,
             result.lowerInterval(),
@@ -227,10 +240,12 @@ public class VectorScorerTestUtils {
         byte queryBits,
         int queryVectorPackedLengthInBytes,
         byte indexBits,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
         final float[] residualScratch = new float[dimensions];
-        final int[] scratch = new int[ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
+        final int[] scratch = new int[indexBits == 2 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED
+            ? stripedD2Q4DiscretizedDimensions(dimensions)
+            : ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
 
         OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
             query,
@@ -240,8 +255,10 @@ public class VectorScorerTestUtils {
             centroid
         );
         final byte[] quantizeQuery = new byte[queryVectorPackedLengthInBytes];
-        if (indexBits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
-            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+        if (indexBits == 1 && queryBits == 1) {
+            ESVectorUtil.pack1BitValues(scratch, quantizeQuery);
+        } else if ((indexBits == 2 || indexBits == 4) && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+            ESVectorUtil.stride4BitValues(scratch, quantizeQuery);
         } else {
             ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).packQuery(scratch, quantizeQuery);
         }
@@ -293,11 +310,10 @@ public class VectorScorerTestUtils {
     }
 
     public static void randomVector(Random random, float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = random.nextFloat();
-        }
-        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
-            VectorUtil.l2normalize(vector);
+        if (vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN) {
+            VectorTestUtils.randomFloatVector(random, vector);
+        } else {
+            VectorTestUtils.randomNormalizedFloatVector(random, vector);
         }
     }
 
@@ -404,8 +420,8 @@ public class VectorScorerTestUtils {
         }
 
         @Override
-        public Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding getScalarEncoding() {
-            return Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
+        public QuantizedByteVectorValues.ScalarEncoding getScalarEncoding() {
+            return QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE;
         }
 
         @Override

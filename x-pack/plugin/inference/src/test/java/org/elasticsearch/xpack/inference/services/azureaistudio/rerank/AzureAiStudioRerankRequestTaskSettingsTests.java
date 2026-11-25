@@ -27,7 +27,7 @@ public class AzureAiStudioRerankRequestTaskSettingsTests extends ESTestCase {
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
         assertThat(
-            AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of())),
+            AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>()),
             is(AzureAiStudioRerankRequestTaskSettings.EMPTY_SETTINGS)
         );
     }

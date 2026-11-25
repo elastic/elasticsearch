@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -28,6 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 
 public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
@@ -41,21 +41,28 @@ public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(300);
 
     public static GoogleVertexAiRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String model = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GoogleVertexAiService.NAME,
-            context
-        );
+        var projectId = extractRequiredString(map, PROJECT_ID, SERVICE_SETTINGS, validationException);
+        var modelId = extractOptionalString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new GoogleVertexAiRerankServiceSettings(projectId, model, rateLimitSettings);
+        return new GoogleVertexAiRerankServiceSettings(projectId, modelId, rateLimitSettings);
+    }
+
+    @Override
+    public GoogleVertexAiRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        ValidationException validationException = new ValidationException();
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+        validationException.throwIfValidationErrorsExist();
+        return new GoogleVertexAiRerankServiceSettings(this.projectId, this.modelId, extractedRateLimitSettings);
     }
 
     private final String projectId;
@@ -144,5 +151,10 @@ public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
     @Override
     public int hashCode() {
         return Objects.hash(projectId, modelId, rateLimitSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

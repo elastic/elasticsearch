@@ -1,0 +1,6 @@
+pr: 151614
+summary: Support EKS Pod Identity credentials in the S3 repository
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 106484

@@ -86,16 +86,14 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         Answer<?> returnResponse = invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.response(
-                    SearchHits.unpooled(
-                        new SearchHit[] { SearchHit.unpooled(1), SearchHit.unpooled(2) },
-                        new TotalHits(3, TotalHits.Relation.EQUAL_TO),
-                        1
-                    )
-                ).scrollId(scrollId).build()
+            var hits = new SearchHits(
+                new SearchHit[] { new SearchHit(1), new SearchHit(2) },
+                new TotalHits(3, TotalHits.Relation.EQUAL_TO),
+                1
             );
+            var response = SearchResponseUtils.response(hits).scrollId(scrollId).build();
+            hits.decRef(); // transfer ownership to response
+            ActionListener.respondAndRelease(listener, response);
             return null;
         };
         doAnswer(returnResponse).when(client).search(eq(request), any());

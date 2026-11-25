@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.ql.util;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterAware.QualifiedIndexExpression;
 
 import static org.elasticsearch.xpack.ql.util.StringUtils.isQualified;
 import static org.elasticsearch.xpack.ql.util.StringUtils.qualifyAndJoinIndices;
-import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 public class RemoteClusterUtilsTests extends ESTestCase {
     public void testSplitQualifiedIndex() {
         String cluster = randomAlphaOfLength(20);
         String index = randomAlphaOfLength(30);
-        assertEquals(Tuple.tuple(cluster, index), splitQualifiedIndex(cluster + ":" + index));
+        assertEquals(new QualifiedIndexExpression(cluster, index), RemoteClusterAware.splitIndexName(cluster + ":" + index));
     }
 
     public void testQualifyAndJoinIndices() {

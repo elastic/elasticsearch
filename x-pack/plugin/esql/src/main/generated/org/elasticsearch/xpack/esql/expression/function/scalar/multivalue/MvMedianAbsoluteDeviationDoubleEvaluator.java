@@ -40,14 +40,14 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
     }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         if (valueCount == 1) {
           double value = v.getDouble(first);
@@ -77,7 +77,7 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
     }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -107,14 +107,14 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
   public Block evalSingleValuedNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         assert valueCount == 1;
         int first = v.getFirstValueIndex(p);
         double value = v.getDouble(first);
@@ -132,7 +132,7 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
   public Block evalSingleValuedNotNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -152,14 +152,14 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
   private Block evalAscendingNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         double result = MvMedianAbsoluteDeviation.ascending(work, v, first, valueCount);
         builder.appendDouble(result);
@@ -174,7 +174,7 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
   private Block evalAscendingNotNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);

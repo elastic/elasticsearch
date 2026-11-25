@@ -1,0 +1,30 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "across_series_reduction",
+  "name" : "topk",
+  "description" : "Returns `k` time series with the highest values, keeping their full label set. When used with `by`, `topk` ranks independently within each group.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "k",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Number of series to keep."
+        },
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "topk(3, http_requests_total)"
+  ],
+  "snapshot_only" : false
+}

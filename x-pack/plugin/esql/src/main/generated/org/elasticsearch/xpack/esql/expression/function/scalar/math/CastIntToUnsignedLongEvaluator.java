@@ -61,12 +61,13 @@ public final class CastIntToUnsignedLongEvaluator implements ExpressionEvaluator
   }
 
   public LongBlock eval(int positionCount, IntBlock vBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (vBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -82,7 +83,7 @@ public final class CastIntToUnsignedLongEvaluator implements ExpressionEvaluator
   }
 
   public LongVector eval(int positionCount, IntVector vVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int v = vVector.getInt(p);
         result.appendLong(p, Cast.castIntToUnsignedLong(v));
@@ -103,7 +104,7 @@ public final class CastIntToUnsignedLongEvaluator implements ExpressionEvaluator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

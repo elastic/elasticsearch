@@ -17,14 +17,16 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -40,7 +42,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -48,7 +49,9 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -63,6 +66,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -70,6 +74,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -90,7 +95,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements IndicesRequest.Replaceable {
+    public static class Request extends UntypedActionRequest implements IndicesRequest.Replaceable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
@@ -98,6 +103,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         private EnumSet<IndexMode> indexModes = EnumSet.noneOf(IndexMode.class);
         private ResolvedIndexExpressions resolvedIndexExpressions = null;
+        @Nullable
+        private transient TargetProjects resolvedTargetProjects = null;
         private String projectRouting;
 
         public Request(String[] names) {
@@ -200,6 +207,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public ResolvedIndexExpressions getResolvedIndexExpressions() {
             return resolvedIndexExpressions;
+        }
+
+        @Override
+        public void setResolvedTargetProjects(TargetProjects targetProjects) {
+            this.resolvedTargetProjects = targetProjects;
+        }
+
+        @Override
+        @Nullable
+        public TargetProjects getResolvedTargetProjects() {
+            return resolvedTargetProjects;
         }
 
         @Override
@@ -584,6 +602,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
         private static final Logger logger = LogManager.getLogger(TransportAction.class);
 
+        private final Executor searchCoordinationExecutor;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final ProjectResolver projectResolver;
@@ -600,7 +619,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             IndexNameExpressionResolver indexNameExpressionResolver,
             CrossProjectModeDecider crossProjectModeDecider
         ) {
-            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(
+                NAME,
+                transportService,
+                actionFilters,
+                Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+            );
+            this.searchCoordinationExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.projectResolver = projectResolver;
@@ -611,10 +637,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
             final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+            final ClusterBlockException blockException = projectState.blocks()
+                .globalBlockedException(projectState.projectId(), ClusterBlockLevel.METADATA_READ);
+            if (blockException != null) {
+                listener.onFailure(blockException);
+                return;
+            }
             final IndicesOptions originalIndicesOptions = request.indicesOptions();
             final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
@@ -659,7 +692,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     OriginalIndices originalIndices = remoteIndices.getValue();
                     var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         clusterAlias,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        searchCoordinationExecutor,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
@@ -770,7 +803,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
-            assert indicesOptions.indexAbstractionOptions().resolveViews() == false : "Views are not supported in ResolveIndexAction";
+            assert indicesOptions.indexAbstractionOptions().resolveViews() == false
+                && indicesOptions.indexAbstractionOptions().resolveDatasets() == false
+                : "Views and datasets are not supported in ResolveIndexAction";
             Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(
                 projectState.metadata(),
                 indicesOptions,
@@ -797,7 +832,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedDataStream> dataStreams,
             Set<IndexMode> indexModes
         ) {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
             for (Map.Entry<String, Response> responseEntry : remoteResponses.entrySet()) {
+                Set<String> localIndexNames = new HashSet<>();
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();
                 for (ResolvedIndex index : response.indices) {
@@ -806,13 +843,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         continue;
                     }
                     indices.add(index.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getName())));
+                    localIndexNames.add(index.getName());
                 }
-                Set<String> indexNames = indices.stream().map(ResolvedIndexAbstraction::getName).collect(Collectors.toSet());
                 for (ResolvedAlias alias : response.aliases) {
                     if (indexModes.isEmpty() == false) {
                         // We filter out indices that are not included in the main index list after index mode filtering
                         String[] filteredIndices = Arrays.stream(alias.getIndices())
-                            .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
+                            .filter(localIndexNames::contains)
                             .toArray(String[]::new);
                         if (filteredIndices.length == 0) {
                             // If this alias points to no indices after filtering, we skip it
@@ -828,7 +865,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     if (indexModes.isEmpty() == false) {
                         // We filter out indices that are not included in the main index list after index mode filtering
                         String[] filteredBackingIndices = Arrays.stream(dataStream.getBackingIndices())
-                            .filter(idxName -> indexNames.contains(RemoteClusterAware.buildRemoteIndexName(clusterAlias, idxName)))
+                            .filter(localIndexNames::contains)
                             .toArray(String[]::new);
                         if (filteredBackingIndices.length == 0) {
                             // If this data stream points to no backing indices after filtering, we skip it

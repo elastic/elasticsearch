@@ -68,12 +68,13 @@ public final class RoundToInt3Evaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock fieldBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -89,7 +90,7 @@ public final class RoundToInt3Evaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int field = fieldVector.getInt(p);
         result.appendInt(p, RoundToInt.process(field, this.p0, this.p1, this.p2));
@@ -110,7 +111,7 @@ public final class RoundToInt3Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

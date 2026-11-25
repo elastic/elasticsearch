@@ -12,29 +12,31 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceResponseHandler;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.request.rerank.HuggingFaceRerankRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceRerankResponseEntity;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 /**
  * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the hugging face model type.
@@ -46,9 +48,9 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
     private static final String INVALID_REQUEST_TYPE_MESSAGE = "Invalid request type: expected HuggingFace %s request but got %s";
     public static final String COMPLETION_ERROR_PREFIX = "Hugging Face completions";
     static final String USER_ROLE = "user";
-    static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+    static final ResponseHandler COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
         "hugging face completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
     private static final ResponseHandler RERANK_HANDLER = new HuggingFaceResponseHandler("hugging face rerank", (request, response) -> {
         if ((request instanceof HuggingFaceRerankRequest) == false) {
@@ -78,8 +80,8 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             overriddenModel,
             RERANK_HANDLER,
             inputs -> new HuggingFaceRerankRequest(
-                inputs.getQuery(),
-                inputs.getChunks(),
+                inputs.getQueryAsString(),
+                inputs.getDocsAsStrings(),
                 inputs.getReturnDocuments(),
                 inputs.getTopN(),
                 model
@@ -96,27 +98,37 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             "hugging face text embeddings",
             HuggingFaceEmbeddingsResponseEntity::fromResponse
         );
-        var requestCreator = HuggingFaceRequestManager.of(
+        var requestManager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
             model,
             responseHandler,
-            serviceComponents.truncator(),
-            serviceComponents.threadPool()
+            (embeddingsInput) -> new HuggingFaceEmbeddingsRequest(
+                serviceComponents.truncator(),
+                truncate(embeddingsInput.getTextInputs(), model.getTokenLimit()),
+                model
+            ),
+            EmbeddingsInput.class
         );
         var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, model.getInferenceEntityId());
-        return new SenderExecutableAction(sender, requestCreator, errorMessage);
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 
     @Override
     public ExecutableAction create(HuggingFaceElserModel model) {
         var responseHandler = new HuggingFaceResponseHandler("hugging face elser", HuggingFaceElserResponseEntity::fromResponse);
-        var requestCreator = HuggingFaceRequestManager.of(
+        var requestManager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
             model,
             responseHandler,
-            serviceComponents.truncator(),
-            serviceComponents.threadPool()
+            (embeddingsInput) -> new HuggingFaceEmbeddingsRequest(
+                serviceComponents.truncator(),
+                truncate(embeddingsInput.getTextInputs(), model.getTokenLimit()),
+                model
+            ),
+            EmbeddingsInput.class
         );
         var errorMessage = buildErrorMessage(TaskType.SPARSE_EMBEDDING, model.getInferenceEntityId());
-        return new SenderExecutableAction(sender, requestCreator, errorMessage);
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 
     @Override
@@ -126,7 +138,7 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             model,
             COMPLETION_HANDLER,
             inputs -> new HuggingFaceUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var errorMessage = buildErrorMessage(TaskType.COMPLETION, model.getInferenceEntityId());

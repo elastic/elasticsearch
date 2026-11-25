@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
@@ -46,7 +47,7 @@ public class GrokProcessorGetAction {
 
     private GrokProcessorGetAction() {/* no instances */}
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         private final boolean sorted;
         private final String ecsCompatibility;
@@ -156,6 +157,8 @@ public class GrokProcessorGetAction {
     @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
 
+        private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("s", "ecs_compatibility");
+
         @Override
         public List<Route> routes() {
             return List.of(new Route(GET, "/_ingest/processor/grok"));
@@ -174,7 +177,13 @@ public class GrokProcessorGetAction {
                 throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
             }
             Request grokPatternsRequest = new Request(sorted, ecsCompatibility);
-            return channel -> client.executeLocally(INSTANCE, grokPatternsRequest, new RestToXContentListener<>(channel));
+            return channel -> client.execute(INSTANCE, grokPatternsRequest, new RestToXContentListener<>(channel));
         }
+
+        @Override
+        public Set<String> supportedQueryParameters() {
+            return SUPPORTED_QUERY_PARAMETERS;
+        }
+
     }
 }

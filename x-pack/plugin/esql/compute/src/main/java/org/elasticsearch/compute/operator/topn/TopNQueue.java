@@ -73,6 +73,23 @@ class TopNQueue extends PriorityQueue<TopNRow> implements Accountable, Releasabl
         }
     }
 
+    /**
+     * Pops every row from this queue and inserts it into {@code target},
+     * closing any row that is evicted or rejected by the target queue.
+     */
+    void popAllInto(TopNQueue target) {
+        Object[] heapArray = getHeapArray();
+        for (int i = 0; i < heapArray.length; i++) {
+            if (heapArray[i] instanceof TopNRow row) {
+                heapArray[i] = null;
+                TopNRow leftover = target.addRow(row);
+                if (leftover != null) {
+                    leftover.close();
+                }
+            }
+        }
+    }
+
     @Override
     public String toString() {
         return size() + "/" + topCount;

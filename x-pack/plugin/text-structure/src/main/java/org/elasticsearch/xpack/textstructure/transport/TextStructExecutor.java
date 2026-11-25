@@ -8,25 +8,34 @@
 package org.elasticsearch.xpack.textstructure.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.allocatedProcessors;
 
 /**
  * workaround for https://github.com/elastic/elasticsearch/issues/97916
  * TODO delete this entire class when we can
  */
 public class TextStructExecutor {
-    private final ThreadPool threadPool;
+    private final ThrottledTaskRunner analysisRunner;
 
-    @Inject
-    public TextStructExecutor(ThreadPool threadPool) {
-        this.threadPool = threadPool;
+    public TextStructExecutor(ThreadPool threadPool, Settings settings) {
+        this.analysisRunner = new ThrottledTaskRunner("find_structure", maxConcurrentAnalyses(settings), threadPool.generic());
+    }
+
+    /**
+     * Structure analysis is CPU-bound and single-threaded per request, holding its whole expanded sample on
+     * the heap for the duration. Admitting more analyses than there are processors therefore buys no
+     * throughput and multiplies peak heap by the number of extra requests.
+     */
+    private static int maxConcurrentAnalyses(Settings settings) {
+        return allocatedProcessors(settings);
     }
 
     /**
@@ -42,6 +51,10 @@ public class TextStructExecutor {
      * {@link ActionListener#completeWith(ActionListener, CheckedSupplier)}.
      */
     <T> void execute(ActionListener<T> listener, CheckedSupplier<T, Exception> supplier) {
-        threadPool.generic().execute(ActionRunnable.supply(listener, supplier));
+        analysisRunner.enqueueTask(ActionListener.wrap(releasable -> {
+            try (releasable) {
+                ActionListener.completeWith(listener, supplier);
+            }
+        }, listener::onFailure));
     }
 }

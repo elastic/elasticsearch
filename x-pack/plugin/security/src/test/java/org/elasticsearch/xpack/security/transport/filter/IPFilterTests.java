@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.InetAddresses;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -70,9 +72,8 @@ public class IPFilterTests extends ESTestCase {
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrail = mock(AuditTrail.class);
-        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
+            Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build(),
             Set.of(
                 IPFilter.HTTP_FILTER_ALLOW_SETTING,
                 IPFilter.HTTP_FILTER_DENY_SETTING,
@@ -84,9 +85,13 @@ public class IPFilterTests extends ESTestCase {
                 IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING,
                 IPFilter.PROFILE_FILTER_ALLOW_SETTING,
                 IPFilter.PROFILE_FILTER_DENY_SETTING,
-                RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED
+                RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED,
+                XPackSettings.AUDIT_ENABLED
             )
         );
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState, clusterService);
 
         httpTransport = mock(HttpServerTransport.class);
         TransportAddress httpAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9200);

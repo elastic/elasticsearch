@@ -42,13 +42,13 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         if (hasDocValues(fieldMapping, true)) {
             if (preferToLoadFromDocValues) {
                 return longValues(values, nullValue, testContext.isMultifield());
-            } else if (noPreference && params.syntheticSource()) {
+            } else if (noPreference && (params.syntheticSource() || params.isColumnarStored())) {
                 return bytesRefWkbValues(values, nullValue, testContext.isMultifield());
             }
         }
 
-        // stored source is used
-        if (params.syntheticSource() == false) {
+        // stored source is used (columnar_stored behaves like synthetic source, not raw stored source)
+        if (params.syntheticSource() == false && params.isColumnarStored() == false) {
             return exactValuesFromSource(values, nullValue, false);
         }
 
@@ -65,6 +65,15 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         String syntheticSourceKeep = (String) fieldMapping.getOrDefault("synthetic_source_keep", "none");
         if (syntheticSourceKeep.equals("all")) {
+            return exactValuesFromSource(values, nullValue, false);
+        }
+
+        // Once the mapping has the index.mapping.synthetic_source_keep to "arrays" and the field ancestor is an array
+        // we have to mime what DocumentParser does, which means grab the original value from _ignored_source.
+        // Multi fields are not affected since they are indexed in their own doc values.
+        if (indexKeepsArray(getSettingsForParams().build())
+            && testContext.isMultifield() == false
+            && hasArrayAncestor(runner.mapDoc(), runner.fieldName())) {
             return exactValuesFromSource(values, nullValue, false);
         }
 
@@ -112,6 +121,25 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             .map(p -> toWKB(normalize(p)))
             .toList();
         return maybeFoldList(resultList);
+    }
+
+    /**
+     * Whether any object on the path to the field (excluding the field itself) is an array in the document.
+     */
+    private static boolean hasArrayAncestor(Map<?, ?> doc, String fieldName) {
+        Object node = doc;
+        String[] path = fieldName.split("\\.");
+        for (int i = 0; i < path.length - 1; i++) {
+            if (node instanceof Map<?, ?> map) {
+                node = map.get(path[i]);
+                if (node instanceof List<?>) {
+                    return true;
+                }
+            } else {
+                return false;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")

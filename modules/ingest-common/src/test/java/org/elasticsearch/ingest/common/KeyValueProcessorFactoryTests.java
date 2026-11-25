@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -42,7 +43,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(processor.getField(), hasToString("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), is(nullValue()));
@@ -62,12 +63,12 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(processor.getField(), hasToString("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), equalTo(Sets.newHashSet("a", "b")));
         assertThat(processor.getExcludeKeys(), equalTo(Set.of()));
-        assertThat(processor.getTargetField().newInstance(Map.of()).execute(), equalTo("target"));
+        assertThat(processor.getTargetField(), hasToString("target"));
         assertTrue(processor.isIgnoreMissing());
     }
 

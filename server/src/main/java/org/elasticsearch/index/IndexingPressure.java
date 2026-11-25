@@ -117,6 +117,10 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final AtomicLong lowWaterMarkSplits = new AtomicLong(0);
     private final AtomicLong highWaterMarkSplits = new AtomicLong(0);
 
+    private final AtomicLong currentIngestExpansionBytes = new AtomicLong(0);
+    private final AtomicLong totalIngestExpansionBytes = new AtomicLong(0);
+    private final AtomicLong ingestExpansionRejections = new AtomicLong(0);
+
     private final AtomicLong largeOpsRejections = new AtomicLong(0);
     private final AtomicLong totalRejectedLargeOpsBytes = new AtomicLong(0);
 
@@ -168,6 +172,109 @@ public class IndexingPressure implements IndexingPressureMonitor {
 
     public Coordinating createCoordinatingOperation(boolean forceExecution) {
         return new Coordinating(forceExecution);
+    }
+
+    /**
+     * Accounts for growth of documents during ingest pipelines in the combined coordinating and primary bytes,
+     * but checks against the primary limit only (since the bulk was already admitted with the original sizes).
+     * Not accounting for the original size twice (due to the expanded copy) is a compromise to avoid rejecting too heavily.
+     *
+     * @param forceExecution if true the bytes are counted, but never rejected
+     */
+    public CoordinatingExpansionTracker trackCoordinatingOperationExpansion(boolean forceExecution) {
+        return new CoordinatingExpansionTrackerImpl(forceExecution);
+    }
+
+    public interface CoordinatingExpansionTracker extends Releasable {
+
+        /**
+         * Accounts for additional bytes. They are held until the tracker is closed, as the grown documents are retained that long.
+         *
+         * @throws EsRejectedExecutionException if the bytes do not fit, in which case nothing was accounted
+         */
+        void add(long bytes) throws EsRejectedExecutionException;
+    }
+
+    private final class CoordinatingExpansionTrackerImpl implements CoordinatingExpansionTracker {
+
+        private static final long CLOSED_FLAG = Long.MIN_VALUE;
+
+        private final boolean forceExecution;
+        private final AtomicLong expandedBytes = new AtomicLong(0);
+
+        private CoordinatingExpansionTrackerImpl(boolean forceExecution) {
+            this.forceExecution = forceExecution;
+        }
+
+        @Override
+        public void add(long bytes) {
+            if (expandedBytes.get() == CLOSED_FLAG) {
+                logError("Expanding IndexingPressure memory on a closed tracker");
+                return;
+            }
+            addExpansionBytes(bytes, forceExecution);
+            long value = expandedBytes.updateAndGet(current -> current == CLOSED_FLAG ? current : current + bytes);
+            if (value == CLOSED_FLAG) {
+                // Closed concurrently, close did not see this increase so reverting it here
+                releaseExpansionBytes(bytes);
+                logError("CoordinatingExpansionTracker has been closed while performing an index pressure expansion");
+            }
+        }
+
+        @Override
+        public void close() {
+            long expansion = expandedBytes.getAndSet(CLOSED_FLAG);
+            if (expansion == CLOSED_FLAG) {
+                logError("CoordinatingExpansionTracker has been closed twice");
+            } else {
+                releaseExpansionBytes(expansion);
+            }
+        }
+    }
+
+    private void addExpansionBytes(long bytes, boolean forceExecution) {
+        long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
+        long replicaWriteBytes = currentReplicaBytes.get();
+        long totalBytes = combinedBytes + replicaWriteBytes;
+        if (forceExecution == false && totalBytes > primaryLimit) {
+            long bytesWithoutOperation = combinedBytes - bytes;
+            long totalBytesWithoutOperation = totalBytes - bytes;
+            currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            coordinatingRejections.getAndIncrement();
+            ingestExpansionRejections.getAndIncrement();
+            throw new EsRejectedExecutionException(
+                "rejected execution of ingest expansion ["
+                    + "coordinating_and_primary_bytes="
+                    + bytesWithoutOperation
+                    + ", "
+                    + "replica_bytes="
+                    + replicaWriteBytes
+                    + ", "
+                    + "all_bytes="
+                    + totalBytesWithoutOperation
+                    + ", "
+                    + "ingest_expansion_bytes="
+                    + bytes
+                    + ", "
+                    + "max_primary_bytes="
+                    + primaryLimit
+                    + "]",
+                false
+            );
+        }
+        logger.trace(() -> Strings.format("adding [%d] ingest expansion bytes", bytes));
+        currentCoordinatingBytes.getAndAdd(bytes);
+        currentIngestExpansionBytes.getAndAdd(bytes);
+        totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+        totalCoordinatingBytes.getAndAdd(bytes);
+        totalIngestExpansionBytes.getAndAdd(bytes);
+    }
+
+    private void releaseExpansionBytes(long bytes) {
+        logger.trace(() -> Strings.format("removing [%d] ingest expansion bytes", bytes));
+        currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+        currentCoordinatingBytes.getAndAdd(-bytes);
+        currentIngestExpansionBytes.getAndAdd(-bytes);
     }
 
     public class Incremental implements Releasable {
@@ -249,8 +356,9 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
     }
 
-    // TODO: Maybe this should be re-named and used for primary operations too. Eventually we will need to account for: ingest pipeline
-    // expansions, reading updates, etc. This could just be a generic OP that could be expanded as appropriate
+    // TODO: Maybe this should be re-named and used for primary operations too. Eventually we will need to account for: reading updates,
+    // etc. (ingest pipeline expansions are accounted for by CoordinatingExpansionTracker). This could just be a generic OP that could be
+    // expanded as appropriate
     public class Coordinating implements Releasable {
 
         private final AtomicBoolean closed = new AtomicBoolean();
@@ -385,8 +493,13 @@ public class IndexingPressure implements IndexingPressureMonitor {
         return markPrimaryOperationStarted(operations, bytes, forceExecution, false);
     }
 
-    public Releasable trackPrimaryOperationExpansion(int operations, long expandedBytes, boolean forceExecution) {
-        return markPrimaryOperationStarted(operations, expandedBytes, forceExecution, true);
+    /**
+     * Starts accounting for additional primary bytes beyond the incoming request size (for example parsing overhead
+     * and, later, update requests expansion).
+     */
+    public PrimaryExpansionTracker trackPrimaryOperationExpansion(int operations, long expandedBytes, boolean forceExecution) {
+        updatePrimaryOperationsAndBytes(operations, expandedBytes, forceExecution, true);
+        return new PrimaryExpansionTrackerImpl(operations, expandedBytes, forceExecution);
     }
 
     // visible for testing
@@ -395,6 +508,20 @@ public class IndexingPressure implements IndexingPressureMonitor {
     }
 
     private Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution, boolean operationExpansionTracking) {
+        updatePrimaryOperationsAndBytes(operations, bytes, forceExecution, operationExpansionTracking);
+        return wrapReleasable(() -> { releasePrimaryOperationsAndBytes(operations, bytes, operationExpansionTracking); });
+    }
+
+    private void releasePrimaryOperationsAndBytes(int operations, long bytes, boolean operationExpansionTracking) {
+        logger.trace(() -> Strings.format("removing [%d] primary operations and [%d] bytes", operations, bytes));
+        this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+        this.currentPrimaryBytes.getAndAdd(-bytes);
+        if (operationExpansionTracking == false) {
+            this.currentPrimaryOps.getAndAdd(-operations);
+        }
+    }
+
+    private void updatePrimaryOperationsAndBytes(int operations, long bytes, boolean forceExecution, boolean operationExpansionTracking) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
@@ -434,14 +561,85 @@ public class IndexingPressure implements IndexingPressureMonitor {
             currentPrimaryOps.getAndAdd(operations);
             totalPrimaryOps.getAndAdd(operations);
         }
-        return wrapReleasable(() -> {
-            logger.trace(() -> Strings.format("removing [%d] primary operations and [%d] bytes", operations, bytes));
-            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
-            this.currentPrimaryBytes.getAndAdd(-bytes);
-            if (operationExpansionTracking == false) {
-                this.currentPrimaryOps.getAndAdd(-operations);
+    }
+
+    public interface PrimaryExpansionTracker extends Releasable {
+
+        static PrimaryExpansionTracker noop() {
+            return new PrimaryExpansionTracker() {
+
+                @Override
+                public void addExpandedBytes(long expandedBytes) {}
+
+                @Override
+                public void removeExpandedBytes(long expandedBytes) {}
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        void addExpandedBytes(long expandedBytes);
+
+        void removeExpandedBytes(long expandedBytes);
+    }
+
+    private final class PrimaryExpansionTrackerImpl implements PrimaryExpansionTracker {
+
+        private static final long CLOSED_FLAG = Long.MIN_VALUE;
+
+        private final int operations;
+        private final boolean forceExecution;
+        private final AtomicLong expandedBytes;
+
+        private PrimaryExpansionTrackerImpl(int operations, long bytes, boolean forceExecution) {
+            this.operations = operations;
+            this.forceExecution = forceExecution;
+            this.expandedBytes = new AtomicLong(bytes);
+        }
+
+        public void addExpandedBytes(long bytes) {
+            if (expandedBytes.get() == CLOSED_FLAG) {
+                logError("Expanding IndexingPressure memory on a closed tracker");
+            } else {
+                IndexingPressure.this.updatePrimaryOperationsAndBytes(0, bytes, forceExecution, true);
+                long value = expandedBytes.updateAndGet(current -> current == CLOSED_FLAG ? current : current + bytes);
+                if (value == CLOSED_FLAG) {
+                    // Reverting the increase to avoid any impact on the index pressure
+                    IndexingPressure.this.releasePrimaryOperationsAndBytes(0, bytes, true);
+                    logError("PrimaryExpansionTracker has been closed while performing an index pressure expansion");
+                }
             }
-        });
+        }
+
+        public void removeExpandedBytes(long bytes) {
+            if (expandedBytes.get() == CLOSED_FLAG) {
+                logError("Releasing some IndexingPressure memory on a closed tracker");
+            } else {
+                IndexingPressure.this.releasePrimaryOperationsAndBytes(0, bytes, true);
+                long value = expandedBytes.updateAndGet(current -> current == CLOSED_FLAG ? current : current - bytes);
+                if (value == CLOSED_FLAG) {
+                    // Reverting the increase to avoid any impact on the index pressure
+                    IndexingPressure.this.updatePrimaryOperationsAndBytes(0, bytes, forceExecution, true);
+                    logError("PrimaryExpansionTracker has been closed while performing an index pressure reduction");
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            long expansion = expandedBytes.getAndSet(CLOSED_FLAG);
+            if (expansion == CLOSED_FLAG) {
+                logError("PrimaryExpansionTracker (Releasable) has been closed twice");
+            } else {
+                IndexingPressure.this.releasePrimaryOperationsAndBytes(operations, expansion, true);
+            }
+        }
+    }
+
+    private void logError(String msg) {
+        logger.error(msg, new IllegalStateException(msg));
+        assert false : msg;
     }
 
     public Releasable trackReplicaOperationExpansion(long expandedBytes, boolean forceExecution) {
@@ -504,13 +702,39 @@ public class IndexingPressure implements IndexingPressureMonitor {
             lowWaterMarkSplits.get(),
             highWaterMarkSplits.get(),
             largeOpsRejections.get(),
-            totalRejectedLargeOpsBytes.get()
+            totalRejectedLargeOpsBytes.get(),
+            currentIngestExpansionBytes.get(),
+            totalIngestExpansionBytes.get(),
+            ingestExpansionRejections.get()
         );
     }
 
     @Override
     public long getMaxAllowedOperationSizeInBytes() {
         return operationLimit;
+    }
+
+    public long coordinatingLimit() {
+        return coordinatingLimit;
+    }
+
+    /** The bytes counted now in this node's coordinating, primary and replica operations. */
+    public long currentUsageInBytes() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get();
+    }
+
+    /**
+     * In bytes, the node's usage from which a streaming bulk splits once it holds {@link #splitBulkLowWatermarkSize()}.
+     */
+    public long splitBulkLowWatermark() {
+        return lowWatermark;
+    }
+
+    /**
+     * In bytes, the size a streaming bulk reaches before it splits while the node's usage is above {@link #splitBulkLowWatermark()}.
+     */
+    public long splitBulkLowWatermarkSize() {
+        return lowWatermarkSize;
     }
 
     @Override

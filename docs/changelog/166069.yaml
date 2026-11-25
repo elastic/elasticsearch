@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166069
+summary: Keep Java-only number spellings as text in external data sources
+type: bug

@@ -12,7 +12,7 @@ description = 'Fixture for emulating the EC2 DescribeInstances API running in AW
 
 dependencies {
   api project(':server')
-  api("junit:junit:${versions.junit}") {
+  api("junit:junit:${versions.junit4}") {
     transitive = false
   }
   api project(':test:framework')

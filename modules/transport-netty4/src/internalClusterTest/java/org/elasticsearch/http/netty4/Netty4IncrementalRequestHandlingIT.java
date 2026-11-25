@@ -14,9 +14,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -31,6 +33,8 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpRequestEncoder;
+import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.LastHttpContent;
@@ -41,6 +45,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -80,6 +85,7 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
@@ -97,9 +103,12 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpHeaderValues.CLOSE;
 import static io.netty.handler.codec.http.HttpMethod.POST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_AGE;
@@ -338,25 +347,62 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
-    // ensures that server reply 413-too-large on oversized request with expect-100-continue
+    // ensures that server reply 413-too-large on oversized request with expect-100-continue, and closes the connection
     public void test413TooLargeOnExpect100Continue() throws Exception {
         try (var clientContext = newClientContext()) {
-            var totalRequests = randomIntBetween(1, 10);
-            for (int requestIndex = 0; requestIndex < totalRequests; requestIndex++) {
-                var opaqueId = clientContext.newOpaqueId();
+            final var request = httpRequest(clientContext.newOpaqueId(), MAX_CONTENT_LENGTH + 1);
+            HttpUtil.set100ContinueExpected(request, true);
 
-                // send request header and await 413 too large
-                final var request = httpRequest(opaqueId, MAX_CONTENT_LENGTH + 1);
-                HttpUtil.set100ContinueExpected(request, true);
-                clientContext.channel().writeAndFlush(request);
-                final var response = clientContext.getNextResponse();
-                assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, response.status());
-                response.release();
+            var channel = clientContext.channel();
+            channel.writeAndFlush(request);
 
-                // terminate request
-                clientContext.channel().writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
-            }
+            final var response = clientContext.getNextResponse();
+            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, response.status());
+            assertEquals(CLOSE.toString(), response.headers().get(CONNECTION));
+            response.release();
+
+            safeAwait(l -> Netty4Utils.addListener(channel.closeFuture(), ignored -> l.onResponse(null)));
+            assertFalse("client connection must be closed", channel.isActive());
+            assertFalse("client connection must be closed", channel.isOpen());
         }
+    }
+
+    // ensures that requests after a 413-too-large reply are dropped
+    public void test413TooLargeOnExpect100ContinueWithSmuggledRequest() throws Exception {
+        try (
+            var clientContext = newClientContext(
+                internalCluster().getRandomNodeName(),
+                cause -> ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause)),
+                new HttpResponseDecoder() // manually encoding the requests because HttpClientCodec doesn't permit smuggling
+            )
+        ) {
+            final var request = httpRequest(clientContext.newOpaqueId(), MAX_CONTENT_LENGTH + 1);
+            HttpUtil.set100ContinueExpected(request, true);
+            final var followUpRequest = httpRequest(clientContext.newOpaqueId(), 0);
+
+            var channel = clientContext.channel();
+            var host = ((InetSocketAddress) channel.remoteAddress()).getHostString();
+
+            var out = Unpooled.compositeBuffer();
+            for (var httpRequest : List.of(request, followUpRequest)) {
+                var encoder = new EmbeddedChannel(new HttpRequestEncoder());
+                httpRequest.headers().set(HOST, host);
+                encoder.writeOutbound(httpRequest);
+                while (encoder.outboundMessages().isEmpty() == false) {
+                    out.addComponent(true, encoder.readOutbound());
+                }
+            }
+            channel.writeAndFlush(out);
+
+            final var response = clientContext.getNextResponse();
+            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, response.status());
+            assertEquals(CLOSE.toString(), response.headers().get(CONNECTION));
+            response.release();
+
+            safeAwait(l -> Netty4Utils.addListener(channel.closeFuture(), ignored -> l.onResponse(null)));
+            assertFalse("client connection must be closed", channel.isActive());
+            assertFalse("client connection must be closed", channel.isOpen());
+        } // close ensures no more responses available
     }
 
     // ensures that oversized chunked encoded request has maxContentLength limit and returns 413
@@ -597,6 +643,135 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    /**
+     * Verifies that when the incremental-bulk request timeout ({@link IncrementalBulkService#REQUEST_TIMEOUT}) elapses
+     * before any sub-request is dispatched, the whole request fails as a global failure: the session task is cancelled
+     * and the resulting {@code TaskCancelledException} is surfaced to the client as a top-level
+     * {@link RestStatus#TOO_MANY_REQUESTS} (429) rather than a per-item failure.
+     *
+     * <p>The entire body is sent as a single last chunk only after the timeout has fired, so no split/sub-request is ever
+     * submitted — exercising the {@code globalFailure} path in {@code IncrementalBulkService.Handler}.
+     */
+    public void testRequestTimeoutReturnsTooManyRequests() throws Exception {
+        final var nodeName = internalCluster().getRandomNodeName();
+        final var timeout = TimeValue.timeValueMillis(100);
+        updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
+        try (var clientContext = newClientContext(nodeName, cause -> ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause)))) {
+            final var request = new DefaultHttpRequest(HTTP_1_1, POST, "/_bulk");
+            request.headers().add(CONTENT_TYPE, APPLICATION_JSON);
+
+            final var bulkContent = buffered(bulkRandomDoc(randomIndexName(), randomUUID()));
+            HttpUtil.setContentLength(request, bulkContent.readableBytes());
+
+            // Sending the headers makes RestBulkAction accept the channel, build the Handler and arm the request timeout.
+            final var channel = clientContext.channel();
+            channel.writeAndFlush(request);
+
+            // Wait well past the timeout so the scheduled cancellation has fired before we send any item.
+            safeSleep(timeout.millis() * 10);
+
+            // The whole body arrives as a single last chunk: no sub-request is ever submitted, so the cancelled session
+            // produces a top-level failure -> HTTP 429 (the globalFailure path).
+            channel.writeAndFlush(new DefaultLastHttpContent(bulkContent));
+
+            final var response = clientContext.getNextResponse();
+            try {
+                assertEquals(RestStatus.TOO_MANY_REQUESTS.getStatus(), response.status().code());
+            } finally {
+                response.release();
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(IncrementalBulkService.REQUEST_TIMEOUT.getKey()));
+        }
+    }
+
+    private static byte[] utf8bytes(String s) {
+        return s.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String bulkRandomDoc(String index, String docId) {
+        return Strings.format("""
+             {"index":{"_index":"%s","_id":"%s"}}
+             {"field":"%s"}
+            """, index, docId, randomAlphanumericOfLength(between(10, 100)));
+    }
+
+    private static ByteBuf buffered(String s) {
+        return Unpooled.wrappedBuffer(utf8bytes(s));
+    }
+
+    /**
+     * Verifies that when the request timeout elapses after at least one sub-request has already been submitted, the
+     * request does not fail globally: items indexed before the timeout are preserved and the timeout instead surfaces as
+     * a per-item failure. The client receives HTTP 200 with {@code errors: true}, where the item committed before the
+     * timeout reports {@link RestStatus#CREATED} (201) and the item submitted after the timeout reports
+     * {@link RestStatus#TOO_MANY_REQUESTS} (429).
+     *
+     * <p>The 1-byte {@code split_bulk} watermarks force the first chunk to split into a sub-request immediately, so the
+     * "before-timeout" document is durably indexed (asserted via the realtime GET) before the session is cancelled.
+     */
+    public void testRequestTimeoutPartialResponse() throws Exception {
+        final var nodeName = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1b")
+                .build()
+        );
+        final var index = randomIndexName();
+        createIndex(index);
+        final var timeout = TimeValue.timeValueSeconds(between(1, 3));
+        updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
+        try (var clientContext = newClientContext(nodeName, cause -> ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause)))) {
+            final var request = new DefaultHttpRequest(HTTP_1_1, POST, "/_bulk");
+            request.headers().add(CONTENT_TYPE, APPLICATION_JSON);
+
+            final var beforeTimeoutDoc = buffered(bulkRandomDoc(index, "before-timeout"));
+            final var afterTimeoutDoc = buffered(bulkRandomDoc(index, "after-timeout"));
+            HttpUtil.setContentLength(request, beforeTimeoutDoc.readableBytes() + afterTimeoutDoc.readableBytes());
+
+            final var channel = clientContext.channel();
+            channel.writeAndFlush(request);
+
+            // First chunk: 1b watermarks force an immediate split -> sub-request submitted, doc indexed.
+            channel.writeAndFlush(new DefaultHttpContent(beforeTimeoutDoc));
+
+            // Wait until the first sub-request committed so the doc is durable and survives the descendant-cancellation
+            // that fires with the timeout, then wait past the timeout so the session is cancelled before the final chunk.
+            assertBusy(() -> assertTrue(client().prepareGet(index, "before-timeout").setRealtime(true).get().isExists()));
+            safeSleep(timeout);
+
+            channel.writeAndFlush(new DefaultLastHttpContent(afterTimeoutDoc));
+
+            final var response = clientContext.getNextResponse();
+            try {
+                assertEquals(RestStatus.OK.getStatus(), response.status().code());
+                final var copy = response.content().copy(); // Netty4Utils doesn't handle direct buffers, copy to heap
+                final ObjectPath body;
+                try {
+                    body = ObjectPath.createFromXContent(JsonXContent.jsonXContent, Netty4Utils.toBytesReference(copy));
+                } finally {
+                    copy.release();
+                }
+                assertTrue(body.evaluate("errors"));
+                assertEquals(2, body.evaluateArraySize("items"));
+                assertEquals(
+                    RestStatus.CREATED.getStatus(),
+                    (int) asInstanceOf(int.class, body.evaluateExact("items", "0", "index", "status"))
+                );
+                assertEquals(
+                    RestStatus.TOO_MANY_REQUESTS.getStatus(),
+                    (int) asInstanceOf(int.class, body.evaluateExact("items", "1", "index", "status"))
+                );
+            } finally {
+                response.release();
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(IncrementalBulkService.REQUEST_TIMEOUT.getKey()));
+        }
+    }
+
     static FullHttpRequest fullHttpRequest(String opaqueId, ByteBuf content) {
         var request = new DefaultFullHttpRequest(HTTP_1_1, POST, ControlServerRequestPlugin.ROUTE, Unpooled.wrappedBuffer(content));
         request.headers().add(CONTENT_LENGTH, content.readableBytes());
@@ -642,6 +817,11 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
     }
 
     private ClientContext newClientContext(String nodeName, Consumer<Throwable> exceptionHandler) throws Exception {
+        return newClientContext(nodeName, exceptionHandler, new HttpClientCodec());
+    }
+
+    private ClientContext newClientContext(String nodeName, Consumer<Throwable> exceptionHandler, ChannelHandler httpInboundCodec)
+        throws Exception {
         var clientResponseQueue = new LinkedBlockingDeque<FullHttpResponse>(16);
         final var httpServerTransport = internalCluster().getInstance(HttpServerTransport.class, nodeName);
         var remoteAddr = randomFrom(httpServerTransport.boundAddress().boundAddresses());
@@ -653,7 +833,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 @Override
                 protected void initChannel(SocketChannel ch) {
                     var p = ch.pipeline();
-                    p.addLast(new HttpClientCodec());
+                    p.addLast(httpInboundCodec);
                     p.addLast(new HttpObjectAggregator(ByteSizeUnit.MB.toIntBytes(4)));
                     p.addLast(new SimpleChannelInboundHandler<FullHttpResponse>() {
                         @Override

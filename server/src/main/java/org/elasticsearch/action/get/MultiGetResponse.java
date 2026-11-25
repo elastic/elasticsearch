@@ -15,14 +15,17 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 
-public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
+public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ChunkedToXContentObject {
 
     static final ParseField INDEX = new ParseField("_index");
     static final ParseField ID = new ParseField("_id");
@@ -107,22 +110,29 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         return Iterators.forArray(responses);
     }
 
+    /**
+     * The returned iterator drops each item once it has handed it out, so a response that is still being written doesn't keep the
+     * documents it has serialized reachable, unless something else references this response.
+     */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startArray(DOCS.getPreferredName());
-        for (MultiGetItemResponse response : responses) {
-            if (response.isFailed()) {
-                Failure failure = response.getFailure();
-                failure.toXContent(builder, params);
-            } else {
-                GetResponse getResponse = response.getResponse();
-                getResponse.toXContent(builder, params);
-            }
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        final MultiGetItemResponse[] unserialized = responses.clone();
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            ChunkedToXContentHelper.array(DOCS.getPreferredName(), Iterators.forRange(0, unserialized.length, i -> {
+                final MultiGetItemResponse response = unserialized[i];
+                unserialized[i] = null;
+                return (b, p) -> {
+                    if (response.isFailed()) {
+                        response.getFailure().toXContent(b, p);
+                    } else {
+                        response.getResponse().toXContent(b, p);
+                    }
+                    return b;
+                };
+            })),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     @Override

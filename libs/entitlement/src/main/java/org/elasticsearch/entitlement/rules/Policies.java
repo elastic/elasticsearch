@@ -15,7 +15,6 @@ import org.elasticsearch.entitlement.rules.function.Call2;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 
 import java.io.File;
-import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.OpenOption;
@@ -241,16 +240,6 @@ public class Policies {
      */
     public static CheckMethod inboundNetworkAccess() {
         return (callingClass, policyChecker) -> policyChecker.checkInboundNetworkAccess(callingClass);
-    }
-
-    /**
-     * Returns a check method for accessing JAR URLs.
-     *
-     * @param jarURLConnection the JAR URL connection being accessed
-     * @return a check method that verifies entitlement for the specified JAR URL connection
-     */
-    public static CheckMethod jarURLAccess(JarURLConnection jarURLConnection) {
-        return (callingClass, policyChecker) -> policyChecker.checkJarURLAccess(callingClass, jarURLConnection);
     }
 
     /**

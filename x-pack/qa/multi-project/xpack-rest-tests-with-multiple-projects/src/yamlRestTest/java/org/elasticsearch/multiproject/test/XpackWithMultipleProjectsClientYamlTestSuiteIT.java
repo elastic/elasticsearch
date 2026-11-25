@@ -22,7 +22,9 @@ import org.junit.ClassRule;
 
 import java.util.Objects;
 
-@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
+// One multi-project check of the x-pack YAML corpus. 100 minutes because the corpus
+// outgrew 60 on a one-processor node, not because a case is slow. Splitting it does not make sense.
+@TimeoutSuite(millis = 100 * TimeUnits.MINUTE)
 public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -41,6 +43,12 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
         .setting("xpack.security.transport.ssl.verification_mode", "certificate")
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
+        // Federation is opt-in for users; this suite runs the ES|QL data source and dataset YAML tests, which are
+        // skipped when their REST routes are unregistered. Known limitation: dropping this setting silently skips
+        // those tests rather than failing them. Their capability gate cannot be tightened into a hard failure because
+        // other runners of the same YAML files legitimately have federation off. Spelled out rather than taken from
+        // Federation.FEDERATION_ENABLED because this source set does not have the ES|QL plugin on its classpath.
+        .setting("esql.federation.enabled", "true")
         // disable ILM history, since it disturbs tests using _all
         .setting("indices.lifecycle.history_index_enabled", "false")
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")

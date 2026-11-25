@@ -10,10 +10,8 @@ As such, most of ESQL's integration tests are CSV-SPEC tests.
 ## Running
 
 CSV-SPEC tests run in lots of different ways. The simplest way to run a
-CSV-SPEC test is to open ESQL's CsvTests.java and run it right in IntelliJ using
-the unit runner. As of this writing that runs 1,350 tests in about 35 seconds.
-It's fast because it doesn't stand up an Elasticsearch node at all. It runs
-like a big unit test
+CSV-SPEC test is to open ESQL's `CsvIT.java` and run it right in IntelliJ using
+the unit runner. As of this writing that runs 6,123 tests in less than 2 minutes.
 
 The second-simplest way to run the CSV-SPEC tests is to run `EsqlSpecIT` in
 `:x-pack:plugin:esql:qa:server:single-node` via the Gradle runner in IntelliJ
@@ -83,6 +81,20 @@ When we first implemented copying snippets into the documentation I dumped all
 the snippets into `docs.csv-spec`. This was supposed to be a temporary holding
 area until they were relocated, and we haven't had time to do that. Don't put
 more tests in there.
+
+### Only top-level files are part of the corpus
+
+Put new `.csv-spec` files directly in this directory. `CsvIT`, `EsqlSpecTestCase`
+and every test class that the build generates from the spec files (`EsqlSpec*`:
+`LOAD_ALL`, approximation, forced stored loading, fork, ...) read `/*.csv-spec`,
+which does not descend into subdirectories. A spec in a subdirectory is not run
+by any of them, and gets none of the generated variants, unless a suite selects
+it by an explicit pattern, as the data-source suites do for `datasources/`.
+
+Opting out is a choice, so `verifyDataSourceCsvSpecOwnership` in this project's
+`build.gradle` fails for a spec in a subdirectory that is not listed in
+`nonCorpusSpecDirs`, where each directory has the reason it is not part of the
+corpus.
 
 ## Embedding examples in the documentation
 
@@ -225,3 +237,100 @@ null
 ;
 ```
 
+### Approximate knn
+
+`knn` uses approximate nearest-neighbour search (HNSW) when pushed to Lucene.
+`LIMIT` after `knn` is pushed into the function as `k`. The result is a
+top-k **set**, not a unique ranked table: approximation may omit a true
+neighbour, and equal scores at the `k` cut pick an arbitrary document.
+
+Do **not** assert an exact top-k table (specific colors in specific slots).
+`ignoreOrder` does not help: it only reorders rows, it does not stabilize
+which rows knn kept.
+
+For tests of knn together with other operators (`RENAME`, `MV_EXPAND`,
+`EVAL`, …), pin the result with a filter on a uniquely nearest document:
+
+```csv-spec
+from colors metadata _score
+| rename rgb_vector as vec
+| where knn(vec, [0, 120, 0]) and color == "green"
+| keep color, vec
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+;
+```
+
+Asserting `count(*)` or using `{any}` (below) is also fine. Docs snippets
+may show a representative ranking on this tiny fixture; do not copy that
+pattern into new tests.
+
+### Non-deterministic results: ranges and wildcards
+
+When a result is not exactly predictable (approximate aggregations, similarity
+scores, sampling, etc.) two matchers are available in place of a literal value:
+
+* **Numeric range** `lower..upper` — matches any value in the closed interval
+  `[lower, upper]`. Works for any numeric column type, including `double` and
+  `float`; scientific notation is accepted (`1.0E-4..2.0E-4`). Bounds must be
+  finite — `NaN` and `Infinity` are not supported as bounds.
+* **`{any}`** — matches any value of the column's declared type.
+
+Both can be used inside multi-value cells. Example:
+
+```csv-spec
+similarityScore:double | topIds:long
+0.9..1.0               | [100..200, {any}]
+;
+```
+
+### Query parameters
+
+Query parameters are declared with the `param:` directive, one per line, in the order they're sent:
+`param: name = <json>` for a named parameter and `param: <json>` for an unnamed one.
+The value is written as in the `params` array of the request, so strings are quoted, and named parameters
+can also be objects like `{"identifier": "first_name"}` or `{"pattern": "*_name"}`.
+As in the request, a test can't mix named and unnamed parameters.
+
+```csv-spec
+doubleParameterMarkers
+required_capability: double_parameter_markers_for_identifiers
+param: field = "last_name"
+param: last = "Koblick"
+FROM employees
+| WHERE ??field == ?last
+| KEEP emp_no, ??field
+;
+
+emp_no:integer | last_name:keyword
+10004          | Koblick
+;
+```
+
+Variants that look for field names in the query text, like `CsvLoadAllUnmappedKeywordIT`, skip tests where a
+parameter can be a field name: a `??` reference, or a parameter declared as an identifier or pattern.
+The cross-cluster tests skip tests that use parameters in the source command, like `PROMQL index=?idx ...`,
+and `CsvColumnarIT` and the exemplars smoke tests skip tests that take the `PROMQL` index from a parameter.
+
+### Query pragmas
+
+Query pragmas can also be provided with the `pragma: pragma_name=value` directive.
+In the following example, we use the `runtime_lexical_search` pragma:
+
+```csv-spec
+matchOnTextWithRow
+required_capability: match_support_runtime_text
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+| MV_EXPAND content
+| WHERE match(content, "dog")
+| SORT content
+;
+content:text
+This dog is really brown
+This is a brown dog
+;
+```

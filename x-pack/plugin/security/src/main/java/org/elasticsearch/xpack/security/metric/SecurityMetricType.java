@@ -22,7 +22,7 @@ public record SecurityMetricType(
         SecurityMetricGroup.AUTHC,
         new SecurityMetricInfo("es.security.authc.api_key.success.total", "Number of successful API key authentications.", "count"),
         new SecurityMetricInfo("es.security.authc.api_key.failures.total", "Number of failed API key authentications.", "count"),
-        new SecurityMetricInfo("es.security.authc.api_key.time", "Time it took (in nanoseconds) to execute API key authentication.", "ns")
+        new SecurityMetricInfo("es.security.authc.api_key.time", "Time it took (in milliseconds) to execute API key authentication.", "ms")
     );
 
     public static final SecurityMetricType AUTHC_SERVICE_ACCOUNT = new SecurityMetricType(
@@ -39,8 +39,8 @@ public record SecurityMetricType(
         ),
         new SecurityMetricInfo(
             "es.security.authc.service_account.time",
-            "Time it took (in nanoseconds) to execute service account authentication.",
-            "ns"
+            "Time it took (in milliseconds) to execute service account authentication.",
+            "ms"
         )
     );
 
@@ -50,8 +50,8 @@ public record SecurityMetricType(
         new SecurityMetricInfo("es.security.authc.token.failures.total", "Number of failed OAuth2 token authentications.", "count"),
         new SecurityMetricInfo(
             "es.security.authc.token.time",
-            "Time it took (in nanoseconds) to execute OAuth2 token authentication.",
-            "ns"
+            "Time it took (in milliseconds) to execute OAuth2 token authentication.",
+            "ms"
         )
     );
 
@@ -59,6 +59,6 @@ public record SecurityMetricType(
         SecurityMetricGroup.AUTHC,
         new SecurityMetricInfo("es.security.authc.realms.success.total", "Number of successful realm authentications.", "count"),
         new SecurityMetricInfo("es.security.authc.realms.failures.total", "Number of failed realm authentications.", "count"),
-        new SecurityMetricInfo("es.security.authc.realms.time", "Time it took (in nanoseconds) to execute realm authentication.", "ns")
+        new SecurityMetricInfo("es.security.authc.realms.time", "Time it took (in milliseconds) to execute realm authentication.", "ms")
     );
 }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.health.node.tracker;
 
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.health.node.HealthIndicatorDisplayValues;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.repositories.InvalidRepository;
@@ -23,9 +25,11 @@ import java.util.List;
  */
 public class RepositoriesHealthTracker extends HealthTracker<RepositoriesHealthInfo> {
     private final RepositoriesService repositoriesService;
+    private final ProjectResolver projectResolver;
 
-    public RepositoriesHealthTracker(RepositoriesService repositoriesService) {
+    public RepositoriesHealthTracker(RepositoriesService repositoriesService, ProjectResolver projectResolver) {
         this.repositoriesService = repositoriesService;
+        this.projectResolver = projectResolver;
     }
 
     /**
@@ -40,13 +44,19 @@ public class RepositoriesHealthTracker extends HealthTracker<RepositoriesHealthI
             return new RepositoriesHealthInfo(List.of(), List.of());
         }
 
+        boolean supportsMultipleProjects = projectResolver.supportsMultipleProjects();
         var unknown = new ArrayList<String>();
         var invalid = new ArrayList<String>();
         repositories.forEach(repository -> {
+            String displayName = HealthIndicatorDisplayValues.getRepositoryDisplayName(
+                repository.getProjectId(),
+                repository.getMetadata().name(),
+                supportsMultipleProjects
+            );
             if (repository instanceof UnknownTypeRepository) {
-                unknown.add(repository.getMetadata().name());
+                unknown.add(displayName);
             } else if (repository instanceof InvalidRepository) {
-                invalid.add(repository.getMetadata().name());
+                invalid.add(displayName);
             }
         });
         return new RepositoriesHealthInfo(unknown, invalid);

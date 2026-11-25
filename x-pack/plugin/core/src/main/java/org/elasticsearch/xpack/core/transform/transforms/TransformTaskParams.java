@@ -29,18 +29,22 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     public static final String NAME = TransformField.TASK_NAME;
     public static final ParseField FROM = TransformField.FROM;
     public static final ParseField FREQUENCY = TransformField.FREQUENCY;
+    public static final ParseField INITIAL_DELAY = TransformField.INITIAL_DELAY;
     public static final ParseField REQUIRES_REMOTE = new ParseField("requires_remote");
+
+    private static final TransportVersion TRANSFORM_START_INITIAL_DELAY = TransportVersion.fromName("transform_start_initial_delay");
 
     private final String transformId;
     private final TransformConfigVersion version;
     private final Instant from;
     private final TimeValue frequency;
     private final Boolean requiresRemote;
+    private final TimeValue initialDelay;
 
     public static final ConstructingObjectParser<TransformTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new TransformTaskParams((String) a[0], (String) a[1], (Long) a[2], (String) a[3], (Boolean) a[4])
+        a -> new TransformTaskParams((String) a[0], (String) a[1], (Long) a[2], (String) a[3], (Boolean) a[4], (String) a[5])
     );
 
     static {
@@ -49,28 +53,42 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), FROM);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FREQUENCY);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REQUIRES_REMOTE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INITIAL_DELAY);
     }
 
-    private TransformTaskParams(String transformId, String version, Long from, String frequency, Boolean remote) {
+    private TransformTaskParams(String transformId, String version, Long from, String frequency, Boolean remote, String initialDelay) {
         this(
             transformId,
             version == null ? null : TransformConfigVersion.fromString(version),
             from == null ? null : Instant.ofEpochMilli(from),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()),
-            remote == null ? false : remote.booleanValue()
+            remote == null ? false : remote.booleanValue(),
+            initialDelay == null ? null : TimeValue.parseTimeValue(initialDelay, INITIAL_DELAY.getPreferredName())
         );
     }
 
     public TransformTaskParams(String transformId, TransformConfigVersion version, TimeValue frequency, boolean remote) {
-        this(transformId, version, null, frequency, remote);
+        this(transformId, version, null, frequency, remote, null);
     }
 
     public TransformTaskParams(String transformId, TransformConfigVersion version, Instant from, TimeValue frequency, boolean remote) {
+        this(transformId, version, from, frequency, remote, null);
+    }
+
+    public TransformTaskParams(
+        String transformId,
+        TransformConfigVersion version,
+        Instant from,
+        TimeValue frequency,
+        boolean remote,
+        TimeValue initialDelay
+    ) {
         this.transformId = transformId;
         this.version = version == null ? TransformConfigVersion.V_7_2_0 : version;
         this.from = from;
         this.frequency = frequency;
         this.requiresRemote = remote;
+        this.initialDelay = initialDelay;
     }
 
     public TransformTaskParams(StreamInput in) throws IOException {
@@ -79,6 +97,11 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         this.from = in.readOptionalInstant();
         this.frequency = in.readOptionalTimeValue();
         this.requiresRemote = in.readBoolean();
+        if (in.getTransportVersion().supports(TRANSFORM_START_INITIAL_DELAY)) {
+            this.initialDelay = in.readOptionalTimeValue();
+        } else {
+            this.initialDelay = null;
+        }
     }
 
     @Override
@@ -98,6 +121,9 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         out.writeOptionalInstant(from);
         out.writeOptionalTimeValue(frequency);
         out.writeBoolean(requiresRemote);
+        if (out.getTransportVersion().supports(TRANSFORM_START_INITIAL_DELAY)) {
+            out.writeOptionalTimeValue(initialDelay);
+        }
     }
 
     @Override
@@ -112,6 +138,9 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         builder.field(REQUIRES_REMOTE.getPreferredName(), requiresRemote);
+        if (initialDelay != null) {
+            builder.field(INITIAL_DELAY.getPreferredName(), initialDelay.getStringRep());
+        }
         builder.endObject();
         return builder;
     }
@@ -136,6 +165,14 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         return requiresRemote;
     }
 
+    /**
+     * @return the one-time reduced sync delay supplied at {@code _start}, applied only until the transform has processed
+     *         its first document, or {@code null} to always use the steady-state {@code sync.time.delay}.
+     */
+    public TimeValue getInitialDelay() {
+        return initialDelay;
+    }
+
     public static TransformTaskParams fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
@@ -156,11 +193,12 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
             && Objects.equals(this.version, that.version)
             && Objects.equals(this.from, that.from)
             && Objects.equals(this.frequency, that.frequency)
-            && this.requiresRemote == that.requiresRemote;
+            && this.requiresRemote == that.requiresRemote
+            && Objects.equals(this.initialDelay, that.initialDelay);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(transformId, version, from, frequency, requiresRemote);
+        return Objects.hash(transformId, version, from, frequency, requiresRemote, initialDelay);
     }
 }

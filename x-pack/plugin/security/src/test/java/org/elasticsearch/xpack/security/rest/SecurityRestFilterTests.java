@@ -10,10 +10,13 @@ import com.nimbusds.jose.util.StandardCharset;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
@@ -24,6 +27,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestMatchers;
@@ -33,6 +37,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -42,6 +47,7 @@ import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
@@ -55,6 +61,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -70,7 +77,10 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -79,9 +89,12 @@ public class SecurityRestFilterTests extends ESTestCase {
     private ThreadContext threadContext;
     private AuthenticationService authcService;
     private SecondaryAuthenticator secondaryAuthenticator;
+    private AuditTrail secondaryAuditTrail;
+    private AuditTrail primaryAuditTrail;
     private RestChannel channel;
     private SecurityRestFilter filter;
     private RestHandler restHandler;
+    private ClusterService clusterService;
 
     @Before
     public void init() throws Exception {
@@ -89,12 +102,33 @@ public class SecurityRestFilterTests extends ESTestCase {
         channel = mock(RestChannel.class);
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
-        secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService, new AuditTrailService(null, null));
+        clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build(),
+                Set.of(XPackSettings.AUDIT_ENABLED)
+            )
+        );
+        secondaryAuditTrail = mock(AuditTrail.class);
+        primaryAuditTrail = mock(AuditTrail.class);
+        secondaryAuthenticator = new SecondaryAuthenticator(
+            Settings.EMPTY,
+            threadContext,
+            authcService,
+            new AuditTrailService(secondaryAuditTrail, TestUtils.newTestLicenseState(), clusterService)
+        );
         filter = getFilter(NOOP_OPERATOR_PRIVILEGES_SERVICE);
     }
 
     private SecurityRestFilter getFilter(OperatorPrivileges.OperatorPrivilegesService privilegesService) {
-        return new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), privilegesService);
+        return new SecurityRestFilter(
+            true,
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            new AuditTrailService(primaryAuditTrail, TestUtils.newTestLicenseState(), clusterService),
+            privilegesService
+        );
     }
 
     public void testProcess() throws Exception {
@@ -122,18 +156,10 @@ public class SecurityRestFilterTests extends ESTestCase {
         HttpRequest httpRequest = mock(HttpRequest.class);
         when(request.getHttpRequest()).thenReturn(httpRequest);
 
-        Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
-        doAnswer(i -> {
-            final Object[] arguments = i.getArguments();
-            @SuppressWarnings("unchecked")
-            ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
-            callback.onResponse(primaryAuthentication);
-            return null;
-        }).when(authcService).authenticate(eq(httpRequest), anyActionListener());
-
         Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
+            AuditUtil.generateRequestId(threadContext);
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(secondaryAuthentication);
@@ -148,6 +174,8 @@ public class SecurityRestFilterTests extends ESTestCase {
             "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharset.UTF_8))
         );
 
+        authenticateSecondaryInHttpPipeline(httpRequest);
+
         AtomicReference<SecondaryAuthentication> secondaryAuthRef = new AtomicReference<>();
         ActionListener<Boolean> listener = ActionListener.wrap(proceed -> {
             assertThat(proceed, is(Boolean.TRUE));
@@ -157,13 +185,55 @@ public class SecurityRestFilterTests extends ESTestCase {
         filter.intercept(request, channel, restHandler, listener);
 
         verifyNoMoreInteractions(channel);
+        verify(secondaryAuditTrail).authenticationSuccess(request);
 
         assertThat(secondaryAuthRef.get(), notNullValue());
         assertThat(secondaryAuthRef.get().getAuthentication(), sameInstance(secondaryAuthentication));
     }
 
+    public void testProcessSecondaryAuthenticationFailureAfterAuditingPrimarySuccess() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+        HttpRequest httpRequest = mock(HttpRequest.class);
+        when(request.getHttpRequest()).thenReturn(httpRequest);
+
+        final ElasticsearchSecurityException secondaryFailure = new ElasticsearchSecurityException("invalid secondary credentials");
+        doAnswer(i -> {
+            final Object[] arguments = i.getArguments();
+            @SuppressWarnings("unchecked")
+            ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
+            callback.onFailure(secondaryFailure);
+            return null;
+        }).when(authcService).authenticate(eq(httpRequest), eq(false), anyActionListener());
+
+        threadContext.putHeader(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME, "Basic " + randomAlphaOfLengthBetween(8, 16));
+        authenticateSecondaryInHttpPipeline(httpRequest);
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        filter.intercept(request, channel, restHandler, future);
+
+        final ElasticsearchSecurityException ex = expectThrows(ExecutionException.class, ElasticsearchSecurityException.class, future::get);
+        assertThat(ex.getMessage(), containsString("secondary user"));
+        assertThat(ex.getCause(), sameInstance(secondaryFailure));
+        verify(primaryAuditTrail).authenticationSuccess(request);
+        verifyNoInteractions(secondaryAuditTrail);
+        verifyNoMoreInteractions(channel);
+    }
+
+    /**
+     * Restores the context seen by the listener, like the HTTP validator snapshots it onto the request.
+     */
+    private void authenticateSecondaryInHttpPipeline(HttpRequest httpRequest) throws Exception {
+        PlainActionFuture<ThreadContext.StoredContext> authenticatedContext = new PlainActionFuture<>();
+        secondaryAuthenticator.authenticateAndAttachResultToContext(
+            httpRequest,
+            authenticatedContext.map(ignored -> threadContext.newStoredContext())
+        );
+        authenticatedContext.get().restore();
+    }
+
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
+        filter = new SecurityRestFilter(false, true, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
         assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
         RestRequest request = mock(RestRequest.class);
 
@@ -171,6 +241,46 @@ public class SecurityRestFilterTests extends ESTestCase {
         filter.intercept(request, channel, restHandler, future);
         assertThat(future.get(), is(Boolean.TRUE));
         verifyNoMoreInteractions(channel, authcService);
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRequiresSecurityEnabled() throws Exception {
+        Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
+        authentication.writeToContext(threadContext);
+        RestRequest request = mock(RestRequest.class);
+
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(true));
+
+        filter = new SecurityRestFilter(false, true, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRequiresHttpSslEnabled() throws Exception {
+        Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
+        authentication.writeToContext(threadContext);
+        RestRequest request = mock(RestRequest.class);
+
+        filter = new SecurityRestFilter(
+            true,
+            false,
+            threadContext,
+            secondaryAuthenticator,
+            mock(AuditTrailService.class),
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRequiresAuthenticatedUser() {
+        RestRequest request = mock(RestRequest.class);
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRejectsAnonymousAuthentication() throws Exception {
+        Authentication authentication = AuthenticationTestHelper.builder().anonymous().build(false);
+        authentication.writeToContext(threadContext);
+        RestRequest request = mock(RestRequest.class);
+
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
     }
 
     public void testProcessOptionsMethod() throws Exception {
@@ -211,9 +321,10 @@ public class SecurityRestFilterTests extends ESTestCase {
         }).when(auditTrail).authenticationSuccess(any(RestRequest.class));
         filter = new SecurityRestFilter(
             true,
+            true,
             threadContext,
             secondaryAuthenticator,
-            new AuditTrailService(auditTrail, licenseState),
+            new AuditTrailService(auditTrail, licenseState, clusterService),
             NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
 
@@ -273,7 +384,14 @@ public class SecurityRestFilterTests extends ESTestCase {
         final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
         restHandler = new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers()));
 
-        filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), null);
+        filter = new SecurityRestFilter(
+            true,
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
+            null
+        );
 
         RestRequest request = mock(RestRequest.class);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
@@ -293,7 +411,14 @@ public class SecurityRestFilterTests extends ESTestCase {
             restHandler = Mockito.mock(RestHandler.class);
         }
 
-        filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), null);
+        filter = new SecurityRestFilter(
+            true,
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
+            null
+        );
 
         RestRequest request = mock(RestRequest.class);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
@@ -344,6 +469,66 @@ public class SecurityRestFilterTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * When {@code AuditUtil.restRequestContent} detects an oversized body during auditing, it
+     * throws {@link ElasticsearchStatusException} with status 413. {@link SecurityRestFilter}
+     * must catch that exception and reject the request without processing it further.
+     */
+    public void testRejectsOversizedBodyWhenBodyAuditingEnabled() throws Exception {
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(randomByteArrayOfLength(20)),
+            XContentType.JSON
+        ).build();
+
+        AuditTrail auditTrail = mock(AuditTrail.class);
+        AuditTrailService auditTrailService = mock(AuditTrailService.class);
+        when(auditTrailService.get()).thenReturn(auditTrail);
+        doThrow(new ElasticsearchStatusException("body exceeds audit limit", RestStatus.REQUEST_ENTITY_TOO_LARGE)).when(auditTrail)
+            .authenticationSuccess(any());
+
+        SecurityRestFilter testFilter = new SecurityRestFilter(
+            true,
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            auditTrailService,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        testFilter.intercept(restRequest, channel, restHandler, future);
+
+        ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+        assertTrue(ex.getCause() instanceof ElasticsearchStatusException);
+        assertThat(((ElasticsearchStatusException) ex.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+    }
+
+    /** When {@code authenticationSuccess} does not throw, the request proceeds normally. */
+    public void testAcceptsBodyWithinAuditLimit() throws Exception {
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(randomByteArrayOfLength(5)),
+            XContentType.JSON
+        ).build();
+        when(channel.request()).thenReturn(restRequest);
+
+        AuditTrail auditTrail = mock(AuditTrail.class);
+        AuditTrailService auditTrailService = mock(AuditTrailService.class);
+        when(auditTrailService.get()).thenReturn(auditTrail);
+
+        SecurityRestFilter testFilter = new SecurityRestFilter(
+            true,
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            auditTrailService,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        testFilter.intercept(restRequest, channel, restHandler, future);
+        assertThat(future.get(), is(Boolean.TRUE));
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

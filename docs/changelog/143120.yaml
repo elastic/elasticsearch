@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 143120
-summary: Add pluggable partition detection and virtual columns
-type: enhancement

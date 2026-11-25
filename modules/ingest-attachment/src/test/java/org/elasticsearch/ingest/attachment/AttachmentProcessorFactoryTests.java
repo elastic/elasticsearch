@@ -9,7 +9,10 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -23,12 +26,13 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 
 public class AttachmentProcessorFactoryTests extends ESTestCase {
 
-    private AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory();
+    private final AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory(Settings.EMPTY, new SetOnce<>());
 
     public void testBuildDefaults() throws Exception {
         Map<String, Object> config = new HashMap<>();
@@ -38,8 +42,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
 
         AttachmentProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
 
@@ -74,8 +78,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("target_field", "_field");
         AttachmentProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("_field"));
         assertFalse(processor.isIgnoreMissing());
 
         assertWarnings(
@@ -98,7 +102,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
         assertFalse(processor.isIgnoreMissing());
 
@@ -150,8 +154,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
 
         AttachmentProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isIgnoreMissing());
 
@@ -171,9 +175,27 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
 
         AttachmentProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isRemoveBinary());
     }
+
+    public void testMaxFieldBytesInvalid() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("remove_binary", true);
+        config.put("max_field_bytes", randomFrom("not-a-number", String.valueOf(randomLongBetween(-10L, -2L))));
+        expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "t", null, config, null));
+    }
+
+    public void testMaxFieldBytesMissing() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("remove_binary", true);
+        AttachmentProcessor processor = factory.create(null, "t", null, config, null);
+        assertThat(processor.getMaxFieldBytesFromProcessor(), equalTo(-1));
+        assertThat(processor.getMaxFieldSizeFromNode().getAbsolute(), equalTo(ByteSizeValue.MINUS_ONE));
+    }
+
 }

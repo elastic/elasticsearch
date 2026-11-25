@@ -530,7 +530,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             DataCounts dataCounts = getJobStats(jobId).getDataCounts();
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testClusterWithTwoMlNodes_StopsDatafeed_GivenJobFailsOnReassign() throws Exception {

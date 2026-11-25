@@ -13,11 +13,14 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.HistogramMergeExponentialHistogramAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.HistogramMergeTDigestAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -35,14 +38,19 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
-public class HistogramMerge extends AggregateFunction implements ToAggregator {
+public class HistogramMerge extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "HistogramMerge",
         HistogramMerge::new
     );
 
-    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.AGGREGATE)
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "exponential_histogram", "tdigest" },
+        type = FunctionType.AGGREGATE,
+        briefSummary = "Merges histogram field values into a single histogram."
+    )
     public HistogramMerge(Source source, @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field) {
         this(source, field, Literal.TRUE, NO_WINDOW);
     }
@@ -85,10 +93,6 @@ public class HistogramMerge extends AggregateFunction implements ToAggregator {
     @Override
     public HistogramMerge replaceChildren(List<Expression> newChildren) {
         return new HistogramMerge(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
-    }
-
-    public HistogramMerge withFilter(Expression filter) {
-        return new HistogramMerge(source(), field(), filter, window());
     }
 
     @Override

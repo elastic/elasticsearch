@@ -27,11 +27,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetHealthAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("verbose", "size");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "indicator");
+
     private static final String VERBOSE_PARAM = "verbose";
 
     private static final String SIZE_PARAM = "size";
-
-    private static final String CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY = "multi_project_shards_availability";
 
     @Override
     public String getName() {
@@ -63,7 +64,13 @@ public class RestGetHealthAction extends BaseRestHandler {
     }
 
     @Override
-    public Set<String> supportedCapabilities() {
-        return Sets.union(Set.of(CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY), super.supportedCapabilities());
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

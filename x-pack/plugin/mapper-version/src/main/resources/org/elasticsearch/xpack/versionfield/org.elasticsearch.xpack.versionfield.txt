@@ -8,18 +8,21 @@
 #
 
 class org.elasticsearch.xpack.versionfield.VersionScriptDocValues {
-    String get(int)
-    String getValue()
+    String get(int) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionReadBytes"]
+    String getValue() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionReadBytes"]
+    Iterator iterator() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionIteratorBytes"]
+    Stream stream() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionIteratorBytes"]
 }
 
 class org.elasticsearch.xpack.versionfield.Version {
-    (String)
+    (String) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionBytes"]
 }
 
 class org.elasticsearch.xpack.versionfield.VersionStringDocValuesField @dynamic_type {
-    String asString(String)
-    String asString(int, String)
-    List asStrings()
-    Version get(Version)
-    Version get(int, Version)
+    String asString(String) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionStringBytes"]
+    String asString(int, String) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionStringBytes"]
+    List asStrings() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionStringsBytes"]
+    Version get(Version) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionObjectBytes"]
+    Version get(int, Version) @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionObjectBytes"]
+    Iterator iterator() @allocates[class="org.elasticsearch.xpack.versionfield.VersionAllocationEstimators", method="versionIteratorBytes"]
 }

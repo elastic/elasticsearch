@@ -28,7 +28,11 @@ public class VersionClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-version").build();
+    // 70_allocation_limit.yml needs a limit one decoded version fits inside and iterating three does not.
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("mapper-version")
+        .setting("script.painless.max_allocation_bytes.context.score.limit", "300b")
+        .build();
 
     @Override
     protected String getTestRestCluster() {

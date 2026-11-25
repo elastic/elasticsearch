@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockExceptions;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
@@ -44,21 +46,23 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
     @Override
     public void send(
         Logger logger,
-        Request request,
-        Supplier<Boolean> hasRequestTimedOutFunction,
+        OutboundRequest outboundRequest,
         ResponseHandler responseHandler,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
-        if (request instanceof AmazonBedrockRequest awsRequest && responseHandler instanceof AmazonBedrockResponseHandler awsResponse) {
+        // the AWS SDK manages its own connections and timeouts, so there is no abandoned work to register an abort handler for
+        var listener = timedListener.getListener();
+        if (outboundRequest instanceof AmazonBedrockRequest awsRequest
+            && responseHandler instanceof AmazonBedrockResponseHandler awsResponse) {
             try {
-                var executor = createExecutor(awsRequest, awsResponse, logger, hasRequestTimedOutFunction, listener);
+                var executor = createExecutor(awsRequest, awsResponse, logger, timedListener::hasCompleted, listener);
 
                 // the run method will call the listener to return the proper value
                 executor.run();
                 return;
             } catch (Exception e) {
-                logException(logger, request, e);
-                listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));
+                logException(logger, outboundRequest, e);
+                listener.onFailure(wrapWithElasticsearchException(e, outboundRequest.getInferenceEntityId()));
             }
         }
 
@@ -112,18 +116,21 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
         }
     }
 
-    private void logException(Logger logger, Request request, Exception exception) {
+    private void logException(Logger logger, OutboundRequest outboundRequest, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttleManager.warn(
             logger,
-            format("Failed while sending request from inference entity id [%s] of type [amazonbedrock]", request.getInferenceEntityId()),
+            format(
+                "Failed while sending request from inference entity id [%s] of type [amazonbedrock]",
+                outboundRequest.getInferenceEntityId()
+            ),
             causeException
         );
     }
 
     private Exception wrapWithElasticsearchException(Exception e, String inferenceEntityId) {
-        return new ElasticsearchException(
+        return AmazonBedrockExceptions.wrap(
             format("Amazon Bedrock client failed to send request from inference entity id [%s]", inferenceEntityId),
             e
         );

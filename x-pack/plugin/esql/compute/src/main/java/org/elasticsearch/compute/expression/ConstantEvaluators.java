@@ -20,6 +20,11 @@ public class ConstantEvaluators {
     public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ConstantTrueEvaluator.Factory();
     public static final ExpressionEvaluator.Factory CONSTANT_FALSE_FACTORY = new ConstantFalseEvaluator.Factory();
 
+    /** Returns a factory that emits {@code value} for every position in the page, including null input positions. */
+    public static ExpressionEvaluator.Factory constantDouble(double value) {
+        return new ConstantDoubleEvaluator.Factory(value);
+    }
+
     private ConstantEvaluators() {}
 
     private record ConstantNullEvaluator(DriverContext context) implements ExpressionEvaluator {
@@ -90,6 +95,41 @@ public class ConstantEvaluators {
                 return NAME;
             }
         };
+    }
+
+    private record ConstantDoubleEvaluator(DriverContext context, double value) implements ExpressionEvaluator {
+        private static final String NAME = "ConstantDouble";
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            return context.blockFactory().newConstantDoubleBlockWith(value, page.getPositionCount());
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public String toString() {
+            return NAME + "[" + value + "]";
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        record Factory(double value) implements ExpressionEvaluator.Factory {
+            @Override
+            public ConstantDoubleEvaluator get(DriverContext context) {
+                return new ConstantDoubleEvaluator(context, value);
+            };
+
+            @Override
+            public String toString() {
+                return NAME + "[" + value + "]";
+            }
+        }
     }
 
     private record ConstantFalseEvaluator(DriverContext context) implements ExpressionEvaluator {

@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
@@ -50,6 +51,9 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
+    // Keep-alive duration requested with the search currently in flight
+    private final AtomicReference<TimeValue> currentKeepAlive = new AtomicReference<>();
+    private final SearchContextKeepaliveDeadline keepaliveDeadline;
 
     public ClientScrollablePaginatedHitSource(
         Logger logger,
@@ -59,11 +63,13 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         Consumer<AsyncResponse> onResponse,
         Consumer<Exception> fail,
         ParentTaskAssigningClient client,
-        SearchRequest firstSearchRequest
+        SearchRequest firstSearchRequest,
+        SearchContextKeepaliveDeadline keepaliveDeadline
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
+        this.keepaliveDeadline = keepaliveDeadline;
         firstSearchRequest.allowPartialSearchResults(false);
     }
 
@@ -73,6 +79,10 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
             "executing initial local scroll search against {}",
             () -> isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
         );
+        TimeValue scrollKeepAlive = firstSearchRequest.scroll();
+        if (scrollKeepAlive != null) {
+            currentKeepAlive.set(scrollKeepAlive);
+        }
         client.search(firstSearchRequest, wrapListener(searchListener));
     }
 
@@ -85,14 +95,20 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     protected void doNextScrollSearch(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
-        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos()));
+        TimeValue composedScroll = timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos());
+        currentKeepAlive.set(composedScroll);
+        request.scrollId(scrollId).scroll(composedScroll);
         client.searchScroll(request, wrapListener(searchListener));
     }
 
-    private static ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
+    private ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
+                TimeValue keepAlive = currentKeepAlive.getAndSet(null);
+                if (keepAlive != null) {
+                    keepaliveDeadline.recordSuccessfulExtension(keepAlive);
+                }
                 searchListener.onResponse(wrapSearchResponse(searchResponse));
             }
 
@@ -141,16 +157,12 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     }
 
     private static Response wrapSearchResponse(SearchResponse response) {
-        List<PaginatedSearchFailure> failures;
-        if (response.getShardFailures() == null) {
-            failures = emptyList();
-        } else {
-            failures = new ArrayList<>(response.getShardFailures().length);
-            for (ShardSearchFailure failure : response.getShardFailures()) {
-                String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
-                failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
-            }
+        List<PaginatedSearchFailure> failures = new ArrayList<>(response.getShardFailures().size());
+        for (ShardSearchFailure failure : response.getShardFailures()) {
+            String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
+            failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
         }
+
         List<Hit> hits;
         if (response.getHits().getHits() == null || response.getHits().getHits().length == 0) {
             hits = emptyList();

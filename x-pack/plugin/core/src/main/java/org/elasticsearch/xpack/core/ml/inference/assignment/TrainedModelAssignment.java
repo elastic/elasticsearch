@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,6 +53,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private static final ParseField START_TIME = new ParseField("start_time");
     private static final ParseField MAX_ASSIGNED_ALLOCATIONS = new ParseField("max_assigned_allocations");
     public static final ParseField ADAPTIVE_ALLOCATIONS = new ParseField("adaptive_allocations");
+
+    // The observed per-allocation memory gated by this version has been removed, but the field is still read and written
+    // (as null) to stay wire-compatible with nodes that support this transport version.
+    static final TransportVersion RUNTIME_NATIVE_MEMORY_STATS = TransportVersion.fromName("ml_runtime_native_memory_stats");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<TrainedModelAssignment, Void> PARSER = new ConstructingObjectParser<>(
@@ -169,6 +174,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         this.startTime = in.readInstant();
         this.maxAssignedAllocations = in.readVInt();
         this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+        if (in.getTransportVersion().supports(RUNTIME_NATIVE_MEMORY_STATS)) {
+            in.readOptionalVLong(); // removed observed per-allocation memory
+        }
     }
 
     public boolean isRoutedToNode(String nodeId) {
@@ -367,6 +375,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         out.writeInstant(startTime);
         out.writeVInt(maxAssignedAllocations);
         out.writeOptionalWriteable(adaptiveAllocationsSettings);
+        if (out.getTransportVersion().supports(RUNTIME_NATIVE_MEMORY_STATS)) {
+            out.writeOptionalVLong(null); // removed observed per-allocation memory
+        }
     }
 
     public Optional<AllocationStatus> calculateAllocationStatus() {

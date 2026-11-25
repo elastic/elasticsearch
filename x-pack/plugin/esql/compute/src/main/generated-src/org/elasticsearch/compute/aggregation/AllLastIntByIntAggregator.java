@@ -160,7 +160,7 @@ public class AllLastIntByIntAggregator {
         IntBlock values,
         int otherPosition
     ) {
-        if (group < observed.getPositionCount() && observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
+        if (observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
             // The incoming state hasn't observed anything for this particular group. No work is needed.
             return;
         }
@@ -270,13 +270,15 @@ public class AllLastIntByIntAggregator {
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (group <= maxGroupId) {
-                        // We must have seen this group before and saved its state
-                        observedBlockBuilder.appendBoolean(hasValue(group));
+                    // maxGroupId is the highest group this aggregator collected, not proof that `group`
+                    // itself was collected. A lower id can be selected because another aggregator created
+                    // it. Emitting that id as timestamp-present uses the unset key (often -1 or 0), which
+                    // then wins a FIRST merge.
+                    if (group <= maxGroupId && hasValue(group)) {
+                        observedBlockBuilder.appendBoolean(true);
                         hasTimestampBuilder.appendBoolean(nullKey(group) == false);
                         timestampsBuilder.appendInt(key(group));
                     } else {
-                        // Unknown group so we append nulls everywhere
                         observedBlockBuilder.appendBoolean(false);
                         hasTimestampBuilder.appendBoolean(false);
                         timestampsBuilder.appendNull();
@@ -341,22 +343,22 @@ public class AllLastIntByIntAggregator {
             try (var valuesBuilder = blockFactory.newIntBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
-                        IntArray tail = getTail(group);
-                        int tailCount = tail == null ? 0 : (int) tail.size();
-                        if (tailCount == 0) {
-                            valuesBuilder.appendInt(firstValues.get(group));
-                        } else {
-                            valuesBuilder.beginPositionEntry();
-                            valuesBuilder.appendInt(firstValues.get(group));
-                            for (int i = 0; i < tailCount; ++i) {
-                                valuesBuilder.appendInt(tail.get(i));
-                            }
-                            valuesBuilder.endPositionEntry();
-                        }
-                    } else {
+                    if (group > maxGroupId || hasValue(group) == false || nullValue(group)) {
                         valuesBuilder.appendNull();
+                        continue;
                     }
+                    IntArray tail = getTail(group);
+                    int tailCount = tail == null ? 0 : (int) tail.size();
+                    if (tailCount == 0) {
+                        valuesBuilder.appendInt(firstValues.get(group));
+                        continue;
+                    }
+                    valuesBuilder.beginPositionEntry();
+                    valuesBuilder.appendInt(firstValues.get(group));
+                    for (int i = 0; i < tailCount; ++i) {
+                        valuesBuilder.appendInt(tail.get(i));
+                    }
+                    valuesBuilder.endPositionEntry();
                 }
                 return valuesBuilder.build();
             }

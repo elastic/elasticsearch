@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165404
+pr: 165407
+summary: Reject untyped null FORK column again
+type: bug

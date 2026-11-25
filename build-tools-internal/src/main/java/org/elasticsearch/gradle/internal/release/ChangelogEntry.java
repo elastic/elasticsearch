@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.release;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
@@ -44,7 +45,9 @@ public class ChangelogEntry {
     private Highlight highlight;
     private Deprecation deprecation;
     private String entryOverride;
+    private String sourceRepo;
 
+    private static final String DEFAULT_REPO = "elastic/elasticsearch";
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     /**
@@ -57,6 +60,19 @@ public class ChangelogEntry {
             return yamlMapper.readValue(file, ChangelogEntry.class);
         } catch (IOException e) {
             LOGGER.error("Failed to parse changelog from " + file.getAbsolutePath(), e);
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Create a new instance by parsing YAML content from a string.
+     * @param yamlContent the YAML string to parse
+     * @return a new instance
+     */
+    public static ChangelogEntry parse(String yamlContent) {
+        try {
+            return yamlMapper.readValue(yamlContent, ChangelogEntry.class);
+        } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
@@ -134,6 +150,22 @@ public class ChangelogEntry {
         this.entryOverride = entryOverride;
     }
 
+    @JsonProperty("source_repo")
+    public String getSourceRepo() {
+        return sourceRepo;
+    }
+
+    @JsonProperty("source_repo")
+    public void setSourceRepo(String sourceRepo) {
+        this.sourceRepo = sourceRepo;
+    }
+
+    @JsonIgnore
+    public String getRepoUrl() {
+        String repo = sourceRepo != null ? sourceRepo : DEFAULT_REPO;
+        return "https://github.com/" + repo;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -150,19 +182,20 @@ public class ChangelogEntry {
             && Objects.equals(summary, that.summary)
             && Objects.equals(highlight, that.highlight)
             && Objects.equals(breaking, that.breaking)
-            && Objects.equals(entryOverride, that.entryOverride);
+            && Objects.equals(entryOverride, that.entryOverride)
+            && Objects.equals(sourceRepo, that.sourceRepo);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, entryOverride);
+        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, entryOverride, sourceRepo);
     }
 
     @Override
     public String toString() {
         return String.format(
             Locale.ROOT,
-            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s}",
+            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s, sourceRepo='%s'}",
             pr,
             issues,
             area,
@@ -170,7 +203,8 @@ public class ChangelogEntry {
             summary,
             highlight,
             breaking,
-            deprecation
+            deprecation,
+            sourceRepo
         );
     }
 

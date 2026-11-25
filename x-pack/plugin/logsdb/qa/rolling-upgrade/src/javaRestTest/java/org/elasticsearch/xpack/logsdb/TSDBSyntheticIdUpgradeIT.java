@@ -250,13 +250,15 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         StringJoiner joiner = new StringJoiner("\n", "", "\n");
         Instant now = Instant.now();
         for (int i = 0; i < DOC_COUNT; i++) {
-            addDocument(joiner, now.plus(i, ChronoUnit.SECONDS));
+            addDocument(joiner, now.plus(i, ChronoUnit.MILLIS));
         }
         var request = new Request("PUT", "/" + indexName + "/_bulk");
         request.setJsonEntity(joiner.toString());
         request.addParameter("refresh", "true");
         Response response = client().performRequest(request);
         assertOK(response);
+        Map<String, Object> responseBody = entityAsMap(response);
+        assertThat("Bulk indexing returned item failures: " + responseBody, responseBody.get("errors"), Matchers.equalTo(false));
     }
 
     private static void addDocument(StringJoiner joiner, Instant timestamp) {

@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
@@ -46,10 +47,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
 
@@ -130,7 +133,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
             return new TestParams(
                 numDocs,
                 numDims,
-                randomVector(numDims),
+                VectorTestUtils.randomFloatVector(numDims),
                 k,
                 (int) (k * randomFloatBetween(1.0f, 10.0f, true)),
                 randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
@@ -195,7 +198,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
 
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = prepareIndex(INDEX_NAME).setId("" + i).setSource(VECTOR_FIELD, randomVector(testParams.numDims));
+            docs[i] = prepareIndex(INDEX_NAME).setId("" + i).setSource(VECTOR_FIELD, VectorTestUtils.randomFloatVector(testParams.numDims));
         }
         indexRandom(true, docs);
 
@@ -220,29 +223,14 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(prepareSearch(INDEX_NAME).setQuery(scriptScoreQueryBuilder).setSize(docCount), exactResponse -> {
             assertHitCount(exactResponse, docCount);
 
-            int i = 0;
-            SearchHit[] exactHits = exactResponse.getHits().getHits();
+            // Look up by id: docs with equal or near-equal scores can rank differently in the kNN and exact searches
+            Map<String, Float> exactScores = Arrays.stream(exactResponse.getHits().getHits())
+                .collect(Collectors.toMap(SearchHit::getId, SearchHit::getScore));
             for (SearchHit knnHit : knnResponse.getHits().getHits()) {
-                while (i < exactHits.length && exactHits[i].getId().equals(knnHit.getId()) == false) {
-                    i++;
-                }
-                if (i >= exactHits.length) {
-                    fail("Knn doc not found in exact search");
-                }
-                assertThat(
-                    "Real score is not the same as rescored score",
-                    (double) knnHit.getScore(),
-                    closeTo(exactHits[i].getScore(), DELTA)
-                );
+                Float exactScore = exactScores.get(knnHit.getId());
+                assertThat("Knn doc not found in exact search", exactScore, notNullValue());
+                assertThat("Real score is not the same as rescored score", (double) knnHit.getScore(), closeTo(exactScore, DELTA));
             }
         });
-    }
-
-    private static float[] randomVector(int numDimensions) {
-        float[] vector = new float[numDimensions];
-        for (int j = 0; j < numDimensions; j++) {
-            vector[j] = randomFloatBetween(0, 1, true);
-        }
-        return vector;
     }
 }

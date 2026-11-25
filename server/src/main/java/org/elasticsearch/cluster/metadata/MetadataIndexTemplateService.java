@@ -139,7 +139,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final InstantSource instantSource;
 
     /**
@@ -196,7 +196,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamLifecycleSettings dataStreamLifecycleSettings
     ) {
         this(
             clusterService,
@@ -206,7 +206,7 @@ public class MetadataIndexTemplateService {
             xContentRegistry,
             systemIndices,
             indexSettingProviders,
-            globalRetentionSettings,
+            dataStreamLifecycleSettings,
             Instant::now
         );
     }
@@ -220,7 +220,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         InstantSource instantSource
     ) {
         this.clusterService = clusterService;
@@ -231,7 +231,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.instantSource = instantSource;
     }
 
@@ -366,7 +366,7 @@ public class MetadataIndexTemplateService {
         // These two validation checks are only scoped to the component template itself (and don't depend on any other entities in the
         // cluster state) and could thus be done in the transport action. However, since we're parsing mappings here, we shouldn't be doing
         // it directly on the transport thread. Instead, we should fork to a different threadpool (management/generic).
-        validateTemplate(finalComponentTemplate.template().settings(), finalComponentTemplate.template().mappings(), indicesService);
+        validateTemplate(finalComponentTemplate.template().settings(), finalComponentTemplate.template().mappings(), indicesService, name);
         validate(name, finalComponentTemplate.template(), List.of(), null);
 
         ProjectMetadata projectWithComponentTemplateAdded = ProjectMetadata.builder(project).put(name, finalComponentTemplate).build();
@@ -403,7 +403,7 @@ public class MetadataIndexTemplateService {
             finalComponentTemplate.template()
                 .lifecycle()
                 .toDataStreamLifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), false);
+                .addWarningHeaderIfDataRetentionNotEffective(dataStreamLifecycleSettings.getGlobalRetention(false), false);
         }
 
         logger.info("{} component template [{}]", existingTemplate == null ? "adding" : "updating", name);
@@ -616,7 +616,7 @@ public class MetadataIndexTemplateService {
         validateV2TemplateRequest(metadata.componentTemplates(), name, template);
     }
 
-    public static void validateV2TemplateRequest(
+    private static void validateV2TemplateRequest(
         Map<String, ComponentTemplate> componentTemplates,
         String name,
         ComposableIndexTemplate template
@@ -807,6 +807,7 @@ public class MetadataIndexTemplateService {
                 VALIDATE_INDEX_NAME,
                 indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
                 projectMetadata.retrieveIndexModeFromTemplate(indexTemplate),
+                indexTemplate.isRegistryInstalled(),
                 projectMetadata,
                 now,
                 combinedSettings,
@@ -833,8 +834,8 @@ public class MetadataIndexTemplateService {
 
         validate(name, templateToValidate, additionalSettings);
         maybeValidateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
-        validateLifecycle(componentTemplates, name, templateToValidate, globalRetentionSettings.get(false));
-        validateDataStreamOptions(componentTemplates, name, templateToValidate, globalRetentionSettings.get(true));
+        validateLifecycle(componentTemplates, name, templateToValidate, dataStreamLifecycleSettings.getGlobalRetention(false));
+        validateDataStreamOptions(componentTemplates, name, templateToValidate, dataStreamLifecycleSettings.getGlobalRetention(true));
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, componentTemplates);
@@ -1310,7 +1311,7 @@ public class MetadataIndexTemplateService {
             new TemplateClusterStateUpdateTask(listener, projectId) {
                 @Override
                 public ProjectMetadata execute(ProjectMetadata project) throws Exception {
-                    validateTemplate(request.settings, request.mappings, indicesService);
+                    validateTemplate(request.settings, request.mappings, indicesService, request.name);
                     return innerPutTemplate(project, request, templateBuilder);
                 }
             },
@@ -2004,25 +2005,11 @@ public class MetadataIndexTemplateService {
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices
     ) throws Exception {
-        final String temporaryIndexName = "validate-template-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
+        final String temporaryIndexName = "validate-template-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT) + ":" + templateName;
         Settings resolvedSettings = resolveSettings(template, project.componentTemplates());
 
-        // use the provided values, otherwise just pick valid dummy values
-        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(resolvedSettings);
-        int dummyShards = resolvedSettings.getAsInt(
-            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-            dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
-        );
-        int shardReplicas = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-
         // Create the final aggregate settings, which will be used to create the temporary index metadata to validate everything
-        Settings finalResolvedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(resolvedSettings)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+        Settings finalResolvedSettings = temporaryIndexSettings(resolvedSettings);
 
         // Validate index metadata (settings)
         final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(finalResolvedSettings).build();
@@ -2060,7 +2047,7 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    public static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
+    public static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService, String name)
         throws IOException {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
@@ -2068,21 +2055,9 @@ public class MetadataIndexTemplateService {
             settings = Settings.EMPTY;
         }
 
-        final String temporaryIndexName = UUIDs.randomBase64UUID();
-        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
-        int dummyShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
-        int shardReplicas = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-
+        final String temporaryIndexName = "validate-template-" + UUIDs.randomBase64UUID() + ":" + name;
         // create index service for parsing and validating "mappings"
-        Settings dummySettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(settings)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
-
-        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
+        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(temporaryIndexSettings(settings)).build();
 
         indicesService.withTempIndexService(tmpIndexMetadata, dummyIndexService -> {
             if (mappings != null) {
@@ -2090,6 +2065,24 @@ public class MetadataIndexTemplateService {
             }
             return null;
         });
+    }
+
+    /**
+     * Returns the given settings plus placeholder values for the rest, so a temporary index can be created to validate templates or
+     * mappings. A routing partition size above 1 needs more shards than the partition size, so the default shard count is derived from it.
+     */
+    public static Settings temporaryIndexSettings(Settings settings) {
+        int partitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(settings)
+            .put(
+                IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+                settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, partitionSize == 1 ? 1 : partitionSize + 1)
+            )
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
     }
 
     private void validate(String name, ComposableIndexTemplate template, @Nullable Settings systemProvided) {

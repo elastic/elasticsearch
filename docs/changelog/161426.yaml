@@ -1,0 +1,6 @@
+area: Codec
+issues:
+ - 161287
+pr: 161426
+summary: Track `DocValuesSkipper` usage in field usage API
+type: enhancement

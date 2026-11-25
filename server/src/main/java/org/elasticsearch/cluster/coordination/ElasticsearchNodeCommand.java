@@ -18,8 +18,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,10 +84,11 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             }
             if (Metadata.ProjectCustom.class.isAssignableFrom(categoryClass)) {
                 if (DataStreamMetadata.TYPE.equals(name)
+                    || ViewMetadata.TYPE.equals(name)
                     || ComposableIndexTemplateMetadata.TYPE.equals(name)
                     || ComponentTemplateMetadata.TYPE.equals(name)) {
-                    // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,
-                    // therefor even es node commands need to be able to parse it.
+                    // DataStreamMetadata and ViewMetadata is used inside Metadata class for validation purposes and
+                    // building the indicesLookup, therefore even es node commands need to be able to parse it.
                     return super.parseNamedObject(categoryClass, name, parser, context);
                     // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
                     // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.

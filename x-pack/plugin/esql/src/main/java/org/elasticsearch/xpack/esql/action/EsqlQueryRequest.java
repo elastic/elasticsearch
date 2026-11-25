@@ -24,28 +24,32 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.io.IOException;
-import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest implements CompositeIndicesRequest {
 
-    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
 
     private boolean async;
@@ -55,19 +59,41 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean profile;
     private Boolean includeCCSMetadata;
     private Boolean includeExecutionMetadata;
-    private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private QueryParams params = new QueryParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
-    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    @Nullable
+    private TimeValue keepAlive = null;
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
-    private String projectRouting;
-    private ApproximationSettings approximation;
+    private boolean allowPartialResultsDefaulted;
+
+    private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
+    /**
+     * The settings the query resolved to, if it got far enough to resolve them.
+     * Runtime-only state of the node that runs the query: it is not serialized.
+     */
+    private transient ResolvedSettings resolvedSettings;
+    /**
+     * The settings each resolved view's definition applies to its own body, by view name, once views are resolved.
+     * Runtime-only state of the node that runs the query: it is not serialized.
+     */
+    private transient Map<String, ViewQuerySettings> viewSettings = Map.of();
+    /**
+     * The {@code @timestamp} range the request filter asks for, once the query has got far enough to extract it.
+     * Runtime-only state of the node that runs the query: it is not serialized, and kept when the query fails.
+     */
+    private transient RequestedTimeRange requestedTimeRange;
+    /**
+     * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
+     * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
+     * must be supplied in exactly one place — see that method.
+     */
+    private final Map<QuerySettingDef<?>, Object> canonicalRequestSettings = new HashMap<>();
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -100,7 +126,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.profile = source.profile;
         this.includeCCSMetadata = source.includeCCSMetadata;
         this.includeExecutionMetadata = source.includeExecutionMetadata;
-        this.timeZone = source.timeZone;
         this.locale = source.locale;
         this.filter = source.filter;
         this.pragmas = source.pragmas;
@@ -111,8 +136,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
-        this.projectRouting = source.projectRouting;
-        this.approximation = source.approximation;
+        this.allowPartialResultsDefaulted = source.allowPartialResultsDefaulted;
+        this.requestSettings.putAll(source.requestSettings);
+        this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
     }
 
@@ -173,14 +199,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Parses the query string into an {@link EsqlStatement} and validates its settings.
      * Overridden by {@link PreparedEsqlQueryRequest} to return a pre-built statement directly.
      */
-    public EsqlStatement parse(EsqlParser parser, SettingsValidationContext settingsValidationCtx, InferenceSettings inferenceSettings) {
-        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings);
+    public EsqlStatement parse(
+        EsqlParser parser,
+        SettingsValidationContext settingsValidationCtx,
+        InferenceSettings inferenceSettings,
+        EsqlFlags flags
+    ) {
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, pragmas(), flags);
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }
 
     public boolean async() {
         return async;
+    }
+
+    /**
+     * Whether execution stops once the query is analyzed. Such a request returns the analyzed columns and no rows, and does not
+     * count towards query logs or metrics. Only {@link PreparedEsqlQueryRequest} can request this.
+     */
+    public boolean analyzeOnly() {
+        return false;
     }
 
     public EsqlQueryRequest columnar(boolean columnar) {
@@ -224,14 +263,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     public boolean profile() {
         return profile;
-    }
-
-    public void timeZone(ZoneId timeZone) {
-        this.timeZone = timeZone;
-    }
-
-    public ZoneId timeZone() {
-        return timeZone;
     }
 
     public void locale(Locale locale) {
@@ -278,11 +309,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return this;
     }
 
+    @Nullable
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public EsqlQueryRequest keepAlive(TimeValue keepAlive) {
+    public EsqlQueryRequest keepAlive(@Nullable TimeValue keepAlive) {
         this.keepAlive = keepAlive;
         return this;
     }
@@ -332,7 +364,20 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = false;
         return this;
+    }
+
+    /** Applies the cluster default, for a request that did not set {@code allow_partial_results}. */
+    public EsqlQueryRequest defaultAllowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = true;
+        return this;
+    }
+
+    /** Whether the request itself asked for partial results, as opposed to getting them from the cluster default. */
+    public boolean allowPartialResultsRequested() {
+        return Boolean.TRUE.equals(allowPartialResults) && allowPartialResultsDefaulted == false;
     }
 
     @Override
@@ -369,25 +414,103 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = onSnapshotBuild;
     }
 
-    void acceptedPragmaRisks(boolean accepted) {
+    public EsqlQueryRequest acceptedPragmaRisks(boolean accepted) {
         this.acceptedPragmaRisks = accepted;
-    }
-
-    public EsqlQueryRequest projectRouting(String projectRouting) {
-        this.projectRouting = projectRouting;
         return this;
     }
 
-    public String projectRouting() {
-        return projectRouting;
-    }
-
-    public EsqlQueryRequest approximation(ApproximationSettings approximation) {
-        this.approximation = approximation;
+    public <T> EsqlQueryRequest set(QuerySettingDef<T> def, T value) {
+        if (value == null) {
+            requestSettings.remove(def);
+        } else {
+            requestSettings.put(def, value);
+        }
         return this;
     }
 
-    public ApproximationSettings approximation() {
-        return approximation;
+    /**
+     * Body-supplied value with registry-default fallback. Pre-resolution; for the merged value use the
+     * {@code ResolvedSettings} from {@link QuerySettings#resolve}.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T get(QuerySettingDef<T> def) {
+        T value = (T) requestSettings.get(def);
+        return value != null ? value : def.defaultValue();
+    }
+
+    public Map<QuerySettingDef<?>, Object> requestSettings() {
+        // Immutable snapshot: callers read (resolve, telemetry) but must go through set() to mutate (it enforces null-removes).
+        return Map.copyOf(requestSettings);
+    }
+
+    /** Records the settings the query resolved to. Not serialized. */
+    public void setResolvedSettings(ResolvedSettings resolvedSettings) {
+        this.resolvedSettings = resolvedSettings;
+    }
+
+    /** The settings the query resolved to, or {@code null} if it has not resolved them (yet) */
+    @Nullable
+    public ResolvedSettings resolvedSettings() {
+        return resolvedSettings;
+    }
+
+    /** Records the settings each resolved view's definition applies to its own body. Not serialized. */
+    public void setViewSettings(Map<String, ViewQuerySettings> viewSettings) {
+        this.viewSettings = Map.copyOf(viewSettings);
+    }
+
+    /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views (yet). */
+    public Map<String, ViewQuerySettings> viewSettings() {
+        return viewSettings;
+    }
+
+    /** Records the {@code @timestamp} range the request filter asks for. Not serialized. */
+    public void setRequestedTimeRange(@Nullable RequestedTimeRange requestedTimeRange) {
+        this.requestedTimeRange = requestedTimeRange;
+    }
+
+    /**
+     * The {@code @timestamp} range the request filter asks for, as the bounds that planning uses, or {@code null} if the filter has
+     * no range with both bounds or the query failed before it was extracted. It is extracted once the query's now is fixed, after
+     * parsing and view resolution, so a query that fails before that has none. A range in the query itself, such as
+     * {@code WHERE @timestamp > NOW() - 1 hour}, is not taken into account.
+     */
+    @Nullable
+    public RequestedTimeRange requestedTimeRange() {
+        return requestedTimeRange;
+    }
+
+    Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {
+        return canonicalRequestSettings;
+    }
+
+    /**
+     * Folds the canonical {@code settings.{}} block into {@link #requestSettings}. A setting with a legacy
+     * top-level body field (e.g. {@code time_zone}) may be supplied at the top level, under {@code settings.{}},
+     * or in both — as long as the two agree. Supplying it in both places with <em>different</em> values is a
+     * 400: we won't silently pick a winner. Supplying the <em>same</em> value in both is harmless, so we accept
+     * it rather than nitpick a redundant duplicate. The check runs after the whole body is parsed, so it is
+     * independent of JSON field order. In-query {@code SET} still overrides a body value — that precedence is
+     * intentional and unaffected here, because {@code SET} is reconciled later, off the request settings.
+     */
+    void applyCanonicalRequestSettings() {
+        for (Map.Entry<QuerySettingDef<?>, Object> e : canonicalRequestSettings.entrySet()) {
+            QuerySettingDef<?> def = e.getKey();
+            if (requestSettings.containsKey(def) && Objects.equals(requestSettings.get(def), e.getValue()) == false) {
+                throw new IllegalArgumentException(
+                    "Setting ["
+                        + def.name()
+                        + "] has conflicting values at the top level of the request body and under ["
+                        + RequestXContent.SETTINGS_FIELD.getPreferredName()
+                        + "]; specify it in only one place, or with the same value in both."
+                );
+            }
+            if (e.getValue() == null) {
+                requestSettings.remove(def);
+            } else {
+                requestSettings.put(def, e.getValue());
+            }
+        }
+        canonicalRequestSettings.clear();
     }
 }

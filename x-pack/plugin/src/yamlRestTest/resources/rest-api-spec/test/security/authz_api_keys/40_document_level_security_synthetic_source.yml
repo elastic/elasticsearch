@@ -409,3 +409,164 @@ Filter on field with ignored_malformed:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: A }
   - match: { hits.hits.0._source.secret: mission }
+
+---
+Filter on field within a disabled object in logsdb - uses _ignored_source doc values:
+  # logsdb stores the disabled object in _ignored_source binary doc values. DLS selects the matching documents via a
+  # runtime field read from _source, then returns their full source reconstructed from those doc values.
+  - do:
+      indices.create:
+        index: index_dls_logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+              object:
+                type: object
+                enabled: false
+            runtime:
+              secret:
+                type: keyword
+                script:
+                  source: "emit(params._source.object.secret)"
+
+  - do:
+      bulk:
+        index: index_dls_logsdb
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:09:00Z", "name": "A", "object": { "secret":"mission", "public":"interest" } }'
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:10:00Z", "name": "B", "object": { "secret":"common", "foo":"bar" } }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-dls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_dls_logsdb" ]
+                  privileges: [ "read", "monitor" ]
+                  query:
+                    term:
+                      secret: mission
+  - match: { name: "test-dls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_dls_logsdb
+        sort: name
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.secret: mission }
+  - match: { hits.hits.0._source.object.public: interest }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.object.secret: common }
+  - match: { hits.hits.1._source.object.foo: bar }
+
+  # With DLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_dls_logsdb
+        sort: name
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.object.secret: mission }
+  - match: { hits.hits.0._source.object.public: interest }
+
+---
+Filter on documents with ignore_above in logsdb_columnar - uses _ignored_source doc values:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Strict columnar index modes are only available on builds where the columnar feature flag is enabled"
+  # logsdb_columnar is strict columnar and rejects mapping runtime fields, so DLS queries a real indexed field. The
+  # returned document's over-limit ignore_above value is reconstructed from binary-doc-values _ignored_source.
+  - do:
+      indices.create:
+        index: index_dls_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+                index: true
+              secret:
+                type: keyword
+                ignore_above: 3
+
+  - do:
+      bulk:
+        index: index_dls_columnar
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:09:00Z", "name": "A", "secret": "squirrel" }'
+          - '{"create": { }}'
+          - '{"@timestamp": "2026-07-07T08:10:00Z", "name": "B", "secret": "walrus" }'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-dls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_dls_columnar" ]
+                  privileges: [ "read", "monitor" ]
+                  query:
+                    term:
+                      name: A
+  - match: { name: "test-dls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_dls_columnar
+        sort: name
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.secret: walrus }
+
+  # With DLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_dls_columnar
+        sort: name
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }

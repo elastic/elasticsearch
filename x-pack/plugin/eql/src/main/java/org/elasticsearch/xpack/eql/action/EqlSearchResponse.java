@@ -10,60 +10,56 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
     private final Hits hits;
+    private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
     private final long tookInMillis;
     private final boolean isTimeout;
     private final String asyncExecutionId;
     private final boolean isRunning;
     private final boolean isPartial;
-    private final ShardSearchFailure[] shardFailures;
+    private final List<ShardSearchFailure> shardFailures;
+    private DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
 
     private static final class Fields {
         static final String TOOK = "took";
         static final String TIMED_OUT = "timed_out";
-        static final String HITS = "hits";
         static final String ID = "id";
         static final String IS_RUNNING = "is_running";
         static final String IS_PARTIAL = "is_partial";
@@ -72,31 +68,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
     private static final ParseField TOOK = new ParseField(Fields.TOOK);
     private static final ParseField TIMED_OUT = new ParseField(Fields.TIMED_OUT);
-    private static final ParseField HITS = new ParseField(Fields.HITS);
     private static final ParseField ID = new ParseField(Fields.ID);
     private static final ParseField IS_RUNNING = new ParseField(Fields.IS_RUNNING);
     private static final ParseField IS_PARTIAL = new ParseField(Fields.IS_PARTIAL);
     private static final ParseField SHARD_FAILURES = new ParseField(Fields.SHARD_FAILURES);
 
-    private static final InstantiatingObjectParser<EqlSearchResponse, Void> PARSER;
-
-    static {
-        InstantiatingObjectParser.Builder<EqlSearchResponse, Void> parser = InstantiatingObjectParser.builder(
-            "eql/search_response",
-            true,
-            EqlSearchResponse.class
-        );
-        parser.declareObject(constructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
-        parser.declareLong(constructorArg(), TOOK);
-        parser.declareBoolean(constructorArg(), TIMED_OUT);
-        parser.declareString(optionalConstructorArg(), ID);
-        parser.declareBoolean(constructorArg(), IS_RUNNING);
-        parser.declareBoolean(constructorArg(), IS_PARTIAL);
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.EMPTY_ARRAY, SHARD_FAILURES);
-        PARSER = parser.build();
-    }
-
-    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, ShardSearchFailure[] shardFailures) {
+    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, List<ShardSearchFailure> shardFailures) {
         this(hits, tookInMillis, isTimeout, null, false, false, shardFailures);
     }
 
@@ -107,7 +84,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         String asyncExecutionId,
         boolean isRunning,
         boolean isPartial,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         super();
         this.hits = hits == null ? Hits.EMPTY : hits;
@@ -116,7 +93,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
-        this.shardFailures = shardFailures;
+        this.shardFailures = List.copyOf(shardFailures);
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {
@@ -126,11 +103,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         asyncExecutionId = in.readOptionalString();
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
-        shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
-    }
-
-    public static EqlSearchResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        shardFailures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
+        if (in.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
+            directoryMetrics = new DirectoryMetrics(in);
+        }
     }
 
     @Override
@@ -141,7 +117,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeOptionalString(asyncExecutionId);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
-        out.writeArray(shardFailures);
+        out.writeCollection(shardFailures);
+        if (out.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
+            directoryMetrics.writeTo(out);
+        }
     }
 
     @Override
@@ -159,7 +138,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         builder.field(IS_RUNNING.getPreferredName(), isRunning);
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimeout);
-        if (CollectionUtils.isEmpty(shardFailures) == false) {
+        if (shardFailures.isEmpty() == false) {
             builder.startArray(SHARD_FAILURES.getPreferredName());
             for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
                 shardFailure.toXContent(builder, params);
@@ -172,6 +151,14 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
     public long took() {
         return tookInMillis;
+    }
+
+    public DirectoryMetrics directoryMetrics() {
+        return directoryMetrics;
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
     }
 
     public boolean isTimeout() {
@@ -197,7 +184,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         return isPartial;
     }
 
-    public ShardSearchFailure[] shardFailures() {
+    public List<ShardSearchFailure> shardFailures() {
         return shardFailures;
     }
 
@@ -211,15 +198,54 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         }
         EqlSearchResponse that = (EqlSearchResponse) o;
         return Objects.equals(hits, that.hits)
-            && Objects.equals(tookInMillis, that.tookInMillis)
-            && Objects.equals(isTimeout, that.isTimeout)
+            && tookInMillis == that.tookInMillis
+            && isTimeout == that.isTimeout
             && Objects.equals(asyncExecutionId, that.asyncExecutionId)
-            && Arrays.equals(shardFailures, that.shardFailures);
+            && Objects.equals(shardFailures, that.shardFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, Arrays.hashCode(shardFailures));
+        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, shardFailures);
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            releaseEventSources(hits);
+            return true;
+        }
+        return false;
+    }
+
+    private static void releaseEventSources(Hits h) {
+        if (h.events != null) {
+            for (Event event : h.events) {
+                event.releaseSource();
+            }
+        }
+        if (h.sequences != null) {
+            for (Sequence sequence : h.sequences) {
+                for (Event event : sequence.events()) {
+                    event.releaseSource();
+                }
+            }
+        }
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 
     @Override
@@ -230,7 +256,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     // Event
     public static class Event implements Writeable, ToXContentObject {
 
-        public static final Event MISSING_EVENT = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, true);
+        private static final BytesArray EMPTY_SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
+
+        public static final Event MISSING_EVENT = new Event("", "", EMPTY_SOURCE, null, true);
 
         private static final class Fields {
             static final String INDEX = GetResult._INDEX;
@@ -240,48 +268,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             static final String MISSING = "missing";
         }
 
-        private static final ParseField INDEX = new ParseField(Fields.INDEX);
-        private static final ParseField ID = new ParseField(Fields.ID);
-        private static final ParseField SOURCE = new ParseField(Fields.SOURCE);
-        private static final ParseField FIELDS = new ParseField(Fields.FIELDS);
-        private static final ParseField MISSING = new ParseField(Fields.MISSING);
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Event, Void> PARSER = new ConstructingObjectParser<>(
-            "eql/search_response_event",
-            true,
-            args -> new Event(
-                (String) args[0],
-                (String) args[1],
-                (BytesReference) args[2],
-                (Map<String, DocumentField>) args[3],
-                (Boolean) args[4]
-            )
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), INDEX);
-            PARSER.declareString(constructorArg(), ID);
-            PARSER.declareObject(constructorArg(), (p, c) -> {
-                try (XContentBuilder builder = XContentBuilder.builder(p.contentType().xContent())) {
-                    builder.copyCurrentStructure(p);
-                    return BytesReference.bytes(builder);
-                }
-            }, SOURCE);
-            PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
-                Map<String, DocumentField> fields = new HashMap<>();
-                while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                    DocumentField field = DocumentField.fromXContent(p);
-                    fields.put(field.getName(), field);
-                }
-                return fields;
-            }, FIELDS);
-            PARSER.declareBoolean(optionalConstructorArg(), MISSING);
-        }
-
         private String index;
         private final String id;
-        private final BytesReference source;
+        private final ReleasableBytesReference source;
         private final Map<String, DocumentField> fetchFields;
 
         private final boolean missing;
@@ -290,19 +279,29 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             this(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields(), false);
         }
 
+        /**
+         * @param source pooled or heap-backed bytes for {@code _source}; normalized with refcount discipline for {@link #source()}.
+         */
         public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields, Boolean missing) {
             this.index = index;
             this.id = id;
-            this.source = source;
+            this.source = normalizeSourceBytes(source);
             this.fetchFields = fetchFields;
             this.missing = missing != null && missing;
+        }
+
+        private static ReleasableBytesReference normalizeSourceBytes(@Nullable BytesReference src) {
+            if (src == null) {
+                return ReleasableBytesReference.wrap(EMPTY_SOURCE);
+            }
+            // Retain refcount on pooled / composite _source bytes (CCS, fetch) without copying the buffer payload.
+            return ReleasableBytesReference.adopt(src);
         }
 
         private Event(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
-            // TODO: make this pooled?
-            source = in.readBytesReference();
+            source = in.readReleasableBytesReference();
             if (in.readBoolean()) {
                 fetchFields = in.readMap(DocumentField::new);
             } else {
@@ -313,7 +312,15 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         public static Event readFrom(StreamInput in) throws IOException {
             Event result = new Event(in);
-            return result.missing() ? MISSING_EVENT : result;
+            if (result.missing()) {
+                result.releaseSource();
+                return MISSING_EVENT;
+            }
+            return result;
+        }
+
+        private void releaseSource() {
+            source.decRef();
         }
 
         @Override
@@ -355,10 +362,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             builder.endObject();
             return builder;
-        }
-
-        public static Event fromXContent(XContentParser parser) throws IOException {
-            return PARSER.apply(parser, null);
         }
 
         public void index(String index) {
@@ -419,32 +422,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private static final class Fields {
             static final String JOIN_KEYS = "join_keys";
             static final String EVENTS = "events";
-        }
-
-        private static final ParseField JOIN_KEYS = new ParseField(Fields.JOIN_KEYS);
-        private static final ParseField EVENTS = new ParseField(Fields.EVENTS);
-
-        private static final ConstructingObjectParser<EqlSearchResponse.Sequence, Void> PARSER = new ConstructingObjectParser<>(
-            "eql/search_response_sequence",
-            true,
-            args -> {
-                int i = 0;
-                @SuppressWarnings("unchecked")
-                List<Object> joinKeys = (List<Object>) args[i++];
-                @SuppressWarnings("unchecked")
-                List<Event> events = (List<Event>) args[i];
-                return new EqlSearchResponse.Sequence(joinKeys, events);
-            }
-        );
-
-        static {
-            PARSER.declareFieldArray(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> XContentParserUtils.parseFieldsValue(p),
-                JOIN_KEYS,
-                ObjectParser.ValueType.VALUE_ARRAY
-            );
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Event.fromXContent(p), EVENTS);
         }
 
         private final List<Object> joinKeys;
@@ -559,38 +536,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 out.writeBoolean(false);
             }
-        }
-
-        private static final ConstructingObjectParser<EqlSearchResponse.Hits, Void> PARSER = new ConstructingObjectParser<>(
-            "eql/search_response_hits",
-            true,
-            args -> {
-                int i = 0;
-                @SuppressWarnings("unchecked")
-                List<Event> events = (List<Event>) args[i++];
-                @SuppressWarnings("unchecked")
-                List<Sequence> sequences = (List<Sequence>) args[i++];
-                TotalHits totalHits = (TotalHits) args[i];
-                return new EqlSearchResponse.Hits(events, sequences, totalHits);
-            }
-        );
-
-        static {
-            PARSER.declareObjectArray(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> Event.fromXContent(p),
-                new ParseField(Fields.EVENTS)
-            );
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Sequence.PARSER, new ParseField(Fields.SEQUENCES));
-            PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> SearchHits.parseTotalHitsFragment(p),
-                new ParseField(Fields.TOTAL)
-            );
-        }
-
-        public static Hits fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
 
         @Override

@@ -24,6 +24,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTests {
 
+    public PruneLiteralsInLimitByTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     @BeforeClass
     public static void checkLimitByCapability() {}
 

@@ -13,21 +13,32 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 
-public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase {
+public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase<float[]> {
+
+    @Override
+    float[] vector(int... components) {
+        float[] v = new float[components.length];
+        for (int i = 0; i < components.length; i++) {
+            v[i] = components[i];
+        }
+        return v;
+    }
+
+    @Override
+    float[][] createVectorArray(int size) {
+        return new float[size][];
+    }
+
+    @Override
+    float[] randomVector(int dim) {
+        return VectorTestUtils.randomNormalizedFloatVector(dim);
+    }
 
     @Override
     Query getDiversifyingChildrenKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
-        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
-            fieldName,
-            queryVector,
-            k,
-            k,
-            childFilter,
-            parentBitSet,
-            0,
-            random().nextBoolean()
-        );
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(fieldName, queryVector, k, k, childFilter, parentBitSet, 0, testResolver());
     }
 
     @Override

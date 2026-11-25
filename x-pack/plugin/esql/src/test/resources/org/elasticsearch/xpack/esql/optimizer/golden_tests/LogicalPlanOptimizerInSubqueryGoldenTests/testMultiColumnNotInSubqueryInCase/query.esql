@@ -1,0 +1,2 @@
+FROM employees
+| WHERE CASE((emp_no, languages) NOT IN (FROM employees | KEEP emp_no, languages), true, false)

@@ -81,7 +81,12 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        return createShardSearchRequest(createSearchRequest());
+        SearchRequest searchRequest = createSearchRequest();
+        if (randomBoolean()) {
+            final String slice = randomAlphaOfLengthBetween(2, 10);
+            searchRequest.searchSlice(slice);
+        }
+        return createShardSearchRequest(searchRequest);
     }
 
     private ShardSearchRequest createShardSearchRequest(SearchRequest searchRequest) {
@@ -114,7 +119,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             randomAlphaOfLengthBetween(3, 10),
             shardSearchContextId,
             keepAlive,
-            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards))
+            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards)),
+            randomBoolean()
         );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
@@ -190,7 +196,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);
         assertEquals(orig.getClusterAlias(), copy.getClusterAlias());
         assertEquals(orig.allowPartialSearchResults(), copy.allowPartialSearchResults());
-        assertEquals(orig.canReturnNullResponseIfMatchNoDocs(), orig.canReturnNullResponseIfMatchNoDocs());
+        assertEquals(orig.canReturnNullResponseIfMatchNoDocs(), copy.canReturnNullResponseIfMatchNoDocs());
+        assertEquals(orig.enableShardResultsSkipRequest(), copy.enableShardResultsSkipRequest());
+        assertEquals(orig.sliceRouting(), copy.sliceRouting());
     }
 
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {
@@ -219,6 +227,44 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 return parseTopLevelQuery(parser);
             }
         }, indexMetadata, aliasNames);
+    }
+
+    public void testEnableShardResultsSkipRequestBwcSerialization() throws Exception {
+        ShardId shardId = new ShardId("index", "uuid", 0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        ShardSearchRequest request = new ShardSearchRequest(
+            new OriginalIndices(searchRequest),
+            searchRequest,
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            randomNonNegativeLong(),
+            null,
+            null,
+            null,
+            SplitShardCountSummary.UNSET,
+            true
+        );
+        assertTrue(request.enableShardResultsSkipRequest());
+
+        // At pre-feature transport version the flag is not serialized and reads back as false,
+        // meaning an old data node will include the SSR in its result (expected old behaviour).
+        TransportVersion preFeatureVersion = TransportVersionUtils.randomVersionNotSupporting(
+            ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST
+        );
+        ShardSearchRequest deserializedOld = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, preFeatureVersion);
+        assertFalse(deserializedOld.enableShardResultsSkipRequest());
+
+        // At current transport version the flag is serialized faithfully.
+        ShardSearchRequest deserializedCurrent = copyWriteable(
+            request,
+            namedWriteableRegistry,
+            ShardSearchRequest::new,
+            TransportVersionUtils.randomVersionSupporting(ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)
+        );
+        assertTrue(deserializedCurrent.enableShardResultsSkipRequest());
     }
 
     public void testChannelVersion() throws Exception {

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -39,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  * Counts the number of points in the geometry
  * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_NPoints.html">PostGIS:ST_NPoints</a>.
  */
-public class StNPoints extends SpatialUnaryDocValuesFunction {
+public class StNPoints extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StNPoints",
@@ -52,6 +55,7 @@ public class StNPoints extends SpatialUnaryDocValuesFunction {
         returnType = "integer",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Counts the number of points in the supplied geometry.",
         description = "Counts the number of points in the supplied geometry.",
         examples = @Example(file = "spatial_shapes", tag = "st_npoints"),
         depthOffset = 1  // So this appears as a subsection of geometry functions
@@ -86,7 +90,7 @@ public class StNPoints extends SpatialUnaryDocValuesFunction {
         if (spatialDocValues) {
             return new StNPointsFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         } else {
-            return new StNPointsFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            return new StNPointsFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()), context -> new BytesRef());
         }
     }
 
@@ -116,8 +120,12 @@ public class StNPoints extends SpatialUnaryDocValuesFunction {
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinary(IntBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        BytesRef scratch = new BytesRef();
+    static void fromWellKnownBinary(
+        IntBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
         int firstValueIndex = wkbBlock.getFirstValueIndex(p);
         int valueCount = wkbBlock.getValueCount(p);
         int totalPoints = 0;

@@ -1,0 +1,90 @@
+// Integration coverage for Lucene min-competitive TopN (Path B).
+//
+// Eligible shape: single @timestamp sort (LONG) over EsQuery with TopN staying in the
+// compute layer — i.e. Lucene TopN pushdown must NOT run. PushTopNToSource skips pushdown
+// when LIMIT exceeds esql.lucene_topn_limit (default: index max_result_window, 10000).
+//
+// Correctness: if Lucene collection stopped after the first N doc ids without seeing
+// globally competitive rows, the results below would not match.
+
+Min-competitive @timestamp DESC over json_logs
+required_capability: documents_found_and_values_loaded
+request_stored: skip
+
+FROM json_logs | SORT @timestamp DESC | LIMIT 10001 | KEEP @timestamp, level
+;
+
+@timestamp:datetime           | level:keyword
+2024-10-01T12:08:00.000Z      | ERROR
+2024-10-01T12:07:00.000Z      | INFO
+2024-10-01T12:06:00.000Z      | WARN
+2024-10-01T12:05:00.000Z      | INFO
+2024-10-01T12:04:00.000Z      | ERROR
+2024-10-01T12:03:00.000Z      | WARN
+2024-10-01T12:02:00.000Z      | INFO
+2024-10-01T12:01:00.000Z      | INFO
+2024-10-01T12:00:00.000Z      | INFO
+;
+
+
+Min-competitive @timestamp ASC over json_logs
+required_capability: documents_found_and_values_loaded
+request_stored: skip
+
+FROM json_logs | SORT @timestamp ASC | LIMIT 10001 | KEEP @timestamp, source
+;
+
+@timestamp:datetime           | source:keyword
+2024-10-01T12:00:00.000Z      | api-gateway
+2024-10-01T12:01:00.000Z      | user-service
+2024-10-01T12:02:00.000Z      | auth-service
+2024-10-01T12:03:00.000Z      | auth-service
+2024-10-01T12:04:00.000Z      | order-service
+2024-10-01T12:05:00.000Z      | recommendations
+2024-10-01T12:06:00.000Z      | api-gateway
+2024-10-01T12:07:00.000Z      | inventory-service
+2024-10-01T12:08:00.000Z      | api-gateway
+;
+
+
+Min-competitive filtered @timestamp DESC
+required_capability: documents_found_and_values_loaded
+request_stored: skip
+
+FROM json_logs | WHERE level == "ERROR" | SORT @timestamp DESC | LIMIT 10001 | KEEP @timestamp, level
+;
+
+@timestamp:datetime           | level:keyword
+2024-10-01T12:08:00.000Z      | ERROR
+2024-10-01T12:04:00.000Z      | ERROR
+;
+
+
+Min-competitive filtered @timestamp DESC on many_numbers
+required_capability: documents_found_and_values_loaded
+request_stored: skip
+
+FROM many_numbers | WHERE sv == 700 AND @timestamp > "2026-01-01T00:04:04.000Z" | SORT @timestamp DESC | LIMIT 10001 | KEEP sv, @timestamp
+;
+
+sv:integer | @timestamp:datetime
+700       | 2026-01-01T00:04:04.938Z
+700       | 2026-01-01T00:04:04.608Z
+700       | 2026-01-01T00:04:04.295Z
+;
+
+
+Min-competitive @timestamp ASC on small matching set
+required_capability: documents_found_and_values_loaded
+request_stored: skip
+
+FROM many_numbers | WHERE sv == 5 | SORT @timestamp ASC | LIMIT 10001 | KEEP sv, @timestamp
+;
+
+sv:integer | @timestamp:datetime
+5         | 2026-01-01T00:01:44.515Z
+5         | 2026-01-01T00:02:23.182Z
+5         | 2026-01-01T00:02:42.264Z
+5         | 2026-01-01T00:03:10.589Z
+5         | 2026-01-01T00:03:33.333Z
+;

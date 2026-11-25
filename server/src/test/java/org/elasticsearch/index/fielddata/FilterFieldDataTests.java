@@ -53,7 +53,8 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true, false);
-            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", createDefaultIndexAnalyzers()).fielddata(true)
+            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+                .fielddata(true)
                 .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
                 .build(builderContext)
                 .fieldType();
@@ -68,7 +69,8 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
         {
             indexService.clearCaches(false, true, false);
-            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", createDefaultIndexAnalyzers()).fielddata(true)
+            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+                .fielddata(true)
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, 201, 100)
                 .build(builderContext)
                 .fieldType();
@@ -83,7 +85,8 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true, false);// test # docs with value
-            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", createDefaultIndexAnalyzers()).fielddata(true)
+            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+                .fielddata(true)
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, Integer.MAX_VALUE, 101)
                 .build(builderContext)
                 .fieldType();
@@ -99,7 +102,8 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true, false);
-            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", createDefaultIndexAnalyzers()).fielddata(true)
+            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+                .fielddata(true)
                 .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, Integer.MAX_VALUE, 101)
                 .build(builderContext)
                 .fieldType();

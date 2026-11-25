@@ -11,6 +11,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.nativeaccess.NativeAccess;
@@ -36,6 +37,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Spawns native module controller processes if present. Will only work prior to a system call filter being installed.
  */
 final class Spawner implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(Spawner.class);
 
     /*
      * References to the processes that have been spawned, so that we can destroy them.
@@ -90,6 +93,9 @@ final class Spawner implements Closeable {
                 );
                 throw new IllegalArgumentException(message);
             }
+            if (isNativeControllerEnabled(info, environment.settings()) == false) {
+                continue;
+            }
             final Process process = spawnNativeController(spawnPath, environment.tmpDir());
             // The process _shouldn't_ write any output via its stdout or stderr, but if it does then
             // it will block if nothing is reading that output. To avoid this we can pipe the
@@ -98,6 +104,31 @@ final class Spawner implements Closeable {
             startPumpThread(info.getName(), "stderr", process.getErrorStream());
             processes.add(process);
         }
+    }
+
+    /**
+     * Determines whether a module's native controller should be spawned, based on the optional list of node setting keys declared via
+     * {@link PluginDescriptor#getNativeControllerEnabledSettings()}.
+     * <p>
+     * This runs on the raw, not-yet-validated {@link Environment#settings()}, before {@code SettingsModule} applies each
+     * {@link org.elasticsearch.common.settings.Setting}'s registered default. An unset key here therefore always falls back to
+     * {@code true}, even if the corresponding registered setting's real default is conditional (e.g. platform-dependent). This is safe
+     * only because this method is reached solely for modules whose native controller binary is present for the current platform (see
+     * the {@code spawnPath} check in {@link #spawnNativeControllers}); a setting whose real default could be {@code false} on a
+     * platform that still ships the binary would not be safe to gate this way.
+     *
+     * @param info     the descriptor of the module being considered for spawning
+     * @param settings the node settings
+     * @return {@code true} if the module declares no such settings, or every setting key it lists resolves to {@code true}
+     */
+    private static boolean isNativeControllerEnabled(final PluginDescriptor info, final Settings settings) {
+        for (final String key : info.getNativeControllerEnabledSettings()) {
+            if (settings.getAsBoolean(key, true) == false) {
+                logger.info("not spawning native controller for module [{}] because setting [{}] is false", info.getName(), key);
+                return false;
+            }
+        }
+        return true;
     }
 
     private void startPumpThread(String componentName, String streamName, InputStream stream) {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -43,6 +44,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
+        unsignedLongs(suppliers);
         nulls(suppliers);
 
         suppliers = anyNullIsNull(
@@ -72,6 +74,15 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
         }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN), () -> {
+            List<Boolean> field = randomList(1, 10, () -> randomBoolean());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DataType.BOOLEAN, "field")),
+                "MvSortBoolean[field=Attribute[channel=0], order=true]",
+                DataType.BOOLEAN,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
+            );
+        }));
     }
 
     private static void ints(List<TestCaseSupplier> suppliers) {
@@ -88,6 +99,15 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
             );
         }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER), () -> {
+            List<Integer> field = randomList(1, 10, () -> randomInt());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DataType.INTEGER, "field")),
+                "MvSortInt[field=Attribute[channel=0], order=true]",
+                DataType.INTEGER,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
+            );
+        }));
     }
 
     private static void longs(List<TestCaseSupplier> suppliers) {
@@ -99,6 +119,15 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field, DataType.LONG, "field"),
                     new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
                 ),
+                "MvSortLong[field=Attribute[channel=0], order=true]",
+                DataType.LONG,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
+            );
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG), () -> {
+            List<Long> field = randomList(1, 10, () -> randomLong());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DataType.LONG, "field")),
                 "MvSortLong[field=Attribute[channel=0], order=true]",
                 DataType.LONG,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
@@ -118,6 +147,15 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
             );
         }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME), () -> {
+            List<Long> field = randomList(1, 10, () -> randomLong());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DataType.DATETIME, "field")),
+                "MvSortLong[field=Attribute[channel=0], order=true]",
+                DataType.DATETIME,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
+            );
+        }));
 
         suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.KEYWORD), () -> {
             List<Long> field = randomList(1, 10, () -> randomLong());
@@ -130,6 +168,15 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 "MvSortLong[field=Attribute[channel=0], order=false]",
                 DataType.DATE_NANOS,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
+            );
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS), () -> {
+            List<Long> field = randomList(1, 10, () -> randomLong());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DataType.DATE_NANOS, "field")),
+                "MvSortLong[field=Attribute[channel=0], order=true]",
+                DataType.DATE_NANOS,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
         }));
     }
@@ -148,10 +195,20 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
         }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE), () -> {
+            List<Double> field = randomList(1, 10, () -> randomDouble());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field")),
+                "MvSortDouble[field=Attribute[channel=0], order=true]",
+                DataType.DOUBLE,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
+            );
+        }));
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers) {
-        for (DataType type : List.of(DataType.KEYWORD, DataType.TEXT, DataType.IP, DataType.VERSION)) {
+        var types = new ArrayList<>(List.of(DataType.KEYWORD, DataType.TEXT, DataType.IP, DataType.VERSION));
+        for (DataType type : types) {
             suppliers.add(new TestCaseSupplier(List.of(type, DataType.KEYWORD), () -> {
                 List<BytesRef> field = randomList(1, 10, () -> (BytesRef) randomLiteral(type).value());
                 boolean order = randomBoolean();
@@ -162,16 +219,56 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(new BytesRef(order ? "ASC" : "DESC"), DataType.KEYWORD, "order").forceLiteral()
                     ),
                     "MvSortBytesRef[field=Attribute[channel=0], order=" + order + "]",
-                    type,
+                    type.noText(),
+                    equalTo(sortedData.size() == 1 ? sortedData.get(0) : sortedData)
+                );
+            }));
+            suppliers.add(new TestCaseSupplier(List.of(type), () -> {
+                List<BytesRef> field = randomList(1, 10, () -> (BytesRef) randomLiteral(type).value());
+                var sortedData = field.stream().sorted().toList();
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(field, type, "field")),
+                    "MvSortBytesRef[field=Attribute[channel=0], order=true]",
+                    type.noText(),
                     equalTo(sortedData.size() == 1 ? sortedData.get(0) : sortedData)
                 );
             }));
         }
     }
 
+    private static void unsignedLongs(List<TestCaseSupplier> suppliers) {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.KEYWORD), () -> {
+            List<BigInteger> field = randomList(1, 10, () -> new BigInteger(Long.toUnsignedString(randomLong())));
+            boolean order = randomBoolean();
+            var sortedData = field.stream().sorted(order ? Comparator.naturalOrder() : Comparator.reverseOrder()).toList();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.UNSIGNED_LONG, "field"),
+                    new TestCaseSupplier.TypedData(new BytesRef(order ? "ASC" : "DESC"), DataType.KEYWORD, "order").forceLiteral()
+                ),
+                "MvSortLong[field=Attribute[channel=0], order=" + order + "]",
+                DataType.UNSIGNED_LONG,
+                equalTo(sortedData.size() == 1 ? sortedData.get(0) : sortedData)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG), () -> {
+            List<BigInteger> field = randomList(1, 10, () -> new BigInteger(Long.toUnsignedString(randomLong())));
+            var sortedData = field.stream().sorted().toList();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DataType.UNSIGNED_LONG, "field")),
+                "MvSortLong[field=Attribute[channel=0], order=true]",
+                DataType.UNSIGNED_LONG,
+                equalTo(sortedData.size() == 1 ? sortedData.get(0) : sortedData)
+            );
+        }));
+    }
+
     private static void nulls(List<TestCaseSupplier> suppliers) {
         List<TestCaseSupplier> extra = new ArrayList<>();
         for (TestCaseSupplier s : suppliers) {
+            if (s.types().size() < 2) {
+                continue;
+            }
             extra.add(new TestCaseSupplier("null <" + s.types().get(0) + ">, <keyword>", s.types(), () -> {
                 TestCaseSupplier.TestCase delegate = s.get();
                 return new TestCaseSupplier.TestCase(

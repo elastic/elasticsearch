@@ -14,6 +14,7 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;

@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -18,8 +17,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -47,8 +47,8 @@ import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
-import org.elasticsearch.xpack.eql.logging.EqlLogContext;
-import org.elasticsearch.xpack.eql.logging.EqlLogContextBuilder;
+import org.elasticsearch.xpack.eql.logging.EqlCaptureContext;
+import org.elasticsearch.xpack.eql.logging.EqlCaptureContextBuilder;
 import org.elasticsearch.xpack.eql.logging.EqlLogProducer;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.action.ActionListener.respondAndRelease;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -78,7 +79,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private final PlanExecutor planExecutor;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
-    private final ActivityLogger<EqlLogContext> activityLogger;
+    private final QueryInterceptor<EqlCaptureContext> queryInterceptor;
 
     @Inject
     public TransportEqlSearchAction(
@@ -91,6 +92,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         NamedWriteableRegistry registry,
         Client client,
         BigArrays bigArrays,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider
     ) {
@@ -116,12 +118,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             threadPool,
             bigArrays
         );
-        this.activityLogger = new QueryLogger<>(
-            clusterService.getClusterSettings(),
-            new EqlLogProducer(),
-            logWriterProvider,
-            fieldProvider
-        );
+        var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new EqlLogProducer(), logWriterProvider, fieldProvider);
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
     }
 
     @Override
@@ -133,7 +131,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         TaskId parentTaskId,
         Map<String, String> headers,
         Map<String, String> originHeaders,
-        AsyncExecutionId asyncExecutionId
+        AsyncExecutionId asyncExecutionId,
+        TimeValue keepAlive
     ) {
         return new EqlSearchTask(
             id,
@@ -144,13 +143,22 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             headers,
             originHeaders,
             asyncExecutionId,
-            request.keepAlive()
+            keepAlive
         );
     }
 
     @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, activityLogger, listener);
+        loggedOperation(
+            planExecutor,
+            task,
+            request,
+            username(securityContext),
+            transportService,
+            clusterService,
+            queryInterceptor,
+            listener
+        );
     }
 
     @Override
@@ -162,7 +170,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             task.getExecutionId().getEncoded(),
             true,
             true,
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
     }
 
@@ -182,17 +190,34 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 listener
             );
         } else {
-            operation(
+            loggedOperation(
                 planExecutor,
                 (EqlSearchTask) task,
                 request,
                 username(securityContext),
                 transportService,
                 clusterService,
-                activityLogger,
+                queryInterceptor,
                 listener
             );
         }
+    }
+
+    public static void loggedOperation(
+        PlanExecutor planExecutor,
+        EqlSearchTask task,
+        EqlSearchRequest request,
+        String username,
+        TransportService transportService,
+        ClusterService clusterService,
+        QueryInterceptor<EqlCaptureContext> activityInterceptor,
+        ActionListener<EqlSearchResponse> operationListener
+    ) {
+        activityInterceptor.wrapAndRun(
+            operationListener,
+            new EqlCaptureContextBuilder(task, request),
+            (l) -> operation(planExecutor, task, request, username, transportService, clusterService, l)
+        );
     }
 
     public static void operation(
@@ -202,10 +227,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         String username,
         TransportService transportService,
         ClusterService clusterService,
-        ActivityLogger<EqlLogContext> activityLogger,
         ActionListener<EqlSearchResponse> operationListener
     ) {
-        final ActionListener<EqlSearchResponse> listener = activityLogger.wrap(operationListener, new EqlLogContextBuilder(task, request));
         String nodeId = clusterService.localNode().getId();
         String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client
@@ -233,8 +256,10 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
                     wrap(
-                        r -> listener.onResponse(qualifyHits(r, clusterAlias)),
-                        e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
+                        // InboundHandler.doHandleResponse decRefs RefCounted transport responses after handleResponse; do not use
+                        // respondAndRelease here (would double-decRef).
+                        r -> operationListener.onResponse(qualifyHits(r, clusterAlias)),
+                        e -> operationListener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
                     EqlSearchResponse::new,
                     TransportResponseHandler.TRANSPORT_WORKER
@@ -272,14 +297,22 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 new TaskId(nodeId, task.getId()),
                 task,
                 transportService.getRemoteClusterService().crossProjectEnabled(),
-                request.getResolvedIndexExpressions()
+                request.getResolvedIndexExpressions(),
+                // Reuse the coordinator's already-resolved field-caps if the caller (e.g. the ES|QL EQL source command)
+                // supplied it, so the engine skips its own resolution; null (every other caller) means self-resolve.
+                request.takePreResolvedFieldCaps()
             );
-            planExecutor.eql(
-                cfg,
-                request.query(),
-                params,
-                wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), listener::onFailure)
-            );
+            planExecutor.eql(cfg, request.query(), params, wrap(r -> {
+                EqlSearchResponse response = createResponse(r, task.getExecutionId());
+                response.setDirectoryMetrics(r.directoryMetrics());
+                // Async: listener is wrapStoringListener → completion uses AsyncTaskManagementService.respondWithRelease (decRef after
+                // onResponse). Sync: release here so the response is not leaked after the REST/transport listener returns.
+                if (requestIsAsync(request)) {
+                    operationListener.onResponse(response);
+                } else {
+                    respondAndRelease(operationListener, response);
+                }
+            }, operationListener::onFailure));
         }
     }
 

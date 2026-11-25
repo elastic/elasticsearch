@@ -59,7 +59,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.IndicesService;
@@ -89,7 +89,7 @@ public class EnrichPolicyRunner {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
-    static final String ENRICH_POLICY_NAME_FIELD_NAME = "enrich_policy_name";
+    static final String ENRICH_POLICY_NAME_FIELD_NAME = EnrichPolicy.ENRICH_POLICY_NAME_FIELD_NAME;
     static final String ENRICH_POLICY_TYPE_FIELD_NAME = "enrich_policy_type";
     static final String ENRICH_MATCH_FIELD_NAME = "enrich_match_field";
     static final String ENRICH_README_FIELD_NAME = "enrich_readme";
@@ -512,16 +512,16 @@ public class EnrichPolicyRunner {
 
         client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new DelegatingActionListener<>(listener) {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
                 // Do we want to fail the request if there were failures during the reindex process?
-                if (bulkByScrollResponse.getBulkFailures().size() > 0) {
+                if (bulkByPaginatedSearchResponse.getBulkFailures().size() > 0) {
                     logger.warn(
                         "Policy [{}]: encountered [{}] bulk failures. Turn on DEBUG logging for details.",
                         policyName,
-                        bulkByScrollResponse.getBulkFailures().size()
+                        bulkByPaginatedSearchResponse.getBulkFailures().size()
                     );
                     if (logger.isDebugEnabled()) {
-                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                        for (BulkItemResponse.Failure failure : bulkByPaginatedSearchResponse.getBulkFailures()) {
                             logger.debug(
                                 () -> format(
                                     "Policy [%s]: bulk index failed for index [%s], id [%s]",
@@ -534,14 +534,14 @@ public class EnrichPolicyRunner {
                         }
                     }
                     delegate.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
-                } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
+                } else if (bulkByPaginatedSearchResponse.getSearchFailures().size() > 0) {
                     logger.warn(
                         "Policy [{}]: encountered [{}] search failures. Turn on DEBUG logging for details.",
                         policyName,
-                        bulkByScrollResponse.getSearchFailures().size()
+                        bulkByPaginatedSearchResponse.getSearchFailures().size()
                     );
                     if (logger.isDebugEnabled()) {
-                        for (PaginatedSearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
+                        for (PaginatedSearchFailure failure : bulkByPaginatedSearchResponse.getSearchFailures()) {
                             logger.debug(
                                 () -> format(
                                     "Policy [%s]: search failed for index [%s], shard [%s] on node [%s]",
@@ -559,7 +559,7 @@ public class EnrichPolicyRunner {
                     logger.info(
                         "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
                         policyName,
-                        bulkByScrollResponse.getCreated(),
+                        bulkByPaginatedSearchResponse.getCreated(),
                         enrichIndexName
                     );
                     delegate.onResponse(null);
@@ -646,11 +646,11 @@ public class EnrichPolicyRunner {
                 enrichIndexName
             );
             if (logger.isDebugEnabled()) {
-                DefaultShardOperationFailedException[] shardFailures = indicesSegmentResponse.getShardFailures();
+                List<DefaultShardOperationFailedException> shardFailures = indicesSegmentResponse.getShardFailures();
                 int failureNumber = 1;
                 String logPrefix = "Policy [" + policyName + "]: Encountered shard failure [";
                 String logSuffix = " of "
-                    + shardFailures.length
+                    + shardFailures.size()
                     + "] while querying segments for enrich index ["
                     + enrichIndexName
                     + "]. Shard [";
@@ -665,10 +665,10 @@ public class EnrichPolicyRunner {
         }
         IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(enrichIndexName);
         if (indexSegments == null) {
-            if (indicesSegmentResponse.getShardFailures().length == 0) {
+            if (indicesSegmentResponse.getShardFailures().isEmpty()) {
                 throw new ElasticsearchException("Could not locate segment information for newly created index [{}]", enrichIndexName);
             } else {
-                DefaultShardOperationFailedException shardFailure = indicesSegmentResponse.getShardFailures()[0];
+                DefaultShardOperationFailedException shardFailure = indicesSegmentResponse.getShardFailures().getFirst();
                 throw new ElasticsearchException(
                     "Could not obtain segment information for newly created index [{}]; shard info [{}][{}]",
                     shardFailure.getCause(),

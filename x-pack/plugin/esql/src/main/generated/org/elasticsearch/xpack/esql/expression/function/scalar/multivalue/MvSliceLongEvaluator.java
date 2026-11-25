@@ -69,16 +69,17 @@ public final class MvSliceLongEvaluator implements ExpressionEvaluator {
 
   public LongBlock eval(int positionCount, LongBlock fieldBlock, IntBlock startBlock,
       IntBlock endBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!fieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        if (startBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (startBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -86,10 +87,11 @@ public final class MvSliceLongEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (endBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (endBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -126,7 +128,7 @@ public final class MvSliceLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

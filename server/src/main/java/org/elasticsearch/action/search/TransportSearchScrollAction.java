@@ -25,6 +25,8 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
+
 import static org.elasticsearch.action.search.ParsedScrollId.QUERY_AND_FETCH_TYPE;
 import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
@@ -63,8 +65,8 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     searchResponseMetrics.recordTookTimeForSearchScroll(searchResponse.getTookInMillis());
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
-                    if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                    if (searchResponse.getShardFailures().isEmpty() == false) {
+                        List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
                         for (ShardOperationFailedException f : groupedFailures) {
                             Throwable cause = f.getCause() == null ? f : f.getCause();
                             if (ExceptionsHelper.status(cause).getStatus() >= 500
@@ -91,6 +93,18 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         };
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
+            if (scrollId.getContext().length == 0) {
+                // The scroll id encodes zero shard contexts. This happens when the initial _search?scroll request
+                // resolved to zero shards — either because the index expression matched no indices, or because the
+                // can_match phase rewrote the query to MatchNoneQueryBuilder on every shard (e.g. a date range that
+                // doesn't overlap any shard's min/max). The corresponding scroll id is still returned to the client
+                // so it can run the same scroll-until-exhausted loop it uses for normal cursors. Before this fix that
+                // loop's first iteration failed with HTTP 503 "no nodes to search on"; return an empty 200 response
+                // instead so a client can terminate on hits.length == 0 without special-casing the error.
+                String responseScrollId = request.scroll() != null ? request.scrollId() : null;
+                ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().scrollId(responseScrollId).build());
+                return;
+            }
             var action = switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE -> new SearchScrollQueryThenFetchAsyncAction(
                     logger,

@@ -325,4 +325,8 @@ public class Task implements Traceable {
     protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
         return Optional.empty();
     }
+
+    public Optional<TaskId> getOriginalTaskId() {
+        return getOriginalTaskInfo().map(OriginalTaskInfo::originalTaskId);
+    }
 }

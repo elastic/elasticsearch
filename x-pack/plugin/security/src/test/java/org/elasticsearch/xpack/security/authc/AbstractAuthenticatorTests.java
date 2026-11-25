@@ -45,12 +45,12 @@ abstract class AbstractAuthenticatorTests extends ESTestCase {
     protected void assertAuthenticationTimeMetric(
         TestTelemetryPlugin telemetryPlugin,
         SecurityMetricType metricType,
-        long expectedAuthenticationTime,
+        long expectedAuthenticationTimeInMillis,
         Map<String, Object> attributes
     ) {
         List<Measurement> authTimeMetrics = telemetryPlugin.getLongHistogramMeasurement(metricType.timeMetricInfo().name());
         assertThat(authTimeMetrics.size(), equalTo(1));
-        assertThat(authTimeMetrics.get(0).getLong(), equalTo(expectedAuthenticationTime));
+        assertThat(authTimeMetrics.get(0).getLong(), equalTo(expectedAuthenticationTimeInMillis));
         assertThat(authTimeMetrics.get(0).attributes(), equalTo(attributes));
     }
 

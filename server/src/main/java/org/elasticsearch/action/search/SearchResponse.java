@@ -9,10 +9,14 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
@@ -20,18 +24,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -54,9 +64,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 
 /**
  * A response of a search request.
@@ -66,6 +73,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
     public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
+    public static final TransportVersion SEARCH_DIRECTORY_METRICS = TransportVersion.fromName("search_directory_metrics");
+    public static final TransportVersion SEARCH_PHASE_FAILURES = TransportVersion.fromName("search_phase_failures");
 
     public static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     public static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
@@ -73,6 +82,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public static final ParseField TIMED_OUT = new ParseField("timed_out");
     public static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     public static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
+    public static final ParseField PHASE_FAILURES = new ParseField("phase_failures");
 
     private final SearchHits hits;
     private final InternalAggregations aggregations;
@@ -86,11 +96,31 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
-    private final ShardSearchFailure[] shardFailures;
+    private final List<ShardSearchFailure> shardFailures;
+    private final List<SearchPhaseFailure> phaseFailures;
     private final Clusters clusters;
     private final long tookInMillis;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient Long timeRangeFilterFromMillis;
+    private DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
+
+    /**
+     * Query-phase aggregation bytes left on the request breaker when
+     * {@link SearchRequest#bufferSubSearchResponseForMultiSearch()} is set. Released by
+     * {@link TransportMultiSearchAction} when multi-search buffering completes.
+     */
+    private transient long queryPhaseAggregationBreakerBytes = 0;
+
+    // Coordinator fetch-breaker charge for the hits below, released when this response is.
+    @Nullable
+    private transient Releasable coordinatorFetchCharge;
+
+    // Charge for the aggregations the coordinating node reduced, released when this response is.
+    @Nullable
+    private transient Releasable aggregationCharge;
+
+    // Size of the aggregations as read off the wire, or -1 if unknown, so that they can be estimated without serializing them again.
+    private transient long serializedAggregationsBytes = -1;
 
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
@@ -104,13 +134,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public SearchResponse(StreamInput in) throws IOException {
-        this.hits = SearchHits.readFrom(in, true);
+        this.hits = SearchHits.readFrom(in);
         if (in.readBoolean()) {
+            // Only a stream backed by bytes knows exactly how many are left.
+            final int availableBefore = in.supportReadAllToReleasableBytesReference() ? in.available() : -1;
             // deserialize the aggregations trying to deduplicate the object created
             // TODO: use DelayableWriteable instead.
             this.aggregations = InternalAggregations.readFrom(
                 DelayableWriteable.wrapWithDeduplicatorStreamInput(in, in.getTransportVersion(), in.namedWriteableRegistry())
             );
+            if (availableBefore >= 0) {
+                this.serializedAggregationsBytes = availableBefore - in.available();
+            }
             this.topHitsToRelease = collectTopHitsFromAggregations(this.aggregations, false);
         } else {
             this.aggregations = null;
@@ -126,20 +161,20 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.numReducePhases = in.readVInt();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        shardFailures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
+        if (in.getTransportVersion().supports(SEARCH_PHASE_FAILURES)) {
+            phaseFailures = in.readCollectionAsImmutableList(SearchPhaseFailure::new);
         } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
+            phaseFailures = List.of();
         }
         clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalBytesReference();
+        if (in.getTransportVersion().supports(SEARCH_DIRECTORY_METRICS)) {
+            directoryMetrics = new DirectoryMetrics(in);
+        }
     }
 
     public SearchResponse(
@@ -155,7 +190,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
         Clusters clusters
     ) {
         this(
@@ -172,6 +207,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             skippedShards,
             tookInMillis,
             shardFailures,
+            List.of(),
             clusters,
             null,
             null,
@@ -186,9 +222,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
+        List<SearchPhaseFailure> phaseFailures,
         Clusters clusters,
-        BytesReference pointInTimeId
+        BytesReference pointInTimeId,
+        SearchSourceBuilder source,
+        String[] indices
     ) {
         this(
             searchResponseSections.hits,
@@ -204,12 +243,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             skippedShards,
             tookInMillis,
             shardFailures,
+            phaseFailures,
             clusters,
             pointInTimeId,
             searchResponseSections.transferTopHitsToRelease(),
             searchResponseSections.transferCompletionOptionHitsToRelease()
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        this.coordinatorFetchCharge = searchResponseSections.transferCoordinatorFetchCharge();
+        if (this.profileResults != null) {
+            this.profileResults.setOriginalSource(source);
+            this.profileResults.setRequestIndices(indices);
+        }
     }
 
     public SearchResponse(
@@ -225,7 +270,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
+        List<SearchPhaseFailure> phaseFailures,
         Clusters clusters,
         BytesReference pointInTimeId,
         @Nullable List<SearchHits> topHitsToRelease,
@@ -259,7 +305,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
-        this.shardFailures = shardFailures;
+        this.shardFailures = List.copyOf(shardFailures);
+        this.phaseFailures = List.copyOf(phaseFailures);
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
@@ -294,6 +341,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 hit.decRef();
             }
             hits.decRef();
+            Releasables.closeExpectNoException(coordinatorFetchCharge, aggregationCharge);
             return true;
         }
         return false;
@@ -393,14 +441,58 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * The failed number of shards the search was executed on.
      */
     public int getFailedShards() {
-        return shardFailures.length;
+        return shardFailures.size();
     }
 
     /**
      * The failures that occurred during the search.
      */
-    public ShardSearchFailure[] getShardFailures() {
-        return this.shardFailures;
+    public List<ShardSearchFailure> getShardFailures() {
+        return shardFailures;
+    }
+
+    /**
+     * Failures in search phases that are not bound to a shard and did not stop results from being returned.
+     */
+    public List<SearchPhaseFailure> getPhaseFailures() {
+        return phaseFailures;
+    }
+
+    /**
+     * Returns a copy of this response with additional phase failures, for failures from phases that ran before this search, as part of its
+     * rewrite. The copy takes its own references on everything this response releases, and the coordinator fetch charge and the
+     * aggregation charge move to it, so the caller must release this response and the copy independently.
+     */
+    SearchResponse withAdditionalPhaseFailures(List<SearchPhaseFailure> additionalFailures) {
+        topHitsToRelease.forEach(SearchHits::incRef);
+        completionOptionHitsToRelease.forEach(SearchHit::mustIncRef);
+        SearchResponse copy = new SearchResponse(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            CollectionUtils.concatLists(phaseFailures, additionalFailures),
+            clusters,
+            pointInTimeId,
+            topHitsToRelease,
+            completionOptionHitsToRelease
+        );
+        copy.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+        copy.directoryMetrics = directoryMetrics;
+        copy.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
+        copy.serializedAggregationsBytes = serializedAggregationsBytes;
+        copy.coordinatorFetchCharge = transferCoordinatorFetchCharge();
+        copy.aggregationCharge = transferAggregationCharge();
+        return copy;
     }
 
     /**
@@ -419,16 +511,28 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     /**
      * If profiling was enabled, this returns an object containing the profile results from
-     * each shard.  If profiling was not enabled, this will return null
+     * each shard.  If profiling was not enabled, this will return an empty map.
      *
      * @return The profile results or an empty map
      */
     @Nullable
-    public Map<String, SearchProfileShardResult> getProfileResults() {
+    public Map<String, SearchProfileShardResult> getSearchProfileShardResults() {
         if (profileResults == null) {
             return Collections.emptyMap();
         }
         return profileResults.getShardResults();
+    }
+
+    /**
+     * The {@link SearchProfileResults} backing this response, including coordinator request metadata when attached
+     * ({@link SearchProfileResults#getOriginalSource()} / {@link SearchProfileResults#getRequestIndices()}).
+     * {@code null} when profiling did not produce a profile object.
+     * <p>
+     * For per-shard timings only, {@link #getSearchProfileShardResults()} returns the shard map (empty when profiling was off).
+     */
+    @Nullable
+    public SearchProfileResults getSearchProfileResults() {
+        return profileResults;
     }
 
     /**
@@ -438,6 +542,100 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     public Clusters getClusters() {
         return clusters;
+    }
+
+    /**
+     * Bytes charged on the request breaker for merged query-phase aggregations and transferred from
+     * {@link QueryPhaseResultConsumer} for multi-search buffering. Zero for ordinary searches.
+     */
+    public long getQueryPhaseAggregationBreakerBytes() {
+        return queryPhaseAggregationBreakerBytes;
+    }
+
+    void setQueryPhaseAggregationBreakerBytes(long queryPhaseAggregationBreakerBytes) {
+        assert queryPhaseAggregationBreakerBytes >= 0 : "bytes must be non-negative";
+        this.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
+    }
+
+    boolean hasCoordinatorFetchCharge() {
+        return coordinatorFetchCharge != null;
+    }
+
+    /**
+     * Takes the charge for the reduced aggregations, so it is held until this response is released and not until the search completes.
+     */
+    void adoptAggregationCharge(Releasable charge) {
+        assert aggregationCharge == null : "an aggregation charge was already adopted";
+        aggregationCharge = charge;
+    }
+
+    boolean hasAggregationCharge() {
+        return aggregationCharge != null;
+    }
+
+    /**
+     * The serialized size of the aggregations when this response read them from a stream that knows its remaining size, such as a transport
+     * message, or -1 if it has no aggregations, read them from another stream, or was built in memory.
+     */
+    long serializedAggregationsBytes() {
+        return serializedAggregationsBytes;
+    }
+
+    /**
+     * Takes the charge for the hits of a response built without search phase sections, such as a merged cross-cluster response. It is
+     * released with this response.
+     */
+    void adoptCoordinatorFetchCharge(@Nullable Releasable charge) {
+        assert coordinatorFetchCharge == null : "a coordinator fetch charge was already adopted";
+        coordinatorFetchCharge = charge;
+    }
+
+    /**
+     * Charges this response, read from another node, to {@code circuitBreaker} until it is released. The charge is the
+     * {@code serializedBytes} it arrived with, plus the heap of each hit apart from its source and the sources of its inner hits, see
+     * {@link SearchHitRamUsageEstimator#estimateWithoutSources}. A source is a slice of the buffer the response was read from, which the
+     * serialized bytes already cover. Aggregations are charged by their serialized size only, as in
+     * {@link TransportMultiSearchAction#estimateActualBytes}.
+     * <p>
+     * The charge is made after the response was read, so it bounds what the node holds, not the peak of reading it.
+     *
+     * @throws CircuitBreakingException if this node cannot hold the response, in which case nothing is charged
+     */
+    public void chargeReadResponse(CircuitBreaker circuitBreaker, long serializedBytes, String label) {
+        assert serializedBytes >= 0 : "bytes must be non-negative";
+        long hitsBytes = 0;
+        for (SearchHit hit : hits.getHits()) {
+            hitsBytes += SearchHitRamUsageEstimator.estimateWithoutSources(hit);
+        }
+        long bytes = serializedBytes + hitsBytes;
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        adoptCoordinatorFetchCharge(Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, label)));
+    }
+
+    /**
+     * Hands the coordinating node's fetch charge for the hits to a caller that keeps the hits alive past this response.
+     * The sections hand their charge to the response when it is built (see
+     * {@link SearchResponseSections#transferCoordinatorFetchCharge()}), so from then on it can only be taken from here.
+     *
+     * @return the charge, or {@code null} if there is none
+     */
+    @Nullable
+    Releasable transferCoordinatorFetchCharge() {
+        Releasable charge = coordinatorFetchCharge;
+        coordinatorFetchCharge = null;
+        return charge;
+    }
+
+    /**
+     * Hands the charge for the reduced aggregations to a response that keeps the aggregations alive past this response.
+     *
+     * @return the charge, or {@code null} if there is none
+     */
+    @Nullable
+    private Releasable transferAggregationCharge() {
+        Releasable charge = aggregationCharge;
+        aggregationCharge = null;
+        return charge;
     }
 
     @Override
@@ -454,6 +652,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return Iterators.concat(
             wrapInObject ? ChunkedToXContentHelper.startObject() : Collections.emptyIterator(),
             ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent),
+            phaseFailures.isEmpty()
+                ? Collections.emptyIterator()
+                : ChunkedToXContentHelper.array(PHASE_FAILURES.getPreferredName(), phaseFailures.iterator()),
             Iterators.single(clusters),
             hits.toXContentChunked(params),
             aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
@@ -505,25 +706,35 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVInt(numReducePhases);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-
-        out.writeVInt(shardFailures.length);
-        for (ShardSearchFailure shardSearchFailure : shardFailures) {
-            shardSearchFailure.writeTo(out);
+        out.writeCollection(shardFailures);
+        if (out.getTransportVersion().supports(SEARCH_PHASE_FAILURES)) {
+            out.writeCollection(phaseFailures);
         }
         clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
         out.writeOptionalBytesReference(pointInTimeId);
+        if (out.getTransportVersion().supports(SEARCH_DIRECTORY_METRICS)) {
+            directoryMetrics.writeTo(out);
+        }
     }
 
     public Long getTimeRangeFilterFromMillis() {
         return timeRangeFilterFromMillis;
     }
 
+    public DirectoryMetrics getDirectoryMetrics() {
+        return directoryMetrics;
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
+    }
+
     @Override
     public String toString() {
-        return hasReferences() == false ? "SearchResponse[released]" : Strings.toString(this);
+        return hasReferences() == false ? "SearchResponse[released]" : Strings.toTruncatedString(this);
     }
 
     /**
@@ -1165,9 +1376,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     }
                     builder.endObject();
                 }
-                if (failures != null && failures.size() > 0) {
+                if (failures != null && failures.isEmpty() == false) {
                     builder.startArray(RestActions.FAILURES_FIELD.getPreferredName());
-                    for (ShardSearchFailure failure : failures) {
+                    List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(failures);
+                    for (ShardOperationFailedException failure : groupedFailures) {
                         failure.toXContent(builder, params);
                     }
                     builder.endArray();
@@ -1260,26 +1472,63 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
     }
 
-    // public for tests
-    public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
-        return new SearchResponse(
-            SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
-            InternalAggregations.EMPTY,
-            null,
-            false,
-            null,
-            null,
-            0,
-            null,
-            0,
-            0,
-            0,
-            tookInMillisSupplier.get(),
-            ShardSearchFailure.EMPTY_ARRAY,
-            clusters,
-            null,
-            null,
-            null
-        );
+    public static EmptyResponseBuilder emptyResponseBuilder() {
+        return new EmptyResponseBuilder();
+    }
+
+    /**
+     * Builds a {@link SearchResponse} carrying no hits and no shards. Use cases include the scroll path when the
+     * scroll id resolves to zero shard contexts, and cross-cluster search when a remote cluster is unavailable.
+     * <p>
+     * The response is fixed to: no hits ({@code total=0}), zero shards (total/successful/skipped/failed all 0), no
+     * shard failures, {@link InternalAggregations#EMPTY} aggregations, no suggestions, no profile. Configurable via
+     * the chained setters: scroll id (default {@code null}), took (default {@code 0}), clusters (default
+     * {@link Clusters#EMPTY}).
+     */
+    public static final class EmptyResponseBuilder {
+        @Nullable
+        private String scrollId;
+        private long tookInMillis;
+        private Clusters clusters = Clusters.EMPTY;
+
+        private EmptyResponseBuilder() {}
+
+        public EmptyResponseBuilder scrollId(@Nullable String scrollId) {
+            this.scrollId = scrollId;
+            return this;
+        }
+
+        public EmptyResponseBuilder tookInMillis(long tookInMillis) {
+            this.tookInMillis = tookInMillis;
+            return this;
+        }
+
+        public EmptyResponseBuilder clusters(Clusters clusters) {
+            this.clusters = Objects.requireNonNull(clusters);
+            return this;
+        }
+
+        public SearchResponse build() {
+            return new SearchResponse(
+                SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
+                InternalAggregations.EMPTY,
+                null,
+                false,
+                null,
+                null,
+                0,
+                scrollId,
+                0,
+                0,
+                0,
+                tookInMillis,
+                List.of(),
+                List.of(),
+                clusters,
+                null,
+                null,
+                null
+            );
+        }
     }
 }

@@ -139,8 +139,14 @@ public class WaitForHttpResource {
         if (validResponseCodes.contains(response)) {
             logger.info("Got successful response [{}] from URL [{}]", response, url);
             return;
-        } else {
-            throw new IOException(response + " " + connection.getResponseMessage());
+        }
+        throw new IOException(response + " " + connection.getResponseMessage() + " " + readErrorBody(connection));
+    }
+
+    private static String readErrorBody(HttpURLConnection connection) throws IOException {
+        InputStream error = connection.getErrorStream();
+        try (InputStream stream = error != null ? error : connection.getInputStream()) {
+            return stream == null ? "" : new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 
@@ -154,8 +160,15 @@ public class WaitForHttpResource {
 
     private void configureSslContext(HttpURLConnection connection, SSLContext ssl) {
         if (ssl != null) {
-            if (connection instanceof HttpsURLConnection) {
-                ((HttpsURLConnection) connection).setSSLSocketFactory(ssl.getSocketFactory());
+            if (connection instanceof HttpsURLConnection httpsURLConnection) {
+                httpsURLConnection.setSSLSocketFactory(ssl.getSocketFactory());
+                // The endpoint being probed here is always a loopback address chosen by the test-cluster harness
+                // (e.g. "127.0.0.1" or "[::1]"), never a real hostname that the configured certificate is expected
+                // to assert. Trust is still fully validated via the configured CA/truststore above; we only skip
+                // endpoint identity matching here, which some JSSE providers (e.g. BouncyCastle's, used under FIPS
+                // and observed on some CI images) enforce more strictly than SunJSSE, failing with
+                // "No hostname specified for HTTPS endpoint ID check" -> certificate_unknown(46).
+                httpsURLConnection.setHostnameVerifier((hostname, session) -> true);
             } else {
                 throw new IllegalStateException("SSL trust has been configured, but [" + url + "] is not a 'https' URL");
             }

@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 145070
-summary: Record stats for adaptive replica selection in dfs queries
-type: bug

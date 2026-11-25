@@ -73,7 +73,7 @@ public class TransportGetStackTracesActionTests extends ESTestCase {
     public void testDetailsHandlerOnConcurrentFailure() throws InterruptedException {
         ActionListener<GetStackTracesResponse> listener = mock();
 
-        var handler = new TransportGetStackTracesAction.DetailsHandler(mock(), listener, 0, 0, 1, 2);
+        var handler = new TransportGetStackTracesAction.DetailsHandler(mock(), listener, 0, 0, 1, 2, false);
 
         var executables1 = new MultiGetItemResponse(null, new MultiGetResponse.Failure("executables", "1", new RuntimeException()));
         var stackframes1 = new MultiGetItemResponse(null, new MultiGetResponse.Failure("stackframes", "1", new RuntimeException()));

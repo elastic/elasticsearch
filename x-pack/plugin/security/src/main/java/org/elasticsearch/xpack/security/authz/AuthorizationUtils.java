@@ -30,6 +30,7 @@ import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_O
 import static org.elasticsearch.xpack.core.ClientHelper.APM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.DATA_RECOVERY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
@@ -151,6 +152,14 @@ public final class AuthorizationUtils {
             case LAZY_ROLLOVER_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.LAZY_ROLLOVER_USER, version, consumer);
                 break;
+            case ENRICH_ORIGIN:
+                // _enrich was introduced in SECURITY_ENRICH_INTERNAL_USER; fall back to _xpack for older nodes
+                securityContext.executeAsInternalUser(
+                    version.supports(Authentication.SECURITY_ENRICH_INTERNAL_USER) ? InternalUsers.ENRICH_USER : InternalUsers.XPACK_USER,
+                    version,
+                    consumer
+                );
+                break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
@@ -159,7 +168,6 @@ public final class AuthorizationUtils {
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
             case INDEX_LIFECYCLE_ORIGIN:
-            case ENRICH_ORIGIN:
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
             case PROFILING_ORIGIN:
@@ -174,6 +182,7 @@ public final class AuthorizationUtils {
             case CONNECTORS_ORIGIN:
             case INFERENCE_ORIGIN:
             case ESQL_ORIGIN:
+            case DATA_RECOVERY_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);
                 break;

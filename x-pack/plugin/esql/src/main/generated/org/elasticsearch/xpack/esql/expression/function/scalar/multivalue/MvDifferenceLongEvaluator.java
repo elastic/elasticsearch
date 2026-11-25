@@ -59,7 +59,7 @@ public final class MvDifferenceLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock field1Block, LongBlock field2Block) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
@@ -90,7 +90,7 @@ public final class MvDifferenceLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

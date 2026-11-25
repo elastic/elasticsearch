@@ -55,6 +55,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -348,6 +349,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final AtomicLong totalBytesWritten = new AtomicLong();
         private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
         private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
+        private final AtomicLong prefixListCallCount = new AtomicLong();
 
         private final Object registerMutex = new Object();
         private long contendedRegisterValue = 0L;
@@ -504,7 +506,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             BlobContainer sourceBlobContainer,
             String sourceBlobName,
             String blobName,
-            long blobSize
+            long blobSize,
+            @Nullable Executor executor
         ) throws IOException {
             assertPurpose(purpose);
             assertThat(sourceBlobContainer, instanceOf(AssertingBlobContainer.class));
@@ -519,6 +522,11 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public DeleteResult delete(OperationPurpose purpose) {
             assertPurpose(purpose);
+            assertThat(
+                "listBlobsByPrefix was never called by RepositoryAnalyzeAction, so verifyPrefixListing was never called",
+                prefixListCallCount.get(),
+                greaterThanOrEqualTo(1L)
+            );
             synchronized (registerMutex) {
                 assertThat(contendedRegisterValue, equalTo(expectedRegisterOperationCount));
                 assertThat(uncontendedRegisterValue, greaterThanOrEqualTo(expectedRegisterOperationCount));
@@ -552,6 +560,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) {
             assertPurpose(purpose);
+            prefixListCallCount.incrementAndGet();
             final Map<String, BlobMetadata> blobMetadataByName = listBlobs(purpose);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;

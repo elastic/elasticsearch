@@ -170,7 +170,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             prepareSearch("text_index").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
             searchResponse -> {
                 if (searchResponse.getFailedShards() > 0) {
-                    logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
+                    logger.warn("failed search {}", searchResponse.getShardFailures());
                 }
                 assertHitCount(searchResponse, 1);
                 assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
@@ -652,10 +652,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indicesAdmin().preparePutTemplate("template_1").setPatterns(Collections.singletonList("te*")).addAlias(new Alias("index")).get();
 
         InvalidAliasNameException e = expectThrows(InvalidAliasNameException.class, () -> createIndex("test"));
-        assertThat(
-            e.getMessage(),
-            equalTo("Invalid alias name [index]: an index, data stream, or ESQL view exists with the same name as the alias")
-        );
+        String expected = "Invalid alias name [index]: an index, data stream, ESQL view, or ESQL dataset exists "
+            + "with the same name as the alias";
+        assertThat(e.getMessage(), equalTo(expected));
     }
 
     public void testAliasEmptyName() throws Exception {

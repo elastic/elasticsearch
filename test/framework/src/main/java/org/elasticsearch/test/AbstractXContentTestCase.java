@@ -148,15 +148,22 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
                 T testInstance = null;
                 try {
                     if (xContentType.equals(XContentType.YAML)) {
-                        testInstance = randomValueOtherThanMany(instance -> {
-                            // unicode character U+0085 (NEXT LINE (NEL)) doesn't survive YAML round trip tests (see #97716)
-                            // get a new random instance if we detect this character in the xContent output
+                        // unicode character U+0085 (NEXT LINE (NEL)) doesn't survive YAML round trip tests (see #97716)
+                        // Loop until we find an instance whose serialized form doesn't contain this character,
+                        // disposing any rejected candidates so that ref-counted instances are not leaked.
+                        boolean containsNel = true;
+                        while (containsNel) {
+                            if (testInstance != null) {
+                                dispose.accept(testInstance);
+                            }
+                            testInstance = instanceSupplier.apply(xContentType);
                             try {
-                                return toXContent.apply(instance, xContentType).utf8ToString().contains("\u0085");
+                                containsNel = toXContent.apply(testInstance, xContentType).utf8ToString().contains("\u0085");
                             } catch (IOException e) {
+                                // testInstance is non-null, so the outer finally will dispose it
                                 throw new AssertionError(e);
                             }
-                        }, () -> instanceSupplier.apply(xContentType));
+                        }
                     } else {
                         testInstance = instanceSupplier.apply(xContentType);
                     }

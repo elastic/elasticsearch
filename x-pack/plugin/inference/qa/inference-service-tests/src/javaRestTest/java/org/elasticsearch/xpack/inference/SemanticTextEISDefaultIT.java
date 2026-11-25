@@ -24,8 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticTextEISDefaultIT extends BaseMockEISAuthServerTest {
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void enqueueAuthorizedResponse() throws Exception {
         // Ensure the mock EIS server has an authorized response ready before each test
         mockEISServer.enqueueAuthorizeAllModelsResponse();
     }

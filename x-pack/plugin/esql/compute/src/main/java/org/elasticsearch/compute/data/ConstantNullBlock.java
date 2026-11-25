@@ -14,13 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
 
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+public final class ConstantNullBlock extends AbstractBlockRefCounted
     implements
         BooleanBlock,
         IntBlock,
@@ -31,6 +32,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         AggregateMetricDoubleBlock,
         ExponentialHistogramBlock,
         LongRangeBlock,
+        DoubleRangeBlock,
         TDigestBlock {
 
     public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
@@ -53,6 +55,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return 0;
+    }
+
+    @Override
     public ToMask toMask() {
         return new ToMask(blockFactory.newConstantBooleanVector(false, positionCount), false);
     }
@@ -65,6 +72,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public boolean areAllValuesNull() {
         return true;
+    }
+
+    @Override
+    public int nullValuesCount() {
+        return positionCount;
     }
 
     @Override
@@ -88,8 +100,18 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return 0;
+    }
+
+    @Override
+    public ConstantNullBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(length);
+    }
+
+    @Override
     public ConstantNullBlock filter(boolean mayContainDuplicates, int... positions) {
-        return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override
@@ -341,6 +363,54 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public EncodedTDigest getEncodedTDigest(int valueIndex, EncodedTDigest scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public DoubleBlock getDoubleFromBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock getDoubleToBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleRangeBlockBuilder.DoubleRange getDoubleRange(int valueIndex, DoubleRangeBlockBuilder.DoubleRange scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public ConstantNullBlock getMinBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getMaxBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getSumBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getCountBlock() {
+        return this;
+    }
+
+    @Override
     public DoubleBlock buildHistogramComponentBlock(Component component) {
         // if all histograms are null, the component block is also a constant null block with the same position count
         this.incRef();
@@ -380,6 +450,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         blockFactory = blockFactory.parent();
     }
 }

@@ -1,0 +1,5 @@
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no
+)
+| FORK (WHERE c > 0) (WHERE c <= 0)

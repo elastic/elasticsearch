@@ -6,11 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -276,21 +274,19 @@ public class SSLService {
     }
 
     /**
-     * Create a new {@link SSLIOSessionStrategy} based on the provided settings. The settings are used to identify the SSL configuration
-     * that should be used to create the context.
+     * Return the {@link SslProfile} for the SSL configuration identified by the provided settings.
      *
      * @param settingsToUse the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will
-     *                      return a context created from the default configuration
+     *                      return a profile created from the default configuration
      * @return Never {@code null}.
+     * @throws IllegalArgumentException if no profile exists for the configuration
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
-     * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #profile(String)}
-     * and {@link SslProfile#ioSessionStrategy()}
+     * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #profile(String)} instead.
      * (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
-    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settingsToUse) {
-        SslConfiguration config = sslConfiguration(settingsToUse);
-        return SSLIOSessionStrategyBuilder.INSTANCE.build(config, sslContext(config));
+    public SslProfile profileForSettings(Settings settingsToUse) {
+        return sslContextHolder(sslConfiguration(settingsToUse));
     }
 
     /**
@@ -367,7 +363,7 @@ public class SSLService {
      *
      * @throws IllegalArgumentException if no supported ciphers are in the requested ciphers
      */
-    static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
+    public static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
         List<String> supportedCiphersList = new ArrayList<>(requestedCiphers.size());
         List<String> unsupportedCiphers = new LinkedList<>();
         boolean found;
@@ -805,16 +801,6 @@ public class SSLService {
             } else {
                 return NoopHostnameVerifier.INSTANCE;
             }
-        }
-
-        @Override
-        public SSLConnectionSocketFactory connectionSocketFactory() {
-            return new SSLConnectionSocketFactory(socketFactory(), hostnameVerifier());
-        }
-
-        @Override
-        public SSLIOSessionStrategy ioSessionStrategy() {
-            return SSLIOSessionStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
         }
 
         @Override

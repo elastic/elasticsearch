@@ -15,11 +15,17 @@ package org.elasticsearch.telemetry.metric;
 public interface LongAsyncCounter extends Instrument, AutoCloseable {
 
     /**
+     * Closing this instrument stops it from recording measurements and removes it from the {@link MeterRegistry}.
+     */
+    @Override
+    void close();
+
+    /**
      * Noop counter for use in tests.
      */
     LongAsyncCounter NOOP = new LongAsyncCounter() {
         @Override
-        public void close() throws Exception {
+        public void close() {
 
         }
 

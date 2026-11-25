@@ -18,10 +18,6 @@ module org.elasticsearch.ml {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.mustache;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
@@ -44,5 +40,12 @@ module org.elasticsearch.ml {
     exports org.elasticsearch.xpack.ml.autoscaling;
     exports org.elasticsearch.xpack.ml.job.categorization;
     exports org.elasticsearch.xpack.ml.notifications;
+    exports org.elasticsearch.xpack.ml.action.datafeed;
+    exports org.elasticsearch.xpack.ml.action.dataframe;
+    exports org.elasticsearch.xpack.ml.action.trainedmodel;
+    exports org.elasticsearch.xpack.ml.action.filter;
+    exports org.elasticsearch.xpack.ml.action.calendar;
+    exports org.elasticsearch.xpack.ml.action.job;
+    exports org.elasticsearch.xpack.ml.action.snapshot;
 
 }

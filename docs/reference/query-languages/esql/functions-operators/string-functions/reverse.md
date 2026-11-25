@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `REVERSE` function [esql-reverse]
 
-:::{include} ../../_snippets/functions/layout/reverse.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/reverse.md
 :::

@@ -1,5 +1,0 @@
-area: Searchable Snapshots
-issues: []
-pr: 142685
-summary: Trigger cache decay at 5% left on freq 0
-type: enhancement

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -20,8 +22,8 @@ final class FloatVectorBuilder extends AbstractVectorBuilder implements FloatVec
     FloatVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
-        values = new float[Math.max(estimatedSize, 2)];
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+        values = new float[initialSize];
     }
 
     @Override
@@ -52,7 +54,7 @@ final class FloatVectorBuilder extends AbstractVectorBuilder implements FloatVec
         finish();
         FloatVector vector;
         if (valueCount == 1) {
-            vector = blockFactory.newConstantFloatBlockWith(values[0], 1, estimatedBytes).asVector();
+            vector = blockFactory.newConstantFloatVector(values[0], 1, estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);

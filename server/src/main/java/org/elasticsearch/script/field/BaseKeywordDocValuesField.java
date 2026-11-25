@@ -13,7 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -25,7 +25,7 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<String> {
 
-    protected final SortedBinaryDocValues input;
+    protected final SortableBinaryDocValues input;
     protected final String name;
 
     protected BytesRefBuilder[] values = new BytesRefBuilder[0];
@@ -35,7 +35,7 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
     // as a delegate to this field class
     protected ScriptDocValues.Strings strings = null;
 
-    public BaseKeywordDocValuesField(SortedBinaryDocValues input, String name) {
+    public BaseKeywordDocValuesField(SortableBinaryDocValues input, String name) {
         this.input = input;
         this.name = name;
     }
@@ -45,7 +45,7 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
+                // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortableBinaryDocValues
                 // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
                 // instance for all slots in the values array.
                 values[i].copyBytes(input.nextValue());
@@ -76,11 +76,21 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         return strings;
     }
 
+    @Override
+    public long maxDecodeBytes() {
+        return input.maxDecodeBytes();
+    }
+
     // this method is required to support the Boolean return values
     // for the old-style "doc" access in ScriptDocValues
     @Override
     public String getInternal(int index) {
         return bytesToString(values[index].toBytesRef());
+    }
+
+    @Override
+    public int byteLength(int index) {
+        return values[index].length();
     }
 
     protected static String bytesToString(BytesRef bytesRef) {
@@ -134,7 +144,7 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         };
     }
 
-    public SortedBinaryDocValues getInput() {
+    public SortableBinaryDocValues getInput() {
         return input;
     }
 }

@@ -9,6 +9,8 @@ module org.elasticsearch.compute {
 
     requires org.apache.lucene.analysis.common;
     requires org.apache.lucene.core;
+    requires org.apache.lucene.highlighter;
+    requires org.apache.lucene.memory;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.compute.ann;
@@ -23,8 +25,11 @@ module org.elasticsearch.compute {
     requires hppc;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.swisshash;
+    requires org.objectweb.asm;  // for ConstantMethodResultSpecializer runtime bytecode generation
     requires transitive org.apache.arrow.memory.core;
     requires org.apache.arrow.vector;
+    requires org.jspecify;
+    requires java.management; // for thread CPU time in ThreadCpuTimer
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;
@@ -36,6 +41,7 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.aggregation.blockhash;
     exports org.elasticsearch.compute.aggregation.spatial;
     exports org.elasticsearch.compute.operator.lookup;
+    exports org.elasticsearch.compute.operator.fetch;
     exports org.elasticsearch.compute.operator.topn;
     exports org.elasticsearch.compute.operator.mvdedupe;
     exports org.elasticsearch.compute.aggregation.table;

@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
@@ -55,6 +57,8 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     private String globalPipeline;
     private String globalRouting;
     private WriteRequest.RefreshPolicy refreshPolicy;
+    @Nullable
+    private Map<String, SourceBatch> preBuiltBatches;
     private boolean requestPreviouslyCalled = false;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
@@ -235,7 +239,20 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
         }
+        if (preBuiltBatches != null) {
+            request.setPreBuiltBatches(preBuiltBatches);
+        }
         return request;
+    }
+
+    /**
+     * Attaches pre-built ESCF batches to the bulk request, one per index abstraction its items target, each keyed by
+     * the name of that abstraction: the index, alias, or data stream the name of an item resolves to. See
+     * {@link BulkRequest#setPreBuiltBatches} for ownership semantics.
+     */
+    public BulkRequestBuilder setPreBuiltBatches(@Nullable Map<String, SourceBatch> batches) {
+        this.preBuiltBatches = batches;
+        return this;
     }
 
     private void validate() {

@@ -176,6 +176,16 @@ public interface PromqlBaseParserListener extends ParseTreeListener {
    */
   void exitLabelList(PromqlBaseParser.LabelListContext ctx);
   /**
+   * Enter a parse tree produced by {@link PromqlBaseParser#labelListItem}.
+   * @param ctx the parse tree
+   */
+  void enterLabelListItem(PromqlBaseParser.LabelListItemContext ctx);
+  /**
+   * Exit a parse tree produced by {@link PromqlBaseParser#labelListItem}.
+   * @param ctx the parse tree
+   */
+  void exitLabelListItem(PromqlBaseParser.LabelListItemContext ctx);
+  /**
    * Enter a parse tree produced by {@link PromqlBaseParser#labels}.
    * @param ctx the parse tree
    */
@@ -196,6 +206,16 @@ public interface PromqlBaseParserListener extends ParseTreeListener {
    */
   void exitLabel(PromqlBaseParser.LabelContext ctx);
   /**
+   * Enter a parse tree produced by {@link PromqlBaseParser#labelValue}.
+   * @param ctx the parse tree
+   */
+  void enterLabelValue(PromqlBaseParser.LabelValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link PromqlBaseParser#labelValue}.
+   * @param ctx the parse tree
+   */
+  void exitLabelValue(PromqlBaseParser.LabelValueContext ctx);
+  /**
    * Enter a parse tree produced by {@link PromqlBaseParser#labelName}.
    * @param ctx the parse tree
    */
@@ -215,6 +235,26 @@ public interface PromqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitIdentifier(PromqlBaseParser.IdentifierContext ctx);
+  /**
+   * Enter a parse tree produced by {@link PromqlBaseParser#metricName}.
+   * @param ctx the parse tree
+   */
+  void enterMetricName(PromqlBaseParser.MetricNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link PromqlBaseParser#metricName}.
+   * @param ctx the parse tree
+   */
+  void exitMetricName(PromqlBaseParser.MetricNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link PromqlBaseParser#groupingLabel}.
+   * @param ctx the parse tree
+   */
+  void enterGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx);
+  /**
+   * Exit a parse tree produced by {@link PromqlBaseParser#groupingLabel}.
+   * @param ctx the parse tree
+   */
+  void exitGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx);
   /**
    * Enter a parse tree produced by {@link PromqlBaseParser#evaluation}.
    * @param ctx the parse tree

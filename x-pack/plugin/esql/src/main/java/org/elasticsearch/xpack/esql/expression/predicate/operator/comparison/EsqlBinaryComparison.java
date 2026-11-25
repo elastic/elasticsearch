@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -26,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -36,10 +42,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.FieldValueQueries;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -51,6 +60,7 @@ import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -363,16 +373,27 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right() instanceof Literal lit) {
             // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
-            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // a "warning" header, as well (see EqualsBytesRefEvaluator, for example, where lhs and rhs are both dealt with equally when
             // it comes to multi-value handling).
             if (lit.value() instanceof Collection<?>) {
+                return Translatable.NO;
+            }
+            // Range fields don't support scalar term/range queries; equality must be evaluated in the compute engine.
+            if (left().dataType() == DataType.DATE_RANGE || left().dataType() == DataType.DOUBLE_RANGE) {
                 return Translatable.NO;
             }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return Translatable.YES;
             }
+            if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, left())) {
+                // The field answers over the values it keeps, which the expression asks it for on the shard.
+                return FieldValueQueries.pushable(pushdownPredicates.minTransportVersion()) ? Translatable.YES : Translatable.NO;
+            }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
                 return this instanceof Equals || this instanceof NotEquals ? Translatable.YES : Translatable.NO;
+            }
+            if (left() instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
+                return Translatable.RECHECK;
             }
         }
         return Translatable.NO;
@@ -403,9 +424,83 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             Expressions.name(right()),
             symbol()
         );
+        if (left() instanceof FieldExtract fe) {
+            Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+            if (keyedName.isPresent()) {
+                return translateFieldExtractRange(keyedName.get());
+            }
+        }
+
+        if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, left())) {
+            // asLuceneQuery builds the positive shape, so an inequality is negated here.
+            final Query over = FieldValueQueries.over(source(), handler.nameOf((TypedAttribute) left()), this);
+            return this instanceof NotEquals ? new NotQuery(source(), over) : over;
+        }
 
         Query translated = translateOutOfRangeComparisons();
         return translated != null ? translated : translate(handler);
+    }
+
+    /**
+     * The comparison answered over the values the field keeps, which match whole. Always the positive shape: an
+     * inequality is negated by the query that wraps this one.
+     */
+    @Override
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        final TextFamilyFieldType field = FieldValueQueries.textFamily(fieldType);
+        final BytesRef value = BytesRefs.toBytesRef(literalValueOf(right()));
+        if (this instanceof Equals || this instanceof NotEquals) {
+            return field.termLikeQuery(value, context);
+        }
+        if (this instanceof GreaterThan) {
+            return field.rangeLikeQuery(value, null, false, false, context);
+        }
+        if (this instanceof GreaterThanOrEqual) {
+            return field.rangeLikeQuery(value, null, true, false, context);
+        }
+        if (this instanceof LessThan) {
+            return field.rangeLikeQuery(null, value, false, false, context);
+        }
+        if (this instanceof LessThanOrEqual) {
+            return field.rangeLikeQuery(null, value, false, true, context);
+        }
+        throw new QlIllegalArgumentException("Don't know how to answer [{}] over a field's values", symbol());
+    }
+
+    /**
+     * Build a candidate {@link RangeQuery} against the synthetic {@code <root>.<key>} sub-field for a
+     * {@code field_extract(...)} LHS. The keyed flattened mapper substitutes the missing side with a
+     * key-prefix sentinel so the resulting Lucene range stays inside this key's portion of the term
+     * namespace, which lets us push the one-sided shape that the original mapper rejected.
+     * <p>
+     * The range is not wrapped in a {@link SingleValueQuery}: the comparison reports
+     * {@link Translatable#RECHECK}, so the FilterOperator re-evaluates the predicate on the extracted
+     * keyword column and nulls out multi-valued documents that the candidate range let through.
+     * <p>
+     * Only the range comparators ({@code >}, {@code >=}, {@code <}, {@code <=}) reach this
+     * helper. {@link Equals} and {@link NotEquals} override {@link #asQuery} so they never
+     * delegate here, and reaching the {@code throw} at the end of the method would mean a new
+     * comparison subclass was added without explicit handling.
+     */
+    private Query translateFieldExtractRange(String keyedName) {
+        Object value = literalValueOf(right());
+        if (value instanceof BytesRef br) {
+            value = br.utf8ToString();
+        }
+        return switch (this) {
+            case GreaterThan ignored -> new RangeQuery(source(), keyedName, value, false, null, false, null, null);
+            case GreaterThanOrEqual ignored -> new RangeQuery(source(), keyedName, value, true, null, false, null, null);
+            case LessThan ignored -> new RangeQuery(source(), keyedName, null, false, value, false, null, null);
+            case LessThanOrEqual ignored -> new RangeQuery(source(), keyedName, null, false, value, true, null, null);
+            default -> throw new QlIllegalArgumentException(
+                "Unexpected comparison [{}] for field_extract range pushdown",
+                this.getClass().getSimpleName()
+            );
+        };
     }
 
     @Override
@@ -491,7 +586,14 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         }
         if (this instanceof Equals || this instanceof NotEquals) {
             name = LucenePushdownPredicates.pushableAttributeName(attribute);
-
+            if (this instanceof NotEquals && attribute.dataType().isNumeric()) {
+                return new BoolQuery(
+                    source(),
+                    false,
+                    new RangeQuery(source(), name, null, false, value, false, format, zoneId),
+                    new RangeQuery(source(), name, value, false, null, false, format, zoneId)
+                );
+            }
             Query query;
             if (isDateLiteralComparison) {
                 // dates equality uses a range query because it's the one that has a "format" parameter

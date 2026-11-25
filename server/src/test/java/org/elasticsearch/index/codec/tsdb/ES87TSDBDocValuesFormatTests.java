@@ -40,6 +40,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,12 +54,12 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@RunWith(ESRandomizedRunner.class)
 public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private static final int NUM_DOCS = 10;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 
@@ -223,53 +225,59 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                     StoredFields storedFields = leaf.reader().storedFields();
                     int iters = 1 + random().nextInt(5);
                     for (int i = 0; i < iters; i++) {
+                        // The doc values instances below can be null: every doc can get zero values for a field, and
+                        // with a random index writer a segment may then contain no values for that field at all.
                         // check with binary
                         SortedSetDocValues binaryDV = leaf.reader().getSortedSetDocValues("binary");
-                        int doc = random().nextInt(leaf.reader().maxDoc());
-                        while ((doc = binaryDV.advance(doc)) != DocIdSetIterator.NO_MORE_DOCS) {
-                            String key = storedFields.document(doc).getBinaryValue("key").utf8ToString();
-                            List<String> expected = sortedSet.get(key);
-                            List<String> actual = new ArrayList<>();
-                            for (int v = 0; v < binaryDV.docValueCount(); v++) {
-                                long ord = binaryDV.nextOrd();
-                                actual.add(binaryDV.lookupOrd(ord).utf8ToString());
-                            }
-                            assertEquals(expected, actual);
-                            int repeats = random().nextInt(3);
-                            for (int r = 0; r < repeats; r++) {
-                                assertTrue(binaryDV.advanceExact(doc));
-                                actual.clear();
+                        if (binaryDV != null) {
+                            int doc = random().nextInt(leaf.reader().maxDoc());
+                            while ((doc = binaryDV.advance(doc)) != DocIdSetIterator.NO_MORE_DOCS) {
+                                String key = storedFields.document(doc).getBinaryValue("key").utf8ToString();
+                                List<String> expected = sortedSet.get(key);
+                                List<String> actual = new ArrayList<>();
                                 for (int v = 0; v < binaryDV.docValueCount(); v++) {
                                     long ord = binaryDV.nextOrd();
                                     actual.add(binaryDV.lookupOrd(ord).utf8ToString());
                                 }
                                 assertEquals(expected, actual);
+                                int repeats = random().nextInt(3);
+                                for (int r = 0; r < repeats; r++) {
+                                    assertTrue(binaryDV.advanceExact(doc));
+                                    actual.clear();
+                                    for (int v = 0; v < binaryDV.docValueCount(); v++) {
+                                        long ord = binaryDV.nextOrd();
+                                        actual.add(binaryDV.lookupOrd(ord).utf8ToString());
+                                    }
+                                    assertEquals(expected, actual);
+                                }
+                                doc++;
+                                doc += random().nextInt(3);
                             }
-                            doc++;
-                            doc += random().nextInt(3);
                         }
                         // check with numbers
-                        doc = random().nextInt(leaf.reader().maxDoc());
                         SortedNumericDocValues numbersDV = leaf.reader().getSortedNumericDocValues("numbers");
-                        while ((doc = numbersDV.advance(doc)) != DocIdSetIterator.NO_MORE_DOCS) {
-                            String key = storedFields.document(doc).getBinaryValue("key").utf8ToString();
-                            long[] expected = sortedNumbers.get(key);
-                            long[] actual = new long[expected.length];
-                            for (int v = 0; v < numbersDV.docValueCount(); v++) {
-                                actual[v] = numbersDV.nextValue();
-                            }
-                            assertArrayEquals(expected, actual);
-                            int repeats = random().nextInt(3);
-                            for (int r = 0; r < repeats; r++) {
-                                assertTrue(numbersDV.advanceExact(doc));
-                                actual = new long[expected.length];
+                        if (numbersDV != null) {
+                            int doc = random().nextInt(leaf.reader().maxDoc());
+                            while ((doc = numbersDV.advance(doc)) != DocIdSetIterator.NO_MORE_DOCS) {
+                                String key = storedFields.document(doc).getBinaryValue("key").utf8ToString();
+                                long[] expected = sortedNumbers.get(key);
+                                long[] actual = new long[expected.length];
                                 for (int v = 0; v < numbersDV.docValueCount(); v++) {
                                     actual[v] = numbersDV.nextValue();
                                 }
                                 assertArrayEquals(expected, actual);
+                                int repeats = random().nextInt(3);
+                                for (int r = 0; r < repeats; r++) {
+                                    assertTrue(numbersDV.advanceExact(doc));
+                                    actual = new long[expected.length];
+                                    for (int v = 0; v < numbersDV.docValueCount(); v++) {
+                                        actual[v] = numbersDV.nextValue();
+                                    }
+                                    assertArrayEquals(expected, actual);
+                                }
+                                doc++;
+                                doc += random().nextInt(3);
                             }
-                            doc++;
-                            doc += random().nextInt(3);
                         }
                     }
                 }

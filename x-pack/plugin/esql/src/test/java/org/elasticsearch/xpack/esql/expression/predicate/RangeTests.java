@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 
@@ -29,6 +29,26 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public class RangeTests extends ESTestCase {
+
+    /**
+     * A string bound naming a day the month lacks is not a plain date, so it is not compared here and is left for the
+     * lower level, instead of being clamped to the month's last day. Clamped, 2024-02-30 would read as 2024-02-29 and
+     * the bounds below would be reported as inverted.
+     */
+    public void testAreBoundariesInvalidWithImpossibleDayBound() {
+        Range range = new Range(
+            Source.EMPTY,
+            l(ZonedDateTime.parse("2024-02-15T00:00:00Z"), DATETIME),
+            l("2024-02-30", KEYWORD),
+            true,
+            l("2024-03-31", KEYWORD),
+            true,
+            ZoneOffset.UTC
+        );
+        assertFalse(range.areBoundariesInvalid("2024-02-30", "2024-02-15"));
+        assertFalse(range.areBoundariesInvalid("2024-03-01", "2024-02-30"));
+        assertTrue(range.areBoundariesInvalid("2024-02-29", "2024-02-28"));
+    }
 
     public void testAreBoundariesInvalid() {
         // value, value type, lower, lower type, lower included, higher, higher type, higher included, boundaries invalid
@@ -210,7 +230,7 @@ public class RangeTests extends ESTestCase {
                 (Boolean) test[4],
                 l(test[5], (DataType) test[6]),
                 (Boolean) test[7],
-                ZoneId.systemDefault()
+                ZoneOffset.UTC
             );
             assertEquals(
                 "failed on test " + i + ": " + Arrays.toString(test),

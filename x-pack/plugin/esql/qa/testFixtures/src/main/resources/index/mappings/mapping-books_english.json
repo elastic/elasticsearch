@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "book_no": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text",
+      "analyzer": "english"
+    },
+    "author": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        }
+      }
+    },
+    "description": {
+      "type": "text",
+      "analyzer": "english"
+    },
+    "publisher": {
+      "type": "text"
+    },
+    "ratings": {
+      "type": "float"
+    },
+    "year": {
+      "type": "integer"
+    },
+    "collection": {
+      "type": "text"
+    }
+  }
+}

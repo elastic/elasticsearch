@@ -118,7 +118,8 @@ public class SampleIterator implements Executable {
             stack.clear();
             samples.clear();
             clearCircuitBreaker();
-            client.close(listener.delegateFailure((l, r) -> {}));
+            // The outer listener has already been invoked by runAfter; a close-PIT failure must not propagate to it.
+            client.close(ActionListener.wrap(r -> {}, e -> log.warn("Failed to close PIT after sample query", e)));
         }));
     }
 
@@ -292,7 +293,7 @@ public class SampleIterator implements Executable {
         log.trace("Sending payload for [{}] samples", samples.size());
 
         if (samples.isEmpty()) {
-            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[0])));
+            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook(), List.copyOf(shardFailures.values())));
             return;
         }
 
@@ -301,13 +302,7 @@ public class SampleIterator implements Executable {
             hits(samples),
             ActionListeners.map(
                 listener,
-                listOfHits -> new SamplePayload(
-                    samples,
-                    listOfHits,
-                    false,
-                    timeTook(),
-                    shardFailures.values().toArray(new ShardSearchFailure[0])
-                )
+                listOfHits -> new SamplePayload(samples, listOfHits, false, timeTook(), List.copyOf(shardFailures.values()))
             )
         );
     }

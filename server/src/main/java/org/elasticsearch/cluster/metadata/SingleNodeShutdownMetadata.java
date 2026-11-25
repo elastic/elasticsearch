@@ -363,7 +363,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             .setReason(original.getReason())
             .setStartedAtMillis(original.getStartedAtMillis())
             .setNodeSeen(original.getNodeSeen())
-            .setTargetNodeName(original.getTargetNodeName());
+            .setAllocationDelay(original.getAllocationDelay())
+            .setTargetNodeName(original.getTargetNodeName())
+            .setGracePeriod(original.getGracePeriod());
     }
 
     public static class Builder {

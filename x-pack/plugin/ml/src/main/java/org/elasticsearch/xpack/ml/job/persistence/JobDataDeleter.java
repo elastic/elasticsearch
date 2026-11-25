@@ -17,18 +17,23 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -40,11 +45,13 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -71,6 +78,7 @@ import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -78,6 +86,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -87,6 +96,22 @@ public class JobDataDeleter {
     private static final Logger logger = LogManager.getLogger(JobDataDeleter.class);
 
     private static final int MAX_SNAPSHOTS_TO_DELETE = 10000;
+
+    // Bound these result/annotation DeleteByQuery requests to a single slice. The primary driver is the
+    // revert-on-open path (elastic/elasticsearch#153260): reverting to the CURRENT (latest) snapshot makes the
+    // "intervening results/annotations since snapshot" delete small by construction, so AUTO_SLICES fan-out
+    // (up to min(shards,20) scroll contexts per request) buys negligible speedup while it can exhaust
+    // search.max_open_scroll_context during a mass reopen storm. deleteAnnotations is also reached by the
+    // job-delete path (deleteAllAnnotations); annotations are low-volume there too, so one slice is fine.
+    private static final int DELETE_SLICES = 1;
+
+    // Short scroll keepalive so abandoned/partial scroll contexts free quickly instead of lingering for the 5-minute
+    // default, preventing accumulation faster than expiry when the reopen pipeline retries (elastic/elasticsearch#153260).
+    private static final TimeValue DELETE_SCROLL_KEEP_ALIVE = TimeValue.timeValueMinutes(1);
+
+    // One fresh DeleteByQuery attempt after a scroll context expires mid-delete (elastic/elasticsearch#153260).
+    private static final TimeValue DELETE_SCROLL_CONTEXT_RETRY_DELAY = TimeValue.timeValueSeconds(30);
+    private static final int MAX_DELETE_SCROLL_CONTEXT_ATTEMPTS = 2;
 
     private final Client client;
     private final String jobId;
@@ -107,17 +132,15 @@ public class JobDataDeleter {
      *
      * @param modelSnapshots the model snapshots to delete
      */
-    public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByScrollResponse> listener) {
+    public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByPaginatedSearchResponse> listener) {
         if (modelSnapshots.isEmpty()) {
-            listener.onResponse(emptyBulkByScrollResponse());
+            listener.onResponse(emptyBulkByPaginatedSearchResponse());
             return;
         }
 
-        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexPattern();
-
         List<String> idsToDelete = new ArrayList<>();
         Set<String> indices = new HashSet<>();
-        indices.add(stateIndexName);
+        Collections.addAll(indices, AnomalyDetectorsIndex.jobStateIndexPatterns());
         indices.add(AnnotationIndex.READ_ALIAS_NAME);
         for (ModelSnapshot modelSnapshot : modelSnapshots) {
             idsToDelete.addAll(modelSnapshot.stateDocumentIds());
@@ -130,7 +153,7 @@ public class JobDataDeleter {
             new ArrayList<>(indices),
             listener,
             "model snapshots",
-            () -> listener.onResponse(emptyBulkByScrollResponse())
+            () -> listener.onResponse(emptyBulkByPaginatedSearchResponse())
         );
         if (indicesToQuery.length == 0) return;
 
@@ -144,10 +167,10 @@ public class JobDataDeleter {
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
     }
 
-    private static BulkByScrollResponse emptyBulkByScrollResponse() {
-        return new BulkByScrollResponse(
+    private static BulkByPaginatedSearchResponse emptyBulkByPaginatedSearchResponse() {
+        return new BulkByPaginatedSearchResponse(
             TimeValue.ZERO,
-            new BulkByScrollTask.Status(Collections.emptyList(), null),
+            new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
             Collections.emptyList(),
             Collections.emptyList(),
             false
@@ -201,22 +224,90 @@ public class JobDataDeleter {
         );
         if (indicesToQuery.length == 0) return;
 
+        executeDeleteByQueryWithScrollContextRetry(() -> newDeleteByQueryRequest(indicesToQuery, query), listener);
+    }
+
+    private DeleteByQueryRequest newDeleteByQueryRequest(String[] indicesToQuery, QueryBuilder query) {
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(DELETE_SLICES)
+            .setScroll(DELETE_SCROLL_KEEP_ALIVE);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+        return dbqRequest;
+    }
 
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            DeleteByQueryAction.INSTANCE,
-            dbqRequest,
-            ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure)
-        );
+    private void executeDeleteByQueryWithScrollContextRetry(
+        Supplier<DeleteByQueryRequest> requestSupplier,
+        ActionListener<Boolean> listener
+    ) {
+        executeDeleteByQueryWithScrollContextRetry(requestSupplier, ActionListener.assertOnce(listener), 1);
+    }
+
+    private void executeDeleteByQueryWithScrollContextRetry(
+        Supplier<DeleteByQueryRequest> requestSupplier,
+        ActionListener<Boolean> listener,
+        int attempt
+    ) {
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, requestSupplier.get(), ActionListener.wrap(response -> {
+            if (hasSearchContextMissingFailure(response)) {
+                if (attempt < MAX_DELETE_SCROLL_CONTEXT_ATTEMPTS) {
+                    scheduleDeleteByQueryRetry(requestSupplier, listener, attempt + 1);
+                } else {
+                    listener.onFailure(searchContextMissingFromResponse(response));
+                }
+            } else {
+                listener.onResponse(true);
+            }
+        }, failure -> {
+            if (isSearchContextMissing(failure) && attempt < MAX_DELETE_SCROLL_CONTEXT_ATTEMPTS) {
+                scheduleDeleteByQueryRetry(requestSupplier, listener, attempt + 1);
+            } else {
+                listener.onFailure(failure);
+            }
+        }));
+    }
+
+    private void scheduleDeleteByQueryRetry(Supplier<DeleteByQueryRequest> requestSupplier, ActionListener<Boolean> listener, int attempt) {
+        try {
+            client.threadPool()
+                .schedule(
+                    () -> executeDeleteByQueryWithScrollContextRetry(requestSupplier, listener, attempt),
+                    DELETE_SCROLL_CONTEXT_RETRY_DELAY,
+                    client.threadPool().generic()
+                );
+        } catch (EsRejectedExecutionException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static boolean hasSearchContextMissingFailure(BulkByPaginatedSearchResponse response) {
+        for (PaginatedSearchFailure failure : response.getSearchFailures()) {
+            if (org.elasticsearch.ExceptionsHelper.unwrap(failure.getReason(), SearchContextMissingException.class) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Exception searchContextMissingFromResponse(BulkByPaginatedSearchResponse response) {
+        for (PaginatedSearchFailure failure : response.getSearchFailures()) {
+            Throwable cause = org.elasticsearch.ExceptionsHelper.unwrap(failure.getReason(), SearchContextMissingException.class);
+            if (cause != null) {
+                if (cause instanceof Exception exception) {
+                    return org.elasticsearch.ExceptionsHelper.convertToElastic(exception);
+                }
+                return new IllegalStateException(cause);
+            }
+        }
+        return new IllegalStateException("expected search context missing failure");
+    }
+
+    private static boolean isSearchContextMissing(Exception failure) {
+        return org.elasticsearch.ExceptionsHelper.unwrap(failure, SearchContextMissingException.class) != null;
     }
 
     private <T> String[] removeReadOnlyIndices(
@@ -271,22 +362,8 @@ public class JobDataDeleter {
             () -> listener.onResponse(true)
         );
         if (indicesToQuery.length == 0) return;
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setAbortOnVersionConflict(false)
-            .setRefresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
 
-        // _doc is the most efficient sort order and will also disable scoring
-        dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
-
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            DeleteByQueryAction.INSTANCE,
-            dbqRequest,
-            ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure)
-        );
+        executeDeleteByQueryWithScrollContextRetry(() -> newDeleteByQueryRequest(indicesToQuery, query), listener);
     }
 
     /**
@@ -298,7 +375,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(false)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(DELETE_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -306,31 +383,41 @@ public class JobDataDeleter {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.execute(DeleteByQueryAction.INSTANCE, dbqRequest).get();
         } catch (Exception e) {
-            logger.error("[" + jobId + "] An error occurred while deleting interim results", e);
+            if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
+                logger.warn("[" + jobId + "] An error occurred while deleting interim results", e);
+            } else {
+                logger.error("[" + jobId + "] An error occurred while deleting interim results", e);
+            }
         }
     }
 
     /**
-     * Delete the datafeed timing stats document from all the job results indices
+     * Delete the datafeed timing stats document from the job results index.
+     * Uses a direct delete-by-ID rather than delete-by-query to avoid the two-phase
+     * search-then-delete race where an un-refreshed document can be missed by the
+     * search phase.
      *
      * @param listener Response listener
      */
-    public void deleteDatafeedTimingStats(ActionListener<BulkByScrollResponse> listener) {
+    public void deleteDatafeedTimingStats(ActionListener<BulkByPaginatedSearchResponse> listener) {
         String[] indicesToQuery = removeReadOnlyIndices(
             List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
             listener,
             "datafeed timing stats",
-            () -> listener.onResponse(emptyBulkByScrollResponse())
+            () -> listener.onResponse(emptyBulkByPaginatedSearchResponse())
         );
         if (indicesToQuery.length == 0) return;
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery).setRefresh(true)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)));
 
-        // _doc is the most efficient sort order and will also disable scoring
-        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+        DeleteRequest deleteRequest = new DeleteRequest(indicesToQuery[0], DatafeedTimingStats.documentId(jobId));
+        deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportDeleteAction.TYPE,
+            deleteRequest,
+            listener.delegateFailureAndWrap((l, deleteResponse) -> l.onResponse(emptyBulkByPaginatedSearchResponse()))
+        );
     }
 
     /**
@@ -352,22 +439,22 @@ public class JobDataDeleter {
         );
 
         // Step 9. If we did not drop the indices and after DBQ state done, we delete the aliases
-        ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(bulkByScrollResponse -> {
-            if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume indices were deleted
+        ActionListener<BulkByPaginatedSearchResponse> dbqHandler = ActionListener.wrap(bulkByPaginatedSearchResponse -> {
+            if (bulkByPaginatedSearchResponse == null) { // no action was taken by DBQ, assume indices were deleted
                 completionHandler.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             } else {
-                if (bulkByScrollResponse.isTimedOut()) {
+                if (bulkByPaginatedSearchResponse.isTimedOut()) {
                     logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
                 }
-                if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                if (bulkByPaginatedSearchResponse.getBulkFailures().isEmpty() == false) {
                     logger.warn(
                         "[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}].",
                         jobId,
-                        bulkByScrollResponse.getBulkFailures().size(),
-                        bulkByScrollResponse.getVersionConflicts(),
+                        bulkByPaginatedSearchResponse.getBulkFailures().size(),
+                        bulkByPaginatedSearchResponse.getVersionConflicts(),
                         String.join(", ", indexNames.get())
                     );
-                    for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                    for (BulkItemResponse.Failure failure : bulkByPaginatedSearchResponse.getBulkFailures()) {
                         logger.warn("DBQ failure: " + failure);
                     }
                 }
@@ -492,7 +579,7 @@ public class JobDataDeleter {
         );
 
         // Step 2. Delete state done, delete the quantiles
-        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
+        ActionListener<BulkByPaginatedSearchResponse> deleteStateHandler = ActionListener.wrap(
             bulkResponse -> deleteQuantiles(jobId, deleteQuantilesHandler),
             failureHandler
         );
@@ -504,7 +591,7 @@ public class JobDataDeleter {
     private void deleteResultsByQuery(
         @SuppressWarnings("HiddenField") String jobId,
         String[] indices,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         assert indices.length > 0;
 
@@ -515,12 +602,12 @@ public class JobDataDeleter {
                 List.of(indices),
                 listener,
                 "results",
-                () -> listener.onResponse(emptyBulkByScrollResponse())
+                () -> listener.onResponse(emptyBulkByPaginatedSearchResponse())
             );
             if (indicesToQuery.length == 0) return;
             DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
                 .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
-                .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+                .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
                 .setAbortOnVersionConflict(false)
                 .setRefresh(true);
 
@@ -593,7 +680,7 @@ public class JobDataDeleter {
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
 
         String[] indicesToQuery = removeReadOnlyIndices(
-            List.of(AnomalyDetectorsIndex.jobStateIndexPattern()),
+            Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns()),
             finishedHandler,
             "quantiles",
             () -> finishedHandler.onResponse(true)
@@ -614,7 +701,7 @@ public class JobDataDeleter {
         );
     }
 
-    private void deleteModelState(@SuppressWarnings("HiddenField") String jobId, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteModelState(@SuppressWarnings("HiddenField") String jobId, ActionListener<BulkByPaginatedSearchResponse> listener) {
         GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
         request.setPageParams(new PageParams(0, MAX_SNAPSHOTS_TO_DELETE));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(response -> {
@@ -631,7 +718,7 @@ public class JobDataDeleter {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
         String[] indicesToQuery = removeReadOnlyIndices(
-            List.of(AnomalyDetectorsIndex.jobStateIndexPattern()),
+            Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns()),
             finishedHandler,
             "categorizer state",
             () -> finishedHandler.onResponse(true)

@@ -1,0 +1,4 @@
+FROM employees,
+     (FROM (FROM employees | WHERE salary > 50000),
+           (FROM employees | WHERE emp_no < 10010))
+| INLINE STATS c = COUNT(*)

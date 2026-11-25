@@ -1,0 +1,3 @@
+PROMQL index=k8s step=1h max_bits=(
+  max(network.total_bytes_in) * 8
+)

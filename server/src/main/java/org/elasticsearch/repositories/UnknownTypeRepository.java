@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
@@ -29,6 +30,8 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
@@ -64,6 +67,19 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
+    public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
+        return List.of(
+            new RepositoryDeprecationInfo(
+                RepositoryDeprecationInfo.Level.CRITICAL,
+                "Unknown repository type",
+                ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                "This repository uses an unknown type. Ensure that all required plugins are installed before upgrading.",
+                false
+            )
+        );
+    }
+
+    @Override
     public void getSnapshotInfo(
         Collection<SnapshotId> snapshotIds,
         boolean abortOnFailure,
@@ -96,7 +112,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
 
     @Override
     public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,

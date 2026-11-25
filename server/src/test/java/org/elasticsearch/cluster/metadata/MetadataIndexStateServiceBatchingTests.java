@@ -303,7 +303,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
     }
 
     private static List<PendingClusterTask> findPendingTasks(MasterService masterService, String taskSourcePrefix) {
-        return masterService.pendingTasks().stream().filter(task -> task.getSource().string().startsWith(taskSourcePrefix)).toList();
+        return masterService.pendingTasks().stream().filter(task -> task.getSource().startsWith(taskSourcePrefix)).toList();
     }
 
     /**

@@ -11,32 +11,23 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveWildcardAutomaton;
 
 /**
- * A case insensitive wildcard query.
+ * A case insensitive wildcard query that supports Unicode case folding.
  */
 public class CaseInsensitiveWildcardQuery extends AutomatonQuery {
     /**
      * Constructs a case insensitive wildcard query.
-     * @param term the term to search for, created into a case insensitive wildcard automaton
+     * @param term the term to search for, created into a case insensitive wildcard automaton using Unicode case folding
      */
     public CaseInsensitiveWildcardQuery(Term term) {
         super(term, toCaseInsensitiveWildcardAutomaton(term));
     }
 
-    public CaseInsensitiveWildcardQuery(Term term, CircuitBreaker circuitBreaker) {
-        super(term, toCaseInsensitiveWildcardAutomaton(term, circuitBreaker));
-    }
-
     public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod) {
         super(term, toCaseInsensitiveWildcardAutomaton(term), isBinary, rewriteMethod);
-    }
-
-    public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod, CircuitBreaker circuitBreaker) {
-        super(term, toCaseInsensitiveWildcardAutomaton(term, circuitBreaker), isBinary, rewriteMethod);
     }
 
     @Override

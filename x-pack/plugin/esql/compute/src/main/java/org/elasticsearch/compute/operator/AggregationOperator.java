@@ -14,7 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.Aggregator.Factory;
+import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FilteredAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
@@ -31,12 +33,117 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 /**
- * Blocking aggregation operator.  An aggregation operator aggregates its input with one or more
- * aggregator functions, e.g. avg, max, etc, and outputs a Page containing the results of those
- * aggregations.
+ * Aggregates input {@link Page}s into a single output row.
+ * <p>
+ *     Receives input pages until we call {@link #finish()}, telling it
+ *     there are no more pages. Each aggregation is an instance
+ *     of {@link AggregatorFunction}.
+ * </p>
+ * <p>
+ *     For
+ *     {@snippet lang="esql" :
+ *     | STATS MIN(discovered), MAX(discovered)
+ *     }
+ *     this'd look like:
+ * </p>
+ * {@snippet lang="txt" :
+ * Before first page:
+ *                                     ┌─────────────────┬─────────────────┐
+ *                                     │ MIN(discovered) │ MAX(discovered) │
+ *                                     ├─────────────────┼─────────────────┤
+ *                                     │ null            │ null            │
+ *                                     └─────────────────┴─────────────────┘
  *
- * The operator is blocking in the sense that it only produces output once all possible input has
- * been added, that is, when the {@link #finish} method has been called.
+ * First page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┤
+ * │  079 │ Euclid   │ 1988-01-01 │ -> │ 1967-01-01      │ 1993-01-01      │
+ * │  173 │ Euclid   │ 1993-01-01 │    └─────────────────┴─────────────────┘
+ * │ 1313 │ Keter    │ 1967-01-01 │
+ * │ 1981 │ Safe     │ 1991-01-01 │
+ * └──────┴──────────┴────────────┘
+ *
+ * Second page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┤
+ * │ 2317 │ Keter    │ 1922-01-01 │ -> │ 1922-01-01      │ 2016-04-28      │
+ * │ 2639 │ Euclid   │ 2010-01-01 │    └─────────────────┴─────────────────┘
+ * │ 2935 │ Keter    │ 2016-04-28 │
+ * │ 3000 │ Thaumiel │ 1971-01-01 │
+ * └──────┴──────────┴────────────┘
+ *
+ * Third page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┤
+ * │ 3001 │ Euclid   │ 2000-01-02 │ -> │ 1922-01-01      │ 2020-12-04      │
+ * │ 4999 │ Keter    │ 1998-11-27 │    └─────────────────┴─────────────────┘
+ * │ 5000 │ Safe     │ 2020-12-04 │
+ * └──────┴──────────┴────────────┘
+ *
+ * finish():
+ *                                     ┌─────────────────┬─────────────────┐
+ *                                     │ MIN(discovered) │ MAX(discovered) │
+ *                                     ├─────────────────┼─────────────────┤
+ *                                     │ 1922-01-01      │ 2020-12-04      │
+ *                                     └─────────────────┴─────────────────┘
+ * }
+ * <p>
+ *     Aggregations can also filter which rows they receive using
+ *     {@link FilteredAggregatorFunction}. In ESQL that looks like:
+ *     {@snippet lang="esql" :
+ *     | STATS emin = MIN(discovered) WHERE class == "Euclid",
+ *             emax = MAX(discovered) WHERE class == "Euclid",
+ *             kmin = MIN(discovered) WHERE class == "Keter"
+ *     }
+ *     this'd look like:
+ * </p>
+ * {@snippet lang="txt" :
+ * Before first page:
+ *                                     ┌────────────┬────────────┬────────────┐
+ *                                     │ emin       │ emax       │ kmin       │
+ *                                     ├────────────┼────────────┼────────────┤
+ *                                     │ null       │ null       │ null       │
+ *                                     └────────────┴────────────┴────────────┘
+ *
+ * First page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┐
+ * │  ref │ class    │ discovered │    │ emin       │ emax       │ kmin       │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┤
+ * │  079 │ Euclid   │ 1988-01-01 │ -> │ 1988-01-01 │ 1993-01-01 │ 1967-01-01 │
+ * │  173 │ Euclid   │ 1993-01-01 │    └────────────┴────────────┴────────────┘
+ * │ 1313 │ Keter    │ 1967-01-01 │
+ * │ 1981 │ Safe     │ 1991-01-01 │
+ * └──────┴──────────┴────────────┘
+ *
+ * Second page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┐
+ * │  ref │ class    │ discovered │    │ emin       │ emax       │ kmin       │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┤
+ * │ 2317 │ Keter    │ 1922-01-01 │ -> │ 1988-01-01 │ 2010-01-01 │ 1922-01-01 │
+ * │ 2639 │ Euclid   │ 2010-01-01 │    └────────────┴────────────┴────────────┘
+ * │ 2935 │ Keter    │ 2016-04-28 │
+ * │ 3000 │ Thaumiel │ 1971-01-01 │
+ * └──────┴──────────┴────────────┘
+ *
+ * Third page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┐
+ * │  ref │ class    │ discovered │    │ emin       │ emax       │ kmin       │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┤
+ * │ 3001 │ Euclid   │ 2000-01-02 │ -> │ 1988-01-01 │ 2010-01-01 │ 1922-01-01 │
+ * │ 4999 │ Keter    │ 1998-11-27 │    └────────────┴────────────┴────────────┘
+ * │ 5000 │ Safe     │ 2020-12-04 │
+ * └──────┴──────────┴────────────┘
+ *
+ * finish():
+ *                                     ┌────────────┬────────────┬────────────┐
+ *                                     │ emin       │ emax       │ kmin       │
+ *                                     ├────────────┼────────────┼────────────┤
+ *                                     │ 1988-01-01 │ 2010-01-01 │ 1922-01-01 │
+ *                                     └────────────┴────────────┴────────────┘
+ * }
  */
 public class AggregationOperator implements Operator {
 
@@ -206,6 +313,18 @@ public class AggregationOperator implements Operator {
             "agg",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("aggregation_nanos", ProfileSchema.integer())
+            .optional("aggregation_time", ProfileSchema.string())
+            .required("aggregation_finish_nanos", ProfileSchema.nullable(ProfileSchema.integer()))
+            .optional("aggregation_finish_time", ProfileSchema.nullable(ProfileSchema.string()))
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         /**
          * Nanoseconds this operator has spent running the aggregations.
@@ -301,8 +420,7 @@ public class AggregationOperator implements Operator {
             return rowsEmitted;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("aggregation_nanos", aggregationNanos);
             if (builder.humanReadable()) {
@@ -319,7 +437,11 @@ public class AggregationOperator implements Operator {
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

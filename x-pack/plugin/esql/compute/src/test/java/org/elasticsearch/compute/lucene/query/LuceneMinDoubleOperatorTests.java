@@ -46,7 +46,7 @@ public class LuceneMinDoubleOperatorTests extends LuceneMinOperatorTestCase {
 
             @Override
             public IndexableField newDocValuesField() {
-                return new SortedNumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(newValue()));
+                return SortedNumericDocValuesField.indexedField(FIELD_NAME, NumericUtils.doubleToSortableLong(newValue()));
             }
 
             private double newValue() {

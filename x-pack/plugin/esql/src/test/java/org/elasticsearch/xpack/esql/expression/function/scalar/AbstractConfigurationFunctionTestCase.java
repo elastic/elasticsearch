@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneId;
@@ -49,7 +50,7 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
     }
 
     protected static Configuration configurationForTimezone(ZoneId zoneId) {
-        return randomConfigurationBuilder().query(TEST_SOURCE.text()).zoneId(zoneId).build();
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).setting(QuerySettings.TIME_ZONE, zoneId).build();
     }
 
     protected static Configuration configurationForLocale(Locale locale) {
@@ -57,6 +58,6 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
     }
 
     protected static Configuration configurationForTimezoneAndLocale(ZoneId zoneId, Locale locale) {
-        return randomConfigurationBuilder().query(TEST_SOURCE.text()).zoneId(zoneId).locale(locale).build();
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).locale(locale).setting(QuerySettings.TIME_ZONE, zoneId).build();
     }
 }

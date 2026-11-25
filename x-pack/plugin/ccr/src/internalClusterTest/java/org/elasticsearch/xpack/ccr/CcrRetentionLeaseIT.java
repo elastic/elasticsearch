@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -43,6 +44,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
@@ -69,6 +71,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -79,7 +83,6 @@ import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -641,6 +644,64 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         assertRetentionLeaseRenewal(numberOfShards, numberOfReplicas, followerIndex, leaderIndex);
     }
 
+    public void testRetentionLeaseRenewalSurvivesCcrThreadPoolSaturation() throws Exception {
+        final String leaderIndex = "leader";
+        final String followerIndex = "follower";
+        final Map<String, String> additionalIndexSettings = new HashMap<>();
+        additionalIndexSettings.put(
+            IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
+            TimeValue.timeValueMillis(200).getStringRep()
+        );
+        final String leaderIndexSettings = getIndexSettings(1, 0, additionalIndexSettings);
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).get();
+        ensureFollowerGreen(true, followerIndex);
+        assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
+
+        final TimeValue renewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerClusterSettings());
+        // Saturate ccr pool on every follower node and check the lease is still renewed
+        final CountDownLatch release = new CountDownLatch(1);
+        try {
+            for (final String node : getFollowerCluster().getNodeNames()) {
+                final ThreadPool threadPool = getFollowerCluster().getInstance(ThreadPool.class, node);
+                final Executor ccr = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
+                final int poolSize = threadPool.info(Ccr.CCR_THREAD_POOL_NAME).getMax();
+                // Wait until all threads are blocked before filling the queue
+                final CyclicBarrier barrier = new CyclicBarrier(poolSize + 1);
+                for (int i = 0; i < poolSize; i++) {
+                    ccr.execute(() -> {
+                        safeAwait(barrier);
+                        safeAwait(release);
+                    });
+                }
+                safeAwait(barrier);
+                boolean full = false;
+                while (full == false) {
+                    try {
+                        ccr.execute(() -> safeAwait(release));
+                    } catch (EsRejectedExecutionException e) {
+                        full = true;
+                    }
+                }
+            }
+            safeSleep(TimeValue.timeValueMillis(renewInterval.millis() * 2));
+        } finally {
+            release.countDown();
+        }
+        assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
+
+        // the task itself is unaffected and keeps replicating
+        IntStream.range(0, randomIntBetween(1, 10))
+            .forEach(
+                i -> leaderClient().prepareIndex(leaderIndex)
+                    .setId(Integer.toString(i))
+                    .setSource(Strings.format("{\"f\":%d}", i), XContentType.JSON)
+                    .get()
+            );
+        assertIndexFullyReplicatedToFollower(leaderIndex, followerIndex);
+    }
+
     public void testRetentionLeaseAdvancesWhileFollowing() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
@@ -1029,7 +1090,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
                                 @SuppressWarnings("rawtypes")
                                 @Override
-                                public void onResponseReceived(final long responseRequestId, final Transport.ResponseContext context) {
+                                public void onResponseReceived(
+                                    final long responseRequestId,
+                                    final Transport.ResponseContext context,
+                                    final int networkMessageSize
+                                ) {
                                     if (requestId == responseRequestId) {
                                         final RetentionLeaseNotFoundException e = new RetentionLeaseNotFoundException(retentionLeaseId);
                                         context.handler().handleException(new RemoteTransportException(e.getMessage(), e));
@@ -1128,7 +1193,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         assertThat(forgetFollowerResponse.getTotalShards(), equalTo(numberOfShards));
         assertThat(forgetFollowerResponse.getSuccessfulShards(), equalTo(numberOfShards));
         assertThat(forgetFollowerResponse.getFailedShards(), equalTo(0));
-        assertThat(forgetFollowerResponse.getShardFailures(), emptyArray());
+        assertThat(forgetFollowerResponse.getShardFailures(), empty());
 
         final IndicesStatsResponse afterForgetFollowerStats = leaderClient().admin()
             .indices()

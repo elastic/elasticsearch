@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
+import org.antlr.v4.runtime.FailedPredicateException;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
@@ -19,6 +20,8 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -37,27 +41,75 @@ public class PromqlParser {
 
     private static final Logger log = LogManager.getLogger(PromqlParser.class);
 
+    /**
+     * Maximum number of characters in a PromQL expression. Mirrors {@link EsqlParser#MAX_LENGTH}: ANTLR buffers
+     * the input and builds the full parse tree in heap before any depth guard can run, so the input itself
+     * must be bounded. Note the inner query of a PROMQL source command is a substring of the enclosing ES|QL
+     * query (already capped), hence the operator/depth pre-scan below is the effective guard on that path.
+     */
+    public static final int MAX_LENGTH = EsqlParser.MAX_LENGTH;
+
+    /**
+     * Maximum number of binary operators allowed in a single PromQL expression. Retained heap grows as
+     * 7*n^2 bytes with chain length n (measured empirically; each nested binary node keeps a full-span copy
+     * of its source text), so the cap bounds the worst case at about 7MB.
+     */
+    public static final int MAX_BINARY_OPERATORS = 1000;
+
     private final boolean DEBUG = false;
 
     /**
      * Parses an PromQL expression into execution plan
      */
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, null, null, 0, 0, new QueryParams());
+        return createStatement(query, null, null, 1, 0, new QueryParams());
     }
 
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn) {
         return createStatement(query, start, end, startLine, startColumn, new QueryParams());
     }
 
+    /**
+     * Parses a PromQL expression that starts at line {@code startLine} (counting from 1) and column
+     * {@code startColumn} (counting from 0) of an enclosing query, such as the inner query of a PROMQL source
+     * command. The lexer starts at that position, so every location, including the one of a thrown
+     * {@link ParsingException}, is in the coordinates of the enclosing query. A standalone expression starts
+     * at line 1, column 0.
+     */
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
+        return createStatement(query, start, end, startLine, startColumn, params, null);
+    }
+
+    /**
+     * Parses a PromQL expression embedded in an ES|QL query or, when {@code viewName} is not {@code null}, in that view's definition.
+     */
+    public LogicalPlan createStatement(
+        String query,
+        Literal start,
+        Literal end,
+        int startLine,
+        int startColumn,
+        QueryParams params,
+        @Nullable String viewName
+    ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as expression: {}", query);
         }
 
-        return invokeParser(query, start, end, startLine, startColumn, params, PromqlBaseParser::singleStatement, PromqlAstBuilder::plan);
+        return invokeParser(
+            query,
+            start,
+            end,
+            startLine,
+            startColumn,
+            params,
+            viewName,
+            PromqlBaseParser::singleStatement,
+            PromqlAstBuilder::plan
+        );
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private <T> T invokeParser(
         String query,
         Literal start,
@@ -65,16 +117,31 @@ public class PromqlParser {
         int startLine,
         int startColumn,
         QueryParams params,
+        @Nullable String viewName,
         Function<PromqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<PromqlAstBuilder, ParserRuleContext, T> visitor
     ) {
+        if (query.length() > MAX_LENGTH) {
+            throw new ParsingException("PromQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
+        }
+        CommonTokenStream tokenStream = createTokenStream(query, startLine, startColumn);
+        // Check nesting depth and operator count on the token stream BEFORE invoking ANTLR's
+        // recursive-descent parser, mirroring EsqlParser. Without this, a long chain of binary
+        // operators exhausts the heap while building the parse tree, before any post-parse guard runs.
         try {
-            PromqlBaseLexer lexer = new PromqlBaseLexer(CharStreams.fromString(query));
-
-            lexer.removeErrorListeners();
-            lexer.addErrorListener(ERROR_LISTENER);
-
-            CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+            tokenStream.fill();
+            List<Token> tokens = tokenStream.getTokens();
+            checkExpressionDepth(tokens);
+            checkOperatorCount(tokens);
+        } catch (ParsingException pe) {
+            if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum")) {
+                throw pe;
+            }
+            // Lexer error during fill() - rebuild the token stream from scratch so the
+            // parser runs lazily and reports the same error as without this pre-scan.
+            tokenStream = createTokenStream(query, startLine, startColumn);
+        }
+        try {
             PromqlBaseParser parser = new PromqlBaseParser(tokenStream);
 
             parser.removeErrorListeners();
@@ -98,8 +165,8 @@ public class PromqlParser {
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
-            return visitor.apply(new PromqlAstBuilder(start, end, startLine, startColumn, params), tree);
-        } catch (StackOverflowError e) {
+            return visitor.apply(new PromqlAstBuilder(start, end, params, viewName), tree);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException(
                 "PromQL statement is too large, causing stack overflow when generating the parsing tree: [{}]",
                 query
@@ -107,6 +174,101 @@ public class PromqlParser {
         } catch (EmptyStackException ese) {
             throw new ParsingException("Invalid query [{}]", query);
         }
+    }
+
+    private static CommonTokenStream createTokenStream(String query, int startLine, int startColumn) {
+        PromqlBaseLexer lexer = new PromqlBaseLexer(CharStreams.fromString(query));
+        // start where the query sits in the enclosing one, so every token reports its position there
+        lexer.setLine(startLine);
+        lexer.setCharPositionInLine(startColumn);
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(ERROR_LISTENER);
+        return new CommonTokenStream(lexer);
+    }
+
+    private static void checkExpressionDepth(List<Token> tokens) {
+        int depth = 0;
+        for (Token token : tokens) {
+            if (token.getType() == PromqlBaseLexer.LP) {
+                depth++;
+            } else if (token.getType() == PromqlBaseLexer.RP) {
+                depth--;
+            }
+            if (depth > PromqlAstBuilder.MAX_EXPRESSION_DEPTH) {
+                throw new ParsingException(
+                    "PromQL statement exceeded the maximum expression depth allowed ({})",
+                    PromqlAstBuilder.MAX_EXPRESSION_DEPTH
+                );
+            }
+        }
+    }
+
+    private static void checkOperatorCount(List<Token> tokens) {
+        // NB: unary PLUS/MINUS are conservatively counted as binary operators here; the bound
+        // is generous enough that legitimate queries are unaffected.
+        if (countBinaryOperators(tokens) > MAX_BINARY_OPERATORS) {
+            throw new ParsingException(
+                "PromQL statement exceeded the maximum number of binary operators allowed ({})",
+                MAX_BINARY_OPERATORS
+            );
+        }
+    }
+
+    private static int countBinaryOperators(List<Token> tokens) {
+        int count = 0;
+        for (Token token : tokens) {
+            if (isBinaryOperator(token.getType())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Validates a batch of PromQL expressions (e.g. repeated {@code match[]} selectors of the native
+     * Prometheus endpoints) against the same bounds as a single expression, applied to the batch total.
+     * Each expression is still guarded individually when parsed; this additionally prevents splitting a
+     * single oversized expression across many individually-valid inputs.
+     *
+     * @throws ParsingException if the batched inputs exceed the limits in total
+     */
+    public static void validateBatch(List<String> queries) {
+        long totalLength = 0;
+        long totalBinaryOperators = 0;
+        for (String query : queries) {
+            totalLength += query.length();
+            if (totalLength > MAX_LENGTH) {
+                throw new ParsingException("PromQL statements are too large in total [{} characters > {}]", totalLength, MAX_LENGTH);
+            }
+            totalBinaryOperators += countBinaryOperators(query);
+            if (totalBinaryOperators > MAX_BINARY_OPERATORS) {
+                throw new ParsingException(
+                    "PromQL statements exceeded the maximum number of binary operators allowed in total ({})",
+                    MAX_BINARY_OPERATORS
+                );
+            }
+        }
+    }
+
+    private static int countBinaryOperators(String query) {
+        try {
+            // positions are irrelevant when only counting operators
+            CommonTokenStream tokenStream = createTokenStream(query, 1, 0);
+            tokenStream.fill();
+            return countBinaryOperators(tokenStream.getTokens());
+        } catch (RuntimeException e) {
+            // Lexer errors surface when the query is actually parsed; don't fail validation on them here.
+            return 0;
+        }
+    }
+
+    private static boolean isBinaryOperator(int tokenType) {
+        return switch (tokenType) {
+            case PromqlBaseLexer.PLUS, PromqlBaseLexer.MINUS, PromqlBaseLexer.ASTERISK, PromqlBaseLexer.SLASH, PromqlBaseLexer.PERCENT,
+                PromqlBaseLexer.CARET, PromqlBaseLexer.EQ, PromqlBaseLexer.NEQ, PromqlBaseLexer.GT, PromqlBaseLexer.GTE, PromqlBaseLexer.LT,
+                PromqlBaseLexer.LTE, PromqlBaseLexer.AND, PromqlBaseLexer.OR, PromqlBaseLexer.UNLESS -> true;
+            default -> false;
+        };
     }
 
     private static void debug(PromqlBaseParser parser) {
@@ -149,6 +311,10 @@ public class PromqlParser {
             String message,
             RecognitionException e
         ) {
+            // a failed predicate's own message explains the error; ANTLR's message prefixes it with the grammar rule name
+            if (e instanceof FailedPredicateException fpe) {
+                message = fpe.getMessage();
+            }
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };

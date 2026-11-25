@@ -14,8 +14,10 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
 import java.util.Iterator;
@@ -83,6 +85,49 @@ public class MlPlatformArchitecturesUtil {
         });
 
         getMlNodesArchitecturesSet(architecturesListener, client, executor);
+    }
+
+    public static final String LINUX_X86_64 = "linux-x86_64";
+    public static final String PLATFORM_AGNOSTIC = "platform_agnostic";
+
+    /**
+     * Resolves the effective set of ML node architectures. If {@code xpack.ml.model_platform_architectures}
+     * is configured, uses that directly. Otherwise, queries the cluster for running ML node architectures.
+     */
+    public static void resolveEffectiveArchitectures(
+        ClusterSettings clusterSettings,
+        Client client,
+        ExecutorService executor,
+        ActionListener<Set<String>> listener
+    ) {
+        var configured = clusterSettings.get(MachineLearningField.MODEL_PLATFORM_ARCHITECTURES);
+        if (configured.isEmpty() == false) {
+            listener.onResponse(Set.copyOf(configured));
+            return;
+        }
+        getMlNodesArchitecturesSet(listener, client, executor);
+    }
+
+    /**
+     * Resolves the preferred model platform variant based on detected ML node architectures
+     * and cluster settings. Returns {@code "linux-x86_64"} when all ML nodes are x86, or when
+     * no ML nodes exist but the cluster is in Elastic Cloud. Returns {@code "platform_agnostic"}
+     * otherwise.
+     */
+    public static String resolveModelPlatformVariant(Set<String> mlNodeArchitectures, ClusterSettings clusterSettings) {
+        if (mlNodeArchitectures.isEmpty()) {
+            // Use the ml lazy node count as a heuristic to determine if in Elastic cloud.
+            // A value > 0 means scaling should be available for ml nodes
+            var maxLazyNodes = clusterSettings.get(MachineLearningField.MAX_LAZY_ML_NODES);
+            if (maxLazyNodes > 0) {
+                return LINUX_X86_64;
+            }
+            return PLATFORM_AGNOSTIC;
+        }
+        if (mlNodeArchitectures.size() == 1 && mlNodeArchitectures.iterator().next().equals(LINUX_X86_64)) {
+            return LINUX_X86_64;
+        }
+        return PLATFORM_AGNOSTIC;
     }
 
     static void verifyMlNodesAndModelArchitectures(Set<String> architectures, String modelPlatformArchitecture, String modelID)

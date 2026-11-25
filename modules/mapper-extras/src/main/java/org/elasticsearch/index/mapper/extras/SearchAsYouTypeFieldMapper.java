@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -39,6 +38,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -95,66 +95,60 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public static final int MAX_SHINGLE_SIZE = 3;
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
-
-    private static Builder builder(FieldMapper in) {
-        return ((SearchAsYouTypeFieldMapper) in).builder;
-    }
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().isIndexDisabledByDefault())
+    );
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> builder(m).index.get(), true);
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.get(), false);
+        private final Parameter<Boolean> index;
+        private final Parameter<Boolean> store = Parameter.storeParam(false);
 
         // This is only here because for some reason the initial impl of this always serialized
         // `doc_values=false`, even though it cannot be set; and so we need to continue
         // serializing it forever because of mapper assertions in mixed clusters.
-        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> false, false).addValidator(v -> {
+        private final Parameter<Boolean> docValues = Parameter.docValuesParam(false).addValidator(v -> {
             if (v) {
                 throw new MapperParsingException("Cannot set [doc_values] on field of type [search_as_you_type]");
             }
         }).alwaysSerialize();
 
-        private final Parameter<Integer> maxShingleSize = Parameter.intParam(
-            "max_shingle_size",
-            false,
-            m -> builder(m).maxShingleSize.get(),
-            Defaults.MAX_SHINGLE_SIZE
-        ).addValidator(v -> {
-            if (v < MAX_SHINGLE_SIZE_LOWER_BOUND || v > MAX_SHINGLE_SIZE_UPPER_BOUND) {
-                throw new MapperParsingException(
-                    "[max_shingle_size] must be at least ["
-                        + MAX_SHINGLE_SIZE_LOWER_BOUND
-                        + "] and at most "
-                        + "["
-                        + MAX_SHINGLE_SIZE_UPPER_BOUND
-                        + "], got ["
-                        + v
-                        + "]"
-                );
-            }
-        }).alwaysSerialize();
+        private final Parameter<Integer> maxShingleSize = Parameter.intParam("max_shingle_size", false, Defaults.MAX_SHINGLE_SIZE)
+            .addValidator(v -> {
+                if (v < MAX_SHINGLE_SIZE_LOWER_BOUND || v > MAX_SHINGLE_SIZE_UPPER_BOUND) {
+                    throw new MapperParsingException(
+                        "[max_shingle_size] must be at least ["
+                            + MAX_SHINGLE_SIZE_LOWER_BOUND
+                            + "] and at most "
+                            + "["
+                            + MAX_SHINGLE_SIZE_UPPER_BOUND
+                            + "], got ["
+                            + v
+                            + "]"
+                    );
+                }
+            })
+            .alwaysSerialize();
 
         final TextParams.Analyzers analyzers;
-        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
+        final Parameter<SimilarityProvider> similarity = TextParams.similarity();
 
-        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.get());
-        final Parameter<Boolean> norms = Parameter.normsParam(m -> builder(m).norms.get(), true);
-        final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.get());
+        final Parameter<String> indexOptions = TextParams.textIndexOptions(() -> "positions");
+        final Parameter<Boolean> norms = Parameter.normsParam(true);
+        final Parameter<String> termVectors = TextParams.termVectors();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        private final boolean indexDisabledByDefault;
+
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean indexDisabledByDefault) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> builder(m).analyzers.getIndexAnalyzer(),
-                m -> builder(m).analyzers.positionIncrementGap.getValue(),
-                indexCreatedVersion
-            );
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, indexCreatedVersion);
+            index = Parameter.indexParam(indexDisabledByDefault == false);
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         @Override
@@ -522,11 +516,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder getMergeBuilder() {
-            return null;
-        }
-
-        @Override
         protected String contentType() {
             return "prefix";
         }
@@ -558,11 +547,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         protected void parseCreateField(DocumentParserContext context) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Builder getMergeBuilder() {
-            return null;
         }
 
         @Override
@@ -670,9 +654,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     private final int maxShingleSize;
     private final PrefixFieldMapper prefixField;
     private final ShingleFieldMapper[] shingleFields;
-    private final Builder builder;
 
     private final Map<String, NamedAnalyzer> indexAnalyzers;
+    private final boolean indexed;
+    private final boolean stored;
 
     public SearchAsYouTypeFieldMapper(
         String simpleName,
@@ -687,7 +672,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
-        this.builder = builder;
+        this.indexed = builder.index.get();
+        this.stored = builder.store.get();
         this.indexAnalyzers = Map.copyOf(indexAnalyzers);
     }
 
@@ -703,12 +689,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return;
         }
 
-        if (this.builder.index.get() == false && this.builder.store.get() == false) {
+        if (indexed == false && stored == false) {
             return;
         }
 
         context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
-        if (this.builder.index.get()) {
+        if (indexed) {
             for (ShingleFieldMapper subFieldMapper : shingleFields) {
                 context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
             }
@@ -722,10 +708,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {
@@ -771,15 +753,14 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
      * ngrams token filter, it also adds a {@link TrailingShingleTokenFilter} to add extra position increments at the end of the stream
      * to induce the shingle token filter to create tokens at the end of the stream smaller than the shingle size
      */
-    static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
+    static class SearchAsYouTypeAnalyzer extends ElasticsearchAnalyzerWrapper {
 
         private final Analyzer delegate;
         private final int shingleSize;
         private final boolean indexPrefixes;
 
         private SearchAsYouTypeAnalyzer(Analyzer delegate, int shingleSize, boolean indexPrefixes) {
-
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = Objects.requireNonNull(delegate);
             this.shingleSize = shingleSize;
             this.indexPrefixes = indexPrefixes;

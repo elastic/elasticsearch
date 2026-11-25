@@ -7,37 +7,46 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
-import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
-import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator.BinaryOp;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
@@ -49,14 +58,13 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AND;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ASTERISK;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.CARET;
@@ -72,8 +80,6 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PERCENT;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.PLUS;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.SLASH;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.UNLESS;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsRangeVector;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsScalar;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.NAME;
 
 public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
@@ -81,8 +87,103 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
     public static final Duration IMPLICIT_RANGE_PLACEHOLDER = Duration.ofMillis(-1);
 
-    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
-        super(start, end, startLine, startColumn, params);
+    PromqlLogicalPlanBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
+        super(start, end, params, viewName);
+    }
+
+    /**
+     * Returns the PromQL result type for planning code that has not yet resolved function calls.
+     */
+    public static PromqlDataType returnType(LogicalPlan plan) {
+        if (plan instanceof UnresolvedPromqlFunction unresolved) {
+            PromqlFunctionDefinition def = PromqlFunctionRegistry.INSTANCE.functionMetadata(unresolved.functionName());
+            if (def == null) {
+                throw new IllegalArgumentException("unknown PromQL function [" + unresolved.functionName() + "]");
+            }
+            return def.functionType().outputType;
+        }
+        if (plan instanceof VectorBinaryOperator binary) {
+            PromqlDataType leftType = returnType(binary.left());
+            PromqlDataType rightType = returnType(binary.right());
+            return binaryResultType(leftType, rightType);
+        }
+        if (plan instanceof PromqlPlan p) {
+            return p.returnType();
+        }
+        throw new IllegalArgumentException("expected PromqlPlan, got [" + plan.getClass().getSimpleName() + "]");
+    }
+
+    private static PromqlDataType binaryResultType(PromqlDataType left, PromqlDataType right) {
+        return left == PromqlDataType.SCALAR && right == PromqlDataType.SCALAR ? PromqlDataType.SCALAR : PromqlDataType.INSTANT_VECTOR;
+    }
+
+    /**
+     * Resolves the range-query bucket size from an explicit {@code step} or an auto bucket count.
+     */
+    public static Duration foldStep(Expression timestamp, Literal start, Literal end, Literal step, Literal buckets) {
+        if (step.value() instanceof Duration duration) {
+            return duration;
+        }
+        Bucket autoBucket = new Bucket(buckets.source(), timestamp, buckets, start, end, null, ConfigurationAware.CONFIGURATION_MARKER);
+        long rangeStart = ((Number) start.value()).longValue();
+        long rangeEnd = ((Number) end.value()).longValue();
+        var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
+        long roundedStart = rounding.round(rangeStart);
+        long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
+        return Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart));
+    }
+
+    public static LogicalPlan tryFoldRelation(PromqlCommand command, LogicalPlan plan) {
+        if (!(plan instanceof EsRelation esRelation) || esRelation.concreteQualifiedIndices().isEmpty() == false) {
+            return null;
+        }
+        if (command.start().value() == null) {
+            return new LocalRelation(
+                command.source(),
+                List.of(command.valueAttribute(), command.stepAttribute()),
+                EmptyLocalSupplier.EMPTY
+            );
+        }
+        return buildLocalRelation(command);
+    }
+
+    public static LogicalPlan buildLocalRelation(PromqlCommand command) {
+        Source source = command.source();
+
+        long start = ((Number) command.start().value()).longValue();
+        long end = start;
+        long step = 1;
+        long first = start;
+
+        if (command.isInstantQuery() == false) {
+            var tsField = new ReferenceAttribute(source, null, MetadataAttribute.TIMESTAMP_FIELD, DataType.DATETIME);
+
+            step = foldStep(tsField, command.start(), command.end(), command.step(), command.buckets()).toMillis();
+
+            if (step <= 0) {
+                throw new IllegalArgumentException("step must be positive");
+            }
+
+            end = ((Number) command.end().value()).longValue();
+            first = start;
+        }
+
+        int capacity = (int) Math.min(Integer.MAX_VALUE, (end - first) / step + 1);
+        var steps = new ArrayList<Long>(capacity);
+        for (long ts = first; ts <= end; ts += step) {
+            steps.add(ts);
+
+            if (Long.MAX_VALUE - ts < step) {
+                break;
+            }
+        }
+
+        // The step list and its expansion are this relation's own columns: the command's step attribute is defined once, by
+        // the final projection, so no filter above can fold the whole list in where a single step is meant.
+        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME));
+        var expanded = new ReferenceAttribute(source, command.stepColumnName(), DataType.DATETIME);
+
+        return new MvExpand(source, new Row(source, List.of(stepAlias)), stepAlias, expanded);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {
@@ -105,7 +206,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         return switch (result) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
-            case Duration duration -> new LiteralSelector(source, Literal.timeDuration(source, duration));
+            // Prometheus: a duration in an expression is another spelling of a float literal, its number of seconds
+            // (`2m` is `120`, `1ms` is `0.001`); a range or offset written this way turns it back into a duration.
+            case Duration duration -> new LiteralSelector(source, Literal.fromDouble(source, duration.toNanos() / 1_000_000_000.0));
             case Expression expr -> throw new ParsingException(
                 source,
                 "Expected a plan or literal, got expression [{}]",
@@ -115,26 +218,12 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         };
     }
 
-    private Literal unwrapLiteral(ParserRuleContext ctx) {
-        Object o = visit(ctx);
-        return switch (o) {
-            case Literal literal -> literal;
-            case Expression expression -> {
-                if (expression.foldable()) {
-                    yield Literal.of(FoldContext.small(), expression);
-                }
-                throw new ParsingException(source(ctx), "Constant expression required, found [{}]", expression.sourceText());
-            }
-            case LiteralSelector selector -> selector.literal();
-            default -> throw new ParsingException(source(ctx), "Constant expression required, found [{}]", ctx.getText());
-        };
-    }
-
     @Override
     public LogicalPlan visitSelector(PromqlBaseParser.SelectorContext ctx) {
         Source source = source(ctx);
         PromqlBaseParser.SeriesMatcherContext seriesMatcher = ctx.seriesMatcher();
-        String id = visitIdentifier(seriesMatcher.identifier());
+        PromqlBaseParser.MetricNameContext metricName = seriesMatcher.metricName();
+        String id = metricName == null ? null : metricName.getText();
         List<LabelMatcher> labels = new ArrayList<>();
         Expression series = null;
         List<Expression> labelExpressions = new ArrayList<>();
@@ -144,7 +233,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (id != null) {
             labels.add(new LabelMatcher(NAME, id, LabelMatcher.Matcher.EQ));
             // TODO: metric/ts name can be missing (e.g. {label=~"value"})
-            series = new UnresolvedAttribute(source(seriesMatcher.identifier()), id);
+            series = new UnresolvedAttribute(source(metricName), id);
         }
 
         boolean nonEmptyMatcher = id != null;
@@ -183,22 +272,62 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     throw new ParsingException(source(labelCtx), "Unrecognized label matcher [{}]", kind);
                 }
 
-                String labelValue = string(labelCtx.STRING());
-                Source valueCtx = source(labelCtx.STRING());
-                // __name__ with explicit matcher
-                if (NAME.equals(labelName)) {
-                    if (identifierId) {
-                        throw new ParsingException(source(nameCtx), "Metric name must not be defined twice: [{}] or [{}]", id, labelValue);
+                var matcherValues = new ArrayList<String>();
+                Source valueSource;
+                PromqlBaseParser.LabelValueContext valueCtx = labelCtx.labelValue();
+                TerminalNode paramNode = valueCtx.NAMED_OR_POSITIONAL_PARAM();
+
+                if (paramNode == null) {
+                    var v = valueCtx.STRING();
+                    if (v == null) {
+                        throw new ParsingException(source(valueCtx), "Expected label value");
                     }
-                    // set id/series from first label-based name
-                    if (id == null) {
-                        id = labelValue;
-                        series = new UnresolvedAttribute(valueCtx, id);
+                    matcherValues.add(string(v));
+                    valueSource = source(v);
+                } else {
+                    valueSource = source(paramNode);
+                    var paramName = paramNode.getText();
+                    var param = ExpressionBuilder.paramByNameOrPosition(paramNode, valueSource, params());
+                    if (param == null) {
+                        throw new ParsingException(valueSource, "Parameter [{}] value not found", paramName);
+                    }
+
+                    var v = param.value();
+                    if (v == null) {
+                        throw new ParsingException(valueSource, "Parameter [{}] cannot be null", paramName);
+                    }
+
+                    if (v instanceof List<?> values) {
+                        if (values.isEmpty()) {
+                            throw new ParsingException(valueSource, "Parameter [{}] cannot be an empty list", paramName);
+                        }
+                        for (var item : values) {
+                            matcherValues.add(toStringValue(valueSource, paramName, item));
+                        }
+                    } else {
+                        matcherValues.add(toStringValue(valueSource, paramName, v));
                     }
                 }
 
-                // always add label matcher
-                LabelMatcher label = new LabelMatcher(labelName, labelValue, matcher);
+                // __name__ with explicit matcher
+                if (NAME.equals(labelName)) {
+                    if (identifierId) {
+                        throw new ParsingException(
+                            source(nameCtx),
+                            "Metric name must not be defined twice: [{}] or [{}]",
+                            id,
+                            matcherValues.getFirst()
+                        );
+                    }
+                    // set id/series from the first label-based name
+                    if (id == null) {
+                        id = matcherValues.getFirst();
+                        series = new UnresolvedAttribute(valueSource, id);
+                    }
+                }
+
+                // always add a label matcher
+                LabelMatcher label = new LabelMatcher(labelName, matcherValues, matcher);
                 labels.add(label);
                 labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
 
@@ -220,6 +349,21 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         return range == Literal.NULL
             ? new InstantSelector(source, series, labelExpressions, matchers, evaluation)
             : new RangeSelector(source, series, labelExpressions, matchers, range, evaluation);
+    }
+
+    private static String toStringValue(Source source, String paramName, Object value) {
+        return switch (value) {
+            case String s -> s;
+            case Number n -> n.toString();
+            case Boolean b -> b.toString();
+            case null -> throw new ParsingException(source, "Parameter [{}] cannot be null", paramName);
+            default -> throw new ParsingException(
+                source,
+                "Parameter [{}] has invalid type [{}], expected string, number, or boolean",
+                paramName,
+                value.getClass().getSimpleName()
+            );
+        };
     }
 
     @Override
@@ -245,15 +389,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 return new LiteralSelector(source, new Literal(unary.source(), negatedValue, dataType));
             }
         }
-        // forbid range selectors
-        else if (returnsRangeVector(unary)) {
-            throw new ParsingException(
-                source,
-                "Unary expression only allowed on expressions of type numeric or instant vector, got [{}]",
-                unary.nodeName()
-            );
-        }
-
         // For non-literals (vectors), rewrite as 0 - expression
         if (ctx.operator.getType() == MINUS) {
             LiteralSelector zero = new LiteralSelector(source, Literal.integer(source, 0));
@@ -266,6 +401,13 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     @Override
     public LogicalPlan visitArithmeticBinary(PromqlBaseParser.ArithmeticBinaryContext ctx) {
         Source source = source(ctx);
+        if (ctx.op.getType() == MINUS) {
+            Instant end = visitTemporalInstant(ctx.left);
+            Instant start = visitTemporalInstant(ctx.right);
+            if (end != null || start != null) {
+                return timeRange(ctx, end, start);
+            }
+        }
         LogicalPlan le = wrapLiteral(ctx.left);
         LogicalPlan re = wrapLiteral(ctx.right);
 
@@ -273,68 +415,12 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         int opType = ctx.op.getType();
         String opText = ctx.op.getText();
 
-        // validate operation against expression types
-        boolean leftIsScalar = returnsScalar(le);
-        boolean rightIsScalar = returnsScalar(re);
-
-        // comparisons against scalars require bool
-        if (bool == false && leftIsScalar && rightIsScalar) {
-            switch (opType) {
-                case EQ:
-                case NEQ:
-                case LT:
-                case LTE:
-                case GT:
-                case GTE:
-                    throw new ParsingException(source, "Comparisons [{}] between scalars must use the BOOL modifier", opText);
-            }
-        }
-        // set operations are not allowed on scalars
-        if (leftIsScalar || rightIsScalar) {
-            switch (opType) {
-                case AND:
-                case UNLESS:
-                case OR:
-                    throw new ParsingException(source, "Set operator [{}] not allowed in binary scalar expression", opText);
-            }
-        }
-
         BinaryOp binaryOperator = binaryOp(ctx.op);
-
-        // Handle scalar folding once validation passes
-        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
-            Literal leftLiteral = leftSel.literal();
-            Literal rightLiteral = rightSel.literal();
-
-            // Extract values
-            Object leftValue = leftLiteral.value();
-            Object rightValue = rightLiteral.value();
-
-            // arithmetics
-            if (binaryOperator instanceof ArithmeticOp arithmeticOp) {
-                Object result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, arithmeticOp);
-                DataType resultType = determineResultType(result);
-                return new LiteralSelector(source, new Literal(source, result, resultType));
-            }
-
-            // comparisons
-            if (binaryOperator instanceof ComparisonOp compOp) {
-                int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
-                return new LiteralSelector(source, Literal.integer(source, result));
-            }
-
-            // Set operations fall through to vector handling
-        }
 
         VectorMatch modifier = VectorMatch.NONE;
 
         PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
         if (modifierCtx != null) {
-            // modifiers work only on vectors
-            if (returnsRangeVector(le) || returnsRangeVector(re) || returnsScalar(le) || returnsScalar(re)) {
-                throw new ParsingException(source, "Vector matching allowed only between instant vectors");
-            }
-
             VectorMatch.Filter filter = modifierCtx.ON() != null ? VectorMatch.Filter.ON : VectorMatch.Filter.IGNORING;
             List<String> filterList = visitLabelList(modifierCtx.modifierLabels);
             VectorMatch.Joining joining = VectorMatch.Joining.NONE;
@@ -353,7 +439,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 // label declared in ON cannot appear in grouping
                 if (modifierCtx.ON() != null) {
                     List<String> repeatedLabels = new ArrayList<>(groupingList);
-                    if (filterList.isEmpty() == false && repeatedLabels.retainAll(filterList) && repeatedLabels.isEmpty() == false) {
+                    repeatedLabels.retainAll(filterList);
+                    if (repeatedLabels.isEmpty() == false) {
                         throw new ParsingException(
                             source(modifierCtx.ON()),
                             "Label{} {} must not occur in ON and GROUP clause at once",
@@ -366,6 +453,39 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
 
             modifier = new VectorMatch(filter, new LinkedHashSet<>(filterList), joining, new LinkedHashSet<>(groupingList));
+        }
+
+        if (modifier != VectorMatch.NONE
+            && (PromqlPlan.getType(le) == PromqlDataType.SCALAR || PromqlPlan.getType(re) == PromqlDataType.SCALAR)) {
+            if (modifier.filterLabels().isEmpty() == false) {
+                throw new ParsingException(source, "Vector matching only allowed between instant vectors");
+            }
+            // Prometheus discards matching with an empty matching-label list for scalar operands.
+            modifier = VectorMatch.NONE;
+        }
+
+        // Handle scalar folding once validation passes
+        if (le instanceof LiteralSelector leftSel && re instanceof LiteralSelector rightSel) {
+            Literal leftLiteral = leftSel.literal();
+            Literal rightLiteral = rightSel.literal();
+
+            // Extract values
+            Object leftValue = leftLiteral.value();
+            Object rightValue = rightLiteral.value();
+
+            // arithmetics
+            if (binaryOperator instanceof ArithmeticOp arithmeticOp) {
+                Object result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, arithmeticOp);
+                DataType resultType = determineResultType(result);
+                return new LiteralSelector(source, new Literal(source, result, resultType));
+            }
+
+            // With the bool modifier, scalar-scalar comparisons fold to 0 or 1.
+            // Without it, fall through to the general case so postAnalysisVerification can reject it.
+            if (binaryOperator instanceof ComparisonOp compOp && bool) {
+                int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
+                return new LiteralSelector(source, Literal.integer(source, result));
+            }
         }
 
         return switch (binaryOperator) {
@@ -398,6 +518,27 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     }
 
     /**
+     * The duration between two timestamp parameters, such as the start and end of a dashboard's time range in
+     * {@code [?_tend - ?_tstart]}. Both operands must be timestamp parameters, without vector matching modifiers.
+     */
+    private LiteralSelector timeRange(PromqlBaseParser.ArithmeticBinaryContext ctx, Instant end, Instant start) {
+        Source source = source(ctx);
+        if (end != null && start != null && ctx.modifier() == null) {
+            if (end.isAfter(start) == false) {
+                throw new ParsingException(
+                    source,
+                    "Time range [{}] must end after it starts, got [{}] and [{}]",
+                    source.text(),
+                    end,
+                    start
+                );
+            }
+            return new LiteralSelector(source, Literal.timeDuration(source, Duration.between(start, end)));
+        }
+        throw new ParsingException(source, "A timestamp parameter can only be subtracted from another timestamp, got [{}]", source.text());
+    }
+
+    /**
      * Determine DataType from the result value.
      */
     private DataType determineResultType(Object value) {
@@ -422,131 +563,28 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Source source = source(ctx);
         String name = ctx.IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
-        PromqlFunctionRegistry.INSTANCE.checkFunction(source, name);
-        var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
-
         var paramsCtx = ctx.functionParams();
-        List<Node> params = paramsCtx != null ? visitList(this, paramsCtx.expression(), Node.class) : emptyList();
-
-        int paramCount = params.size();
-        String message = "Invalid number of parameters for function [{}], required [{}], found [{}]";
-        if (paramCount < metadata.arity().min()) {
-            throw new ParsingException(source, message, name, metadata.arity().min(), paramCount);
-        }
-        if (paramCount > metadata.arity().max()) {
-            throw new ParsingException(source, message, name, metadata.arity().max(), paramCount);
-        }
-        LogicalPlan child = null;
-        List<Expression> extraParams = new ArrayList<>(Math.max(0, params.size() - 1));
-        List<PromqlFunctionDefinition.PromqlParamInfo> functionParams = metadata.params();
-        for (int i = 0; i < functionParams.size() && params.size() > i; i++) {
-            PromqlFunctionDefinition.PromqlParamInfo expectedParam = functionParams.get(i);
-            LogicalPlan providedParam = switch (params.get(i)) {
-                case LogicalPlan plan -> plan;
-                case Literal literal -> new LiteralSelector(source, literal);
-                case Node n -> throw new IllegalStateException("Unexpected value: " + n);
-            };
-            assert providedParam instanceof PromqlPlan;
-            PromqlDataType actualType = PromqlPlan.getType(providedParam);
-            PromqlDataType expectedType = expectedParam.type();
-            if (actualType != expectedType) {
-                if (expectedType == PromqlDataType.RANGE_VECTOR && providedParam instanceof InstantSelector selector) {
-                    providedParam = convertToRangeSelector(selector);
-                } else {
-                    throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
-                }
-            }
-            if (expectedParam.child()) {
-                child = providedParam;
-            } else if (providedParam instanceof LiteralSelector literalSelector) {
-                extraParams.add(literalSelector.literal());
-            } else {
-                throw new ParsingException(
-                    source,
-                    "expected literal parameter in call to function [{}], got {}",
-                    name,
-                    providedParam.nodeName()
-                );
-            }
-        }
+        // every argument is a plan: a literal (a duration one included) wraps into its selector
+        List<LogicalPlan> rawParams = paramsCtx != null ? paramsCtx.expression().stream().map(this::wrapLiteral).toList() : emptyList();
 
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
-
-        LogicalPlan plan = null;
-        // explicit grouping
+        AcrossSeriesAggregate.Grouping grouping = null;
+        List<Attribute> groupings = List.of();
         if (groupingContext != null) {
-            var grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
-
-            if (metadata.functionType() != ACROSS_SERIES_AGGREGATION) {
-                throw new ParsingException(
-                    source,
-                    "[{}] clause not allowed on non-aggregation function [{}]",
-                    grouping.name().toLowerCase(Locale.ROOT),
-                    name
-                );
-            }
-
+            grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
             PromqlBaseParser.LabelListContext labelListCtx = groupingContext.labelList();
-            List<String> groupingKeys = visitLabelList(labelListCtx);
-            List<Attribute> groupings = new ArrayList<>(groupingKeys.size());
-            for (int i = 0; i < groupingKeys.size(); i++) {
-                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
+            List<String> groupingKeyNames = visitLabelList(labelListCtx);
+            groupings = new ArrayList<>(groupingKeyNames.size());
+            for (int i = 0; i < groupingKeyNames.size(); i++) {
+                groupings.add(new UnresolvedAttribute(source(labelListCtx.labelListItem(i)), groupingKeyNames.get(i)));
             }
-            plan = new AcrossSeriesAggregate(source, child, name, extraParams, grouping, groupings);
-        } else {
-            plan = switch (metadata.functionType()) {
-                case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
-                    source,
-                    child,
-                    name,
-                    extraParams,
-                    AcrossSeriesAggregate.Grouping.NONE,
-                    List.of()
-                );
-                case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(source, child, name, extraParams);
-                case VALUE_TRANSFORMATION -> new ValueTransformationFunction(source, child, name, extraParams);
-                case VECTOR_CONVERSION -> new VectorConversionFunction(source, child, name, extraParams);
-                case SCALAR_CONVERSION -> new ScalarConversionFunction(source, child, name, extraParams);
-                case SCALAR -> new ScalarFunction(source, name);
-                default -> throw new ParsingException(
-                    source,
-                    "Unsupported function type [{}] for function [{}]",
-                    metadata.functionType(),
-                    name
-                );
-            };
         }
-        //
-        return plan;
-    }
-
-    /**
-     * In contrast to strict PromQL,
-     * we allow using instant vector selectors where range vectors are expected,
-     * by implicitly treating them as range vectors with a default range.
-     */
-    private static LogicalPlan convertToRangeSelector(InstantSelector selector) {
-        LogicalPlan providedParam;
-        providedParam = new RangeSelector(
-            selector.source(),
-            selector.child(),
-            selector.series(),
-            selector.labels(),
-            selector.labelMatchers(),
-            Literal.timeDuration(selector.source(), IMPLICIT_RANGE_PLACEHOLDER),
-            selector.evaluation()
-        );
-        return providedParam;
+        return new UnresolvedPromqlFunction(source, name, rawParams, grouping, groupings);
     }
 
     @Override
     public Subquery visitSubquery(PromqlBaseParser.SubqueryContext ctx) {
-        Source source = source(ctx);
         LogicalPlan plan = plan(ctx.expression());
-
-        if (returnsRangeVector(plan)) {
-            throw new ParsingException(source, "Subquery is only allowed on instant vector, got {}", plan.nodeName());
-        }
 
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
         Literal rangeEx = visitDuration(ctx.range);
@@ -566,43 +604,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             return Literal.NULL;
         }
 
-        // Case 1: COLON (resolution=duration)?
-        // Examples: ":5m", ":(5m + 1m)", etc.
-        // This reuses visitDuration which already handles arithmetic through expression folding
+        // COLON (resolution=duration)?, such as ":5m", ":1.5" or ":(5m + 1m)"; visitDuration folds the arithmetic
         if (ctx.resolution != null) {
             return visitDuration(ctx.resolution);
-        }
-
-        // Case 2-5: TIME_VALUE_WITH_COLON cases
-        // Examples: ":5m", ":5m * 2", ":5m ^ 2", ":5m + 1m", etc.
-        var timeCtx = ctx.TIME_VALUE_WITH_COLON();
-        if (timeCtx != null) {
-            // Parse the base time value (e.g., ":5m" -> "5m")
-            String timeString = timeCtx.getText().substring(1).trim();
-            Source timeSource = source(timeCtx);
-            Duration baseValue = PromqlParserUtils.parseDuration(timeSource, timeString);
-
-            if (ctx.op == null || ctx.expression() == null) {
-                return Literal.timeDuration(source(timeCtx), baseValue);
-            }
-
-            // Evaluate right expression
-            Object rightValue = unwrapLiteral(ctx.expression()).value();
-
-            // Perform arithmetic using utility
-            BinaryOp binaryOp = binaryOp(ctx.op);
-            Object result;
-            if (binaryOp instanceof ArithmeticOp operation) {
-                result = PromqlFoldingUtils.evaluate(source(ctx), baseValue, rightValue, operation);
-            } else {
-                throw new ParsingException(source(ctx), "Unsupported binary operator [{}] in time duration", binaryOp);
-            }
-            // Result should be Duration
-            if (result instanceof Duration duration) {
-                return Literal.timeDuration(source(timeCtx), duration);
-            }
-
-            throw new ParsingException(source(ctx), "Expected duration result, got [{}]", result.getClass().getSimpleName());
         }
 
         // Just COLON with no resolution - use default

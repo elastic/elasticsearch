@@ -76,13 +76,14 @@ public final class DateExtractMillisEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock, BytesRefBlock chronoFieldBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -90,10 +91,11 @@ public final class DateExtractMillisEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (chronoFieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (chronoFieldBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -116,7 +118,7 @@ public final class DateExtractMillisEvaluator implements ExpressionEvaluator {
 
   public LongBlock eval(int positionCount, LongVector valueVector,
       BytesRefVector chronoFieldVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);
@@ -144,7 +146,7 @@ public final class DateExtractMillisEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

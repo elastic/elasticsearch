@@ -14,6 +14,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
@@ -59,5 +60,22 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
             upperCaseExtension + " (uppercase) should not be considered a Lucene extension",
             LuceneFilesExtensions.isLuceneExtension(upperCaseExtension)
         );
+    }
+
+    public void testColumnarExtensionsAreRegistered() {
+        for (final String extension : List.of("cnd", "cna", "cnl", "cnn", "cnm", "cns")) {
+            assertNotNull(extension, LuceneFilesExtensions.fromExtension(extension));
+        }
+    }
+
+    public void testColumnarMetadataFiles() {
+        assertTrue(LuceneFilesExtensions.CNM.isMetadata());
+        assertTrue(LuceneFilesExtensions.CNS.isMetadata());
+        assertFalse(LuceneFilesExtensions.CND.isMetadata());
+        assertFalse(LuceneFilesExtensions.CNA.isMetadata());
+        assertFalse(LuceneFilesExtensions.CNL.isMetadata());
+        // Read up front and by every read of a column, so it is fetched whole and memory-mapped.
+        assertTrue(LuceneFilesExtensions.CNN.isMetadata());
+        assertTrue(LuceneFilesExtensions.CNN.shouldMmap());
     }
 }

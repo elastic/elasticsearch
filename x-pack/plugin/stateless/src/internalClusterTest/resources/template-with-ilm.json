@@ -1,0 +1,20 @@
+{
+  "index_patterns": [
+    "test-template-with-ilm-*"
+  ],
+  "data_stream": {
+    "hidden": true
+  },
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "test-template-with-ilm-lifecycle",
+      "index.lifecycle.rollover_alias": "test-template-with-ilm"
+    }
+  },
+  "_meta": {
+    "description": "Test template with ILM settings",
+    "managed": true
+  },
+  "priority": 999,
+  "version": ${version}
+}

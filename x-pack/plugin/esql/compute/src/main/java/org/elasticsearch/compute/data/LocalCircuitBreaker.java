@@ -33,6 +33,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     private long reservedBytes;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private volatile Thread activeThread;
+    private final LocalArrayPool pool = new LocalArrayPool(this);
 
     public record SizeSettings(long overReservedBytes, long maxOverReservedBytes) {
 
@@ -98,6 +99,22 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
         return breaker;
     }
 
+    LocalArrayPool pool() {
+        return pool;
+    }
+
+    /**
+     * Breaker that is safe to charge from I/O / generic threads.
+     * {@link LocalCircuitBreaker} is pinned to the driver thread; HTTP/S3 completion callbacks
+     * must charge its {@link #parentBreaker()} instead. Identity for any other breaker.
+     */
+    public static CircuitBreaker forAsyncIo(CircuitBreaker breaker) {
+        if (breaker instanceof LocalCircuitBreaker local) {
+            return local.parentBreaker();
+        }
+        return breaker;
+    }
+
     @Override
     public long getUsed() {
         return breaker.getUsed();
@@ -142,6 +159,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     public void close() {
         assert assertSingleThread();
         if (closed.compareAndSet(false, true)) {
+            pool.close();
             breaker.addWithoutBreaking(-reservedBytes);
         }
     }
@@ -151,7 +169,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
         return "LocalCircuitBreaker[" + reservedBytes + "/" + overReservedBytes + ":" + maxOverReservedBytes + "]";
     }
 
-    private boolean assertSingleThread() {
+    boolean assertSingleThread() {
         Thread activeThread = this.activeThread;
         Thread currentThread = Thread.currentThread();
         assert activeThread == null || activeThread == currentThread
@@ -160,6 +178,11 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
                 + "] != actual ["
                 + currentThread
                 + "]";
+        return true;
+    }
+
+    boolean assertNotClosed() {
+        assert closed.get() == false : "Local breaker is already closed";
         return true;
     }
 

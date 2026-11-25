@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -36,6 +37,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Set;
@@ -86,7 +89,8 @@ public class AllocationFailuresResetTests extends ESTestCase {
             true,
             new RecoverySource.EmptyStoreRecoverySource(),
             unassignedInfo,
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
 
         var routingTable = new RoutingTable.Builder().add(
@@ -98,9 +102,8 @@ public class AllocationFailuresResetTests extends ESTestCase {
         return ClusterState.builder(state).metadata(meta).routingTable(routingTable).build();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startClusterService() throws Exception {
         threadPool = new TestThreadPool("reset-alloc-failures");
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         var allocationService = new AllocationService(
@@ -114,9 +117,8 @@ public class AllocationFailuresResetTests extends ESTestCase {
         allocationService.addAllocFailuresResetListenerTo(clusterService);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void stopClusterService() throws Exception {
         clusterService.stop();
         threadPool.shutdownNow();
     }

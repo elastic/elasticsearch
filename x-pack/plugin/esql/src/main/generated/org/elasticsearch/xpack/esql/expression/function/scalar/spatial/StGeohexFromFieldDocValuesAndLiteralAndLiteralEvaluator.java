@@ -58,7 +58,7 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
   }
 
   public LongBlock eval(int positionCount, LongBlock encodedBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!encodedBlock.isNull(p)) {
@@ -91,7 +91,7 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -51,6 +51,7 @@ public class MvDifference extends MvSetOperationFunction {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvDifference.class)
         .binary(MvDifference::new)
+        .capabilities("flattened")
         .name("mv_difference");
 
     @FunctionInfo(
@@ -61,6 +62,7 @@ public class MvDifference extends MvSetOperationFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -72,6 +74,7 @@ public class MvDifference extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns values from first field not in second field.",
         description = "Returns the values that appear in the first field, except those that appear in the second. Returns `null` if the "
             + "first expression is null (nothing to remove) or the value of the first field if the second is null.",
         preview = true,
@@ -89,6 +92,7 @@ public class MvDifference extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -112,6 +116,7 @@ public class MvDifference extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

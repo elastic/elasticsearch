@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -122,12 +123,14 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public FieldName fieldName() {
-        if (lazyFieldName == null) {
+        FieldName fieldName = lazyFieldName;
+        if (fieldName == null) {
             // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
             // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
-            lazyFieldName = new FieldName(name());
+            fieldName = new FieldName(name());
+            lazyFieldName = fieldName;
         }
-        return lazyFieldName;
+        return fieldName;
     }
 
     @Override
@@ -153,8 +156,12 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append("!").append(qualifiedName());
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append('!');
+        if (qualifier() != null) {
+            sb.append(mapper.column(qualifier())).append('.');
+        }
+        sb.append(mapper.column(name()));
     }
 
     @Override

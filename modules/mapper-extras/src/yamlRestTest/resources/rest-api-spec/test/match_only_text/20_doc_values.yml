@@ -1,7 +1,7 @@
 ---
 "match_only_text with doc_values enabled":
   - requires:
-      cluster_features: ["mapper.text.doc_values"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag"]
       reason: "match_only_text doc_values support required"
 
   - do:
@@ -58,7 +58,7 @@
 ---
 "match_only_text with doc_values - multi value":
   - requires:
-      cluster_features: ["mapper.text.doc_values"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag"]
       reason: "match_only_text doc_values support required"
 
   - do:
@@ -108,7 +108,7 @@
 ---
 "match_only_text with doc_values - phrase query still works":
   - requires:
-      cluster_features: ["mapper.text.doc_values"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag"]
       reason: "match_only_text doc_values support required"
 
   - do:
@@ -154,7 +154,7 @@
 ---
 "match_only_text with doc_values - match query":
   - requires:
-      cluster_features: ["mapper.text.doc_values"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag"]
       reason: "match_only_text doc_values support required"
 
   - do:
@@ -200,7 +200,7 @@
 ---
 "match_only_text with doc_values - synthetic source":
   - requires:
-      cluster_features: ["mapper.text.doc_values", "mapper.source.mode_from_index_setting"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag", "mapper.source.mode_from_index_setting"]
       reason: "match_only_text doc_values and synthetic source support required"
 
   - do:
@@ -250,7 +250,7 @@
 ---
 "match_only_text with doc_values - synthetic source multi-value":
   - requires:
-      cluster_features: ["mapper.text.doc_values", "mapper.source.mode_from_index_setting"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag", "mapper.source.mode_from_index_setting"]
       reason: "match_only_text doc_values and synthetic source support required"
 
   - do:
@@ -287,7 +287,7 @@
 ---
 "match_only_text with doc_values - synthetic source search":
   - requires:
-      cluster_features: ["mapper.text.doc_values", "mapper.source.mode_from_index_setting"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag", "mapper.source.mode_from_index_setting"]
       reason: "match_only_text doc_values and synthetic source support required"
 
   - do:
@@ -327,7 +327,7 @@
 ---
 "match_only_text with doc_values - synthetic source aggregation":
   - requires:
-      cluster_features: ["mapper.text.doc_values", "mapper.source.mode_from_index_setting"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag", "mapper.source.mode_from_index_setting"]
       reason: "match_only_text doc_values and synthetic source support required"
 
   - do:

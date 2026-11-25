@@ -1,0 +1,14 @@
+{
+  "dynamic": "strict",
+  "properties": {
+    "src_ip": {
+      "type": "ip"
+    },
+    "dst_ip": {
+      "type": "ip"
+    },
+    "network": {
+      "type": "keyword"
+    }
+  }
+}

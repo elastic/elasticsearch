@@ -1,6 +1,10 @@
 ### Add `+` [esql-add]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
-:::{image} ../../../images/operators/add.svg
+:::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/add.svg
 :alt: Embedded
 :class: text-center
 :::
@@ -9,5 +13,5 @@ Add two numbers together. If either field is [multivalued](/reference/query-lang
 
 
 
-:::{include} ../types/add.md
+:::{include} ../../generated/x-pack-esql/operators/types/add.md
 :::

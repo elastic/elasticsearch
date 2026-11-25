@@ -7,25 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleVertexAiEmbeddingsRequest implements DenseEmbeddingRequest {
+public class GoogleVertexAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final Truncator truncator;
 
@@ -49,9 +48,9 @@ public class GoogleVertexAiEmbeddingsRequest implements DenseEmbeddingRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.nonStreamingUri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.nonStreamingUri()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(
                 new GoogleVertexAiEmbeddingsRequestEntity(
                     truncationResult.input(),
@@ -59,19 +58,13 @@ public class GoogleVertexAiEmbeddingsRequest implements DenseEmbeddingRequest {
                     model.getTaskSettings(),
                     model.getServiceSettings()
                 )
-            ).getBytes(StandardCharsets.UTF_8)
+            ).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
 
-        httpPost.setEntity(byteEntity);
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-
-        decorateWithAuth(httpPost);
+        model.authHeaderDecorator().accept(httpPost, model);
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
-    }
-
-    public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     Truncator truncator() {
@@ -97,7 +90,7 @@ public class GoogleVertexAiEmbeddingsRequest implements DenseEmbeddingRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
         return new GoogleVertexAiEmbeddingsRequest(truncator, truncatedInput, inputType, model);

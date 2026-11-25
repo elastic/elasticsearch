@@ -78,7 +78,7 @@ public class IndexReshardService {
 
         IndexMetadata indexMetadata = indexShard.indexSettings().getIndexMetadata();
 
-        return switch (splitShardCountSummary.check(indexMetadata)) {
+        return switch (splitShardCountSummary.check(indexMetadata.getNumberOfShards(), indexMetadata.getReshardingMetadata())) {
             case OLDER -> {
                 IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
                 // Otherwise it would be INVALID.

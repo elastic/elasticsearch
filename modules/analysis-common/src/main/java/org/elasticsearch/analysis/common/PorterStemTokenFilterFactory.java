@@ -26,4 +26,9 @@ public class PorterStemTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new PorterStemFilter(tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

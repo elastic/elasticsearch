@@ -1,0 +1,3 @@
+SET approximation={"rows": 10000, "confidence_level": null};
+FROM many_numbers
+  | STATS SUM(mv), COUNT(mv)

@@ -222,7 +222,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         Boolean excludeVectors = request.paramAsBoolean("_source_exclude_vectors", null);
 
         if (excludeVectors != null || fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return FetchSourceContext.of(fetchSource == null || fetchSource, excludeVectors, sourceIncludes, sourceExcludes);
+            // Match fromXContent: exclude_inference_fields is not exposed at the REST layer and defaults to exclude_vectors.
+            return FetchSourceContext.of(
+                fetchSource == null || fetchSource,
+                excludeVectors,
+                excludeVectors,
+                sourceIncludes,
+                sourceExcludes
+            );
         }
         return null;
     }

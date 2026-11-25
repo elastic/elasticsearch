@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 
+import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.exponentialhistogram.ExponentialHistogramEscfSchema;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.AbstractOTLPBatchBuilder;
 
 import java.io.IOException;
 
@@ -35,7 +39,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXConten
  * OTLP exponential histograms will be left unchanged and just formatted into the XContent that the field type expects.
  * OTLP explicit bucket histograms will be converted to exponential histograms at maximum scale,
  * with the bucket centers corresponding to the centroids which are computed by {@link TDigestConverter}.
- * For the details see {@link #buildExponentialHistogram(HistogramDataPoint, XContentBuilder, BucketBuffer)}.
+ * For the details see {@link #buildExponentialHistogram(HistogramDataPoint, AggregationTemporality, XContentBuilder, BucketBuffer)}.
  */
 public class ExponentialHistogramConverter {
 
@@ -70,6 +74,60 @@ public class ExponentialHistogramConverter {
             builder.field(MAX_FIELD, dataPoint.getMax());
         }
         builder.endObject();
+    }
+
+    /**
+     * Columnar counterpart to {@link #buildExponentialHistogram(ExponentialHistogramDataPoint, XContentBuilder)}.
+     * @param dataPoint the point to write
+     * @param builder the batch builder to write to
+     * @param schema the columns of the exponential histogram field within {@code builder}
+     */
+    public static void writeExponentialHistogram(
+        ExponentialHistogramDataPoint dataPoint,
+        AbstractOTLPBatchBuilder builder,
+        ExponentialHistogramEscfSchema schema
+    ) {
+        builder.longField(schema.scaleColIdx(), dataPoint.getScale());
+        if (dataPoint.getZeroCount() > 0) {
+            builder.longField(schema.zeroCountColIdx(), dataPoint.getZeroCount());
+            if (dataPoint.getZeroThreshold() != 0) {
+                builder.doubleField(schema.zeroThresholdColIdx(), dataPoint.getZeroThreshold());
+            }
+        }
+        if (dataPoint.hasNegative()) {
+            writeExponentialBuckets(builder, schema.negativeIndicesColIdx(), schema.negativeCountsColIdx(), dataPoint.getNegative());
+        }
+        if (dataPoint.hasPositive()) {
+            writeExponentialBuckets(builder, schema.positiveIndicesColIdx(), schema.positiveCountsColIdx(), dataPoint.getPositive());
+        }
+        if (dataPoint.hasSum()) {
+            builder.doubleField(schema.sumColIdx(), dataPoint.getSum());
+        }
+        if (dataPoint.hasMin()) {
+            builder.doubleField(schema.minColIdx(), dataPoint.getMin());
+        }
+        if (dataPoint.hasMax()) {
+            builder.doubleField(schema.maxColIdx(), dataPoint.getMax());
+        }
+    }
+
+    private static void writeExponentialBuckets(
+        AbstractOTLPBatchBuilder builder,
+        int indicesColIdx,
+        int countsColIdx,
+        ExponentialHistogramDataPoint.Buckets buckets
+    ) {
+        EscfColumnBuilder indices = builder.beginArray(indicesColIdx);
+        EscfColumnBuilder counts = builder.beginArray(countsColIdx);
+        for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
+            long count = buckets.getBucketCounts(i);
+            if (count != 0) {
+                indices.appendLong(buckets.getOffset() + i);
+                counts.appendLong(count);
+            }
+        }
+        indices.endArray();
+        counts.endArray();
     }
 
     private static void writeExponentialBuckets(XContentBuilder builder, String fieldName, ExponentialHistogramDataPoint.Buckets buckets)
@@ -111,18 +169,62 @@ public class ExponentialHistogramConverter {
      *
      * @param dataPoint the point to write
      * @param builder the builder to write to
+     * @param temporality the temporality of the histogram
      * @param bucketsScratch reusable, temporary memory used to build the output histogram
      */
-    public static void buildExponentialHistogram(HistogramDataPoint dataPoint, XContentBuilder builder, BucketBuffer bucketsScratch)
-        throws IOException {
+    public static void buildExponentialHistogram(
+        HistogramDataPoint dataPoint,
+        AggregationTemporality temporality,
+        XContentBuilder builder,
+        BucketBuffer bucketsScratch
+    ) throws IOException {
         builder.startObject().field(SCALE_FIELD, MAX_SCALE);
+        if (convertToBuckets(dataPoint, temporality, bucketsScratch)) {
+            bucketsScratch.writeBuckets(builder);
+            writeSummaryStatistics(dataPoint, builder);
+        }
+        builder.endObject();
+    }
 
-        // TODO: When start supporting cumulative buckets, we can't do the synthetic min/max bucket trick anymore.
-        // Then we probably need to just drop min/max, which aren't really useful for cumulative histograms anyway
+    /**
+     * Columnar counterpart to
+     * {@link #buildExponentialHistogram(HistogramDataPoint, AggregationTemporality, XContentBuilder, BucketBuffer)}.
+     * @param dataPoint the point to write
+     * @param temporality the temporality of the histogram
+     * @param builder the batch builder to write to
+     * @param schema the columns of the exponential histogram field within {@code builder}
+     * @param bucketsScratch reusable, temporary memory used to build the output histogram
+     */
+    public static void writeExponentialHistogram(
+        HistogramDataPoint dataPoint,
+        AggregationTemporality temporality,
+        AbstractOTLPBatchBuilder builder,
+        ExponentialHistogramEscfSchema schema,
+        BucketBuffer bucketsScratch
+    ) {
+        builder.longField(schema.scaleColIdx(), MAX_SCALE);
+        if (convertToBuckets(dataPoint, temporality, bucketsScratch)) {
+            bucketsScratch.writeBuckets(builder, schema);
+            if (dataPoint.hasSum()) {
+                builder.doubleField(schema.sumColIdx(), dataPoint.getSum());
+            }
+            if (dataPoint.hasMin()) {
+                builder.doubleField(schema.minColIdx(), dataPoint.getMin());
+            }
+            if (dataPoint.hasMax()) {
+                builder.doubleField(schema.maxColIdx(), dataPoint.getMax());
+            }
+        }
+    }
 
+    /**
+     * Fills {@code bucketsScratch} with the exponential histogram buckets for {@code dataPoint}.
+     * Returns {@code false} if the data point holds no values, in which case neither buckets nor summary statistics are written.
+     */
+    private static boolean convertToBuckets(HistogramDataPoint dataPoint, AggregationTemporality temporality, BucketBuffer bucketsScratch) {
         int size = dataPoint.getBucketCountsCount();
 
-        if (size > 0) {
+        if (size > 0 && dataPoint.getExplicitBoundsCount() > 0) {
             bucketsScratch.clear();
 
             boolean minHandled = false;
@@ -136,28 +238,32 @@ public class ExponentialHistogramConverter {
                 long count = dataPoint.getBucketCounts(i);
                 if (count > 0) {
                     double centroid = TDigestConverter.getCentroid(dataPoint, i);
-                    if (dataPoint.hasMin() && minHandled == false) {
-                        if (centroid > dataPoint.getMin() && count > 1) {
-                            // min is smaller than the centroid and not the only value in the bucket, we inject a separate, single value
-                            // bucket for it
-                            bucketsScratch.append(dataPoint.getMin(), 1);
-                            count -= 1;
-                        } else {
-                            // clamp the bucket centroid to min
-                            centroid = dataPoint.getMin();
-                        }
-                        minHandled = true;
-                    }
                     boolean injectMaxBucketAfterIteration = false;
-                    if (dataPoint.hasMax() && lastPopulatedBucket == i) {
-                        if (centroid < dataPoint.getMax() && count > 1) {
-                            // max is bigger than the centroid and not the only value in the bucket, we inject a separate, single value
-                            // bucket for it
-                            injectMaxBucketAfterIteration = true;
-                            count -= 1;
-                        } else {
-                            // clamp the bucket centroid to min
-                            centroid = dataPoint.getMax();
+                    // for delta histograms, we extract the min and the max into separate buckets with count 1 to improve the accuracy
+                    // we can't do this for cumulative temporality, as cumulative temporality needs stable buckets
+                    if (temporality != AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE) {
+                        if (dataPoint.hasMin() && minHandled == false) {
+                            if (centroid > dataPoint.getMin() && count > 1) {
+                                // min is smaller than the centroid and not the only value in the bucket, we inject a separate, single value
+                                // bucket for it
+                                bucketsScratch.append(dataPoint.getMin(), 1);
+                                count -= 1;
+                            } else {
+                                // clamp the bucket centroid to min
+                                centroid = dataPoint.getMin();
+                            }
+                            minHandled = true;
+                        }
+                        if (dataPoint.hasMax() && lastPopulatedBucket == i) {
+                            if (centroid < dataPoint.getMax() && count > 1) {
+                                // max is bigger than the centroid and not the only value in the bucket, we inject a separate, single value
+                                // bucket for it
+                                injectMaxBucketAfterIteration = true;
+                                count -= 1;
+                            } else {
+                                // clamp the bucket centroid to min
+                                centroid = dataPoint.getMax();
+                            }
                         }
                     }
                     bucketsScratch.append(centroid, count);
@@ -166,18 +272,30 @@ public class ExponentialHistogramConverter {
                     }
                 }
             }
-            bucketsScratch.writeBuckets(builder);
-            if (dataPoint.hasSum()) {
-                builder.field(SUM_FIELD, dataPoint.getSum());
+            return true;
+        } else if (dataPoint.getCount() > 0) {
+            bucketsScratch.clear();
+            double value = 0.0;
+            if (dataPoint.hasSum() && temporality != AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE) {
+                // we can't use the average as singular bucket for cumulative histograms because we need stable buckets across histograms
+                value = dataPoint.getSum() / dataPoint.getCount();
             }
-            if (dataPoint.hasMin()) {
-                builder.field(MIN_FIELD, dataPoint.getMin());
-            }
-            if (dataPoint.hasMax()) {
-                builder.field(MAX_FIELD, dataPoint.getMax());
-            }
+            bucketsScratch.append(value, dataPoint.getCount());
+            return true;
         }
-        builder.endObject();
+        return false;
+    }
+
+    private static void writeSummaryStatistics(HistogramDataPoint dataPoint, XContentBuilder builder) throws IOException {
+        if (dataPoint.hasSum()) {
+            builder.field(SUM_FIELD, dataPoint.getSum());
+        }
+        if (dataPoint.hasMin()) {
+            builder.field(MIN_FIELD, dataPoint.getMin());
+        }
+        if (dataPoint.hasMax()) {
+            builder.field(MAX_FIELD, dataPoint.getMax());
+        }
     }
 
     private static class IndexWithCountList {
@@ -301,6 +419,33 @@ public class ExponentialHistogramConverter {
                 }
                 builder.endArray();
                 builder.endObject();
+            }
+        }
+
+        private void writeBuckets(AbstractOTLPBatchBuilder builder, ExponentialHistogramEscfSchema schema) {
+            if (zeroCount > 0) {
+                builder.longField(schema.zeroCountColIdx(), zeroCount);
+            }
+            if (negativeBuckets.size() > 0) {
+                // write in inverse order to get lowest to highest index
+                EscfColumnBuilder indices = builder.beginArray(schema.negativeIndicesColIdx());
+                EscfColumnBuilder counts = builder.beginArray(schema.negativeCountsColIdx());
+                for (int i = negativeBuckets.size() - 1; i >= 0; i--) {
+                    indices.appendLong(negativeBuckets.getIndex(i));
+                    counts.appendLong(negativeBuckets.getCount(i));
+                }
+                indices.endArray();
+                counts.endArray();
+            }
+            if (positiveBuckets.size() > 0) {
+                EscfColumnBuilder indices = builder.beginArray(schema.positiveIndicesColIdx());
+                EscfColumnBuilder counts = builder.beginArray(schema.positiveCountsColIdx());
+                for (int i = 0; i < positiveBuckets.size(); i++) {
+                    indices.appendLong(positiveBuckets.getIndex(i));
+                    counts.appendLong(positiveBuckets.getCount(i));
+                }
+                indices.endArray();
+                counts.endArray();
             }
         }
     }

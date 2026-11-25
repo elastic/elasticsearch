@@ -23,10 +23,20 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
 
     private final List<G> shapes;
 
+    /**
+     * Nesting depth of this collection: one for a collection that holds no other collection, and one more than its
+     * deepest child otherwise. It is computed while the collection is built so that an over-deep collection can never
+     * be constructed in the first place. Every parser and every writer of a geometry recurses once per nesting level,
+     * so an unbounded nesting depth exhausts the stack, and a {@link StackOverflowError} on a transport thread is
+     * treated as a fatal error and kills the node.
+     */
+    private final int depth;
+
     private boolean hasAlt;
 
     public GeometryCollection() {
         shapes = Collections.emptyList();
+        depth = 1;
     }
 
     public GeometryCollection(List<G> shapes) {
@@ -34,10 +44,18 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
             throw new IllegalArgumentException("the list of shapes cannot be null or empty");
         }
         hasAlt = shapes.get(0).hasZ();
+        int deepestChild = 0;
         for (G shape : shapes) {
             if (shape.hasZ() != hasAlt) {
                 throw new IllegalArgumentException("all elements of the collection should have the same number of dimension");
             }
+            if (shape instanceof GeometryCollection<?> collection) {
+                deepestChild = Math.max(deepestChild, collection.depth);
+            }
+        }
+        this.depth = deepestChild + 1;
+        if (this.depth > WellKnownText.MAX_NESTED_DEPTH) {
+            throw new IllegalArgumentException("maximum nested depth of " + WellKnownText.MAX_NESTED_DEPTH + " exceeded");
         }
         this.shapes = shapes;
     }

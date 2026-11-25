@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -65,14 +65,12 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
     private AutoCloseable mocks;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void openMocks() throws Exception {
         mocks = MockitoAnnotations.openMocks(this);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeMocks() throws Exception {
         mocks.close();
     }
 
@@ -112,7 +110,7 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
 
         String sourceIndex = randomAlphanumericOfLength(10);
         String destIndex = randomAlphanumericOfLength(10);
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         TaskId taskId = TaskId.EMPTY_TASK_ID;
 
         when(clusterService.getClusterSettings()).thenReturn(
@@ -141,7 +139,7 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
 
         String sourceIndex = randomAlphanumericOfLength(10);
         String destIndex = randomAlphanumericOfLength(10);
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         TaskId taskId = TaskId.EMPTY_TASK_ID;
 
         when(clusterService.getClusterSettings()).thenReturn(
@@ -169,7 +167,7 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
 
         String sourceIndex = randomAlphanumericOfLength(10);
         String destIndex = randomAlphanumericOfLength(10);
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         TaskId taskId = TaskId.EMPTY_TASK_ID;
 
         when(clusterService.getClusterSettings()).thenReturn(
@@ -198,7 +196,7 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
 
         String sourceIndex = randomAlphanumericOfLength(10);
         String destIndex = randomAlphanumericOfLength(10);
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         TaskId taskId = TaskId.EMPTY_TASK_ID;
 
         when(clusterService.getClusterSettings()).thenReturn(
@@ -228,9 +226,9 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
         String sourceIndex = randomAlphanumericOfLength(10);
         String destIndex = randomAlphanumericOfLength(10);
         AtomicBoolean failed = new AtomicBoolean(false);
-        ActionListener<BulkByScrollResponse> listener = new ActionListener<>() {
+        ActionListener<BulkByPaginatedSearchResponse> listener = new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {}
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {}
 
             @Override
             public void onFailure(Exception e) {

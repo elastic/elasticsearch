@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -114,8 +115,7 @@ public class CategorizeBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
-        // Select is always nonEmpty because we don't support splitting pages from Categorize
-        return new Block[] { aggregatorMode.isOutputPartial() ? buildIntermediateBlock() : buildFinalBlock() };
+        return new Block[] { aggregatorMode.isOutputPartial() ? buildIntermediateBlock() : buildFinalBlock(selected) };
     }
 
     @Override
@@ -235,24 +235,28 @@ public class CategorizeBlockHash extends BlockHash {
         }
     }
 
-    private Block buildFinalBlock() {
+    private Block buildFinalBlock(IntVector selected) {
         BytesRefBuilder scratch = new BytesRefBuilder();
+        List<SerializableTokenListCategory> categoriesById = categorizer.toCategoriesById();
 
         if (seenNull) {
-            try (BytesRefBlock.Builder result = blockFactory.newBytesRefBlockBuilder(categorizer.getCategoryCount())) {
-                result.appendNull();
-                for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                    scratch.copyChars(getKeyString(category));
-                    result.appendBytesRef(scratch.get());
-                    scratch.clear();
+            try (BytesRefBlock.Builder result = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    if (selected.getInt(i) == NULL_ORD) {
+                        result.appendNull();
+                    } else {
+                        scratch.copyChars(getKeyString(categoriesById.get(selected.getInt(i) - 1)));
+                        result.appendBytesRef(scratch.get());
+                        scratch.clear();
+                    }
                 }
                 return result.build();
             }
         }
 
-        try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(categorizer.getCategoryCount())) {
-            for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                scratch.copyChars(getKeyString(category));
+        try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                scratch.copyChars(getKeyString(categoriesById.get(selected.getInt(i) - 1)));
                 result.appendBytesRef(scratch.get());
                 scratch.clear();
             }

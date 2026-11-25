@@ -14,9 +14,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.util.Random;
 
+@RunWith(ESRandomizedRunner.class)
 public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
 
     public void testDelegate() {
@@ -83,8 +86,7 @@ public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
                 TopDocs topDocs = queueSaturationCollector.topDocs();
                 assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, topDocs.totalHits.relation());
                 break;
-            }
-            if (queueSaturationCollector.earlyTerminated()) {
+            } else if (queueSaturationCollector.earlyTerminated()) {
                 TopDocs topDocs = queueSaturationCollector.topDocs();
                 assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation());
                 break;

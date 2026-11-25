@@ -161,6 +161,16 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         values[count++] = encoded;
     }
 
+    /**
+     * Emit the encoded ip value. Value should be encoded in the format used by {@link InetAddressPoint}.
+     */
+    protected final void emit(BytesRef encoded) {
+        if (values.length < count + 1) {
+            values = ArrayUtil.grow(values, count + 1);
+        }
+        values[count++] = encoded;
+    }
+
     public static class Emit {
         private final IpFieldScript script;
 

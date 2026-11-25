@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.checkProviderForTask;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.checkTaskSettingsForTextEmbeddingModel;
 
 /**
@@ -46,6 +47,7 @@ public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonB
             context
         );
         checkTaskSettingsForTextEmbeddingModel(model);
+        checkProviderForTask(taskType, model.provider());
         return model;
     }
 
@@ -53,6 +55,7 @@ public class AmazonBedrockEmbeddingsModelCreator implements ModelCreator<AmazonB
     public AmazonBedrockEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         var model = new AmazonBedrockEmbeddingsModel(config, secrets);
         checkTaskSettingsForTextEmbeddingModel(model);
+        checkProviderForTask(model.getTaskType(), model.provider());
         return model;
     }
 }

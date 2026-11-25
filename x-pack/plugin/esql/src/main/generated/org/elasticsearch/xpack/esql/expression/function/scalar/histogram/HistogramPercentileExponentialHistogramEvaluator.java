@@ -65,13 +65,14 @@ public final class HistogramPercentileExponentialHistogramEvaluator implements E
 
   public DoubleBlock eval(int positionCount, ExponentialHistogramBlock valueBlock,
       DoubleBlock percentileBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -79,10 +80,11 @@ public final class HistogramPercentileExponentialHistogramEvaluator implements E
               result.appendNull();
               continue position;
         }
+        if (percentileBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (percentileBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -115,7 +117,7 @@ public final class HistogramPercentileExponentialHistogramEvaluator implements E
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

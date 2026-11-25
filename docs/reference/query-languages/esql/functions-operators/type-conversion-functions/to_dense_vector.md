@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_DENSE_VECTOR` function [esql-to_dense_vector]
 
-:::{include} ../../_snippets/functions/layout/to_dense_vector.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_dense_vector.md
 :::

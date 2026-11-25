@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 161248
+summary: Reject PromQL binary ops between metrics in separate series
+type: bug

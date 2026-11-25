@@ -44,8 +44,7 @@ public class MonitoringServiceTests extends ESTestCase {
     private SSLService sslService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMonitoringServiceTestDeps() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
@@ -111,7 +110,7 @@ public class MonitoringServiceTests extends ESTestCase {
         monitoringService.setMonitoringActive(false);
         assertWarnings(
             "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -137,9 +136,9 @@ public class MonitoringServiceTests extends ESTestCase {
         assertThat(exporter.getExportsCount(), equalTo(1));
         assertWarnings(
             "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation documentation for the next major version.",
+                + "See the breaking changes documentation for the next major version.",
             "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation documentation for the next major version."
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

@@ -110,9 +110,9 @@ class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPlugi
         assertNoDeprecationWarning(result);
 
         and: "problems report contains forbidden-apis violations"
-        assertProblemsReportContains("forbidden-apis")
-        assertProblemsReportContainsProblem("api-violation")
-        assertProblemsReportSeverity("api-violation", "ERROR")
+        assertProblemsReportContains("Forbidden APIs")
+        assertProblemsReportContainsProblem("Forbidden API violation")
+        assertProblemsReportSeverity("Forbidden API violation", "ERROR")
     }
 
     def "reports missing classes for analysis"() {
@@ -151,9 +151,9 @@ class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPlugi
         assertNoDeprecationWarning(result);
 
         and: "problems report contains missing-classes problems"
-        assertProblemsReportContains("missing-classes")
-        assertProblemsReportContainsProblem("missing-class")
-        assertProblemsReportSeverity("missing-class", "ERROR")
+        assertProblemsReportContains("Missing Classes")
+        assertProblemsReportContainsProblem("Missing third-party class")
+        assertProblemsReportSeverity("Missing third-party class", "ERROR")
     }
 
     def "reports jar hell with jdk"() {
@@ -188,7 +188,7 @@ class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPlugi
             """.stripIndent())
         assertOutputContains(output, """\
             * What went wrong:
-            Execution failed for task ':thirdPartyAudit'.
+            Execution failed for task ':thirdPartyAudit' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin').
             > Audit of third party dependencies failed:
                 Jar Hell with the JDK:
                 *
@@ -197,8 +197,8 @@ class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPlugi
         assertNoDeprecationWarning(result);
 
         and: "problems report contains jar-hell problems"
-        assertProblemsReportContains("jar-hell")
-        assertProblemsReportContainsProblem("jdk-jar-hell")
+        assertProblemsReportContains("JDK Jar Hell")
+        assertProblemsReportContainsProblem("JDK jar hell conflict")
     }
 
     Object generateDummyJars(String groupId) {

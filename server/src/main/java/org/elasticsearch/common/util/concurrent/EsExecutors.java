@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.List;
@@ -386,6 +387,8 @@ public class EsExecutors {
     public static class EsThread extends Thread {
         private final String executorName;
         private final boolean isSystem;
+        /** The pool task running on this thread, as {@link TaskLoadAttribution} tracks it. */
+        final TaskLoadAttribution.Task loadTask = new TaskLoadAttribution.Task();
 
         EsThread(ThreadGroup group, Runnable target, String name, long stackSize, String executorName, boolean isSystem) {
             super(group, target, name, stackSize);
@@ -574,23 +577,31 @@ public class EsExecutors {
     public static class TaskTrackingConfig {
         // This is a random starting point alpha.
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
+        // Just a constant to clarify that we're disabling the EWMR utilization by configuring zero
+        private static final double DISABLE_UTILIZATION_EWMR = 0.0;
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
         private final boolean trackMaxQueueLatency;
         private final double executionTimeEwmaAlpha;
+        private final double threadUtilizationEwmrLambda;
+        private final boolean attributeTaskLoad;
 
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
             false,
             false,
-            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
+            DISABLE_UTILIZATION_EWMR,
+            false
         );
         public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
             true,
             false,
             false,
-            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
+            DISABLE_UTILIZATION_EWMR,
+            false
         );
 
         /**
@@ -598,17 +609,23 @@ public class EsExecutors {
          * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
          * @param trackMaxQueueLatency Whether to track max queue latency.
          * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
+         * @param threadUtilizationEwmrLambda The lambda for the thread utilization EWMR, in inverse nanoseconds, or zero for no tracking.
+         * @param attributeTaskLoad Whether to charge the execution time of tasks to the work they do, see {@link TaskLoadAttribution}
          */
         private TaskTrackingConfig(
             boolean trackExecutionTime,
             boolean trackOngoingTasks,
             boolean trackMaxQueueLatency,
-            double executionTimeEWMAAlpha
+            double executionTimeEWMAAlpha,
+            double threadUtilizationEwmrLambda,
+            boolean attributeTaskLoad
         ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
             this.trackMaxQueueLatency = trackMaxQueueLatency;
             this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
+            this.threadUtilizationEwmrLambda = threadUtilizationEwmrLambda;
+            this.attributeTaskLoad = attributeTaskLoad;
         }
 
         public boolean trackExecutionTime() {
@@ -627,6 +644,14 @@ public class EsExecutors {
             return executionTimeEwmaAlpha;
         }
 
+        public double getThreadUtilizationEwmrLambda() {
+            return threadUtilizationEwmrLambda;
+        }
+
+        public boolean attributeTaskLoad() {
+            return attributeTaskLoad;
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -636,6 +661,8 @@ public class EsExecutors {
             private boolean trackOngoingTasks = false;
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+            private double threadUtilizationEwmrLambda = DISABLE_UTILIZATION_EWMR;
+            private boolean attributeTaskLoad = false;
 
             public Builder() {}
 
@@ -655,8 +682,36 @@ public class EsExecutors {
                 return this;
             }
 
+            /**
+             * Charges the execution time of tasks to the work they do. Needs {@link #trackExecutionTime}.
+             */
+            public Builder attributeTaskLoad() {
+                attributeTaskLoad = true;
+                return this;
+            }
+
+            /** Sets the half-life for thread utilization EWMR tracking. */
+            public Builder threadUtilizationEwmrHalfLife(TimeValue halfLife) {
+                if (halfLife.nanos() < 0) {
+                    throw new IllegalArgumentException("halfLife must be greater than or equal to zero");
+                }
+                if (halfLife.nanos() == 0) {
+                    this.threadUtilizationEwmrLambda = DISABLE_UTILIZATION_EWMR;
+                } else {
+                    this.threadUtilizationEwmrLambda = Math.log(2.0) / halfLife.nanos();
+                }
+                return this;
+            }
+
             public TaskTrackingConfig build() {
-                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+                return new TaskTrackingConfig(
+                    trackExecutionTime,
+                    trackOngoingTasks,
+                    trackMaxQueueLatency,
+                    ewmaAlpha,
+                    threadUtilizationEwmrLambda,
+                    attributeTaskLoad
+                );
             }
         }
     }

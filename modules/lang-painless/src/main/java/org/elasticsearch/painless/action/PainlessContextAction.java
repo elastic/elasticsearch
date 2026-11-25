@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -61,7 +62,7 @@ public class PainlessContextAction {
 
     private PainlessContextAction() {/* no instances */}
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         private String scriptContextName;
 
@@ -184,6 +185,8 @@ public class PainlessContextAction {
 
     public static class RestAction extends BaseRestHandler {
 
+        private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(SCRIPT_CONTEXT_NAME_PARAM);
+
         @Override
         public List<Route> routes() {
             return List.of(new Route(GET, "/_scripts/painless/_context"));
@@ -198,7 +201,13 @@ public class PainlessContextAction {
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
             Request request = new Request();
             request.setScriptContextName(restRequest.param(SCRIPT_CONTEXT_NAME_PARAM));
-            return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
+            return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
         }
+
+        @Override
+        public Set<String> supportedQueryParameters() {
+            return SUPPORTED_QUERY_PARAMETERS;
+        }
+
     }
 }

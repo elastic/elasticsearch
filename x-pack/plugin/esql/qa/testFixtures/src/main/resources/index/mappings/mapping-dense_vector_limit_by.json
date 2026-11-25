@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "float_vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm"
+    },
+    "label": {
+      "type": "keyword"
+    }
+  }
+}

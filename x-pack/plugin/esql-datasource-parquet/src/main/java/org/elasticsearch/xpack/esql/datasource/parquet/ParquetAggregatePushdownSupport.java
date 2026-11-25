@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -17,7 +18,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import java.util.List;
 
 /**
- * Parquet supports COUNT(*), MIN(column), MAX(column) from row-group statistics.
+ * Parquet supports COUNT(*), MIN(column), MAX(column) from row-group statistics. Virtual columns
+ * (engine-synthesized {@code _file.*}, ES metadata) cannot be answered from file stats and are
+ * always rejected via {@link PushdownPredicates#isVirtualColumn}.
  */
 public class ParquetAggregatePushdownSupport implements AggregatePushdownSupport {
 
@@ -28,14 +31,20 @@ public class ParquetAggregatePushdownSupport implements AggregatePushdownSupport
         }
         for (int i = 0; i < aggregates.size(); i++) {
             Expression agg = aggregates.get(i);
-            if (agg instanceof Count) {
-                continue;
+            if (agg instanceof Count count) {
+                // COUNT(*) / COUNT(<literal>) come from the row count and are always pushable;
+                // COUNT(<attribute>) needs nullCount on the column, which we cannot compute for
+                // virtual fields (no parquet column to read stats from). Real attribute counts
+                // continue to fall through to the existing handling.
+                if (count.field().foldable() == false && PushdownPredicates.isVirtualColumn(count.field())) {
+                    return Pushability.NO;
+                }
             } else if (agg instanceof Min min) {
-                if (min.field() instanceof Attribute == false) {
+                if (min.field() instanceof Attribute == false || PushdownPredicates.isVirtualColumn(min.field())) {
                     return Pushability.NO;
                 }
             } else if (agg instanceof Max max) {
-                if (max.field() instanceof Attribute == false) {
+                if (max.field() instanceof Attribute == false || PushdownPredicates.isVirtualColumn(max.field())) {
                     return Pushability.NO;
                 }
             } else {

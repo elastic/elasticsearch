@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[first_name{f}#0]]
+  \_SemiJoin[[first_name{f}#0],[id_kw{r}#1]]
+    |_EsRelation[employees][avg_worked_seconds{f}#2, birth_date{f}#3, emp_no{f}#4, first_name{f}#0, gender{f}#5, height{f}#6, height.float{f}#7, height.half_float{f}#8, height.scaled_float{f}#9, hire_date{f}#10, is_rehired{f}#11, job_positions{f}#12, languages{f}#13, languages.byte{f}#14, languages.long{f}#15, languages.short{f}#16, last_name{f}#17, salary{f}#18, salary_change{f}#19, salary_change.int{f}#20, salary_change.keyword{f}#21, salary_change.long{f}#22, still_hired{f}#23]
+    \_Project[[id_kw{r}#1]]
+      \_Eval[[$$emp_no$converted_to$keyword{f(CompactMultiTypeEsField)$}#24 AS id_kw#1]]
+        \_EsRelation[employees,employees_incompatible][!avg_worked_seconds, birth_date{f}#25, !emp_no, !first_name, !gender, !height, hire_date{f(CompactMultiTypeEsField)}#26, !is_rehired, !job_positions, !languages, !last_name, !salary, !salary_change, !still_hired, $$emp_no$converted_to$keyword{f(CompactMultiTypeEsField)$}#24]

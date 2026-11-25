@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class AtanhSerializationTests extends AbstractUnaryScalarSerializationTests<Atanh> {
     @Override
     protected Atanh create(Source source, Expression child) {
-        return new Atanh(source, child);
+        return new Atanh(source, child, randomBoolean());
     }
 }

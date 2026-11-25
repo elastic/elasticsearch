@@ -1,0 +1,713 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
+
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.datasources.StatValueComparator;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Evaluates filter predicates against per-split (row-group/stripe) statistics to classify
+ * each split into one of three states: all rows match the filter, no rows match, or the
+ * result is unknown from statistics alone.
+ * <p>
+ * Used by aggregate pushdown to fold COUNT/MIN/MAX from metadata, and by split discovery to
+ * drop splits whose min/max cannot overlap a WHERE (or request-filter) predicate. MATCH and
+ * MISS are exact; AMBIGUOUS keeps the split and the engine still filters rows.
+ * <p>
+ * File-format min/max omit IEEE NaN. A {@code Double} or {@code Float} extrema pair may therefore
+ * hide NaN rows: ordered / {@code ==} / {@code IN} MATCH is withheld (NaN fails those comparisons),
+ * and {@code !=} MISS is withheld (NaN != lit is true). Ordered MISS and {@code !=} MATCH stay valid
+ * unless the extrema are themselves NaN (unusable) or an {@code IN} list contains a NaN literal
+ * ({@code In.process} uses {@code Double.compare}, so a hidden NaN matches {@code IN (NaN)}).
+ * <p>
+ * Supports AND, OR, and NOT logical operators, IS NULL / IS NOT NULL null checks, IN lists,
+ * {@code mv_in_range}, and leaf comparisons (field op literal). Unsupported leaf expressions
+ * (function calls, etc.) conservatively return AMBIGUOUS.
+ * NOT of MATCH yields MISS; NOT of MISS conservatively yields AMBIGUOUS because null rows
+ * still produce UNKNOWN under WHERE semantics.
+ * <p>
+ * NULL handling: a split is only classified as MATCH when the filter column has zero null
+ * values ({@code null_count = 0}), because NULL comparisons evaluate to UNKNOWN and are
+ * dropped by WHERE clauses.
+ */
+public final class SplitFilterClassifier {
+
+    public enum SplitMatch {
+        /** All rows in the split satisfy the filter predicate. */
+        MATCH,
+        /** No rows in the split satisfy the filter predicate. */
+        MISS,
+        /** Cannot determine from statistics alone; data scan required. */
+        AMBIGUOUS
+    }
+
+    private SplitFilterClassifier() {}
+
+    /**
+     * Classifies a split by recursively evaluating the filter expression tree against its statistics.
+     * Supports AND, OR, NOT, and leaf comparisons (field op literal).
+     */
+    public static SplitMatch classifyExpression(Expression filter, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (filter == null || splitStats == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        // Convert mixed date/numeric literals into the column domain before stats compare.
+        return classifyRewritten(PushdownLiteralConversion.rewrite(filter), splitStats, implicitNullsForAbsentColumn);
+    }
+
+    /**
+     * Like {@link #classifyExpression} but assumes {@code filter} was already passed through
+     * {@link PushdownLiteralConversion#rewrite}. Callers that classify the same filter against many
+     * splits (e.g. footer fold) should rewrite once and reuse this.
+     */
+    public static SplitMatch classifyRewritten(Expression filter, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (filter == null || splitStats == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        return classifyRecursive(filter, splitStats, implicitNullsForAbsentColumn);
+    }
+
+    /**
+     * Classifies a split by evaluating AND-connected filter conjuncts against its statistics.
+     * Each conjunct is classified recursively, so nested {@code And}, {@code Or}, and {@code Not}
+     * within a conjunct are handled.
+     * <p>
+     * Conjunction semantics: MISS if any conjunct is MISS (short-circuit), MATCH only if
+     * all conjuncts are MATCH, AMBIGUOUS otherwise.
+     *
+     * @param filterConjuncts AND-separated filter expressions (from {@code splitAnd()})
+     * @param splitStats per-split statistics
+     * @return the classification for this split
+     */
+    public static SplitMatch classifySplit(List<Expression> filterConjuncts, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (filterConjuncts.isEmpty() || splitStats == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        // Rewrite before the size check so size==1 and multi-conjunct paths agree on mixed literals.
+        List<Expression> rewritten = new ArrayList<>(filterConjuncts.size());
+        for (Expression conjunct : filterConjuncts) {
+            rewritten.add(PushdownLiteralConversion.rewrite(conjunct));
+        }
+        if (rewritten.size() == 1) {
+            return classifyRecursive(rewritten.getFirst(), splitStats, implicitNullsForAbsentColumn);
+        }
+        boolean allMatch = true;
+        for (Expression conjunct : rewritten) {
+            SplitMatch result = classifyRecursive(conjunct, splitStats, implicitNullsForAbsentColumn);
+            if (result == SplitMatch.MISS) {
+                return SplitMatch.MISS;
+            }
+            if (result != SplitMatch.MATCH) {
+                allMatch = false;
+            }
+        }
+        return allMatch ? SplitMatch.MATCH : SplitMatch.AMBIGUOUS;
+    }
+
+    private static SplitMatch classifyRecursive(Expression expr, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (expr instanceof And and) {
+            SplitMatch left = classifyRecursive(and.left(), splitStats, implicitNullsForAbsentColumn);
+            if (left == SplitMatch.MISS) {
+                return SplitMatch.MISS;
+            }
+            SplitMatch right = classifyRecursive(and.right(), splitStats, implicitNullsForAbsentColumn);
+            if (right == SplitMatch.MISS) {
+                return SplitMatch.MISS;
+            }
+            if (left == SplitMatch.MATCH && right == SplitMatch.MATCH) {
+                return SplitMatch.MATCH;
+            }
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (expr instanceof Or or) {
+            SplitMatch left = classifyRecursive(or.left(), splitStats, implicitNullsForAbsentColumn);
+            if (left == SplitMatch.MATCH) {
+                return SplitMatch.MATCH;
+            }
+            SplitMatch right = classifyRecursive(or.right(), splitStats, implicitNullsForAbsentColumn);
+            if (right == SplitMatch.MATCH) {
+                return SplitMatch.MATCH;
+            }
+            if (left == SplitMatch.MISS && right == SplitMatch.MISS) {
+                return SplitMatch.MISS;
+            }
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (expr instanceof Not not) {
+            SplitMatch child = classifyRecursive(not.field(), splitStats, implicitNullsForAbsentColumn);
+            return switch (child) {
+                case MATCH -> SplitMatch.MISS;
+                case MISS -> SplitMatch.AMBIGUOUS;
+                case AMBIGUOUS -> SplitMatch.AMBIGUOUS;
+            };
+        }
+        if (expr instanceof IsNull isNull) {
+            return classifyIsNull(isNull, splitStats, implicitNullsForAbsentColumn);
+        }
+        if (expr instanceof IsNotNull isNotNull) {
+            return classifyIsNotNull(isNotNull, splitStats, implicitNullsForAbsentColumn);
+        }
+        if (expr instanceof In in) {
+            return classifyIn(in, splitStats);
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            return classifyMvInRange(mvInRange, splitStats, implicitNullsForAbsentColumn);
+        }
+        return classifyConjunct(expr, splitStats, implicitNullsForAbsentColumn);
+    }
+
+    private static SplitMatch classifyConjunct(Expression expr, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (expr instanceof EsqlBinaryComparison bc && disagreeingPushdownLiteral(bc.left(), bc.right())) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        String columnName;
+        Object literalValue;
+        boolean reversed;
+
+        if (expr instanceof GreaterThan gt) {
+            columnName = extractColumnName(gt.left());
+            literalValue = extractLiteralValue(gt.right());
+            reversed = false;
+            if (columnName == null || literalValue == null) {
+                columnName = extractColumnName(gt.right());
+                literalValue = extractLiteralValue(gt.left());
+                reversed = true;
+            }
+            if (columnName == null || literalValue == null) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            return reversed
+                ? classifyLessThan(columnName, literalValue, splitStats)
+                : classifyGreaterThan(columnName, literalValue, splitStats);
+        } else if (expr instanceof GreaterThanOrEqual gte) {
+            columnName = extractColumnName(gte.left());
+            literalValue = extractLiteralValue(gte.right());
+            reversed = false;
+            if (columnName == null || literalValue == null) {
+                columnName = extractColumnName(gte.right());
+                literalValue = extractLiteralValue(gte.left());
+                reversed = true;
+            }
+            if (columnName == null || literalValue == null) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            return reversed
+                ? classifyLessThanOrEqual(columnName, literalValue, splitStats)
+                : classifyGreaterThanOrEqual(columnName, literalValue, splitStats);
+        } else if (expr instanceof LessThan lt) {
+            columnName = extractColumnName(lt.left());
+            literalValue = extractLiteralValue(lt.right());
+            reversed = false;
+            if (columnName == null || literalValue == null) {
+                columnName = extractColumnName(lt.right());
+                literalValue = extractLiteralValue(lt.left());
+                reversed = true;
+            }
+            if (columnName == null || literalValue == null) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            return reversed
+                ? classifyGreaterThan(columnName, literalValue, splitStats)
+                : classifyLessThan(columnName, literalValue, splitStats);
+        } else if (expr instanceof LessThanOrEqual lte) {
+            columnName = extractColumnName(lte.left());
+            literalValue = extractLiteralValue(lte.right());
+            reversed = false;
+            if (columnName == null || literalValue == null) {
+                columnName = extractColumnName(lte.right());
+                literalValue = extractLiteralValue(lte.left());
+                reversed = true;
+            }
+            if (columnName == null || literalValue == null) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            return reversed
+                ? classifyGreaterThanOrEqual(columnName, literalValue, splitStats)
+                : classifyLessThanOrEqual(columnName, literalValue, splitStats);
+        } else if (expr instanceof Equals eq) {
+            columnName = extractColumnName(eq.left());
+            literalValue = extractLiteralValue(eq.right());
+            if (columnName == null || literalValue == null) {
+                columnName = extractColumnName(eq.right());
+                literalValue = extractLiteralValue(eq.left());
+            }
+            if (columnName == null || literalValue == null) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            return classifyEquals(columnName, literalValue, splitStats);
+        } else if (expr instanceof NotEquals neq) {
+            columnName = extractColumnName(neq.left());
+            literalValue = extractLiteralValue(neq.right());
+            if (columnName == null || literalValue == null) {
+                columnName = extractColumnName(neq.right());
+                literalValue = extractLiteralValue(neq.left());
+            }
+            if (columnName == null || literalValue == null) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            return classifyNotEquals(columnName, literalValue, splitStats);
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col IS NULL}: MATCH when null_count == row_count, MISS when null_count == 0.
+     * <p>
+     * The null-count read below bakes in the {@link SplitStats} "implicit nulls" contract — an absent
+     * column reads as {@code null_count == rowCount} (all-null). That is true for footer formats, but for
+     * partially-harvested TEXT stats an absent column means "not harvested": classifying it as all-null
+     * would MATCH {@code IS NULL} (serving a count of N where the truth is 0) or MISS {@code IS NOT NULL}
+     * (serving 0 where the truth is N). When the format does not apply implicit nulls and the column was
+     * not observed, the classification is unknowable from stats — AMBIGUOUS, so the engine re-scans.
+     * This delegates to {@link ExternalSourceAggregatePushdown#columnStatUnservable} — the single owner of the
+     * "unharvested text column is unservable" rule, shared with the aggregate side.
+     */
+    private static SplitMatch classifyIsNull(IsNull isNull, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        String columnName = extractColumnName(isNull.field());
+        if (columnName == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (ExternalSourceAggregatePushdown.columnStatUnservable(splitStats, columnName, implicitNullsForAbsentColumn)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        long nullCount = splitStats.columnNullCount(columnName);
+        if (nullCount < 0) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (nullCount == 0) {
+            return SplitMatch.MISS;
+        }
+        if (nullCount == splitStats.rowCount()) {
+            return SplitMatch.MATCH;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col IS NOT NULL}: MATCH when null_count == 0, MISS when null_count == row_count.
+     * Same unharvested-column guard as {@link #classifyIsNull}: for a format without implicit nulls, an
+     * unobserved column's null count is unknowable — AMBIGUOUS, never a MISS that would serve COUNT(*) = 0.
+     */
+    private static SplitMatch classifyIsNotNull(IsNotNull isNotNull, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        String columnName = extractColumnName(isNotNull.field());
+        if (columnName == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (ExternalSourceAggregatePushdown.columnStatUnservable(splitStats, columnName, implicitNullsForAbsentColumn)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        long nullCount = splitStats.columnNullCount(columnName);
+        if (nullCount < 0) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (nullCount == 0) {
+            return SplitMatch.MATCH;
+        }
+        if (nullCount == splitStats.rowCount()) {
+            return SplitMatch.MISS;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col IN (lit1, lit2, ...)}: MISS when all literals fall outside [min, max],
+     * MATCH when min == max and that value equals one of the literals and null_count == 0.
+     */
+    private static SplitMatch classifyIn(In in, SplitStats splitStats) {
+        if (in.value() instanceof NamedExpression ne) {
+            for (Expression item : in.list()) {
+                if (item.foldable() && PushdownPredicates.isAgreeingPushdownLiteral(ne.dataType(), item) == false) {
+                    return SplitMatch.AMBIGUOUS;
+                }
+            }
+        }
+        String columnName = extractColumnName(in.value());
+        if (columnName == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        List<Object> literalValues = in.list().stream().map(SplitFilterClassifier::extractLiteralValue).toList();
+        if (literalValues.stream().anyMatch(v -> v == null)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (unusableExtrema(min, max)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        // IN tells opposite-sign zeros apart; compare() equates them for ==. Leave the pair unknown.
+        for (Object lit : literalValues) {
+            if (StatValueComparator.zerosOfOppositeSign(lit, min) || StatValueComparator.zerosOfOppositeSign(lit, max)) {
+                return SplitMatch.AMBIGUOUS;
+            }
+        }
+
+        boolean anyInRange = false;
+        for (Object lit : literalValues) {
+            int cmpMin = compareValues(lit, min);
+            int cmpMax = compareValues(lit, max);
+            if (cmpMin == Integer.MIN_VALUE || cmpMax == Integer.MIN_VALUE) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            if (cmpMin >= 0 && cmpMax <= 0) {
+                anyInRange = true;
+            }
+        }
+
+        if (anyInRange == false) {
+            // In.process uses Double.compare, so NaN IN (NaN) is true. A hidden NaN row matches.
+            if (statsMayHideNaN(min, max) && listContainsNaN(literalValues)) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            return SplitMatch.MISS;
+        }
+
+        int minMaxCmp = compareValues(min, max);
+        if (minMaxCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (minMaxCmp == 0 && statsMayHideNaN(min, max) == false) {
+            for (Object lit : literalValues) {
+                if (compareValues(min, lit) == 0 && matchableColumn(columnName, splitStats)) {
+                    return SplitMatch.MATCH;
+                }
+            }
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code mv_in_range(col, lower, upper)} is two-valued: a null/empty field is {@code false}.
+     * MISS when every stored value is outside {@code [lower, upper]} (respecting inclusivity), or
+     * the column is all-null. MATCH when every row is single-valued and in range.
+     */
+    private static SplitMatch classifyMvInRange(MvInRange mvInRange, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (mvInRange.field() instanceof NamedExpression ne) {
+            if (mvInRange.lower().foldable() && PushdownPredicates.isAgreeingPushdownLiteral(ne.dataType(), mvInRange.lower()) == false) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            if (mvInRange.upper().foldable() && PushdownPredicates.isAgreeingPushdownLiteral(ne.dataType(), mvInRange.upper()) == false) {
+                return SplitMatch.AMBIGUOUS;
+            }
+        }
+        String columnName = extractColumnName(mvInRange.field());
+        if (columnName == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        Object lower = extractLiteralValue(mvInRange.lower());
+        Object upper = extractLiteralValue(mvInRange.upper());
+        if (lower == null || upper == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (ExternalSourceAggregatePushdown.columnStatUnservable(splitStats, columnName, implicitNullsForAbsentColumn)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        long nullCount = splitStats.columnNullCount(columnName);
+        if (nullCount == splitStats.rowCount()) {
+            return SplitMatch.MISS;
+        }
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (unusableExtrema(min, max)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int maxVsLower = compareValues(max, lower);
+        int minVsUpper = compareValues(min, upper);
+        if (maxVsLower == Integer.MIN_VALUE || minVsUpper == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        boolean includeLower = mvInRange.includeLower();
+        boolean includeUpper = mvInRange.includeUpper();
+        boolean disjointBelow = includeLower ? maxVsLower < 0 : maxVsLower <= 0;
+        boolean disjointAbove = includeUpper ? minVsUpper > 0 : minVsUpper >= 0;
+        if (disjointBelow || disjointAbove) {
+            return SplitMatch.MISS;
+        }
+        int minVsLower = compareValues(min, lower);
+        int maxVsUpper = compareValues(max, upper);
+        if (minVsLower == Integer.MIN_VALUE || maxVsUpper == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        boolean minInside = includeLower ? minVsLower >= 0 : minVsLower > 0;
+        boolean maxInside = includeUpper ? maxVsUpper <= 0 : maxVsUpper < 0;
+        if (minInside && maxInside && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
+            return SplitMatch.MATCH;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col > lit}: MATCH when min &gt; lit (and no nulls), MISS when max &lt;= lit
+     */
+    private static SplitMatch classifyGreaterThan(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (unusableExtrema(min, max)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int maxCmp = compareValues(max, literalValue);
+        if (maxCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (maxCmp <= 0) {
+            return SplitMatch.MISS;
+        }
+        int minCmp = compareValues(min, literalValue);
+        if (minCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (minCmp > 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
+            return SplitMatch.MATCH;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col >= lit}: MATCH when min &gt;= lit (and no nulls), MISS when max &lt; lit
+     */
+    private static SplitMatch classifyGreaterThanOrEqual(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (unusableExtrema(min, max)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int maxCmp = compareValues(max, literalValue);
+        if (maxCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (maxCmp < 0) {
+            return SplitMatch.MISS;
+        }
+        int minCmp = compareValues(min, literalValue);
+        if (minCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (minCmp >= 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
+            return SplitMatch.MATCH;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col < lit}: MATCH when max &lt; lit (and no nulls), MISS when min &gt;= lit
+     */
+    private static SplitMatch classifyLessThan(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (unusableExtrema(min, max)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int minCmp = compareValues(min, literalValue);
+        if (minCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (minCmp >= 0) {
+            return SplitMatch.MISS;
+        }
+        int maxCmp = compareValues(max, literalValue);
+        if (maxCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (maxCmp < 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
+            return SplitMatch.MATCH;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col <= lit}: MATCH when max &lt;= lit (and no nulls), MISS when min &gt; lit
+     */
+    private static SplitMatch classifyLessThanOrEqual(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (unusableExtrema(min, max)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int minCmp = compareValues(min, literalValue);
+        if (minCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (minCmp > 0) {
+            return SplitMatch.MISS;
+        }
+        int maxCmp = compareValues(max, literalValue);
+        if (maxCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (maxCmp <= 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
+            return SplitMatch.MATCH;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col = lit}: MATCH when min == max == lit (and no nulls), MISS when lit outside [min, max]
+     */
+    private static SplitMatch classifyEquals(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (unusableExtrema(min, max)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int minCmp = compareValues(literalValue, min);
+        int maxCmp = compareValues(literalValue, max);
+        if (minCmp == Integer.MIN_VALUE || maxCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (minCmp < 0 || maxCmp > 0) {
+            return SplitMatch.MISS;
+        }
+        if (minCmp == 0 && maxCmp == 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
+            return SplitMatch.MATCH;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code col != lit}: MATCH when min == max and min != lit (and no nulls), MISS when min == max == lit
+     */
+    private static SplitMatch classifyNotEquals(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (unusableExtrema(min, max)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int minCmp = compareValues(literalValue, min);
+        int maxCmp = compareValues(literalValue, max);
+        if (minCmp == Integer.MIN_VALUE || maxCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int minMaxCmp = compareValues(min, max);
+        if (minMaxCmp == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (minMaxCmp == 0 && minCmp == 0 && statsMayHideNaN(min, max) == false) {
+            return SplitMatch.MISS;
+        }
+        if (minMaxCmp == 0 && minCmp != 0 && matchableColumn(columnName, splitStats)) {
+            return SplitMatch.MATCH;
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * Parquet/ORC min/max omit NaN. Any {@link Double} or {@link Float} extrema pair may therefore
+     * hide NaN rows, even when {@code min == max} looks constant. Not folded into
+     * {@link #matchableColumn}: {@code !=} MATCH stays sound with a hidden NaN (NaN != lit is true).
+     */
+    private static boolean statsMayHideNaN(Object min, Object max) {
+        return isFloatingStat(min) || isFloatingStat(max);
+    }
+
+    /**
+     * Missing extrema, or extrema that are themselves NaN (text harvest can record {@code [NaN, NaN]}
+     * for a split that also holds finite values). {@code Double.compare} orders NaN as largest,
+     * which yields false MATCH/MISS.
+     */
+    private static boolean unusableExtrema(Object min, Object max) {
+        return min == null || max == null || isNaNStat(min) || isNaNStat(max);
+    }
+
+    private static boolean listContainsNaN(List<Object> values) {
+        for (Object v : values) {
+            if (isNaNStat(v)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isFloatingStat(Object value) {
+        return value instanceof Double || value instanceof Float;
+    }
+
+    private static boolean isNaNStat(Object value) {
+        return (value instanceof Double d && d.isNaN()) || (value instanceof Float f && f.isNaN());
+    }
+
+    /**
+     * A comparison/IN MATCH may only be served from min/max stats when EVERY row contributes exactly one value
+     * the bound describes: no nulls AND single-valued. A null row's comparison is NULL (not true), and a
+     * MULTIVALUED row's comparison is ALSO NULL — e.g. {@code [5,5] == 5} yields NULL, so the row does NOT match,
+     * yet {@code min == max == 5} would say it does; serving the count would over-count. With zero nulls,
+     * {@code value_count == rowCount} proves exactly one value per row. An unknown value_count ({@code -1}, e.g.
+     * a scope that did not harvest it) cannot prove single-valuedness, so the split is not matchable and the
+     * classifier stays AMBIGUOUS — the engine re-scans rather than serving a wrong count.
+     */
+    private static boolean matchableColumn(String columnName, SplitStats splitStats) {
+        if (splitStats.columnNullCount(columnName) != 0) {
+            return false;
+        }
+        long valueCount = splitStats.columnValueCount(columnName);
+        return valueCount >= 0 && valueCount == splitStats.rowCount();
+    }
+
+    /**
+     * True when one side is a named field and the other is a foldable literal whose date or numeric
+     * type disagrees with the field. Extractors drop {@link Expression#dataType()}, so this check
+     * must run on the expressions themselves.
+     */
+    private static boolean disagreeingPushdownLiteral(Expression left, Expression right) {
+        if (left instanceof NamedExpression && right.foldable()) {
+            return PushdownPredicates.isAgreeingPushdownLiteral(left.dataType(), right) == false;
+        }
+        if (right instanceof NamedExpression && left.foldable()) {
+            return PushdownPredicates.isAgreeingPushdownLiteral(right.dataType(), left) == false;
+        }
+        return false;
+    }
+
+    private static String extractColumnName(Expression expr) {
+        if (expr instanceof Attribute attr) {
+            return attr.name();
+        }
+        return null;
+    }
+
+    private static Object extractLiteralValue(Expression expr) {
+        if (expr instanceof Literal lit) {
+            return lit.value();
+        }
+        if (expr.foldable()) {
+            return expr.fold(org.elasticsearch.xpack.esql.core.expression.FoldContext.small());
+        }
+        return null;
+    }
+
+    /**
+     * Compares two values, returning negative, zero, or positive as with {@link Comparable#compareTo}.
+     * Returns {@link StatValueComparator#INCOMPARABLE} ({@link Integer#MIN_VALUE}) when the values are
+     * not comparable (type mismatch or null). Delegates to the shared {@link StatValueComparator} so all
+     * stats-driven planner comparisons normalize boxed numeric types identically.
+     */
+    static int compareValues(Object a, Object b) {
+        return StatValueComparator.compare(a, b);
+    }
+}

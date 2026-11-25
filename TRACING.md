@@ -10,12 +10,8 @@ an abstraction over the OpenTelemetry API. All locations in the code that
 perform instrumentation and tracing must use these abstractions.
 
 Separately, there is the [apm](./modules/apm) module, which works with the
-OpenTelemetry API directly to record trace data.  Underneath the OTel API, we
-use Elastic's [APM agent for Java][agent], which attaches at runtime to the
-Elasticsearch JVM and removes the need for Elasticsearch to hard-code the use of
-an OTel implementation. Note that while it is possible to programmatically start
-the APM agent, the Security Manager permissions required make this essentially
-impossible.
+OpenTelemetry API directly to record trace data, and exports it over OTLP using
+the OpenTelemetry SDK.
 
 ## How is tracing configured?
 
@@ -24,7 +20,7 @@ In your `elasticsearch.yml` add the following configuration:
 
 ```
 telemetry.tracing.enabled: true
-telemetry.agent.server_url: https://<your-apm-server>:443
+telemetry.export.endpoint: https://<your-apm-server>:443
 ```
 
 When using a secret token to authenticate with the APM server, you must add it to the Elasticsearch keystore under `telemetry.secret_token`. For example, execute:
@@ -33,39 +29,22 @@ When using a secret token to authenticate with the APM server, you must add it t
 
 then enter the token when prompted. If you are using API keys, change the keystore key name to `telemetry.api_key`.
 
-All APM settings live under `telemetry`. Tracing related settings go under `telemetry.tracing` and settings
-related to the Java agent go under `telemetry.agent`. Anything you set under there will be propagated to
-the agent.
+All APM settings live under `telemetry`. Tracing related settings go under `telemetry.tracing` and export
+related settings go under `telemetry.export`. See [OtelSdkSettings][settings] and [APMAgentSettings][agent-settings]
+for the full list.
 
-For agent settings that can be changed dynamically, you can use the cluster
-settings REST API. For example, to change the sampling rate:
+The `telemetry.agent.*` settings configured the removed Elastic APM Java agent and are deprecated. The
+deprecation info API lists their replacements.
+
+For settings that can be changed dynamically, you can use the cluster
+settings REST API. For example, to change the maximum span depth:
 
     curl -XPUT \
       -H "Content-type: application/json" \
       -u "$USERNAME:$PASSWORD" \
-      -d '{ "persistent": { "telemetry.agent.transaction_sample_rate": "0.75" } }' \
+      -d '{ "persistent": { "telemetry.tracing.max_depth": 2 } }' \
       https://localhost:9200/_cluster/settings
 
-
-### More details about configuration
-
-For context, the APM agent pulls configuration from [multiple
-sources][agent-config], with a hierarchy that means, for example, that options
-set in the config file cannot be overridden via system properties.
-
-Now, in order to send tracing data to the APM server, ES needs to be configured with
-either a `secret_key` or an `api_key`. We could configure these in the agent via
-system properties, but then their values would be available to any Java code in
-Elasticsearch that can read system properties.
-
-Instead, when Elasticsearch bootstraps itself, it compiles all APM settings
-together, including any `secret_key` or `api_key` values from the ES keystore,
-and writes out a temporary APM config file containing all static configuration
-(i.e. values that cannot change after the agent starts).  This file is deleted
-as soon as possible after ES starts up. Settings that are not sensitive and can
-be changed dynamically are configured via system properties. Calls to the ES
-settings REST API are translated into system property writes, which the agent
-later picks up and applies.
 
 ## Where is tracing data sent?
 
@@ -131,15 +110,7 @@ Usually you won't need to.
 
 That said, sometimes you may want more details to be captured about a particular
 section of code. You can think of "scope" as representing the currently active
-tracing context. Using scope allows the APM agent to do the following:
-
-* Enables automatic correlation between the "active span" and logging, where
-  logs have also been captured.
-* Enables capturing any exceptions thrown when the span is active, and linking
-  those exceptions to the span
-* Allows the sampling profiler to be used as it allows samples to be linked to
-  the active span (if any), so the agent can automatically get extra spans
-  without manual instrumentation.
+tracing context.
 
 However, a scope must be closed in the same thread in which it was opened, which
 cannot be guaranteed when using tasks, making scope largely useless to
@@ -159,5 +130,5 @@ explicitly opening a scope via the `Tracer`.
 [thread-context]: ./server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java
 [w3c]: https://www.w3.org/TR/trace-context/
 [tracing]: ./server/src/main/java/org/elasticsearch/telemetry
-[agent-config]: https://www.elastic.co/guide/en/apm/agent/java/master/configuration.html
-[agent]: https://www.elastic.co/guide/en/apm/agent/java/current/index.html
+[settings]: ./modules/apm/src/main/java/org/elasticsearch/telemetry/apm/internal/export/otelsdk/OtelSdkSettings.java
+[agent-settings]: ./modules/apm/src/main/java/org/elasticsearch/telemetry/apm/internal/APMAgentSettings.java

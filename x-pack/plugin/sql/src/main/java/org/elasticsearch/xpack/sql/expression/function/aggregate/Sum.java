@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements EnclosedAgg {
+public class Sum extends NumericAggregate implements EnclosedAgg, SingleValueIdentityAgg {
 
     public Sum(Source source, Expression field) {
         super(source, field);

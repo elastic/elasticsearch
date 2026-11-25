@@ -1,0 +1,2 @@
+FROM sample_data, (FROM sample_data | WHERE message:"error")
+| WHERE match(client_ip,"127.0.0.1")

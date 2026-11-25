@@ -110,10 +110,7 @@ public class OperationRouting {
             );
             if (iterator != null) {
                 res.add(
-                    SearchShardRouting.fromShardIterator(
-                        ShardIterator.allSearchableShards(iterator),
-                        targetShard.reshardSplitShardCountSummary()
-                    )
+                    SearchShardRouting.fromShardIterator(ShardIterator.allSearchableShards(iterator), targetShard.splitShardCountSummary())
                 );
             }
         }
@@ -134,7 +131,7 @@ public class OperationRouting {
         return shard.activeInitializingShardsRandomIt();
     }
 
-    private record SearchTargetShard(IndexShardRoutingTable shardRoutingTable, SplitShardCountSummary reshardSplitShardCountSummary) {}
+    private record SearchTargetShard(IndexShardRoutingTable shardRoutingTable, SplitShardCountSummary splitShardCountSummary) {}
 
     private static Set<SearchTargetShard> computeTargetedShards(
         ProjectState projectState,

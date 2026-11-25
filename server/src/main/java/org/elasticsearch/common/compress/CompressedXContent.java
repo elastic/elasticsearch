@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,7 +39,6 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.Map;
-import java.util.zip.CRC32;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
@@ -47,7 +48,12 @@ import java.util.zip.Inflater;
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
  */
-public final class CompressedXContent implements Writeable {
+public final class CompressedXContent implements Writeable, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CompressedXContent.class);
+
+    /** Base64 encoding of a 256-bit SHA-256 digest is always 44 characters. */
+    private static final long SHA256_RAM_BYTES_USED = RamUsageEstimator.sizeOf(Base64.getEncoder().encodeToString(new byte[32]));
 
     private static final ThreadLocal<InflaterAndBuffer> inflater = ThreadLocal.withInitial(InflaterAndBuffer::new);
 
@@ -74,6 +80,8 @@ public final class CompressedXContent implements Writeable {
             do {
                 if (inflater.inflate(buffer) > 0) {
                     messageDigest.update(buffer.flip());
+                } else if (inflater.finished() == false && inflater.needsInput()) {
+                    throw new DataFormatException("Unexpected end of ZLIB input stream");
                 }
                 buffer.clear();
             } while (inflater.finished() == false);
@@ -200,6 +208,11 @@ public final class CompressedXContent implements Writeable {
         return sha256;
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(bytes) + SHA256_RAM_BYTES_USED;
+    }
+
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         String sha256 = in.readString();
         byte[] compressedData = in.readByteArray();
@@ -245,25 +258,6 @@ public final class CompressedXContent implements Writeable {
     @Override
     public String toString() {
         return string();
-    }
-
-    private static int crc32FromCompressed(byte[] compressed) {
-        CRC32 crc32 = new CRC32();
-        try (InflaterAndBuffer inflaterAndBuffer = inflater.get()) {
-            final Inflater inflater = inflaterAndBuffer.inflater;
-            final ByteBuffer buffer = inflaterAndBuffer.buffer;
-            assert assertBufferIsCleared(buffer);
-            setInflaterInput(compressed, inflater);
-            do {
-                if (inflater.inflate(buffer) > 0) {
-                    crc32.update(buffer.flip());
-                }
-                buffer.clear();
-            } while (inflater.finished() == false);
-            return (int) crc32.getValue();
-        } catch (DataFormatException e) {
-            throw new ElasticsearchException(e);
-        }
     }
 
     /**

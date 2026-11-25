@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Set;
 
 import javax.annotation.processing.Completion;
-import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -52,7 +51,7 @@ public class AggregatorProcessor implements Processor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_21;
+        return SourceVersion.latestSupported();
     }
 
     @Override
@@ -105,17 +104,21 @@ public class AggregatorProcessor implements Processor {
                     intermediateState = aggClass.getAnnotation(Aggregator.class).value();
                 }
                 boolean processNulls = aggClass.getAnnotation(GroupingAggregator.class).processNulls();
+                boolean supportsPartitioning = aggClass.getAnnotation(GroupingAggregator.class).supportsPartitioning();
                 groupingAggregatorImplementer = new GroupingAggregatorImplementer(
                     env.getElementUtils(),
                     env.getTypeUtils(),
                     aggClass,
                     intermediateState,
                     warnExceptionsTypes,
-                    processNulls
+                    processNulls,
+                    supportsPartitioning
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }
             if (implementer != null || groupingAggregatorImplementer != null) {
+                boolean hasWarnings = (implementer != null && implementer.hasWarningsObject())
+                    || (groupingAggregatorImplementer != null && groupingAggregatorImplementer.hasWarningsObject());
                 write(
                     aggClass,
                     "aggregator function supplier",
@@ -124,7 +127,7 @@ public class AggregatorProcessor implements Processor {
                         aggClass,
                         implementer,
                         groupingAggregatorImplementer,
-                        warnExceptionsTypes.isEmpty() == false
+                        hasWarnings
                     ).sourceFile(),
                     env
                 );
@@ -134,7 +137,7 @@ public class AggregatorProcessor implements Processor {
     }
 
     /**
-     * Just like {@link JavaFile#writeTo(Filer)} but on windows it replaces {@code \n} with {@code \r\n}.
+     * Writes the generated file with {@code \n} line endings on every platform.
      */
     public static void write(Object origination, String what, JavaFile file, ProcessingEnvironment env) {
         try {
@@ -142,11 +145,7 @@ public class AggregatorProcessor implements Processor {
             JavaFileObject filerSourceFile = env.getFiler()
                 .createSourceFile(fileName, file.typeSpec.originatingElements.toArray(Element[]::new));
             try (Writer w = filerSourceFile.openWriter()) {
-                if (System.getProperty("line.separator").equals("\n")) {
-                    file.writeTo(w);
-                } else {
-                    w.write(file.toString().replace("\n", System.getProperty("line.separator")));
-                }
+                file.writeTo(w);
             }
         } catch (IOException e) {
             env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating " + what + " for " + origination);

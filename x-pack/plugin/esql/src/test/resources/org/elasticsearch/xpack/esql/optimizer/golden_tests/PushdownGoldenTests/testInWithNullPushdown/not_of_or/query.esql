@@ -1,0 +1,3 @@
+    FROM employees
+    | KEEP emp_no, languages
+    | WHERE NOT (emp_no IN (10001, null) OR languages == 2)

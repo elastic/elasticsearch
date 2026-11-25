@@ -260,7 +260,7 @@ setup:
 "Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn":
   - requires:
       reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, close_to]
       capabilities:
         - method: GET
           path: /_search
@@ -308,9 +308,9 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $knn_score0 }
-  - match: { hits.hits.1._score: $knn_score1 }
-  - match: { hits.hits.2._score: $knn_score2 }
+  - close_to: { hits.hits.0._score: { value: $knn_score0, error: 0.000001 }}
+  - close_to: { hits.hits.1._score: { value: $knn_score1, error: 0.000001 }}
+  - close_to: { hits.hits.2._score: { value: $knn_score2, error: 0.000001 }}
 ---
 "Test bad parameters":
   - do:

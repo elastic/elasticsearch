@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ public class DeleteSearchApplicationAction {
 
     private DeleteSearchApplicationAction() {/* no instances */}
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject {
+    public static class Request extends UntypedActionRequest implements ToXContentObject {
         private final String name;
 
         public static final ParseField NAME_FIELD = new ParseField("name");

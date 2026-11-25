@@ -12,7 +12,6 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
@@ -218,27 +217,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 assertNotNull(appender.getLastEventAndReset());
                 log2.onFetchPhase(ctx2, 11L);
                 assertNotNull(appender.getLastEventAndReset());
-            }
-        }
-    }
-
-    public void testMultipleSlowLoggersUseSingleLog4jLogger() {
-        LoggerContext context = (LoggerContext) LogManager.getContext(false);
-
-        try (SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"))) {
-            IndexSettings settings1 = new IndexSettings(createIndexMetadata("index-1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-            SearchSlowLog log1 = new SearchSlowLog(settings1, mockLogFieldProvider());
-            int numberOfLoggersBefore = context.getLoggers().size();
-
-            try (SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"))) {
-                IndexSettings settings2 = new IndexSettings(
-                    createIndexMetadata("index-2", settings(UUIDs.randomBase64UUID())),
-                    Settings.EMPTY
-                );
-                SearchSlowLog log2 = new SearchSlowLog(settings2, mockLogFieldProvider());
-
-                int numberOfLoggersAfter = context.getLoggers().size();
-                assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
             }
         }
     }

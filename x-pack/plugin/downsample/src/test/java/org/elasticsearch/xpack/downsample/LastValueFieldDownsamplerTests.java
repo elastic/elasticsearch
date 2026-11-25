@@ -39,7 +39,9 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "bbb", "ccc" });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo("aaa"));
+        assertThat(lastValueFieldProducer.isDone(), equalTo(true));
         lastValueFieldProducer.reset();
+        assertThat(lastValueFieldProducer.isDone(), equalTo(false));
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
     }
 
@@ -50,7 +52,9 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         var values = createValuesInstance(docIdBuffer, new Double[] { 10.20D, 17.30D, 12.60D });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10.20D));
+        assertThat(lastValueFieldProducer.isDone(), equalTo(true));
         lastValueFieldProducer.reset();
+        assertThat(lastValueFieldProducer.isDone(), equalTo(false));
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
     }
 
@@ -61,7 +65,9 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         var values = createValuesInstance(docIdBuffer, new Integer[] { 10, 17, 12 });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10));
+        assertThat(lastValueFieldProducer.isDone(), equalTo(true));
         lastValueFieldProducer.reset();
+        assertThat(lastValueFieldProducer.isDone(), equalTo(false));
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
     }
 
@@ -72,7 +78,9 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         var values = createValuesInstance(docIdBuffer, new Long[] { 10L, 17L, 12L });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10L));
+        assertThat(lastValueFieldProducer.isDone(), equalTo(true));
         lastValueFieldProducer.reset();
+        assertThat(lastValueFieldProducer.isDone(), equalTo(false));
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
     }
 
@@ -83,7 +91,9 @@ public class LastValueFieldDownsamplerTests extends AggregatorTestCase {
         var values = createValuesInstance(docIdBuffer, new Boolean[] { true, false, false });
         lastValueFieldProducer.collect(values, docIdBuffer);
         assertThat(lastValueFieldProducer.lastValue(), equalTo(true));
+        assertThat(lastValueFieldProducer.isDone(), equalTo(true));
         lastValueFieldProducer.reset();
+        assertThat(lastValueFieldProducer.isDone(), equalTo(false));
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
     }
 

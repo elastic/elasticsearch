@@ -85,7 +85,7 @@ public class ExponentialHistogramPercentilesAggregatorTests extends ExponentialH
 
     public void testRandomHistograms() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(1, 100));
-        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), percentiles -> {
             assertThat(AggregationInspectionHelper.hasValue(percentiles), equalTo(anyNonEmpty));
@@ -103,7 +103,7 @@ public class ExponentialHistogramPercentilesAggregatorTests extends ExponentialH
             .map(Map.Entry::getKey)
             .toList();
 
-        boolean anyMatchingNonEmpty = filteredHistograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyMatchingNonEmpty = filteredHistograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         testCase(
             new TermQuery(new Term("match", "yes")),
@@ -124,7 +124,7 @@ public class ExponentialHistogramPercentilesAggregatorTests extends ExponentialH
 
     public void testCustomPercentiles() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(10, 50));
-        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.isEmpty() == false);
 
         double[] customPercents = new double[] { 1, 10, 25, 50, 75, 90, 99 };
         testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), percentiles -> {

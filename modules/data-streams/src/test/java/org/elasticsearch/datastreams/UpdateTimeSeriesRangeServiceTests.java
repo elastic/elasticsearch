@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,12 +46,20 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createIndexMetadata;
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DEFAULT;
+import static org.elasticsearch.datastreams.DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL_DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
@@ -73,12 +82,17 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private UpdateTimeSeriesRangeService instance;
+    private MasterServiceTaskQueue<?> taskQueue;
 
     @Before
     public void createInstance() {
         ClusterService mockClusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL));
         when(mockClusterService.getClusterSettings()).thenReturn(clusterSettings);
+        // The task queue is mocked because executing it requires a real master service; the executor itself is covered by the
+        // updateTimeSeriesTemporalRange tests above.
+        taskQueue = mock(MasterServiceTaskQueue.class);
+        doReturn(taskQueue).when(mockClusterService).createTaskQueue(anyString(), any(), any());
         threadPool = new TestThreadPool(getTestName());
         instance = new UpdateTimeSeriesRangeService(Settings.EMPTY, threadPool, mockClusterService);
     }
@@ -124,7 +138,11 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(getEndTime(project, dataStreamName, 1), not(equalTo(previousEndTime2)));
         assertThat(
             getEndTime(project, dataStreamName, 1),
-            equalTo(now.plus(30, ChronoUnit.MINUTES).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+            equalTo(
+                now.plus(LOOK_AHEAD_TIME_DEFAULT, ChronoUnit.MINUTES)
+                    .plus(TIME_SERIES_POLL_INTERVAL_DEFAULT, ChronoUnit.MINUTES)
+                    .truncatedTo(ChronoUnit.SECONDS)
+            )
         );
     }
 
@@ -209,21 +227,22 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         String dataStreamName3 = "logs-app3";
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 
-        Instant start = now.minus(90, ChronoUnit.MINUTES);
+        Instant start = now.minus(3 * LOOK_AHEAD_TIME_DEFAULT, ChronoUnit.MINUTES);
         final var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder mbBuilder = ProjectMetadata.builder(projectId);
         for (String dataStreamName : List.of(dataStreamName1, dataStreamName2, dataStreamName3)) {
-            Instant end = start.plus(30, ChronoUnit.MINUTES);
+            Instant end = start.plus(LOOK_AHEAD_TIME_DEFAULT, ChronoUnit.MINUTES);
             DataStreamTestHelper.getClusterStateWithDataStream(mbBuilder, dataStreamName, List.of(new Tuple<>(start, end)));
             start = end;
         }
 
-        now = now.minus(45, ChronoUnit.MINUTES);
+        now = now.minus(LOOK_AHEAD_TIME_DEFAULT + (LOOK_AHEAD_TIME_DEFAULT / 2), ChronoUnit.MINUTES);
         ClusterState before = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(mbBuilder).build();
         ClusterState result = instance.updateTimeSeriesTemporalRange(before, now);
         assertThat(result, not(sameInstance(before)));
         final var project = result.getMetadata().getProject(projectId);
-        final var expectedEndTime = now.plus(35, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+        final var expectedEndTime = now.plus(LOOK_AHEAD_TIME_DEFAULT + TIME_SERIES_POLL_INTERVAL_DEFAULT, ChronoUnit.MINUTES)
+            .truncatedTo(ChronoUnit.SECONDS);
         assertThat(getEndTime(project, dataStreamName1, 0), equalTo(expectedEndTime));
         assertThat(getEndTime(project, dataStreamName2, 0), equalTo(expectedEndTime));
         assertThat(getEndTime(project, dataStreamName3, 0), equalTo(start));
@@ -284,7 +303,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         ClusterState result = instance.updateTimeSeriesTemporalRange(before, now);
         assertThat(result, not(sameInstance(before)));
         final var project = result.getMetadata().getProject(projectId);
-        final var expectedEndTime = now.plus(35, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+        final var expectedEndTime = now.plus(LOOK_AHEAD_TIME_DEFAULT + TIME_SERIES_POLL_INTERVAL_DEFAULT, ChronoUnit.MINUTES)
+            .truncatedTo(ChronoUnit.SECONDS);
         assertThat(getEndTime(project, dataStreamName1, 0), equalTo(expectedEndTime));
         assertThat(getEndTime(project, dataStreamName2, 0), equalTo(end)); // failed to update end_time, because broken data stream
         assertThat(getEndTime(project, dataStreamName3, 0), equalTo(expectedEndTime));
@@ -306,7 +326,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Instant start = now.minus(90, ChronoUnit.MINUTES);
         Instant end = now.plus(40, ChronoUnit.MINUTES);
-        final var projectIds = randomList(1, 3, ESTestCase::randomProjectIdOrDefault);
+        final var projectIds = randomList(1, TIME_SERIES_POLL_INTERVAL_DEFAULT, ESTestCase::randomProjectIdOrDefault);
         final var builder = ClusterState.builder(ClusterState.EMPTY_STATE);
         for (ProjectId projectId : projectIds) {
             builder.putProjectMetadata(
@@ -318,7 +338,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         final ClusterState in = builder.build();
         final ClusterState result = instance.updateTimeSeriesTemporalRange(in, now);
         assertThat(result, not(sameInstance(in)));
-        final var expectedEndTime = now.plus(35, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+        final var expectedEndTime = now.plus(LOOK_AHEAD_TIME_DEFAULT + TIME_SERIES_POLL_INTERVAL_DEFAULT, ChronoUnit.MINUTES)
+            .truncatedTo(ChronoUnit.SECONDS);
         for (ProjectId projectId : projectIds) {
             final var project = result.getMetadata().getProject(projectId);
             assertThat(getStartTime(project, dataStreamName, 0), equalTo(start));
@@ -328,19 +349,32 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
 
     public void testUpdatePollInterval() {
         instance.scheduleTask();
-        assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(5)));
-        assertThat(instance.job.toString(), containsString("5m"));
+        assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(TIME_SERIES_POLL_INTERVAL_DEFAULT)));
+        assertThat(instance.job.toString(), containsString(TIME_SERIES_POLL_INTERVAL_DEFAULT + "m"));
         instance.setPollInterval(TimeValue.timeValueMinutes(1));
         assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(1)));
         assertThat(instance.job.toString(), containsString("1m"));
     }
 
     public void testUpdatePollIntervalUnscheduled() {
-        assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(TIME_SERIES_POLL_INTERVAL_DEFAULT)));
         assertThat(instance.job, nullValue());
         instance.setPollInterval(TimeValue.timeValueMinutes(1));
         assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(1)));
         assertThat(instance.job, nullValue());
+    }
+
+    public void testOnMasterUpdatesImmediatelyAndSchedules() {
+        instance.onMaster();
+        verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
+        assertThat(instance.job, notNullValue());
+
+        // a new election while the first update is still running must not queue a second one
+        instance.offMaster();
+        assertThat(instance.job, nullValue());
+        instance.onMaster();
+        verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
+        assertThat(instance.job, notNullValue());
     }
 
     static Instant getEndTime(ProjectMetadata project, String dataStreamName, int index) {

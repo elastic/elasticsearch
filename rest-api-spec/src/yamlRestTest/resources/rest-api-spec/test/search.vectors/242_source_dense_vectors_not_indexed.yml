@@ -1,0 +1,135 @@
+setup:
+  - requires:
+      reason: 'excluding a non-indexed vector from _source is required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_source_vectors_all_layouts ]
+  - skip:
+      features: "headers"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 3
+                index: false
+
+              nested:
+                type: nested
+                properties:
+                  paragraph_id:
+                    type: keyword
+                  vector:
+                    type: dense_vector
+                    dims: 3
+                    index: false
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [1, 2, 3]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          nested:
+          - paragraph_id: 0
+            vector: [1, 2, 3]
+          - paragraph_id: 1
+          - paragraph_id: 2
+            vector: [4, 5, 6]
+
+  - do:
+      indices.refresh: {}
+
+---
+"non-indexed vectors are excluded from _source":
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ "name" ]
+
+  - match:      { hits.hits.0._id: "1" }
+  - match:      { hits.hits.0._source.name: "cow.jpg" }
+  - not_exists:   hits.hits.0._source.vector
+
+  - match:      { hits.hits.1._id: "2" }
+  - length:     { hits.hits.1._source.nested: 3 }
+  - not_exists:   hits.hits.1._source.nested.0.vector
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: 1 }
+  - not_exists:   hits.hits.1._source.nested.2.vector
+
+---
+"non-indexed vectors are restored when requested":
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: false
+          sort: [ "name" ]
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._source.vector: [1.0, 2.0, 3.0] }
+
+  - match: { hits.hits.1._id: "2" }
+  - length: { hits.hits.1._source.nested: 3 }
+  - match: { hits.hits.1._source.nested.0.vector: [1.0, 2.0, 3.0] }
+  - not_exists: hits.hits.1._source.nested.1.vector
+  - match: { hits.hits.1._source.nested.2.vector: [4.0, 5.0, 6.0] }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      get:
+        index: test
+        id: "1"
+        _source_exclude_vectors: false
+
+  - match: { _source.vector: [1.0, 2.0, 3.0] }
+
+---
+"a partial update keeps the non-indexed vector":
+  # an update rewrites the document from the _source it reads back, so a vector it does not mention has to survive the
+  # round trip through doc values
+  - do:
+      headers:
+        Content-Type: application/json
+      update:
+        index: test
+        id: "1"
+        body:
+          _source: true
+          doc: { "name": "cow2.jpg" }
+
+  - match: { get._source.name: cow2.jpg }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      get:
+        index: test
+        id: "1"
+        _source_exclude_vectors: false
+
+  - match: { _source.name: cow2.jpg }
+  - match: { _source.vector: [1.0, 2.0, 3.0] }

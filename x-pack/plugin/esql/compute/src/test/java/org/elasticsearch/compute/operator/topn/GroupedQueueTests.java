@@ -21,10 +21,13 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public class GroupedQueueTests extends ESTestCase {
     private final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(1));
@@ -64,6 +67,32 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
+    public void testPopAllWithoutSort() {
+        try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, 5)) {
+            addRows(queue, 0, 200, 100);
+            addRows(queue, 1, 20, 10);
+            assertThat(queue.size(), equalTo(4));
+            List<TopNRow> actual = queue.popAll(GroupedTopNOperator.OutputOrdering.NOT_SORTED);
+            assertThat(actual.size(), equalTo(4));
+            assertThat(sortKeys(actual), equalTo(Set.of(10, 20, 100, 200)));
+            assertThat(sortKeysInOrder(actual), not(equalTo(List.of(10, 20, 100, 200))));
+            Releasables.close(actual);
+        }
+    }
+
+    private static List<Integer> sortKeysInOrder(List<TopNRow> rows) {
+        return rows.stream().map(GroupedQueueTests::sortKey).toList();
+    }
+
+    private static Set<Integer> sortKeys(List<TopNRow> rows) {
+        return new HashSet<>(sortKeysInOrder(rows));
+    }
+
+    private static int sortKey(TopNRow row) {
+        BytesRef keys = row.keys.bytesRefView();
+        return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
+    }
+
     private TopNRow createRow(CircuitBreaker breaker, int sortKey) {
         IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(0).build();
         IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey).build();
@@ -100,7 +129,7 @@ public class GroupedQueueTests extends ESTestCase {
 
     private void assertQueueContents(GroupedQueue queue, List<Integer> expectedSortKeys) {
         assertThat(queue.size(), equalTo(expectedSortKeys.size()));
-        List<TopNRow> actual = queue.popAll();
+        List<TopNRow> actual = queue.popAll(GroupedTopNOperator.OutputOrdering.SORTED);
         for (int i = 0; i < expectedSortKeys.size(); i++) {
             int sortKey = expectedSortKeys.get(i);
             assertRowValues(actual.get(i), sortKey, sortKey * 2);

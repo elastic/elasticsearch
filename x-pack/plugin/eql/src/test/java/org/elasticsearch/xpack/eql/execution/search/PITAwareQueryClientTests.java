@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -121,7 +120,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 )
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
-            CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+            CircuitBreaker cb = NoopCircuitBreaker.INSTANCE;
             EqlSession eqlSession = new EqlSession(
                 esClient,
                 eqlConfiguration,
@@ -141,7 +140,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                     for (List<HitReference> ref : refs) {
                         List<SearchHit> hits = new ArrayList<>(ref.size());
                         for (HitReference hitRef : ref) {
-                            hits.add(SearchHit.unpooled(-1, hitRef.id()));
+                            hits.add(new SearchHit(-1, hitRef.id()));
                         }
                         searchHits.add(hits);
                     }
@@ -216,7 +215,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 assertArrayEquals(INDICES, openPIT.indices()); // indices for opening pit should be the same as for the eql query itself
 
                 openedPIT = true;
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest closePIT) {
                 assertTrue(openedPIT);
@@ -250,12 +249,12 @@ public class PITAwareQueryClientTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
 
-            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
+            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
             SearchResponse response = new SearchResponse(
                 searchHits,
                 null,
@@ -269,14 +268,19 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 searchRequest.pointInTimeBuilder().getEncodedId(),
                 null,
                 null
             );
 
-            ActionListener.respondAndRelease(listener, (Response) response);
+            try {
+                ActionListener.respondAndRelease(listener, (Response) response);
+            } finally {
+                searchHits.decRef();
+            }
         }
     }
 

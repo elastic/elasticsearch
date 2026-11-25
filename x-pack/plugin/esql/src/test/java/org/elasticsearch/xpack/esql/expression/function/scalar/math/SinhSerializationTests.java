@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class SinhSerializationTests extends AbstractUnaryScalarSerializationTests<Sinh> {
     @Override
     protected Sinh create(Source source, Expression child) {
-        return new Sinh(source, child);
+        return new Sinh(source, child, randomBoolean());
     }
 }

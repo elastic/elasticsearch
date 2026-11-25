@@ -13,6 +13,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseFailure;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -97,7 +97,7 @@ public enum SearchResponseUtils {
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
         SearchResponse.Clusters clusters
     ) {
         return new SearchResponse(
@@ -114,6 +114,7 @@ public enum SearchResponseUtils {
             skippedShards,
             tookInMillis,
             shardFailures,
+            List.of(),
             clusters,
             null,
             null,
@@ -134,7 +135,8 @@ public enum SearchResponseUtils {
         private int successfulShards;
         private int skippedShards;
         private long tookInMillis;
-        private List<ShardSearchFailure> shardFailures;
+        private List<ShardSearchFailure> shardFailures = List.of();
+        private List<SearchPhaseFailure> phaseFailures = List.of();
         private Clusters clusters = Clusters.EMPTY;
         private BytesReference pointInTimeId;
 
@@ -202,6 +204,16 @@ public enum SearchResponseUtils {
             return this;
         }
 
+        public SearchResponseBuilder phaseFailures(SearchPhaseFailure... failures) {
+            phaseFailures = List.of(failures);
+            return this;
+        }
+
+        public SearchResponseBuilder phaseFailures(List<SearchPhaseFailure> failures) {
+            phaseFailures = List.copyOf(failures);
+            return this;
+        }
+
         public SearchResponseBuilder clusters(Clusters clusters) {
             this.clusters = clusters;
             return this;
@@ -226,7 +238,8 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                shardFailures,
+                phaseFailures,
                 clusters,
                 pointInTimeId,
                 null,
@@ -343,7 +356,8 @@ public enum SearchResponseUtils {
         int skippedShards = 0; // 0 for BWC
         String scrollId = null;
         BytesReference searchContextId = null;
-        List<ShardSearchFailure> failures = new ArrayList<>();
+        List<ShardSearchFailure> shardFailures = new ArrayList<>();
+        List<SearchPhaseFailure> phaseFailures = new ArrayList<>();
         SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -392,7 +406,7 @@ public enum SearchResponseUtils {
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    failures.add(parseShardSearchFailure(parser));
+                                    shardFailures.add(parseShardSearchFailure(parser));
                                 }
                             } else {
                                 parser.skipChildren();
@@ -406,28 +420,51 @@ public enum SearchResponseUtils {
                 } else {
                     parser.skipChildren();
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (SearchResponse.PHASE_FAILURES.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        phaseFailures.add(parseSearchPhaseFailure(parser));
+                    }
+                } else {
+                    parser.skipChildren();
+                }
             }
         }
 
-        return new SearchResponse(
-            hits,
-            aggs,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profile,
-            numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-            clusters,
-            searchContextId,
-            null,
-            null
-        );
+        SearchResponse searchResponse;
+        try {
+            searchResponse = new SearchResponse(
+                hits,
+                aggs,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profile,
+                numReducePhases,
+                scrollId,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                shardFailures,
+                phaseFailures,
+                clusters,
+                searchContextId,
+                null,
+                null
+            );
+        } finally {
+            if (hits != null) {
+                hits.decRef();
+            }
+            if (suggest != null) {
+                List<SearchHit> completionHits = suggest.collectCompletionOptionHits(false);
+                if (completionHits != null) {
+                    completionHits.forEach(SearchHit::decRef);
+                }
+            }
+        }
+        return searchResponse;
     }
 
     private static SearchResponse.Clusters parseClusters(XContentParser parser) throws IOException {
@@ -608,6 +645,7 @@ public enum SearchResponseUtils {
         SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
+        List<ProfileResult> rescoreResults = new ArrayList<>();
         ProfileResult fetchResult = null;
         String id = null;
         String currentFieldName = null;
@@ -627,6 +665,10 @@ public enum SearchResponseUtils {
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
                     aggProfileShardResult = readAggregationProfileShardResult(parser);
+                } else if (SearchProfileShardResult.RESCORE.equals(currentFieldName)) {
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        rescoreResults.add(parseProfileResult(parser));
+                    }
                 } else {
                     parser.skipChildren();
                 }
@@ -643,7 +685,7 @@ public enum SearchResponseUtils {
             }
         }
         SearchProfileShardResult result = new SearchProfileShardResult(
-            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
+            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult, rescoreResults),
             fetchResult
         );
         result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
@@ -705,6 +747,9 @@ public enum SearchResponseUtils {
         return new QueryProfileShardResult(queryProfileResults, rewriteTime, collector, vectorOperationsCount);
     }
 
+    /**
+     * Parses search hits from XContent into a ref-counted {@link SearchHits}. Callers must {@link SearchHits#decRef()} when done.
+     */
     public static SearchHits parseSearchHits(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
@@ -746,7 +791,7 @@ public enum SearchResponseUtils {
                 }
             }
         }
-        return SearchHits.unpooled(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
+        return new SearchHits(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     /**
@@ -769,6 +814,9 @@ public enum SearchResponseUtils {
         declareInnerHitsParseFields(MAP_PARSER);
     }
 
+    /**
+     * Parses a single search hit from XContent into a ref-counted {@link SearchHit}. Callers must {@link SearchHit#decRef()} when done.
+     */
     public static SearchHit parseSearchHit(XContentParser parser) {
         return searchHitFromMap(MAP_PARSER.apply(parser, null));
     }
@@ -994,9 +1042,9 @@ public enum SearchResponseUtils {
         String index = get(SearchHit.Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {
-            String[] split = RemoteClusterAware.splitIndexName(index);
-            clusterAlias = split[0];
-            index = split[1];
+            var split = RemoteClusterAware.splitIndexName(index);
+            clusterAlias = split.clusterAlias();
+            index = split.indexExpression();
         }
         ShardId shardId = get(SearchHit.Fields._SHARD, values, null);
         String nodeId = get(SearchHit.Fields._NODE, values, null);
@@ -1029,7 +1077,7 @@ public enum SearchResponseUtils {
             get(SearchHit.Fields.INNER_HITS, values, null),
             get(SearchHit.DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(SearchHit.METADATA_FIELDS, values, Collections.emptyMap()),
-            RefCounted.ALWAYS_REFERENCED // TODO: do we ever want pooling here?
+            null
         );
     }
 
@@ -1153,6 +1201,25 @@ public enum SearchResponseUtils {
     public static SearchSortValues parseSearchSortValues(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         return new SearchSortValues(parser.list().toArray());
+    }
+
+    public static SearchPhaseFailure parseSearchPhaseFailure(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        String phase = null;
+        ElasticsearchException cause = null;
+        String currentFieldName = null;
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue() && SearchPhaseFailure.PHASE_FIELD.equals(currentFieldName)) {
+                phase = parser.text();
+            } else if (token == XContentParser.Token.START_OBJECT && SearchPhaseFailure.REASON_FIELD.equals(currentFieldName)) {
+                cause = ElasticsearchException.fromXContent(parser);
+            } else {
+                parser.skipChildren();
+            }
+        }
+        return new SearchPhaseFailure(phase, cause);
     }
 
     public static ShardSearchFailure parseShardSearchFailure(XContentParser parser) throws IOException {

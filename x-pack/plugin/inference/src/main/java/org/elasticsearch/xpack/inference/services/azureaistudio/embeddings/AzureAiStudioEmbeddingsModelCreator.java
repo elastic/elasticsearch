@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.checkProviderAndEndpointTypeForTask;
+
 /**
  * Creates {@link AzureAiStudioEmbeddingsModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
@@ -33,7 +35,7 @@ public class AzureAiStudioEmbeddingsModelCreator implements ModelCreator<AzureAi
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new AzureAiStudioEmbeddingsModel(
+        var model = new AzureAiStudioEmbeddingsModel(
             inferenceId,
             taskType,
             service,
@@ -43,10 +45,14 @@ public class AzureAiStudioEmbeddingsModelCreator implements ModelCreator<AzureAi
             secretSettings,
             context
         );
+        checkProviderAndEndpointTypeForTask(model.getTaskType(), model.provider(), model.endpointType());
+        return model;
     }
 
     @Override
     public AzureAiStudioEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new AzureAiStudioEmbeddingsModel(config, secrets);
+        var model = new AzureAiStudioEmbeddingsModel(config, secrets);
+        checkProviderAndEndpointTypeForTask(model.getTaskType(), model.provider(), model.endpointType());
+        return model;
     }
 }

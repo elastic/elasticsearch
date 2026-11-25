@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -152,7 +153,6 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     if (valueUncast.areAllValuesNull()) {
@@ -252,7 +252,6 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     if (valueUncast.areAllValuesNull()) {
@@ -338,7 +337,6 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     if (valueUncast.areAllValuesNull()) {
@@ -390,6 +388,16 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
     }
   }
 
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(2))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
+  }
+
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock vBlock) {
     if (vBlock.mayHaveNulls()) {
       /*
@@ -425,6 +433,28 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
     blocks[offset] = SumDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
+  }
+
+  @Override
+  public void maybeEnsureCapacity(int size) {
+    state.ensureCapacity(size);
+  }
+
+  @Override
+  public boolean supportPartitioning(AggregatorMode mode) {
+    return true;
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
+      CircuitBreaker breaker) {
+    return state.createPartitioningSplitter(breaker);
+  }
+
+  @Override
+  public void combinePartition(GroupingAggregatorFunction.PartitionedState source, int partition,
+      boolean appendOnly, int[] dstIds, int length) {
+    SumDoubleAggregator.combinePartition(state, source, partition, appendOnly, dstIds, length);
   }
 
   @Override

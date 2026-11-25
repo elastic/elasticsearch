@@ -11,7 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -107,6 +110,24 @@ public class RepeatTests extends AbstractScalarFunctionTestCase {
         }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
+    }
+
+    /**
+     * Regression test: when the number argument is foldable to null (e.g. a missing field resolved to
+     * null in a per-shard plan), toEvaluator() must not NPE.
+     */
+    public void testFoldableNullNumber() {
+        Repeat repeat = new Repeat(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, new BytesRef("hello"), DataType.KEYWORD),
+            new Literal(Source.EMPTY, null, DataType.INTEGER)
+        );
+        // Direct call: must not NPE when number.foldable() && number.fold() == null.
+        // toEvaluator() is also called internally by fold() via EvaluatorMapper.
+        ExpressionEvaluator.Factory factory = repeat.toEvaluator(toEvaluator());
+        assertNotNull(factory);
+        assertTrue(repeat.foldable());
+        assertNull(repeat.fold(FoldContext.small()));
     }
 
     @Override

@@ -15,11 +15,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
@@ -42,8 +44,8 @@ import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
-import org.elasticsearch.xpack.sql.logging.SqlLogContext;
-import org.elasticsearch.xpack.sql.logging.SqlLogContextBuilder;
+import org.elasticsearch.xpack.sql.logging.SqlCaptureContext;
+import org.elasticsearch.xpack.sql.logging.SqlCaptureContextBuilder;
 import org.elasticsearch.xpack.sql.logging.SqlLogProducer;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -80,7 +82,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     private final TransportService transportService;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
-    private final ActivityLogger<SqlLogContext> activityLogger;
+    private final QueryInterceptor<SqlCaptureContext> activityInterceptor;
+    private volatile int maxQueryLength;
 
     @Inject
     public TransportSqlQueryAction(
@@ -92,6 +95,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         PlanExecutor planExecutor,
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -106,6 +110,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         this.sqlLicenseChecker = sqlLicenseChecker;
         this.transportService = transportService;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.maxQueryLength = SqlPlugin.MAX_QUERY_LENGTH_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SqlPlugin.MAX_QUERY_LENGTH_SETTING, v -> this.maxQueryLength = v);
 
         asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
@@ -120,12 +126,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             threadPool,
             bigArrays
         );
-        this.activityLogger = new QueryLogger<>(
-            clusterService.getClusterSettings(),
-            new SqlLogProducer(),
-            logWriterProvider,
-            fieldProvider
-        );
+        var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new SqlLogProducer(), logWriterProvider, fieldProvider);
+        this.activityInterceptor = querySinkRegistry.createInterceptor(queryLogger);
     }
 
     @Override
@@ -140,7 +142,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 listener
             );
         } else {
-            operation(
+            loggedOperation(
                 planExecutor,
                 (SqlQueryTask) task,
                 request,
@@ -149,9 +151,39 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 transportService,
                 clusterService,
                 crossProjectModeDecider,
-                activityLogger
+                activityInterceptor,
+                maxQueryLength
             );
         }
+    }
+
+    public static void loggedOperation(
+        PlanExecutor planExecutor,
+        SqlQueryTask task,
+        SqlQueryRequest request,
+        ActionListener<SqlQueryResponse> operationListener,
+        String username,
+        TransportService transportService,
+        ClusterService clusterService,
+        CrossProjectModeDecider crossProjectModeDecider,
+        QueryInterceptor<SqlCaptureContext> activityInterceptor,
+        int maxQueryLength
+    ) {
+        activityInterceptor.wrapAndRun(
+            operationListener,
+            new SqlCaptureContextBuilder(task, request),
+            (l) -> operation(
+                planExecutor,
+                task,
+                request,
+                l,
+                username,
+                transportService,
+                clusterService,
+                crossProjectModeDecider,
+                maxQueryLength
+            )
+        );
     }
 
     /**
@@ -166,9 +198,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         TransportService transportService,
         ClusterService clusterService,
         CrossProjectModeDecider crossProjectModeDecider,
-        ActivityLogger<SqlLogContext> activityLogger
+        int maxQueryLength
     ) {
-        ActionListener<SqlQueryResponse> listener = activityLogger.wrap(operationListener, new SqlLogContextBuilder(task, request));
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
@@ -194,21 +225,22 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             task,
             allowPartialSearchResults,
             crossProjectEnabled,
-            request.projectRouting()
+            request.projectRouting(),
+            maxQueryLength
         );
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(
                 cfg,
                 request.query(),
                 request.params(),
-                wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), listener::onFailure)
+                wrap(p -> operationListener.onResponse(createResponseWithSchema(request, p, task)), operationListener::onFailure)
             );
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor(), planExecutor.writeableRegistry());
             planExecutor.nextPage(
                 cfg,
                 decoded.v1(),
-                listener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
+                operationListener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
             );
         }
     }
@@ -290,7 +322,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         TaskId parentTaskId,
         Map<String, String> headers,
         Map<String, String> originHeaders,
-        AsyncExecutionId asyncExecutionId
+        AsyncExecutionId asyncExecutionId,
+        TimeValue keepAlive
     ) {
         return new SqlQueryTask(
             id,
@@ -301,7 +334,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             headers,
             originHeaders,
             asyncExecutionId,
-            request.keepAlive(),
+            keepAlive,
             request.mode(),
             request.version(),
             request.columnar()
@@ -310,7 +343,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
 
     @Override
     public void execute(SqlQueryRequest request, SqlQueryTask task, ActionListener<SqlQueryResponse> listener) {
-        operation(
+        loggedOperation(
             planExecutor,
             task,
             request,
@@ -319,7 +352,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             transportService,
             clusterService,
             crossProjectModeDecider,
-            activityLogger
+            activityInterceptor,
+            maxQueryLength
         );
     }
 

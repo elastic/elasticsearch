@@ -15,6 +15,8 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -167,8 +169,8 @@ public abstract class PaginatedHitSource {
     );
 
     /**
-     * Called to release pagination resources (e.g. clear scroll context).
-     * For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
+     * Called to release pagination resources held by this hit source. For scroll-based pagination this clears the
+     * scroll context. For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
      *
      * @param onCompletion implementers must call this after completing the release whether they are
      *        successful or not
@@ -192,7 +194,7 @@ public abstract class PaginatedHitSource {
 
         /**
          * Called when done processing response to signal more data is needed.
-         * @param extraKeepAlive extra time to keep underlying scroll open.
+         * @param extraKeepAlive extra time to extend the search context keep-alive.
          */
         void done(TimeValue extraKeepAlive);
     }
@@ -246,6 +248,45 @@ public abstract class PaginatedHitSource {
             this.scrollId = scrollId;
             this.searchAfterValues = searchAfterValues;
             this.pitId = pitId;
+        }
+
+        /**
+         * Nullable releasable for the circuit breaker reservation covering the remote HTTP response body
+         * bytes that back this batch's hits. Set only for remote reindex responses; null for local searches.
+         * Wrapped in {@link Releasables#releaseOnce} so it is safe to call {@link #closeBodyReleasable()}
+         * from both the normal-path cleanup and the early-exit (hit release) paths.
+         */
+        @Nullable
+        private Releasable bodyReleasable;
+
+        /**
+         * Attaches a circuit-breaker {@link Releasable} for the remote HTTP response body.
+         * Must be called at most once; asserts that no releasable is already set.
+         */
+        public void setBodyReleasable(Releasable releasable) {
+            assert bodyReleasable == null : "bodyReleasable already set";
+            this.bodyReleasable = Releasables.releaseOnce(releasable);
+        }
+
+        /**
+         * Closes the body releasable if one was attached via {@link #setBodyReleasable}.
+         * Safe to call multiple times; only the first call releases.
+         */
+        public void closeBodyReleasable() {
+            if (bodyReleasable != null) {
+                bodyReleasable.close();
+            }
+        }
+
+        /**
+         * Moves the body releasable from this response to {@code dest}.
+         * After this call {@link #closeBodyReleasable()} on this instance is a no-op; the caller is
+         * responsible for releasing via {@code dest}.
+         */
+        public void moveBodyReleasableTo(Response dest) {
+            assert dest.bodyReleasable == null : "dest already has a bodyReleasable";
+            dest.bodyReleasable = this.bodyReleasable;
+            this.bodyReleasable = null;
         }
 
         /**
@@ -359,6 +400,18 @@ public abstract class PaginatedHitSource {
         String getRouting();
 
         /**
+         * Whether {@link #getRouting()} is the slice of the hit, as opposed to a plain routing value. A document of a slice-enabled
+         * index always has a slice, and its write-back must keep it as one.
+         */
+        boolean isRoutingFromSlice();
+
+        /**
+         * Release any ref-counted resources held by this hit. Call when the hit is no longer needed.
+         * Default is no-op; implementations that wrap ref-counted resources (e.g. {@link SearchHit}) override to release.
+         */
+        default void release() {}
+
+        /**
          * The sort values of the hit, used for search_after pagination. Null if not available.
          */
         @Nullable
@@ -378,6 +431,7 @@ public abstract class PaginatedHitSource {
         private BytesReference source;
         private XContentType xContentType;
         private String routing;
+        private boolean routingFromSlice;
         private long seqNo;
         private long primaryTerm;
         private Object[] sortValues;
@@ -442,6 +496,16 @@ public abstract class PaginatedHitSource {
 
         public BasicHit setRouting(String routing) {
             this.routing = routing;
+            return this;
+        }
+
+        @Override
+        public boolean isRoutingFromSlice() {
+            return routingFromSlice;
+        }
+
+        public BasicHit setRoutingFromSlice(boolean routingFromSlice) {
+            this.routingFromSlice = routingFromSlice;
             return this;
         }
 

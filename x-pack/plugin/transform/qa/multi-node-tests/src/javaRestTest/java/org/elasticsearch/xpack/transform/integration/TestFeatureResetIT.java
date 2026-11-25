@@ -48,6 +48,14 @@ public class TestFeatureResetIT extends TransformRestTestCase {
                 "logger.org.elasticsearch.xpack.transform.transforms": "debug"
               }
             }""");
+        settingsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            for (String warning : warnings) {
+                if (warning.equals(LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }).build());
         client().performRequest(settingsRequest);
     }
 

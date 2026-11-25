@@ -134,7 +134,29 @@ public class EntitlementInitialization {
         }
     }
 
+    /**
+     * On JDKs that still carry the SecurityManager scaffolding (Java 21 and earlier),
+     * {@link Class#getProtectionDomain()} lazily builds a {@code Permissions} collection containing
+     * {@link java.security.AllPermission}. The first such call triggers loading of
+     * {@code java.security.AllPermissionCollection}, which the bootstrap class loader resolves via the
+     * URL classpath — calling {@link java.net.URL#URL(String)} along the way. Since URL construction
+     * is instrumented by entitlements, the lookup re-enters the policy check (which itself calls
+     * {@code getProtectionDomain()}), producing a {@link ClassCircularityError}.
+     * <p>
+     * Force the lazy initialization once here, before instrumentation is wired up, so subsequent calls
+     * from inside an entitlement check find the class already loaded and the static
+     * {@code Class.allPermDomain} field already populated. Java 22 removed the SecurityManager and no
+     * longer takes this path, so the workaround is unnecessary there.
+     */
+    private static void preloadProtectionDomainSupport() {
+        if (Runtime.version().feature() <= 21) {
+            Object.class.getProtectionDomain();
+        }
+    }
+
     static void initInstrumentation(Instrumentation instrumentation) throws Exception {
+        preloadProtectionDomainSupport();
+
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
         if (verifyBytecode) {
             ensureClassesSensitiveToVerificationAreInitialized();

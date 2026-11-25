@@ -10,6 +10,9 @@ package org.elasticsearch.datastreams.rest;
 
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.datastreams.DataStreamFeatures;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -20,15 +23,30 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestModifyDataStreamsAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, RestUtils.REST_TIMEOUT_PARAM);
+
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestModifyDataStreamsAction(Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = clusterSupportsFeature;
+    }
+
     @Override
     public String getName() {
         return "modify_data_stream_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override
@@ -52,7 +70,19 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
         if (modifyDsRequest.getActions() == null || modifyDsRequest.getActions().isEmpty()) {
             throw new IllegalArgumentException("no data stream actions specified, at least one must be specified");
         }
+        boolean hasDeleteIndexAction = modifyDsRequest.getActions()
+            .stream()
+            .anyMatch(action -> action.getType() == DataStreamAction.Type.DELETE_BACKING_INDEX);
+        if (hasDeleteIndexAction) {
+            if (clusterSupportsFeature.test(DataStreamFeatures.DATA_STREAMS_MODIFY_DELETE_INDEX) == false) {
+                throw new IllegalArgumentException("delete_backing_index is an unsupported action type for this mixed version cluster");
+            }
+        }
         return channel -> client.execute(ModifyDataStreamsAction.INSTANCE, modifyDsRequest, new RestToXContentListener<>(channel));
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("data_streams.modify.delete_index");
+    }
 }

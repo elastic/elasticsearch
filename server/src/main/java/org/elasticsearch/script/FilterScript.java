@@ -35,6 +35,16 @@ public abstract class FilterScript extends DocBasedScript {
     /** Return {@code true} if the current document matches the filter, or {@code false} otherwise. */
     public abstract boolean execute();
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {
         return params;

@@ -29,6 +29,16 @@ public abstract class SimilarityScript {
         ScriptedSimilarity.Doc doc
     );
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     public interface Factory extends ScriptFactory {
         SimilarityScript newInstance();
     }

@@ -78,7 +78,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
     );
 
     // The date range of SearchStats is from 2023-10-20 to 2023-10-23.
-    private static final SearchStats searchStats = searchStats();
+    private static final SearchStats searchStats = searchStats("hire_date", 1697804103360L, 1698069301543L);
 
     public void testSubstituteDateTruncInEvalWithRoundTo() {
         for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
@@ -128,6 +128,25 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
             verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = predicateString.isEmpty() ? eval : eval.child();
             EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    /**
+     * Multiple days are a fixed interval, so they have rounding points just like the same interval in hours.
+     */
+    public void testSubstituteMultipleDaysDateTruncInAggWithRoundTo() {
+        for (String interval : List.of("2 days", "48 hours")) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats count(*) by x = date_trunc({}, hire_date)
+                """, interval);
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), TEST_CFG, searchStats);
+            Limit limit = as(localPlan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Eval eval = as(aggregate.child(), Eval.class);
+            assertEquals(1, eval.fields().size());
+            // 2023-10-20 to 2023-10-23 covers the two day buckets starting at 2023-10-20 and 2023-10-22
+            verifySubstitution(eval.fields().get(0), 2);
         }
     }
 
@@ -275,9 +294,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
         }
     }
 
-    private static SearchStats searchStats() {
-        Map<String, Object> minValue = Map.of("hire_date", 1697804103360L); // 2023-10-20T12:15:03.360Z
-        Map<String, Object> maxValue = Map.of("hire_date", 1698069301543L); // 2023-10-23T13:55:01.543Z
-        return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);
+    private static SearchStats searchStats(String field, long min, long max) {
+        return new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(field, min), Map.of(field, max));
     }
+
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
@@ -39,8 +38,7 @@ public class Clusters {
             .module("x-pack-aggregate-metric")
             .module("x-pack-stack")
             .setting("xpack.security.autoconfiguration.enabled", "false")
-            .setting("xpack.license.self_generated.type", useTrial ? "trial" : "basic")
-            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+            .setting("xpack.license.self_generated.type", useTrial ? "trial" : "basic");
 
         return cluster.build();
     }

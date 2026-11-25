@@ -1,5 +1,9 @@
 ---
 navigation_title: "Sync rules"
+applies_to:
+  stack: ga
+  serverless:
+    elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-sync-rules.html
 ---
@@ -7,7 +11,19 @@ mapped_pages:
 # Connector sync rules [es-sync-rules]
 
 
-Use connector sync rules to help control which documents are synced between the third-party data source and Elasticsearch. Define sync rules in the Kibana UI for each connector index, under the `Sync rules` tab for the index.
+Use connector sync rules to help control which documents are synced between the third-party data source and Elasticsearch.
+
+::::{applies-switch}
+
+:::{applies-item} stack: ga
+Define sync rules in the Kibana UI for each connector index, under the **Sync rules** tab.
+:::
+
+:::{applies-item} serverless: ga
+Use the [update connector filtering API]({{es-apis}}operation/operation-connector-update-filtering) to define sync rules.
+:::
+
+::::
 
 ## Availability and prerequisites [es-sync-rules-availability-prerequisites]
 

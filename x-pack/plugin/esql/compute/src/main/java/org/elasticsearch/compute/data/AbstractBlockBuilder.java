@@ -88,6 +88,86 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         return this;
     }
 
+    /**
+     * Whether {@link #beginPositionEntry()} is open and no values have been appended into it.
+     * {@link #endPositionEntry()} asserts in that state, so the caller must {@link #cancelPositionEntry()}
+     * instead. That leaves the position uncommitted, which the caller must still resolve before moving on
+     * to the next position: either by supplying a value or a null for it here, or by leaving it to a later
+     * fill pass of its own. Appending a null immediately is not always the right choice, since a null
+     * cannot later be widened into a multivalue (see {@link #reopenLastPositionEntry()}).
+     */
+    public boolean currentPositionEntryIsEmpty() {
+        return positionEntryIsOpen && valueCount == firstValueIndexes[positionCount];
+    }
+
+    /** Whether {@link #beginPositionEntry()} (or a successful reopen) is still open. */
+    public boolean isPositionEntryOpen() {
+        return positionEntryIsOpen;
+    }
+
+    /**
+     * Cancels the current position entry, discarding all values appended since the last
+     * {@link #beginPositionEntry()} call. After this call the builder is in the same state
+     * as before {@code beginPositionEntry} was called: the caller must immediately either
+     * start a new position entry or append a null or a scalar value for the current position.
+     *
+     * <p>Subclasses that maintain auxiliary storage beyond the base {@code valueCount} and
+     * values array (e.g., {@code BytesRefBlockBuilder} with its {@code BytesRefArray}) must
+     * override this to also roll back that auxiliary storage to the point recorded by
+     * {@link #beginPositionEntry()}.
+     */
+    public AbstractBlockBuilder cancelPositionEntry() {
+        assert positionEntryIsOpen : "cancelPositionEntry called without a matching beginPositionEntry";
+        valueCount = firstValueIndexes[positionCount];
+        positionEntryIsOpen = false;
+        // If rolling back brings valueCount to zero there are no previously committed non-null values:
+        // reset hasNonNullValue so build() does not take the constant-vector fast path while nullsMask is set.
+        if (valueCount == 0) {
+            hasNonNullValue = false;
+        }
+        return this;
+    }
+
+    /**
+     * Reopens the last committed position so that values appended next join it as a multivalue, then
+     * {@link #endPositionEntry()} commits the widened position. Lets a caller that discovers a second value for a cell
+     * only after having appended the first one (e.g. a columnar decoder reading a format where one cell can be spelled
+     * more than once in a record) merge them without buffering every cell on the chance a second value arrives.
+     *
+     * <p>Returns {@code false} when there is no last position to reopen, and when the last position is null. A null
+     * cannot gain values: it is a property of the whole position, not a member of its value list. The caller must then
+     * leave the position as it is.
+     *
+     * <p>Unlike {@link #beginPositionEntry()} this keeps the values already written, so the reopened position is never
+     * empty and the following {@link #endPositionEntry()} always satisfies its non-empty assertion. Subclasses that
+     * delegate to inner builders cannot express the reopen and must override it to throw.
+     *
+     * <p>A successful reopen forces {@code firstValueIndexes} into existence and the following append sets
+     * {@code hasMultiValues} for the rest of the builder's life, so one widened position changes the block
+     * representation of every position this builder holds, not just its own.
+     */
+    public boolean reopenLastPositionEntry() {
+        assert positionEntryIsOpen == false : "reopenLastPositionEntry called with a position entry already open";
+        if (positionCount == 0) {
+            // No committed position to widen. Refused rather than asserted: reopening would drive positionCount
+            // negative and corrupt the builder silently wherever assertions are disabled, and a caller that tracks
+            // "this column has a value for the current row" outside the builder can get that bit wrong.
+            return false;
+        }
+        if (nullsMask != null && nullsMask.get(positionCount - 1)) {
+            return false;
+        }
+        if (firstValueIndexes == null) {
+            // Every committed position holds exactly one value slot while this array is absent (appendNull writes a
+            // placeholder value too), so position i starts at value i.
+            firstValueIndexes = new int[positionCount + 1];
+            IntStream.range(0, positionCount).forEach(i -> firstValueIndexes[i] = i);
+        }
+        positionCount--;
+        positionEntryIsOpen = true;
+        return true;
+    }
+
     protected final boolean isDense() {
         return nullsMask == null;
     }
@@ -103,6 +183,25 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
             }
             positionCount++;
         }
+    }
+
+    /**
+     * Registers {@code numValuesAppended} new single-valued positions in bulk.
+     * All values must already have been written to the values array and
+     * {@code valueCount} must already reflect them.
+     */
+    protected final void updatePositions(int numValuesAppended) {
+        if (positionEntryIsOpen) {
+            return;
+        }
+        if (firstValueIndexes != null) {
+            ensureFirstValueIndexesCapacity(positionCount + numValuesAppended);
+            int firstValue = valueCount - numValuesAppended;
+            for (int i = 0; i < numValuesAppended; i++) {
+                firstValueIndexes[positionCount + i] = firstValue + i;
+            }
+        }
+        positionCount += numValuesAppended;
     }
 
     /**
@@ -142,11 +241,19 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
     protected abstract int elementSize();
 
     protected final void ensureCapacity() {
+        ensureCapacity(1);
+    }
+
+    /**
+     * Ensures the values array has room for at least {@code additionalValueCount} more values.
+     */
+    protected final void ensureCapacity(int additionalValueCount) {
         int valuesLength = valuesLength();
-        if (valueCount < valuesLength) {
+        int requiredSize = valueCount + additionalValueCount;
+        if (requiredSize <= valuesLength) {
             return;
         }
-        int newSize = ArrayUtil.oversize(valueCount, elementSize());
+        int newSize = ArrayUtil.oversize(requiredSize, elementSize());
         adjustBreaker((long) newSize * elementSize());
         growValuesArray(newSize);
         adjustBreaker(-(long) valuesLength * elementSize());
@@ -172,15 +279,19 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         assert estimatedBytes >= 0;
     }
 
-    private void setFirstValue(int position, int value) {
-        if (position >= firstValueIndexes.length) {
-            final int currentSize = firstValueIndexes.length;
-            // We grow the `firstValueIndexes` at the same rate as the `values` array, but independently.
-            final int newLength = ArrayUtil.oversize(position + 1, Integer.BYTES);
-            adjustBreaker((long) newLength * Integer.BYTES);
-            firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);
-            adjustBreaker(-(long) currentSize * Integer.BYTES);
+    private void ensureFirstValueIndexesCapacity(int minSize) {
+        if (minSize <= firstValueIndexes.length) {
+            return;
         }
+        final int currentSize = firstValueIndexes.length;
+        final int newLength = ArrayUtil.oversize(minSize, Integer.BYTES);
+        adjustBreaker((long) newLength * Integer.BYTES);
+        firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);
+        adjustBreaker(-(long) currentSize * Integer.BYTES);
+    }
+
+    private void setFirstValue(int position, int value) {
+        ensureFirstValueIndexesCapacity(position + 1);
         firstValueIndexes[position] = value;
     }
 

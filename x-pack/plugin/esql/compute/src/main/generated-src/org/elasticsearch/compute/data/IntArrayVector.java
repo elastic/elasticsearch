@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * Vector implementation that stores an array of int values.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class IntArrayVector extends AbstractVector implements IntVector {
+public final class IntArrayVector extends AbstractVector implements IntVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
@@ -45,6 +45,8 @@ final class IntArrayVector extends AbstractVector implements IntVector {
      * The minimum value in the block.
      */
     private Integer max;
+
+    private boolean pooled;
 
     IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
@@ -93,6 +95,11 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -103,9 +110,10 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(boolean mayContainDuplicates, int... positions) {
-        try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public IntVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendInt(values[pos]);
             }
             return builder.build();
@@ -191,6 +199,24 @@ final class IntArrayVector extends AbstractVector implements IntVector {
         return max;
     }
 
+    /**
+     * The sum of all values in the vector. The sum of at most {@code Integer.MAX_VALUE} {@code int}s
+     * always fits in a {@code long} (its magnitude stays below {@code 2^62}), so no overflow check is
+     * needed. Only the first {@link #getPositionCount()} entries of the backing array are summed, since
+     * the array can be longer than the position count. The loop is deliberately a plain widening
+     * accumulation so the JIT can auto-vectorize it; even when it does not, it is cheaper than
+     * checking for overflow on every element. This is not cached, as it is expected to be called once
+     * per vector.
+     */
+    public long sum() {
+        final int size = getPositionCount();
+        long sum = 0;
+        for (int i = 0; i < size; i++) {
+            sum += values[i];
+        }
+        return sum;
+    }
+
     @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);
@@ -218,4 +244,18 @@ final class IntArrayVector extends AbstractVector implements IntVector {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
+    @Override
+    public void enablePooling() {
+        pooled = true;
+    }
+
+    @Override
+    protected void closeInternal() {
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesForInts(values.length)));
+            blockFactory().recycleInts(values);
+        } else {
+            super.closeInternal();
+        }
+    }
 }

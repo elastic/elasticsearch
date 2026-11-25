@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.searchafter;
 
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -23,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -35,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class SearchAfterBuilder implements ToXContentObject, Writeable {
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
@@ -91,6 +94,21 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
     }
 
     public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values, @Nullable String collapseField) {
+        return buildFieldDoc(sort, values, collapseField, field -> false);
+    }
+
+    /**
+     * @param isUnmappedField whether a sort field is unmapped in the index being searched, i.e. sorted on through the
+     *                        {@code unmapped_type} placeholder. Only then can a numeric missing value in a STRING sort stand for
+     *                        "no value": on a mapped keyword field, values such as {@code "Infinity"} are real values and must be
+     *                        kept as they are.
+     */
+    public static FieldDoc buildFieldDoc(
+        SortAndFormats sort,
+        Object[] values,
+        @Nullable String collapseField,
+        Predicate<String> isUnmappedField
+    ) {
         if (sort == null || sort.sort.getSort() == null || sort.sort.getSort().length == 0) {
             throw new IllegalArgumentException("Sort must contain at least one field.");
         }
@@ -114,10 +132,31 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         for (int i = 0; i < sortFields.length; i++) {
             SortField sortField = sortFields[i];
             DocValueFormat format = sort.formats[i];
-            if (values[i] != null) {
+            SortField.Type sortFieldType = extractSortType(sortField);
+            if (values[i] != null
+                && (sortFieldType == SortField.Type.STRING || sortFieldType == SortField.Type.STRING_VAL)
+                && isUnmappedField.test(sortField.getField())
+                && SortFieldValidation.isPlaceholderMissingValue(sortField, values[i])) {
+                // The previous page ended on a doc of an index that doesn't map the field, whose null sort value was replaced by the
+                // numeric missing value of the type of the field in the other indices. In this index, it still means "no value".
+                fieldValues[i] = null;
+            } else if (values[i] != null) {
                 fieldValues[i] = convertValueFromSortField(values[i], sortField, format);
             } else {
-                fieldValues[i] = null;
+                SortField.Type sortType = extractSortType(sortField);
+                if (sortType == SortField.Type.STRING || sortType == SortField.Type.STRING_VAL) {
+                    fieldValues[i] = null;
+                } else {
+                    throw new IllegalArgumentException(
+                        "[search_after] value at position "
+                            + i
+                            + " cannot be null for sort field ["
+                            + sortField.getField()
+                            + "] of type ["
+                            + sortType
+                            + "]."
+                    );
+                }
             }
         }
         /*
@@ -134,6 +173,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
             return ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType();
         } else if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else if (sortField instanceof BinarySortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();

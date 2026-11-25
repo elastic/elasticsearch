@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_LONG` function [esql-to_long]
 
-:::{include} ../../_snippets/functions/layout/to_long.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_long.md
 :::

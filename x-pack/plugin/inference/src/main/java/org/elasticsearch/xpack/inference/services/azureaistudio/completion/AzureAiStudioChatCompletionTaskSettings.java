@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants;
@@ -25,6 +24,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDoubleInRange;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DO_SAMPLE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TEMPERATURE_FIELD;
@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 
 public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "azure_ai_studio_chat_completion_task_settings";
-    public static final Integer DEFAULT_MAX_NEW_TOKENS = 64;
 
     public static AzureAiStudioChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -42,7 +41,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             TEMPERATURE_FIELD,
             AzureAiStudioConstants.MIN_TEMPERATURE_TOP_P,
             AzureAiStudioConstants.MAX_TEMPERATURE_TOP_P,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             validationException
         );
         var topP = extractOptionalDoubleInRange(
@@ -50,16 +49,11 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             TOP_P_FIELD,
             AzureAiStudioConstants.MIN_TEMPERATURE_TOP_P,
             AzureAiStudioConstants.MAX_TEMPERATURE_TOP_P,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             validationException
         );
         var doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, validationException);
-        var maxNewTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_NEW_TOKENS_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
+        var maxNewTokens = extractOptionalPositiveInteger(map, MAX_NEW_TOKENS_FIELD, TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -126,10 +120,6 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
 
     public Integer maxNewTokens() {
         return maxNewTokens;
-    }
-
-    public boolean areAnyParametersAvailable() {
-        return temperature != null && topP != null && doSample != null && maxNewTokens != null;
     }
 
     @Override

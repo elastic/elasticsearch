@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 143896
-summary: "[Inference API] Adding OAuth2 support for Azure OpenAI"
-type: enhancement

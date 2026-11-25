@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MAX` function [esql-max]
 
-:::{include} ../../_snippets/functions/layout/max.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/max.md
 :::

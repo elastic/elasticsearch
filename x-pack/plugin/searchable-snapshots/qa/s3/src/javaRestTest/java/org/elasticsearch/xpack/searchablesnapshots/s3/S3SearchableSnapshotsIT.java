@@ -32,6 +32,7 @@ public class S3SearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
         .keystore("s3.client.searchable_snapshots.secret_key", System.getProperty("s3SecretKey"))
         .setting("xpack.license.self_generated.type", "trial")
         .setting("s3.client.searchable_snapshots.protocol", () -> "http", (n) -> USE_FIXTURE)
+        .setting("s3.client.searchable_snapshots.region", () -> System.getProperty("test.s3.region"))
         .setting("s3.client.searchable_snapshots.endpoint", s3Fixture::getAddress, (n) -> USE_FIXTURE)
         .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
@@ -51,6 +52,7 @@ public class S3SearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
     protected Settings writeRepositorySettings() {
         final String bucket = System.getProperty("test.s3.bucket");
         assertThat(bucket, not(blankOrNullString()));
+        assertThat(System.getProperty("test.s3.region"), not(blankOrNullString()));
 
         final String basePath = System.getProperty("test.s3.base_path");
         assertThat(basePath, not(blankOrNullString()));

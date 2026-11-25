@@ -49,6 +49,7 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -100,12 +101,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
-            List<Object> results = new ArrayList<>();
+            List<Object> results = Collections.synchronizedList(new ArrayList<>());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 GeoPointScriptFieldType ft = build("fromLatLon", Map.of(), OnScriptError.FAIL);
                 GeoPointScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -129,7 +130,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                             }
                         };
                     }
-                });
+                }));
                 assertThat(results, containsInAnyOrder(new GeoPoint(45.0, 45.0), new GeoPoint(0.0, 0.0)));
             }
         }

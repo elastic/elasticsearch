@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#0, MAX(salary{r}#1,true[BOOLEAN],PT0S[TIME_DURATION]) AS mx#2]]
+  \_BranchPlan[[null=INDEX, main=INDEX, heavy_a=DATASET, heavy_b=DATASET]]
+    |_EsRelation[employees][avg_worked_seconds{f}#3, birth_date{f}#4, emp_no{f}#5, first_name{f}#6, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#15, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#20, salary_change{f}#21, salary_change.int{f}#22, salary_change.keyword{f}#23, salary_change.long{f}#24, still_hired{f}#25]
+    |_EsRelation[languages][language_code{f}#26, language_name{f}#27]
+    |_ExternalRelation[heavy_a.parquet][parquet][emp_no{r}#28, salary{r}#29, dept{r}#30]
+    \_ExternalRelation[heavy_b.parquet][parquet][emp_no{r}#31, salary{r}#32, dept{r}#33]

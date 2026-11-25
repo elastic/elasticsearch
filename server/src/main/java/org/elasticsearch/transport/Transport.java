@@ -191,6 +191,15 @@ public interface Transport extends LifecycleComponent {
         }
 
         /**
+         * Returns the handler for the given request ID, or <code>null</code> if there is none, without removing it. The transport consults
+         * it while the response is still arriving, see {@link TransportResponseHandler#reserveResponseBytes}.
+         */
+        public TransportResponseHandler<? extends TransportResponse> getHandler(long requestId) {
+            final ResponseContext<? extends TransportResponse> context = handlers.get(requestId);
+            return context == null ? null : context.handler();
+        }
+
+        /**
          * Adds a new response context and associates it with a new request ID.
          * @return the new response context
          * @see Connection#sendRequest(long, String, TransportRequest, TransportRequestOptions)
@@ -239,10 +248,11 @@ public interface Transport extends LifecycleComponent {
          */
         public TransportResponseHandler<? extends TransportResponse> onResponseReceived(
             final long requestId,
-            final TransportMessageListener listener
+            final TransportMessageListener listener,
+            final int networkMessageSize
         ) {
             ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
-            listener.onResponseReceived(requestId, context);
+            listener.onResponseReceived(requestId, context, networkMessageSize);
             if (context == null) {
                 return null;
             } else {

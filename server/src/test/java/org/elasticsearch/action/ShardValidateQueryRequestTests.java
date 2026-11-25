@@ -15,12 +15,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,8 +32,8 @@ import java.util.List;
 public class ShardValidateQueryRequestTests extends ESTestCase {
     protected NamedWriteableRegistry namedWriteableRegistry;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initNamedWriteableRegistry() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
@@ -45,6 +47,9 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
             validateQueryRequest.query(QueryBuilders.termQuery("field", "value"));
             validateQueryRequest.rewrite(true);
             validateQueryRequest.explain(false);
+            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+                validateQueryRequest.searchSlice("s1");
+            }
             ShardValidateQueryRequest request = new ShardValidateQueryRequest(
                 new ShardId("index", "foobar", 1),
                 AliasFilter.of(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"),
@@ -58,6 +63,7 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
                 assertEquals(request.query(), readRequest.query());
                 assertEquals(request.rewrite(), readRequest.rewrite());
                 assertEquals(request.shardId(), readRequest.shardId());
+                assertEquals(request.sliceRouting(), readRequest.sliceRouting());
             }
         }
     }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -23,11 +25,13 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class EvalOperatorTests extends OperatorTestCase {
     @Override
@@ -113,6 +117,49 @@ public class EvalOperatorTests extends OperatorTestCase {
             LongBlock lb = page.getBlock(resultChannel);
             IntStream.range(0, lb.getPositionCount()).forEach(pos -> assertEquals(expectedValue, lb.getLong(pos)));
         }
+    }
+
+    /**
+     * {@link EvalOperator#toString()} is read by the {@link Driver} on every status update. Verify
+     * that the same {@code String} instance is returned across calls so the evaluator-tree
+     * description is computed at most once per operator.
+     */
+    public void testToStringIsCached() {
+        DriverContext ctx = driverContext();
+        try (EvalOperator op = new EvalOperator(ctx, new Addition(ctx, 4, 9))) {
+            String first = op.toString();
+            String second = op.toString();
+            assertThat(first, equalTo("EvalOperator[evaluator=Addition[lhs=4, rhs=9]]"));
+            assertThat(second, sameInstance(first));
+        }
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testConstructorBreakerTripClosesEvaluator() {
+        BlockFactory smallBlockFactory = blockFactory(ByteSizeValue.ofKb(64));
+        DriverContext ctx = new DriverContext(smallBlockFactory.bigArrays(), smallBlockFactory, null);
+        AtomicBoolean closed = new AtomicBoolean();
+        Block held = ctx.blockFactory().newConstantLongBlockWith(1L, 1);
+        ExpressionEvaluator evaluator = new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return ByteSizeValue.ofMb(1).getBytes();
+            }
+
+            @Override
+            public void close() {
+                closed.set(true);
+                held.close();
+            }
+        };
+        expectThrows(CircuitBreakingException.class, () -> new EvalOperator(ctx, evaluator));
+        assertTrue(closed.get());
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
     }
 
     public void testReadFromBlock() {

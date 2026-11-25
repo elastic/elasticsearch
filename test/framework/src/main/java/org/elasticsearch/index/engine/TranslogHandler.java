@@ -53,13 +53,14 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(
             () -> TransportVersion.current(),
+            f -> true,
             indexSettings,
             (type, name) -> Lucene.STANDARD_ANALYZER,
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
             () -> null,
-            indexSettings.getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             null,
             query -> {
                 throw new UnsupportedOperationException("The bitset filter cache is not available in translog operations");

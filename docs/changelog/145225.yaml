@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
-  - 112918
-pr: 145225
-summary: Adds LIMIT BY ESQL command in Tech Preview
-type: enhancement

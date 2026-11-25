@@ -98,7 +98,11 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            ElasticsearchException.generateThrowableXContent(builder, params, exception);
+            ElasticsearchException.generateThrowableXContent(
+                builder,
+                params,
+                IndexLifecycleTransition.maybeTruncateException(exception, IndexLifecycleTransition.MAXIMUM_STEP_INFO_SUPPRESSED_EXCEPTIONS)
+            );
             builder.endObject();
             return builder;
         }

@@ -98,9 +98,9 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         bytesList1.sort(null);
         bytesList2.sort(null);
 
-        // Test SortedBinaryDocValues's decoding:
+        // Test SortableBinaryDocValues's decoding:
         LeafFieldData fieldData = indexFieldData.load(reader);
-        SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+        SortableBinaryDocValues bytesValues = fieldData.getBytesValues();
 
         assertTrue(bytesValues.advanceExact(0));
         assertEquals(2, bytesValues.docValueCount());

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TAU` function [esql-tau]
 
-:::{include} ../../_snippets/functions/layout/tau.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/tau.md
 :::

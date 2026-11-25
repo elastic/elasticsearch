@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceRequestMetadata;
+
 /**
- * Record encapsulating arbitrary metadata, which is usually propagated through HTTP headers.
- * @param productOrigin - product origin of the inference request (usually a whole system like "kibana", "logstash" etc.)
- * @param productUseCase - product use case of the inference request (more granular view on a user flow like "security ai assistant" etc.)
+ * Snapshot of the headers sent on an Elastic Inference Service request.
+ * @param attribution request attribution, including product origin, captured before the outbound call is executed
+ * @param esVersion the Elasticsearch version of the node handling the request
  */
-public record ElasticInferenceServiceRequestMetadata(String productOrigin, String productUseCase, String esVersion) {}
+public record ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata attribution, @Nullable String esVersion) {}

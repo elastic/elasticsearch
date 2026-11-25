@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -50,11 +51,6 @@ public class BytesRefSwissHashTests extends ESTestCase {
         return params;
     }
 
-    private enum AddType {
-        SINGLE_VALUE,
-        // ARRAY // at some point, we might add bulk add operations
-    }
-
     private final AddType addType;
     private final String name;
     private final int count;
@@ -75,37 +71,41 @@ public class BytesRefSwissHashTests extends ESTestCase {
         this.expectedIdPageCount = expectedIdPageCount;
     }
 
+    public void testPackedIdAndHashOffsets() {
+        assertEquals(2_147_483_640L, BytesRefSwissHash.idAndHashOffset(268_435_455));
+        assertEquals(2_147_483_648L, BytesRefSwissHash.idAndHashOffset(268_435_456));
+        assertEquals(4_294_967_288L, BytesRefSwissHash.idAndHashOffset(536_870_911));
+        assertEquals(4_294_967_296L, BytesRefSwissHash.idAndHashOffset(536_870_912));
+        assertEquals(8_589_934_584L, BytesRefSwissHash.idAndHashOffset(1_073_741_823));
+    }
+
     public void testValues() {
         Set<BytesRef> values = randomValues(count);
         BytesRef[] v = values.toArray(new BytesRef[0]);
 
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         BytesRef scratch = new BytesRef();
 
         try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
             assertThat(hash.size(), equalTo(0L));
 
-            switch (addType) {
-                case SINGLE_VALUE -> {
-                    for (int i = 0; i < v.length; i++) {
-                        assertThat(hash.add(v[i]), equalTo((long) i));
-                        assertThat(hash.size(), equalTo(i + 1L));
-                        assertThat(hash.get(i, scratch), equalTo(v[i]));
-                        assertThat(hash.add(v[i]), equalTo(-1L - i));
-                        assertThat(hash.size(), equalTo(i + 1L));
-                    }
-                    for (int i = 0; i < v.length; i++) {
-                        assertThat(hash.add(v[i]), equalTo(-1L - i));
-                    }
-                    assertThat(hash.size(), equalTo((long) v.length));
-                }
-                default -> throw new IllegalArgumentException();
+            for (int i = 0; i < v.length; i++) {
+                assertThat(addType.add(hash, v[i]), equalTo((long) i));
+                assertThat(hash.size(), equalTo(i + 1L));
+                assertThat(hash.get(i, scratch), equalTo(v[i]));
+                assertThat(addType.add(hash, v[i]), equalTo(-1L - i));
+                assertThat(hash.size(), equalTo(i + 1L));
+            }
+            for (int i = 0; i < v.length; i++) {
+                assertThat(addType.add(hash, v[i]), equalTo(-1L - i));
             }
 
+            assertThat(hash.size(), equalTo((long) v.length));
+
             for (int i = 0; i < v.length; i++) {
-                assertThat(hash.find(v[i]), equalTo((long) i));
+                assertThat(addType.find(hash, v[i]), equalTo((long) i));
             }
             assertThat(hash.size(), equalTo((long) v.length));
 
@@ -142,7 +142,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         BytesRef[] right = rightValues.toArray(new BytesRef[0]);
 
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
         try (
@@ -206,13 +206,45 @@ public class BytesRefSwissHashTests extends ESTestCase {
         assertThat(recycler.open, hasSize(0));
     }
 
+    public void testCompatible() {
+        BytesRef value = randomValues(1).iterator().next();
+
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
+        BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
+            long firstId = addType.add(hash, value);
+            assertTrue(firstId >= 0);
+
+            AddType otherType = randomFrom(AddType.values());
+            assertEquals(-firstId - 1, otherType.add(hash, value));
+
+            assertEquals(firstId, addType.find(hash, value));
+        }
+        assertThat(recycler.open, hasSize(0));
+    }
+
     public void testEmpty() {
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
             assertThat(hash.size(), equalTo(0L));
             assertFalse(hash.iterator().next());
+        }
+    }
+
+    public void testConsistentHash() {
+        BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 1024)));
+        assertEquals(BytesRefSwissHash.hash64(value), BytesRefSwissHash.hash64(value.bytes, value.offset, value.length));
+    }
+
+    public void testExceedsMaxSize() {
+        try (var hash = new BytesRefSwissHash(new TestRecycler(), NoopCircuitBreaker.INSTANCE, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int requested = randomIntBetween(BytesRefSwissHash.MAX_SIZE + 1, Integer.MAX_VALUE);
+            var error = expectThrows(IllegalArgumentException.class, () -> hash.ensureCapacity(requested));
+            assertThat(error.getMessage(), equalTo("maximum hash size [939524096] exceeded: requested [" + requested + "]"));
         }
     }
 
@@ -230,6 +262,26 @@ public class BytesRefSwissHashTests extends ESTestCase {
             SwissHash.BigCoreStatus s = (SwissHash.BigCoreStatus) status;
             assertThat(s.idPages(), equalTo(expectedIdPageCount));
             // We don't assert keyPages because BytesRefSwissHash doesn't track them (BytesRefArray does)
+        }
+    }
+
+    public void testConcurrentFind() {
+        Set<BytesRef> values = randomValues(count);
+        BytesRef[] v = values.toArray(new BytesRef[0]);
+        BytesRef notFound = randomValueOtherThanMany(values::contains, () -> new BytesRef(randomByteArrayOfLength(between(1, 20))));
+
+        TestRecycler recycler = new TestRecycler();
+        BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, NoopCircuitBreaker.INSTANCE, bigArrays)) {
+            for (int i = 0; i < v.length; i++) {
+                assertThat(addType.add(hash, v[i]), equalTo((long) i));
+            }
+            startInParallel(between(2, 8), t -> {
+                for (int i = 0; i < v.length; i++) {
+                    assertThat(hash.find(v[i]), equalTo((long) i));
+                }
+                assertThat(hash.find(notFound), equalTo(-1L));
+            });
         }
     }
 
@@ -284,5 +336,42 @@ public class BytesRefSwissHashTests extends ESTestCase {
                 delegate.close();
             }
         }
+    }
+
+    private enum AddType {
+        SINGLE_VALUE {
+            @Override
+            long add(BytesRefSwissHash hash, BytesRef value) {
+                if (randomBoolean()) {
+                    return hash.add(value);
+                } else {
+                    return hash.addWithHash(value, BytesRefSwissHash.hash64(value.bytes, value.offset, value.length));
+                }
+            }
+
+            @Override
+            long find(BytesRefSwissHash hash, BytesRef value) {
+                return hash.find(value);
+            }
+        },
+        SINGLE_CURSOR {
+            @Override
+            long add(BytesRefSwissHash hash, BytesRef value) {
+                PagedBytesCursor cursor = new PagedBytesCursor();
+                cursor.init(value.bytes, value.offset, value.length);
+                return hash.add(cursor);
+            }
+
+            @Override
+            long find(BytesRefSwissHash hash, BytesRef value) {
+                PagedBytesCursor cursor = new PagedBytesCursor();
+                cursor.init(value.bytes, value.offset, value.length);
+                return hash.find(cursor);
+            }
+        };
+
+        abstract long add(BytesRefSwissHash hash, BytesRef value);
+
+        abstract long find(BytesRefSwissHash hash, BytesRef value);
     }
 }

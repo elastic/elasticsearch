@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,26 +28,31 @@ public class BulkShardRequestTests extends ESTestCase {
         String index = randomSimpleString(random(), 10);
         int count = between(2, 100);
         final ShardId shardId = new ShardId(index, "ignored", 0);
-        BulkShardRequest r = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[count]);
+        BulkShardRequest r = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            new BulkItemRequest[count]
+        );
         assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests", r.toString());
         assertEquals("requests[" + count + "], index[" + index + "][0]", r.getDescription());
 
-        r = new BulkShardRequest(shardId, RefreshPolicy.IMMEDIATE, new BulkItemRequest[count]);
+        r = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.IMMEDIATE, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests and a refresh", r.toString());
         assertEquals("requests[" + count + "], index[" + index + "][0], refresh[IMMEDIATE]", r.getDescription());
 
-        r = new BulkShardRequest(shardId, RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count]);
+        r = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests blocking until refresh", r.toString());
         assertEquals("requests[" + count + "], index[" + index + "][0], refresh[WAIT_UNTIL]", r.getDescription());
 
-        r = new BulkShardRequest(shardId, RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count], true);
+        r = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count], true);
         assertEquals(
             "BulkShardRequest [" + shardId + "] containing [" + count + "] requests blocking until refresh, simulated",
             r.toString()
         );
         assertEquals("requests[" + count + "], index[" + index + "][0], refresh[WAIT_UNTIL]", r.getDescription());
 
-        r = new BulkShardRequest(shardId, RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count], false);
+        r = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count], false);
         assertEquals("BulkShardRequest [" + shardId + "] containing [" + count + "] requests blocking until refresh", r.toString());
         assertEquals("requests[" + count + "], index[" + index + "][0], refresh[WAIT_UNTIL]", r.getDescription());
     }
@@ -74,6 +80,6 @@ public class BulkShardRequestTests extends ESTestCase {
             };
             items[i] = new BulkItemRequest(i, request);
         }
-        return new BulkShardRequest(shardId, refreshPolicy, items, randomBoolean());
+        return new BulkShardRequest(shardId, SplitShardCountSummary.fromInt(randomInt(1024)), refreshPolicy, items, randomBoolean());
     }
 }

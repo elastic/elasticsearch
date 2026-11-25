@@ -13,6 +13,7 @@ dependencies {
   clusterModules project(':modules:lang-painless')
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   javaRestTestImplementation(project(':test:fixtures:azure-fixture'))
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
 }
 
 boolean useFixture = false
@@ -38,7 +39,7 @@ tasks.named("javaRestTest").configure {
   systemProperty 'test.azure.container', azureContainer
   systemProperty 'test.azure.key', azureKey
   systemProperty 'test.azure.sas_token', azureSasToken
-  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + buildParams.testSeed
+  nonInputProperties.systemProperty 'test.azure.base_path', buildParams.testSeedProvider.map { seed -> azureBasePath + "_searchable_snapshots_tests_" + seed }
 }
 
 tasks.register("azureThirdPartyTest") {

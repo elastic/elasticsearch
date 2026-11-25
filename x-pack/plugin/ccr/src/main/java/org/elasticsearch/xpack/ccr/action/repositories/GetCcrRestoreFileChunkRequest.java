@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,7 +19,7 @@ import org.elasticsearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
 
-public class GetCcrRestoreFileChunkRequest extends LegacyActionRequest implements RemoteClusterAwareRequest, IndicesRequest {
+public class GetCcrRestoreFileChunkRequest extends UntypedActionRequest implements RemoteClusterAwareRequest, IndicesRequest {
 
     private final DiscoveryNode node;
     private final String sessionUUID;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,8 +34,9 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
         Expression buckets = randomChild();
         Expression from = randomChild();
         Expression to = randomChild();
+        Expression options = randomChild();
         long offset = randomLongBetween(-Duration.ofDays(1).toMillis(), Duration.ofDays(1).toMillis());
-        return new Bucket(source, field, buckets, from, to, configuration, offset);
+        return new Bucket(source, field, buckets, from, to, options, configuration, offset, Rounding.RoundingConvention.UP);
     }
 
     @Override
@@ -44,8 +46,9 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
         Expression buckets = instance.buckets();
         Expression from = instance.from();
         Expression to = instance.to();
+        Expression options = randomChild();
         long offset = instance.offset();
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> buckets = randomValueOtherThan(buckets, AbstractExpressionSerializationTests::randomChild);
             case 2 -> from = randomValueOtherThan(from, AbstractExpressionSerializationTests::randomChild);
@@ -54,28 +57,41 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
                 offset,
                 () -> randomLongBetween(-Duration.ofDays(1).toMillis(), Duration.ofDays(1).toMillis())
             );
+            case 5 -> to = randomValueOtherThan(options, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Bucket(source, field, buckets, from, to, configuration(), offset);
+        return new Bucket(source, field, buckets, from, to, options, configuration(), offset, Rounding.RoundingConvention.UP);
     }
 
     public void testOffsetBackcompatSerialization() throws IOException {
-        Bucket instance = new Bucket(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), configuration(), 0L);
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Bucket.ESQL_BUCKET_OFFSET);
+        Bucket instance = new Bucket(
+            randomSource(),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            null,
+            configuration(),
+            0L,
+            Rounding.RoundingConvention.DOWN
+        );
         Bucket copy = copyInstance(instance, oldVersion);
         assertThat(copy.offset(), equalTo(0L));
     }
 
     public void testOffsetBackcompatSerializationRejectsNonZeroOffset() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Bucket.ESQL_BUCKET_OFFSET);
         Bucket instance = new Bucket(
             randomSource(),
-            randomChild(),
-            randomChild(),
-            randomChild(),
-            randomChild(),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            randomChildSupportedOn(oldVersion),
+            null,
             configuration(),
-            randomLongBetween(1, 1000)
+            randomLongBetween(1, 1000),
+            Rounding.RoundingConvention.DOWN
         );
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Bucket.ESQL_BUCKET_OFFSET);
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> copyInstance(instance, oldVersion));
         assertThat(e.getMessage(), containsString("bucket with offset is not supported in peer node's version [" + oldVersion + "]"));
     }

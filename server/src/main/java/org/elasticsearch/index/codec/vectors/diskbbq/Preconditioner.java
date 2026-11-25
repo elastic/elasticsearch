@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -43,26 +44,86 @@ public class Preconditioner {
         if (blocks.length == 1) {
             matrixVectorMultiply(blocks[0], vector, out);
         } else {
-            int blockIdx = 0;
-            float[] x = new float[blockDim];
-            float[] blockOut = new float[blockDim];
-            for (int j = 0; j < blocks.length; j++) {
-                float[][] block = blocks[j];
-                int blockDim = blocks[j].length;
-                // blockDim is only ever smaller for the tail
-                if (blockDim != this.blockDim) {
-                    x = new float[blockDim];
-                    blockOut = new float[blockDim];
-                }
-                for (int k = 0; k < permutationMatrix[j].length; k++) {
-                    int idx = permutationMatrix[j][k];
-                    x[k] = vector[idx];
-                }
-                // TODO: can be optimized to do all blocks in one pass?
-                matrixVectorMultiply(block, x, blockOut);
-                System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
-                blockIdx += blockDim;
+            applyMultiBlock(i -> vector[i], out);
+        }
+    }
+
+    /**
+     * Applies the preconditioner rotation to a byte vector, producing a rotated byte vector.
+     * The rotation is performed in float precision internally (using the provided scratch buffer),
+     * then the result is rounded and clamped back to byte range [-128, 127].
+     *
+     * @param vector the input byte vector
+     * @param out    the output byte vector (same length as input)
+     * @param scratch a float scratch buffer (same length as input), reused across calls
+     */
+    public void applyTransformToBytes(byte[] vector, byte[] out, float[] scratch) {
+        applyTransform(vector, scratch);
+        for (int i = 0; i < scratch.length; i++) {
+            out[i] = (byte) Math.clamp(Math.round(scratch[i]), -128, 127);
+        }
+    }
+
+    /**
+     * Applies the preconditioner rotation to a byte vector, producing a float result.
+     * Each byte element is implicitly widened to float during the matrix-vector multiply.
+     *
+     * @param vector the input byte vector
+     * @param out    the output float vector (same length as input)
+     */
+    public void applyTransform(byte[] vector, float[] out) {
+        assert vector != null;
+        assert vector.length == blockDim * (blocks.length - 1) + (blocks[blocks.length - 1].length);
+
+        if (blocks.length == 1) {
+            matrixVectorMultiplyBytes(blocks[0], vector, out);
+        } else {
+            applyMultiBlock(i -> (float) vector[i], out);
+        }
+    }
+
+    /**
+     * Shared multi-block rotation loop. Extracts input elements via {@code elementAt} to support
+     * both float[] and byte[] source vectors.
+     */
+    private void applyMultiBlock(java.util.function.IntToDoubleFunction elementAt, float[] out) {
+        int blockIdx = 0;
+        float[] x = new float[blockDim];
+        float[] blockOut = new float[blockDim];
+        for (int j = 0; j < blocks.length; j++) {
+            float[][] block = blocks[j];
+            int blockDim = blocks[j].length;
+            // blockDim is only ever smaller for the tail
+            if (blockDim != this.blockDim) {
+                x = new float[blockDim];
+                blockOut = new float[blockDim];
             }
+            for (int k = 0; k < permutationMatrix[j].length; k++) {
+                int idx = permutationMatrix[j][k];
+                x[k] = (float) elementAt.applyAsDouble(idx);
+            }
+            // TODO: can be optimized to do all blocks in one pass?
+            matrixVectorMultiply(block, x, blockOut);
+            System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
+            blockIdx += blockDim;
+        }
+    }
+
+    /**
+     * Matrix-vector multiply where the input vector is byte[], converting each byte to float inline.
+     * Used only for the single-block fast path in {@link #applyTransform(byte[], float[])}.
+     */
+    private static void matrixVectorMultiplyBytes(float[][] m, byte[] x, float[] out) {
+        assert m.length == out.length;
+        assert m.length > 0 && m[0].length == x.length;
+        int dim = out.length;
+        for (int i = 0; i < dim; i++) {
+            float sum = 0;
+            float[] row = m[i];
+            for (int j = 0; j < x.length; j++) {
+                sum += row[j] * x[j];
+            }
+            out[i] = sum;
         }
     }
 
@@ -155,6 +216,40 @@ public class Preconditioner {
         }
 
         return permutationMatrix;
+    }
+
+    /**
+     * Applies the preconditioner rotation to each vector in the list, in-place.
+     * The {@code encoding} determines whether vectors are {@code float[]} or {@code byte[]}.
+     * For byte vectors, the rotation is performed in float precision internally, then rounded
+     * and clamped back to byte range [-128, 127].
+     *
+     * @param vectors  the list of vectors to precondition in-place
+     * @param encoding the vector encoding (FLOAT32 or BYTE)
+     */
+    @SuppressWarnings("unchecked")
+    public void preconditionVectorsInPlace(List<?> vectors, VectorEncoding encoding) {
+        if (vectors.isEmpty()) return;
+        switch (encoding) {
+            case FLOAT32 -> {
+                List<float[]> floatVecs = (List<float[]>) vectors;
+                float[] scratch = new float[floatVecs.getFirst().length];
+                for (float[] vector : floatVecs) {
+                    applyTransform(vector, scratch);
+                    System.arraycopy(scratch, 0, vector, 0, vector.length);
+                }
+            }
+            case BYTE -> {
+                List<byte[]> byteVecs = (List<byte[]>) vectors;
+                int dim = byteVecs.getFirst().length;
+                float[] floatScratch = new float[dim];
+                byte[] byteScratch = new byte[dim];
+                for (byte[] vector : byteVecs) {
+                    applyTransformToBytes(vector, byteScratch, floatScratch);
+                    System.arraycopy(byteScratch, 0, vector, 0, dim);
+                }
+            }
+        }
     }
 
     public void write(IndexOutput out) throws IOException {

@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -29,14 +31,17 @@ public final class StNPointsFromWKBEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator wkbBlock;
 
+  private final BytesRef scratch;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StNPointsFromWKBEvaluator(Source source, ExpressionEvaluator wkbBlock,
+  public StNPointsFromWKBEvaluator(Source source, ExpressionEvaluator wkbBlock, BytesRef scratch,
       DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
+    this.scratch = scratch;
     this.driverContext = driverContext;
   }
 
@@ -55,7 +60,7 @@ public final class StNPointsFromWKBEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!wkbBlockBlock.isNull(p)) {
@@ -66,7 +71,7 @@ public final class StNPointsFromWKBEvaluator implements ExpressionEvaluator {
           continue position;
         }
         try {
-          StNPoints.fromWellKnownBinary(result, p, wkbBlockBlock);
+          StNPoints.fromWellKnownBinary(result, p, wkbBlockBlock, this.scratch);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -88,7 +93,7 @@ public final class StNPointsFromWKBEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -98,14 +103,18 @@ public final class StNPointsFromWKBEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory wkbBlock;
 
-    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock) {
+    private final Function<DriverContext, BytesRef> scratch;
+
+    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock,
+        Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.wkbBlock = wkbBlock;
+      this.scratch = scratch;
     }
 
     @Override
     public StNPointsFromWKBEvaluator get(DriverContext context) {
-      return new StNPointsFromWKBEvaluator(source, wkbBlock.get(context), context);
+      return new StNPointsFromWKBEvaluator(source, wkbBlock.get(context), scratch.apply(context), context);
     }
 
     @Override

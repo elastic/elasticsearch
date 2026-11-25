@@ -120,6 +120,19 @@ public abstract class SearchProgressListener {
     protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
     /**
+     * Executed when a phase encounters a fatal error which results in the search being terminated. This is necessary to allow cluster
+     * metadata to be finalized for searches which are cancelled before all shards have returned results.
+     * <p>
+     * This is distinct from {@link #onQueryFailure(int, SearchShardTarget, Exception)} or
+     * {@link #onFetchFailure(int, SearchShardTarget, Exception)}, which are called when a single shard encounters an error but the search
+     * may continue.
+     *
+     * @param exc The cause of the failure.
+     * @see AbstractSearchAsyncAction#onPhaseFailure(java.lang.String, java.lang.String, java.lang.Throwable)
+     */
+    protected void onPhaseFailure(Exception exc) {}
+
+    /**
      * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
      *
      * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
@@ -204,6 +217,14 @@ public abstract class SearchProgressListener {
             onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
             logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on fetch failure", e);
+        }
+    }
+
+    final void notifyPhaseFailure(Exception exc) {
+        try {
+            onPhaseFailure(exc);
+        } catch (Exception e) {
+            logger.warn("Failed to execute progress listener on phase failure", e);
         }
     }
 

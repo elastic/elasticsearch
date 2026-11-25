@@ -11,7 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.VersionCheckingStreamOutput;
@@ -25,7 +25,6 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -74,30 +73,30 @@ public final class TransportSearchHelper {
     }
 
     static ParsedScrollId parseScrollId(String scrollId) {
-        try (
-            var decodedInputStream = Base64.getUrlDecoder().wrap(new ByteArrayInputStream(scrollId.getBytes(StandardCharsets.ISO_8859_1)));
-            var in = new InputStreamStreamInput(decodedInputStream)
-        ) {
-            final boolean includeContextUUID;
-            final String type;
-            final String firstChunk = in.readString();
-            if (INCLUDE_CONTEXT_UUID.equals(firstChunk)) {
-                includeContextUUID = true;
-                type = in.readString();
-            } else {
-                includeContextUUID = false;
-                type = firstChunk;
+        try {
+            byte[] decoded = Base64.getUrlDecoder().decode(scrollId.getBytes(StandardCharsets.ISO_8859_1));
+            try (var in = new BytesArray(decoded).streamInput()) {
+                final boolean includeContextUUID;
+                final String type;
+                final String firstChunk = in.readString();
+                if (INCLUDE_CONTEXT_UUID.equals(firstChunk)) {
+                    includeContextUUID = true;
+                    type = in.readString();
+                } else {
+                    includeContextUUID = false;
+                    type = firstChunk;
+                }
+                final SearchContextIdForNode[] context = in.readArray(
+                    includeContextUUID
+                        ? TransportSearchHelper::readSearchContextIdForNodeIncludingContextUUID
+                        : TransportSearchHelper::readSearchContextIdForNodeExcludingContextUUID,
+                    SearchContextIdForNode[]::new
+                );
+                if (in.available() > 0) {
+                    throw new IllegalArgumentException("Not all bytes were read");
+                }
+                return new ParsedScrollId(type, context);
             }
-            final SearchContextIdForNode[] context = in.readArray(
-                includeContextUUID
-                    ? TransportSearchHelper::readSearchContextIdForNodeIncludingContextUUID
-                    : TransportSearchHelper::readSearchContextIdForNodeExcludingContextUUID,
-                SearchContextIdForNode[]::new
-            );
-            if (in.available() > 0) {
-                throw new IllegalArgumentException("Not all bytes were read");
-            }
-            return new ParsedScrollId(type, context);
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse scroll id", e);
         }
@@ -113,10 +112,8 @@ public final class TransportSearchHelper {
 
     private static SearchContextIdForNode innerReadSearchContextIdForNode(String contextUUID, StreamInput in) throws IOException {
         long id = in.readLong();
-        String[] split = RemoteClusterAware.splitIndexName(in.readString());
-        String clusterAlias = split[0];
-        String target = split[1];
-        return new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
+        var split = RemoteClusterAware.splitIndexName(in.readString());
+        return new SearchContextIdForNode(split.clusterAlias(), split.indexExpression(), new ShardSearchContextId(contextUUID, id));
     }
 
     /**

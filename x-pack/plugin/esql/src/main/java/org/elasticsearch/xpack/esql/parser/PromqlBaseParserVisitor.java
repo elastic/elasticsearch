@@ -114,6 +114,12 @@ public interface PromqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLabelList(PromqlBaseParser.LabelListContext ctx);
   /**
+   * Visit a parse tree produced by {@link PromqlBaseParser#labelListItem}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLabelListItem(PromqlBaseParser.LabelListItemContext ctx);
+  /**
    * Visit a parse tree produced by {@link PromqlBaseParser#labels}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -126,6 +132,12 @@ public interface PromqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLabel(PromqlBaseParser.LabelContext ctx);
   /**
+   * Visit a parse tree produced by {@link PromqlBaseParser#labelValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLabelValue(PromqlBaseParser.LabelValueContext ctx);
+  /**
    * Visit a parse tree produced by {@link PromqlBaseParser#labelName}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -137,6 +149,18 @@ public interface PromqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitIdentifier(PromqlBaseParser.IdentifierContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PromqlBaseParser#metricName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetricName(PromqlBaseParser.MetricNameContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PromqlBaseParser#groupingLabel}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx);
   /**
    * Visit a parse tree produced by {@link PromqlBaseParser#evaluation}.
    * @param ctx the parse tree

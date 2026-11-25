@@ -1,5 +1,0 @@
-pr: 139830
-summary: GA `chunk_rescorer` in `text_similarity_reranker`
-area: Relevance
-type: enhancement
-issues: []

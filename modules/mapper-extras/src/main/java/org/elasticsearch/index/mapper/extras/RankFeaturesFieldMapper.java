@@ -46,12 +46,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam(
-            "positive_score_impact",
-            false,
-            m -> ft(m).positiveScoreImpact,
-            true
-        );
+        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam("positive_score_impact", false, true);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -146,11 +141,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
-
-    @Override
     public RankFeaturesFieldType fieldType() {
         return (RankFeaturesFieldType) super.fieldType();
     }
@@ -161,7 +151,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
             throw new IllegalArgumentException(
@@ -209,6 +199,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         } finally {
             context.path().setWithinLeafObject(false);
         }
+        return new ParseResult.Indexed();
     }
 
     @Override

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
@@ -202,20 +201,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
             .source(new SearchSourceBuilder().query(rangeQuery));
 
-        if (includeIndexCoveringSearchRangeInSearchRequest) {
-            assertResponse(client().search(request), searchResponse -> {
-                // All the regular index searches succeeded
-                assertThat(searchResponse.getSuccessfulShards(), equalTo(indexWithinSearchRangeShardCount));
-                // All the searchable snapshots shard search failed
-                assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
-                assertThat(searchResponse.getSkippedShards(), equalTo(0));
-                assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-            });
-        } else {
-            // All shards failed, since all shards are unassigned and the IndexMetadata min/max timestamp
-            // is not available yet
-            expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());
-        }
+        // Deliberately no full search here: against recovering shards it can block on
+        // IndexShard#waitForSearchReady.
 
         // test with SearchShardsAPI
         {
@@ -644,18 +631,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final int totalShards = indexOutsideSearchRangeShardCount + searchableSnapshotShardCount;
 
-        // test with Search API
-        {
-            assertResponse(client().search(request), searchResponse -> {
-                // All the regular index searches succeeded
-                assertThat(searchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount));
-                // All the searchable snapshots shard search failed
-                assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
-                assertThat(searchResponse.getSkippedShards(), equalTo(searchableSnapshotShardCount));
-                assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
-            });
-        }
+        // Deliberately no full search here: against recovering shards it can block on
+        // IndexShard#waitForSearchReady.
 
         // test with SearchShards API
         {
@@ -750,7 +727,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * The latter is a way to do only a can-match rather than all search phases.
      */
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
-        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(false);
+        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(IndexMode.STANDARD);
     }
 
     /**
@@ -759,10 +736,23 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * enabled and therefore the timestamp field is stored with a sparse index.
      */
     public void testLogsDBSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
-        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(true);
+        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(IndexMode.LOGSDB);
     }
 
-    public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(boolean logsMode) throws Exception {
+    /**
+     * Can match against searchable snapshots is tested via both the Search API and the SearchShards (transport-only) API.
+     * The latter is a way to do only a can-match rather than all search phases.  Tests the case where logsdb_columnar mode is
+     * enabled and therefore the timestamp field is stored with a sparse index.
+     */
+    public void testColumnarLogsDBSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
+        // When the columnar feature flag is enabled, randomly exercise LOGSDB_COLUMNAR; fall back to LOGSDB otherwise.
+        // assumeTrue cannot be used here because the cluster is started before the test body runs, and a mid-test skip
+        // leaves the cluster in a state where @After cleanup cannot obtain a client.
+        IndexMode mode = randomBoolean() ? IndexMode.LOGSDB_COLUMNAR : IndexMode.LOGSDB;
+        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(mode);
+    }
+
+    public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(IndexMode indexMode) throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
@@ -775,7 +765,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             indexWithinSearchRange,
             indexWithinSearchRangeShardCount,
             Settings.builder()
-                .put(IndexSettings.MODE.getKey(), logsMode ? IndexMode.LOGSDB.getName() : IndexMode.STANDARD.getName())
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
                 .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
                 .build()
         );
@@ -827,20 +817,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         SearchRequest request = new SearchRequest().indices(searchableSnapshotIndexWithinSearchRange)
             .source(new SearchSourceBuilder().query(rangeQuery));
 
-        // All shards failed, since all shards are unassigned and the IndexMetadata min/max timestamp
-        // is not available yet
-        expectThrows(SearchPhaseExecutionException.class, () -> {
-            SearchResponse response = client().search(request).actionGet();
-            logger.info(
-                "[TEST DEBUG INFO] Search hits: {} Successful shards: {}, failed shards: {}, skipped shards: {}, total shards: {}",
-                response.getHits().getTotalHits().value(),
-                response.getSuccessfulShards(),
-                response.getFailedShards(),
-                response.getSkippedShards(),
-                response.getTotalShards()
-            );
-            fail("This search call is expected to throw an exception but it did not");
-        });
+        // Deliberately no full search here: against recovering shards it can block on
+        // IndexShard#waitForSearchReady.
 
         // test with SearchShards API
         boolean allowPartialSearchResults = false;

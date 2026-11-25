@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -31,7 +31,7 @@ public class AzureOpenAiChatCompletionRequestEntity implements ToXContentObject 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        requestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokens(params));
+        requestEntity.toXContent(builder, UnifiedCompletionRequestBody.withMaxCompletionTokens(params));
 
         if (Strings.isNullOrEmpty(user) == false) {
             builder.field(USER_FIELD, user);

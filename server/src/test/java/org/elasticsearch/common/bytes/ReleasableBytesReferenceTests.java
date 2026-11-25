@@ -12,12 +12,16 @@ package org.elasticsearch.common.bytes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.core.Releasable;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCase {
@@ -86,5 +90,64 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
     @Override
     public void testSliceToBytesRef() throws IOException {
         // CompositeBytesReference shifts offsets
+    }
+
+    public void testAdoptPlainBytesArray() {
+        byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 100));
+        BytesArray raw = new BytesArray(payload);
+        ReleasableBytesReference adopted = ReleasableBytesReference.adopt(raw);
+        assertEquals(payload.length, adopted.length());
+        assertThat(adopted, equalBytes(raw));
+        assertTrue(adopted.hasReferences());
+        adopted.decRef();
+    }
+
+    public void testAdoptEmptyReturnsEmpty() {
+        assertSame(ReleasableBytesReference.empty(), ReleasableBytesReference.adopt(BytesArray.EMPTY));
+    }
+
+    /**
+     * {@link org.elasticsearch.common.io.stream.BytesStreamOutput#bytes()} returns {@link BytesArray} or {@link PagedBytesReference}, not
+     * {@link ReleasableBytesReference}; exercise {@code adopt} → {@link ReleasableBytesReference#retain()} with a real {@link Releasable}.
+     */
+    public void testAdoptReleasableSingletonIsRetainOnSameInstance() {
+        AtomicBoolean released = new AtomicBoolean(false);
+        ReleasableBytesReference wrapped = new ReleasableBytesReference(
+            new BytesArray(randomByteArrayOfLength(8)),
+            (Releasable) () -> released.set(true)
+        );
+        ReleasableBytesReference adopted = ReleasableBytesReference.adopt(wrapped);
+        assertSame(wrapped, adopted);
+        assertFalse(released.get());
+        adopted.decRef();
+        assertTrue(wrapped.hasReferences());
+        wrapped.decRef();
+        assertTrue(released.get());
+        assertFalse(wrapped.hasReferences());
+    }
+
+    /**
+     * {@link ReleasableBytesReference#adopt} on a {@link CompositeBytesReference} retains each {@link ReleasableBytesReference} leaf and
+     * bundles one {@link Releasable#close} for those retains. Closing {@code adopted} undoes only {@code adopt}'s {@code retain()} — the
+     * original ref count from construction remains until explicitly {@link ReleasableBytesReference#decRef}'d.
+     */
+    public void testAdoptCompositeReleasesRetainedComponents() {
+        byte[] b1 = randomByteArrayOfLength(randomIntBetween(1, 100));
+        byte[] b2 = randomByteArrayOfLength(randomIntBetween(1, 100));
+        AtomicInteger releaseCount = new AtomicInteger(0);
+        ReleasableBytesReference p1 = new ReleasableBytesReference(new BytesArray(b1), () -> releaseCount.incrementAndGet());
+        ReleasableBytesReference p2 = new ReleasableBytesReference(new BytesArray(b2), () -> releaseCount.incrementAndGet());
+        BytesReference composite = CompositeBytesReference.of(p1, p2);
+        ReleasableBytesReference adopted = ReleasableBytesReference.adopt(composite);
+        assertEquals(0, releaseCount.get());
+        assertEquals(composite.length(), adopted.length());
+        assertArrayEquals(BytesReference.toBytes(composite), BytesReference.toBytes(adopted));
+        adopted.decRef();
+        assertEquals(0, releaseCount.get());
+        assertTrue(p1.hasReferences());
+        assertTrue(p2.hasReferences());
+        p1.decRef();
+        p2.decRef();
+        assertEquals(2, releaseCount.get());
     }
 }

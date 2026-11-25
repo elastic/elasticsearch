@@ -48,19 +48,22 @@ public class IpPrefixAutomatonUtil {
             Automaton a = Automata.makeChar(c);
             if (c > 0 && c < 10) {
                 // all one digit prefixes expand to the two digit range, i.e. 1 -> [10..19]
-                a = Operations.union(a, Automata.makeCharRange(c * 10, c * 10 + 9));
+                List<Automaton> parts = new ArrayList<>();
+                parts.add(a);
+                parts.add(Automata.makeCharRange(c * 10, c * 10 + 9));
                 // 1 and 2 even to three digit ranges
                 if (c == 1) {
-                    a = Operations.union(a, Automata.makeCharRange(100, 199));
+                    parts.add(Automata.makeCharRange(100, 199));
                 }
                 if (c == 2) {
-                    a = Operations.union(a, Automata.makeCharRange(200, 255));
+                    parts.add(Automata.makeCharRange(200, 255));
                 }
+                a = Operations.union(parts);
             }
             if (c >= 10 && c < 26) {
                 int min = c * 10;
                 int max = Math.min(c * 10 + 9, 255);
-                a = Operations.union(a, Automata.makeCharRange(min, max));
+                a = Operations.union(List.of(a, Automata.makeCharRange(min, max)));
             }
             INCOMPLETE_IP4_GROUP_AUTOMATON_LOOKUP.put(c, a);
         }
@@ -75,10 +78,10 @@ public class IpPrefixAutomatonUtil {
         if (ipPrefix.isEmpty() == false) {
             Automaton ipv4Automaton = createIp4Automaton(ipPrefix);
             if (ipv4Automaton != null) {
-                ipv4Automaton = concatenate(IPV4_PREFIX, ipv4Automaton);
+                ipv4Automaton = concatenate(List.of(IPV4_PREFIX, ipv4Automaton));
             }
             Automaton ipv6Automaton = getIpv6Automaton(ipPrefix);
-            result = Operations.union(ipv4Automaton, ipv6Automaton);
+            result = Operations.union(List.of(ipv4Automaton, ipv6Automaton));
         } else {
             result = Automata.makeAnyBinary();
         }
@@ -87,82 +90,83 @@ public class IpPrefixAutomatonUtil {
     }
 
     private static Automaton getIpv6Automaton(String ipPrefix) {
-        Automaton ipv6Automaton = EMPTY_AUTOMATON;
         List<String> ip6Groups = parseIp6Prefix(ipPrefix);
-        if (ip6Groups.isEmpty() == false) {
-            ipv6Automaton = Automata.makeString("");
-            int groupsAdded = 0;
-            for (String group : ip6Groups) {
-                if (group.contains(".")) {
-                    // try to parse this as ipv4 ending part, but only if we already have some ipv6 specific stuff in front
-                    if (groupsAdded > 0) {
-                        ipv6Automaton = concatenate(ipv6Automaton, createIp4Automaton(group));
-                        groupsAdded += 2; // this counts as two bytes, missing bytes are padded already
+        if (ip6Groups.isEmpty()) {
+            return EMPTY_AUTOMATON;
+        }
+        List<Automaton> parts = new ArrayList<>();
+        int groupsAdded = 0;
+        for (String group : ip6Groups) {
+            if (group.contains(".")) {
+                // try to parse this as ipv4 ending part, but only if we already have some ipv6 specific stuff in front
+                if (groupsAdded > 0) {
+                    parts.add(createIp4Automaton(group));
+                    groupsAdded += 2; // this counts as two bytes, missing bytes are padded already
+                } else {
+                    return EMPTY_AUTOMATON;
+                }
+            } else if (group.endsWith(":")) {
+                groupsAdded++;
+                // full block
+                if (group.length() > 1) {
+                    group = group.substring(0, group.length() - 1);
+                    parts.add(automatonFromIPv6Group(padWithZeros(group, 4 - group.length())));
+                } else {
+                    // single colon denotes left out zeros
+                    parts.add(Operations.repeat(Automata.makeChar(0)));
+                }
+            } else {
+                // potentially partial block
+                if (groupsAdded == 0 && ONLY_ZEROS.matcher(group).matches()) {
+                    if (group.length() == 1) {
+                        // A single "0" can match IPv6 addresses displayed as "0:X:..." where the first group is
+                        // exactly 0x0000. We require the second group to be non-zero to avoid also matching all
+                        // IPv4-mapped addresses (::ffff:x.x.x.x) and addresses where "::" compresses leading zeros.
+                        parts.add(ZERO_FIRST_GROUP);
+                        parts.add(NON_ZERO_SECOND_GROUP);
+                        groupsAdded = 2;
                     } else {
+                        // Multi-zero prefixes ("00", "000", "0000") cannot match any displayed IPv6 group
+                        // since leading zeros are always stripped in IPv6 formatting.
                         return EMPTY_AUTOMATON;
                     }
-                } else if (group.endsWith(":")) {
-                    groupsAdded++;
-                    // full block
-                    if (group.length() > 1) {
-                        group = group.substring(0, group.length() - 1);
-                        ipv6Automaton = concatenate(ipv6Automaton, automatonFromIPv6Group(padWithZeros(group, 4 - group.length())));
-                    } else {
-                        // single colon denotes left out zeros
-                        ipv6Automaton = concatenate(ipv6Automaton, Operations.repeat(Automata.makeChar(0)));
-                    }
                 } else {
-                    // potentially partial block
-                    if (groupsAdded == 0 && ONLY_ZEROS.matcher(group).matches()) {
-                        if (group.length() == 1) {
-                            // A single "0" can match IPv6 addresses displayed as "0:X:..." where the first group is
-                            // exactly 0x0000. We require the second group to be non-zero to avoid also matching all
-                            // IPv4-mapped addresses (::ffff:x.x.x.x) and addresses where "::" compresses leading zeros.
-                            ipv6Automaton = concatenate(List.of(ipv6Automaton, ZERO_FIRST_GROUP, NON_ZERO_SECOND_GROUP));
-                            groupsAdded = 2;
-                        } else {
-                            // Multi-zero prefixes ("00", "000", "0000") cannot match any displayed IPv6 group
-                            // since leading zeros are always stripped in IPv6 formatting.
-                            return EMPTY_AUTOMATON;
-                        }
-                    } else {
-                        // we need to create all possibilities of byte sequences this could match
-                        groupsAdded++;
-                        ipv6Automaton = concatenate(ipv6Automaton, automatonFromIPv6Group(group));
-                    }
+                    // we need to create all possibilities of byte sequences this could match
+                    groupsAdded++;
+                    parts.add(automatonFromIPv6Group(group));
                 }
             }
-            // fill up the remainder of the 16 address bytes with wildcard matches, each group added so far counts for two bytes
-            for (int i = 0; i < 16 - groupsAdded * 2; i++) {
-                ipv6Automaton = concatenate(ipv6Automaton, Operations.optional(Automata.makeCharRange(0, 255)));
-            }
         }
-        return ipv6Automaton;
+        // fill up the remainder of the 16 address bytes with wildcard matches, each group added so far counts for two bytes
+        for (int i = 0; i < 16 - groupsAdded * 2; i++) {
+            parts.add(Operations.optional(Automata.makeCharRange(0, 255)));
+        }
+        return concatenate(parts);
     }
 
     static Automaton automatonFromIPv6Group(String ipv6Group) {
         assert ipv6Group.length() > 0 && ipv6Group.length() <= 4 : "expected a full ipv6 group or prefix";
-        Automaton result = Automata.makeEmpty();
+        List<Automaton> alternatives = new ArrayList<>();
         for (int leadingZeros = 0; leadingZeros <= 4 - ipv6Group.length(); leadingZeros++) {
             int bytesAdded = 0;
             String padded = padWithZeros(ipv6Group, leadingZeros);
-            Automaton a = Automata.makeString("");
+            List<Automaton> parts = new ArrayList<>();
             while (padded.length() >= 2) {
-                a = concatenate(a, Automata.makeChar(Integer.parseInt(padded.substring(0, 2), 16)));
+                parts.add(Automata.makeChar(Integer.parseInt(padded.substring(0, 2), 16)));
                 padded = padded.substring(2);
                 bytesAdded++;
             }
             if (padded.length() == 1) {
                 int value = Integer.parseInt(padded, 16);
-                a = concatenate(a, Automata.makeCharRange(value * 16, value * 16 + 15));
+                parts.add(Automata.makeCharRange(value * 16, value * 16 + 15));
                 bytesAdded++;
             }
             if (bytesAdded != 2) {
-                a = concatenate(a, Automata.makeCharRange(0, 255));
+                parts.add(Automata.makeCharRange(0, 255));
             }
-            result = Operations.union(result, a);
+            alternatives.add(concatenate(parts));
         }
-        return result;
+        return Operations.union(alternatives);
     }
 
     private static Pattern IPV4_GROUP_MATCHER = Pattern.compile(

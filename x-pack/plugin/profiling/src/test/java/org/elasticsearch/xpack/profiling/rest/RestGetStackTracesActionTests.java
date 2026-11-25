@@ -38,7 +38,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
 
     public void testPrepareEmptyRequest() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetStackTracesRequest.class));
             GetStackTracesRequest getStackTracesRequest = (GetStackTracesRequest) request;
             assertThat(getStackTracesRequest.getSampleSize(), is(20_000)); // expect the default value
@@ -64,7 +64,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
 
     public void testPrepareParameterizedRequest() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             assertThat(request, instanceOf(GetStackTracesRequest.class));
             GetStackTracesRequest getStackTracesRequest = (GetStackTracesRequest) request;
             assertThat(getStackTracesRequest.getSampleSize(), is(10_000));

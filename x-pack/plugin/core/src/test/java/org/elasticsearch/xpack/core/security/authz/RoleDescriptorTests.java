@@ -59,6 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
@@ -988,6 +989,79 @@ public class RoleDescriptorTests extends ESTestCase {
             .build();
         assertThat(first.compareTo(second), lessThan(0));
         assertThat(second.compareTo(first), greaterThan(0));
+    }
+
+    public void testImplicitlyGrantedIndicesPrivilegesEmitsMarkerField() throws IOException {
+        final RoleDescriptor.IndicesPrivileges base = RoleDescriptor.IndicesPrivileges.builder()
+            .indices("logs-*")
+            .privileges("read")
+            .build();
+        final RoleDescriptor.IndicesPrivileges marked = new RoleDescriptor.IndicesPrivileges.ImplicitlyGranted(base);
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            marked.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            final String json = Strings.toString(builder);
+            assertThat(json, containsString("\"implicitly_granted\":true"));
+            assertThat(json, containsString("\"names\":[\"logs-*\"]"));
+        }
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            base.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            final String json = Strings.toString(builder);
+            assertThat("plain IndicesPrivileges must never emit the marker", json, not(containsString("implicitly_granted")));
+        }
+    }
+
+    public void testImplicitlyGrantedMarkerIsResponseOnlyAndDoesNotSurviveSerialization() throws IOException {
+        final RoleDescriptor.IndicesPrivileges base = RoleDescriptor.IndicesPrivileges.builder()
+            .indices("logs-*")
+            .privileges("read")
+            .allowRestrictedIndices(randomBoolean())
+            .build();
+        final RoleDescriptor.IndicesPrivileges marked = new RoleDescriptor.IndicesPrivileges.ImplicitlyGranted(base);
+
+        // The marker is sortable identically to the base because allowRestrictedIndices and the
+        // string-array fields it inherits are all that compareTo considers.
+        assertThat(marked.compareTo(base), equalTo(0));
+
+        // Round-tripping over the wire produces a plain IndicesPrivileges; the marker is intentionally
+        // dropped because implicit-grant status is recomputed on every GET _security/role. Verify both
+        // (a) the deserialized instance is the base type, and (b) it has the same identity-defining fields.
+        final BytesStreamOutput out = new BytesStreamOutput();
+        marked.writeTo(out);
+        final RoleDescriptor.IndicesPrivileges roundTripped = new RoleDescriptor.IndicesPrivileges(out.bytes().streamInput());
+        assertThat(
+            "ImplicitlyGranted is a render-only marker and must not survive Writeable round-trips",
+            roundTripped,
+            not(instanceOf(RoleDescriptor.IndicesPrivileges.ImplicitlyGranted.class))
+        );
+        assertThat(roundTripped, equalTo(base));
+
+        // Document the subclass-equality wart: IndicesPrivileges#equals uses getClass() strictly, so an
+        // ImplicitlyGranted instance is intentionally NOT equal to a plain IndicesPrivileges with the
+        // same data. Callers that need data-only equality must compare the round-tripped (or otherwise
+        // unwrapped) instance, not the marker.
+        assertThat(marked, not(equalTo(base)));
+    }
+
+    public void testParserRejectsImplicitlyGrantedFieldOnInput() {
+        final String json = """
+            {
+              "cluster": [],
+              "indices": [
+                {
+                  "names": ["logs-*"],
+                  "privileges": ["read"],
+                  "implicitly_granted": true
+                }
+              ]
+            }
+            """;
+        final ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON)
+        );
+        assertThat(e.getMessage(), containsString("unexpected field [implicitly_granted]"));
     }
 
     public void testGlobalPrivilegesOrdering() throws IOException {

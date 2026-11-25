@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "labels": {
+      "type": "passthrough",
+      "priority": 10,
+      "time_series_dimension": true,
+      "properties": {
+        "job": {
+          "type": "keyword"
+        },
+        "instance": {
+          "type": "keyword"
+        }
+      }
+    },
+    "metrics": {
+      "type": "passthrough",
+      "priority": 20,
+      "properties": {
+        "request_duration_seconds_bucket": {
+          "type": "double",
+          "time_series_metric": "counter"
+        }
+      }
+    }
+  }
+}

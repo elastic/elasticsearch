@@ -33,11 +33,12 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99951")
     public void testIsGreenDuringIndexCreate() {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
@@ -48,7 +49,16 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegT
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99951")
+    public void testIsGreenDuringIndexCreateWithNoReplicas() {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+
+        assertHealthDuring(equalTo(GREEN), () -> {
+            var index = randomIdentifier();
+            prepareCreate(index).setSettings(indexSettings(1, 0)).get();
+            ensureGreen(index);
+        });
+    }
+
     public void testIsGreenWhenNewReplicaAdded() {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
@@ -62,7 +72,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegT
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99951")
     public void testIsGreenDuringSnapshotRestore() {
 
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -98,7 +107,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegT
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99951")
     public void testIsGreenDuringIndexClone() {
 
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -115,7 +123,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegT
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99951")
     public void testIsGreenDuringOpeningAndClosingIndex() {
 
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -127,7 +134,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegT
         assertHealthDuring(equalTo(GREEN), () -> {
             indicesAdmin().prepareClose(index).get();
             ensureGreen(index);
-            indicesAdmin().prepareClose(index).get();
+            assertAcked(indicesAdmin().prepareOpen(index));
             ensureGreen(index);
         });
     }
@@ -170,6 +177,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegT
         try {
             action.run();
 
+            assertThat("expected cluster state transitions while monitoring health", states, not(empty()));
             for (RoutingNodesAndHealth state : states) {
                 state.assertHealth(statusMatcher);
             }

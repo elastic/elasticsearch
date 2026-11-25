@@ -76,14 +76,22 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
         try {
             viewNames = indexNameExpressionResolver.views(state.metadata(), request.indicesOptions(), request);
         } catch (IndexNotFoundException e) {
-            listener.onFailure(new ResourceNotFoundException("view [{}] not found", e.getIndex().getName()));
+            final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.views());
+            listener.onFailure(new ResourceNotFoundException("view [{}] not found", missing));
             return;
         }
         if (viewNames.isEmpty()) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
-        viewService.deleteViews(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), viewNames, listener);
+        viewService.deleteViews(
+            state.projectId(),
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            viewNames,
+            request.canDeleteReservedViews(),
+            listener
+        );
     }
 
     @Override

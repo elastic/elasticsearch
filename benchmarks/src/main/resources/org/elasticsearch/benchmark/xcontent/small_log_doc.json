@@ -1,0 +1,1 @@
+{"@timestamp":"2026-08-12T09:14:03.117Z","message":"GET /api/v1/search HTTP/1.1 200 1043","event.dataset":"nginx.access","event.duration":1830000,"http.request.method":"GET","http.response.status_code":200,"http.response.body.bytes":1043,"url.path":"/api/v1/search","source.ip":"10.42.7.13","source.port":54331,"user_agent.original":"Chrome/126.0","host.name":"web-ingest-04"}

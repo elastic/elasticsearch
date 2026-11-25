@@ -7,27 +7,25 @@
 
 package org.elasticsearch.xpack.inference.services.openai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.createOrgHeader;
 
-public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
+public class OpenAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
@@ -41,9 +39,9 @@ public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.uri()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(
                 new OpenAiEmbeddingsRequestEntity(
                     truncationResult.input(),
@@ -52,12 +50,9 @@ public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
                     model.getServiceSettings().dimensions(),
                     model.getServiceSettings().dimensionsSetByUser()
                 )
-            ).getBytes(StandardCharsets.UTF_8)
+            ).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
-
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         var org = model.rateLimitServiceSettings().organizationId();
         if (org != null) {
@@ -70,7 +65,13 @@ public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
             }
         }
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+        model.secretsApplier()
+            .applyTo(
+                httpPost,
+                listener.delegateFailureAndWrap(
+                    (requestActionListener, req) -> requestActionListener.onResponse(new HttpRequest(req, getInferenceEntityId()))
+                )
+            );
     }
 
     @Override
@@ -84,7 +85,7 @@ public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
         return new OpenAiEmbeddingsRequest(truncator, truncatedInput, model);
@@ -98,5 +99,10 @@ public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
     @Override
     public TaskType getTaskType() {
         return model.getTaskType();
+    }
+
+    @Override
+    public void onAuthenticationFailure() {
+        model.secretsApplier().onAuthenticationFailure();
     }
 }

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SUBSTRING` function [esql-substring]
 
-:::{include} ../../_snippets/functions/layout/substring.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/substring.md
 :::

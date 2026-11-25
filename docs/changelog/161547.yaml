@@ -1,0 +1,6 @@
+area: TSDB
+issues:
+ - 155392
+pr: 161547
+summary: Treat version conflicts as duplicates in Prometheus remote write and OTLP
+type: enhancement

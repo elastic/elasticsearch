@@ -34,6 +34,7 @@ import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -159,11 +160,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
             // count with no query is a match all one
             assertNoFailuresAndResponse(prepareSearch("test").setSize(0), countResponse -> {
-                assertThat(
-                    "Failures " + countResponse.getShardFailures(),
-                    countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
-                    equalTo(0)
-                );
+                assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures(), empty());
                 assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
                 assertThat(countResponse.getFailedShards(), equalTo(0));

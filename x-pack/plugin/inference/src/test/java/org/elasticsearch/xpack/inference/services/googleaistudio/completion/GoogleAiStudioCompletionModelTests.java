@@ -32,7 +32,7 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             TaskType.COMPLETION,
             "service",
             new HashMap<>(Map.of("model_id", "model")),
-            new HashMap<>(Map.of()),
+            new HashMap<>(),
             null,
             ConfigurationParseContext.PERSISTENT
         );

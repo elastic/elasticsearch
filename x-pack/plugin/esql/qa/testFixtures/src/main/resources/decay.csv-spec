@@ -24,6 +24,28 @@ decay_result:double
 0.75
 ;
 
+intLinearMixedNumericTypes1
+required_capability: decay_function_parameter_conversion
+
+ROW value = 5
+| EVAL decay_result = decay(value, 10::double, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intLinearMixedNumericTypes2
+required_capability: decay_function_unsigned_long
+
+ROW value = 5
+| EVAL decay_result = decay(value, 10::unsigned_long, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
 intExp
 required_capability: decay_function
 
@@ -44,6 +66,28 @@ ROW value = 5
 
 decay_result:double
 0.8408964
+;
+
+intGaussUpperCaseType
+required_capability: fn_decay_ga_fixes
+
+ROW value = 5
+| EVAL decay_result = round(decay(value, 10, 10, {"type": "GAUSS"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.8408964
+;
+
+intExpMixedCaseType
+required_capability: fn_decay_ga_fixes
+
+ROW value = 5
+| EVAL decay_result = round(decay(value, 10, 10, {"type": "Exp"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.7071068
 ;
 
 intLinearWithOffset
@@ -156,14 +200,47 @@ decay_result:double
 ;
 
 intOffsetAsDouble
-required_capability: decay_function_parameter_conversion
+required_capability: fn_decay_ga_fixes
 
 ROW value = 5
-| EVAL decay_result = decay(value, 10, 10, {"offset": 0.1, "decay": 0.5, "type": "linear"})
+| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0.1, "decay": 0.5, "type": "linear"}), 7)
 | KEEP decay_result;
 
 decay_result:double
-0.75
+0.755
+;
+
+intFractionalScale
+required_capability: fn_decay_ga_fixes
+
+ROW value = 1
+| EVAL decay_result = round(decay(value, 0, 1.6), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.6875
+;
+
+intFractionalScaleBelowOne
+required_capability: fn_decay_ga_fixes
+
+ROW value = 0
+| EVAL decay_result = decay(value, 0, 0.4)
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+intScaleAboveIntegerRange
+required_capability: fn_decay_ga_fixes
+
+ROW value = 5
+| EVAL decay_result = round(decay(value, 0, 5000000000), 7)
+| KEEP decay_result;
+
+decay_result:double
+1.0
 ;
 
 doubleLinear
@@ -171,6 +248,28 @@ required_capability: decay_function
 
 ROW value = 5.0
 | EVAL decay_result = decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+doubleLinearMixedNumericTypes1
+required_capability: decay_function_parameter_conversion
+
+ROW value = 5.0
+| EVAL decay_result = decay(value, 10.0::int, 10.0::long, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+doubleLinearMixedNumericTypes2
+required_capability: decay_function_unsigned_long
+
+ROW value = 5.0
+| EVAL decay_result = decay(value, 10.0::int, 10.0::unsigned_long, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 
 | KEEP decay_result;
 
 decay_result:double
@@ -221,15 +320,115 @@ decay_result:double
 1.0
 ;
 
-longOffsetAsDouble
-required_capability: decay_function_parameter_conversion
+longLinearMixedNumericTypes1
+required_capability: decay_function_unsigned_long
 
 ROW value = 15::long
-| EVAL decay_result = decay(value, 10::long, 10::long, {"offset": 0.2, "decay": 0.5, "type": "linear"})
+| EVAL decay_result = decay(value, 10::int, 10::unsigned_long, {"offset": 10000000000, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+longLinearMixedNumericTypes2
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::double, 10::int, {"offset": 10000000000, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+longOffsetAsDouble
+required_capability: fn_decay_ga_fixes
+
+ROW value = 15::long
+| EVAL decay_result = round(decay(value, 10::long, 10::long, {"offset": 0.2, "decay": 0.5, "type": "linear"}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.76
+;
+
+unsignedLongLinear
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 0, "decay": 0.5, "type": "linear"})
 | KEEP decay_result;
 
 decay_result:double
 0.75
+;
+
+unsignedLongMixedNumericParameters
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+unsignedLongNegativeOrigin
+required_capability: fn_decay_ga_fixes
+
+// distance 15 - (-5) = 20 with scale 20: (40 - 20) / 40
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, -5, 20)
+| KEEP decay_result;
+
+decay_result:double
+0.5
+;
+
+unsignedLongLinearMaxOffset
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+unsignedLongLinearMixedNumericTypes1
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::long, 10::integer, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+unsignedLongLinearMixedNumericTypes2
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::double, 10::integer, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+longLinearUnsignedLongOriginAbovePrecision
+required_capability: decay_function_unsigned_long
+
+ROW value = 9007199254740993::long
+| EVAL decay_result = decay(value, 9007199254740993::unsigned_long, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
 ;
 
 cartesianPointLinear1
@@ -265,6 +464,28 @@ decay_result:double
 0.625
 ;
 
+cartesianPointIntegerScale
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_CARTESIANPOINT("POINT(1 1)")
+| EVAL decay_result = round(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.9292893
+;
+
+cartesianPointIntegerOffset
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_CARTESIANPOINT("POINT(1 1)")
+| EVAL decay_result = round(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10, {"offset": 1}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.9792893
+;
+
 
 geoPointLinear
 required_capability: decay_function
@@ -275,6 +496,39 @@ ROW value = TO_GEOPOINT("POINT(0 0)")
 
 decay_result:double
 0.606876005579706
+;
+
+geoPointLinearSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+geoPointExpSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "exp"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+geoPointGaussSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "gauss"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
 ;
 
 datetimeLinear1
@@ -319,4 +573,132 @@ ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z")
 
 decay_result:double
 0.75
+;
+
+dateNanosValueDatetimeOrigin
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 24 hours)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeValueDateNanosOrigin
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME("2023-01-01T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 24 hours)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeScaleInDays
+required_capability: fn_decay_date_period
+
+ROW value = TO_DATETIME("2023-01-04T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 7 days)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeScaleInWeeks
+required_capability: fn_decay_date_period
+
+ROW value = TO_DATETIME("2023-01-04T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 1 week)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeOffsetInDays
+required_capability: fn_decay_date_period
+
+// distance 3.5 days minus 1 day offset, scale 7 days: (14 - 2.5) / 14
+ROW value = TO_DATETIME("2023-01-04T12:00:00Z")
+| EVAL decay_result = round(decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 7 days, {"offset": 1 day}), 7)
+| KEEP decay_result;
+
+decay_result:double
+0.8214286
+;
+
+dateNanosScaleInDays
+required_capability: fn_decay_date_period
+
+ROW value = TO_DATE_NANOS("2023-01-04T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 7 days)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeFieldScaleAndOffsetInDays
+required_capability: fn_decay_date_period
+
+// hire dates 176, 41 and 239 days from the origin, minus a 30 day offset, over the 730 day linear range
+FROM employees
+| WHERE emp_no <= 10003
+| EVAL decay_result = round(decay(hire_date, TO_DATETIME("1986-01-01T00:00:00Z"), 365 days, {"offset": 30 days}), 7)
+| SORT emp_no
+| KEEP emp_no, decay_result;
+
+emp_no:integer | decay_result:double
+10001          | 0.8
+10002          | 0.9849315
+10003          | 0.7136986
+;
+
+datetimeDistanceAboveLongRange
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-9223372036854775807), 24 hours)
+| KEEP decay_result;
+
+decay_result:double
+0.0
+;
+
+datetimeDistanceAboveLongRangeWithLargeOffset
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-9223372036854775807), 24 hours, {"offset": 9223372036854775807 milliseconds})
+| KEEP decay_result;
+
+decay_result:double
+0.0
+;
+
+datetimeDistanceAboveLongRangeWithLargeScale
+required_capability: fn_decay_ga_fixes
+
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-9223372036854775807), 9223372036854775807 milliseconds)
+| KEEP decay_result;
+
+decay_result:double
+0.0
+;
+
+datetimeDistanceAboveLongRangeOneMillisecondBeyondOffset
+required_capability: fn_decay_ga_fixes
+
+// the distance is 2^63 ms and the offset 2^63 - 1 ms, so 1 ms remains: (2 - 1) / 2 with a 1 ms scale
+ROW value = TO_DATETIME(9223372036854775807)
+| EVAL decay_result = decay(value, TO_DATETIME(-1), 1 millisecond, {"offset": 9223372036854775807 milliseconds})
+| KEEP decay_result;
+
+decay_result:double
+0.5
 ;

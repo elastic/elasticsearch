@@ -18,7 +18,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -49,6 +49,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
@@ -68,6 +70,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -100,6 +103,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
     public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
 
     static final TransportVersion REPO_ANALYSIS_BLOB_OVERWRITE = TransportVersion.fromName("repo_analysis_blob_overwrite");
+
+    static final TransportVersion REPO_ANALYSIS_CHECK_DEPRECATIONS = TransportVersion.fromName("repo_analysis_check_deprecations");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
@@ -903,6 +908,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 ensureConsistentListing();
                 final long deleteStartTimeNanos = System.nanoTime();
                 deleteContainer();
+                ensureNoDeprecations(); // Run last so that relevant deprecation warnings have been emitted by earlier activity.
                 sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
             }));
         }
@@ -915,6 +921,30 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 );
                 logger.debug("all overwrite protection checks failed", repositoryVerificationException);
                 fail(repositoryVerificationException);
+            }
+        }
+
+        private void ensureNoDeprecations() {
+            if (isRunning() && minClusterTransportVersion.supports(REPO_ANALYSIS_CHECK_DEPRECATIONS) && request.checkDeprecations()) {
+                // NB isRunning() to deliberately skip this check if the analysis already failed. If we didn't, it'd be reported as a
+                // suppressed exception that typically users don't notice anyway, and many failure modes exhaust the innerFailures limit
+                // so there'd be no guarantee of seeing this message anyway.
+
+                for (var info : repository.getDeprecationInfos()) {
+                    if (info.level() == RepositoryDeprecationInfo.Level.CRITICAL) {
+                        // Maybe seems slightly odd to check for deprecations here rather than earlier, but we want to wrap these messages
+                        // in the generic "storage behaved incorrectly" wrapper just like any other analysis failure. This is because
+                        // deprecated repository features always(*) relate to temporary workarounds for incompatibilities in third-party
+                        // storage systems (particularly for S3 repositories) which would be detected if the workaround were absent.
+                        //
+                        // (*) "always" at least meaning that if they cannot be addressed by adjusting the config then there's a serious
+                        // discrepancy between the user's environment and what we expect.
+                        fail(new RepositoryException(request.getRepositoryName(), """
+                            This repository uses a critically deprecated feature, which prevents running a complete analysis. Fix all the \
+                            logged deprecation warnings and re-run the analysis."""));
+                        return;
+                    }
+                }
             }
         }
 
@@ -941,6 +971,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
                     if (missingBlobs.isEmpty()) {
                         logger.trace("all expected blobs found, cleaning up [{}:{}]", request.getRepositoryName(), blobPath);
+                        verifyPrefixListing(blobContainer, blobsMap);
                     } else {
                         final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                             request.repositoryName,
@@ -952,6 +983,95 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 } catch (Exception e) {
                     logger.debug(() -> format("failure during cleanup of [%s:%s]", request.getRepositoryName(), blobPath), e);
                     fail(e);
+                }
+            }
+        }
+
+        /**
+         * Verify that {@link BlobContainer#listBlobsByPrefix} correctly filters blobs by prefix. Uses the full listing from
+         * {@link BlobContainer#listBlobs} as the ground truth.
+         */
+        private void verifyPrefixListing(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs) throws IOException {
+            // Verify that listing with the common prefix "test-blob-" returns all matching blobs with correct metadata
+            final String commonPrefix = "test-blob-";
+            final String subsetPrefix = commonPrefix + "1";
+            final Map<String, BlobMetadata> expectedFromPrefix = new HashMap<>();
+            final Map<String, BlobMetadata> expectedFromSubsetPrefix = new HashMap<>();
+            for (Map.Entry<String, BlobMetadata> entry : allBlobs.entrySet()) {
+                String blobName = entry.getKey();
+                if (blobName.startsWith(commonPrefix)) {
+                    expectedFromPrefix.put(blobName, entry.getValue());
+                    if (blobName.startsWith(subsetPrefix)) {
+                        expectedFromSubsetPrefix.put(blobName, entry.getValue());
+                    }
+                }
+            }
+            verifyPrefixListingForExistingPrefix(blobContainer, expectedFromPrefix, commonPrefix);
+            verifyPrefixListingForExistingPrefix(blobContainer, expectedFromSubsetPrefix, subsetPrefix);
+
+            // Verify that listing with a prefix matching no blobs returns empty results
+            final String noMatchPrefix = "nonexistent-prefix-";
+            final Map<String, BlobMetadata> noMatchResults = blobContainer.listBlobsByPrefix(
+                OperationPurpose.REPOSITORY_ANALYSIS,
+                noMatchPrefix
+            );
+            if (noMatchResults.isEmpty() == false) {
+                fail(
+                    new RepositoryVerificationException(
+                        request.repositoryName,
+                        "listBlobsByPrefix(\"" + noMatchPrefix + "\") should return empty results but returned " + noMatchResults.keySet()
+                    )
+                );
+                return;
+            }
+
+            logger.trace("prefix-based listing verified for [{}:{}]", request.getRepositoryName(), blobPath);
+        }
+
+        private void verifyPrefixListingForExistingPrefix(
+            BlobContainer blobContainer,
+            Map<String, BlobMetadata> expectedFromPrefix,
+            String existingPrefix
+        ) throws IOException {
+            final Map<String, BlobMetadata> prefixResults = blobContainer.listBlobsByPrefix(
+                OperationPurpose.REPOSITORY_ANALYSIS,
+                existingPrefix
+            );
+            if (prefixResults.keySet().equals(expectedFromPrefix.keySet()) == false) {
+                final Set<String> missing = new HashSet<>(expectedFromPrefix.keySet());
+                missing.removeAll(prefixResults.keySet());
+                final Set<String> extra = new HashSet<>(prefixResults.keySet());
+                extra.removeAll(expectedFromPrefix.keySet());
+                fail(
+                    new RepositoryVerificationException(
+                        request.repositoryName,
+                        "listBlobsByPrefix(\""
+                            + existingPrefix
+                            + "\") returned incorrect results: missing="
+                            + missing
+                            + ", unexpected="
+                            + extra
+                    )
+                );
+                return;
+            }
+            for (Map.Entry<String, BlobMetadata> entry : expectedFromPrefix.entrySet()) {
+                final BlobMetadata actual = prefixResults.get(entry.getKey());
+                if (actual.length() != entry.getValue().length()) {
+                    fail(
+                        new RepositoryVerificationException(
+                            request.repositoryName,
+                            "listBlobsByPrefix(\""
+                                + existingPrefix
+                                + "\") returned incorrect size for blob ["
+                                + entry.getKey()
+                                + "]: expected "
+                                + entry.getValue().length()
+                                + " but got "
+                                + actual.length()
+                        )
+                    );
+                    return;
                 }
             }
         }
@@ -1002,7 +1122,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                         responses,
                         deleteStartTimeNanos - listingStartTimeNanos,
                         completionTimeNanos - deleteStartTimeNanos,
-                        request.checkOverwriteProtection()
+                        request.checkOverwriteProtection(),
+                        request.checkDeprecations()
                     )
                 );
             } else {
@@ -1025,7 +1146,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         }
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         private final String repositoryName;
 
@@ -1043,6 +1164,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private DiscoveryNode reroutedFrom = null;
         private boolean abortWritePermitted = true;
         private boolean checkOverwriteProtection = true;
+        private boolean checkDeprecations = true;
 
         public Request(String repositoryName) {
             this.repositoryName = repositoryName;
@@ -1065,6 +1187,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
             abortWritePermitted = in.readBoolean();
             checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
+                && in.readBoolean();
+            checkDeprecations = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_CHECK_DEPRECATIONS)
                 && in.readBoolean();
         }
 
@@ -1094,6 +1218,11 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 out.writeBoolean(checkOverwriteProtection);
             } else if (checkOverwriteProtection) {
                 throw new IllegalArgumentException("not all nodes support overwrite-protection checks");
+            }
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_CHECK_DEPRECATIONS)) {
+                out.writeBoolean(checkDeprecations);
+            } else if (checkDeprecations) {
+                throw new IllegalArgumentException("not all nodes support deprecation checks");
             }
         }
 
@@ -1248,6 +1377,14 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             return checkOverwriteProtection;
         }
 
+        public void checkDeprecations(boolean checkDeprecations) {
+            this.checkDeprecations = checkDeprecations;
+        }
+
+        public boolean checkDeprecations() {
+            return checkDeprecations;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -1281,6 +1418,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 + abortWritePermitted
                 + ", checkOverwriteProtection="
                 + checkOverwriteProtection
+                + ", checkDeprecations="
+                + checkDeprecations
                 + "]";
         }
 
@@ -1311,6 +1450,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private final long listingTimeNanos;
         private final long deleteTimeNanos;
         private final boolean checkOverwriteProtection;
+        private final boolean checkDeprecations;
 
         public Response(
             String coordinatingNodeId,
@@ -1329,7 +1469,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             List<BlobAnalyzeAction.Response> blobResponses,
             long listingTimeNanos,
             long deleteTimeNanos,
-            boolean checkOverwriteProtection
+            boolean checkOverwriteProtection,
+            boolean checkDeprecations
         ) {
             this.coordinatingNodeId = coordinatingNodeId;
             this.coordinatingNodeName = coordinatingNodeName;
@@ -1348,6 +1489,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             this.listingTimeNanos = listingTimeNanos;
             this.deleteTimeNanos = deleteTimeNanos;
             this.checkOverwriteProtection = checkOverwriteProtection;
+            this.checkDeprecations = checkDeprecations;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -1368,6 +1510,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
             checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
+                && in.readBoolean();
+            checkDeprecations = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_CHECK_DEPRECATIONS)
                 && in.readBoolean();
         }
 
@@ -1392,6 +1536,9 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)) {
                 out.writeBoolean(checkOverwriteProtection);
             }
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_CHECK_DEPRECATIONS)) {
+                out.writeBoolean(checkDeprecations);
+            }
         }
 
         @Override
@@ -1414,6 +1561,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             builder.field("rare_action_probability", rareActionProbability);
             builder.field("blob_path", blobPath);
             builder.field("check_overwrite_protection", checkOverwriteProtection);
+            builder.field("check_deprecations", checkDeprecations);
 
             builder.startArray("issues_detected");
             // nothing to report here, if we detected an issue then we would have thrown an exception, but we include this to emphasise

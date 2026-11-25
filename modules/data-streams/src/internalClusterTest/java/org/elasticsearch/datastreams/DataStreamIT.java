@@ -90,6 +90,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -606,7 +607,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().preparePutMapping(dataStreamName).setSource("""
-            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}"""), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, dataStreamName), false);
         verifyResolvability(
             dataStreamName,
@@ -653,7 +654,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetFieldMappings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().preparePutMapping(wildcardExpression).setSource("""
-            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
+            {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}"""), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(
@@ -1208,9 +1209,7 @@ public class DataStreamIT extends ESIntegTestCase {
             DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
-        indicesAdmin().preparePutMapping("logs-foobar")
-            .setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", XContentType.JSON)
-            .get();
+        indicesAdmin().preparePutMapping("logs-foobar").setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}").get();
         // The mappings of all backing indices should be updated:
         getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
@@ -1478,7 +1477,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
@@ -1486,7 +1485,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
@@ -1496,7 +1495,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo3").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamsResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -1535,7 +1534,7 @@ public class DataStreamIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamsResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -1855,10 +1854,9 @@ public class DataStreamIT extends ESIntegTestCase {
             IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
             var e = expectThrows(InvalidAliasNameException.class, indicesAdmin().aliases(aliasesAddRequest));
-            assertThat(
-                e.getMessage(),
-                equalTo("Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias")
-            );
+            String expectedLogs = "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists "
+                + "with the same name as the alias";
+            assertThat(e.getMessage(), equalTo(expectedLogs));
         }
         {
             assertAcked(
@@ -1877,10 +1875,9 @@ public class DataStreamIT extends ESIntegTestCase {
                     false
                 )
             );
-            assertThat(
-                e.getCause().getMessage(),
-                equalTo("Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias")
-            );
+            String expectedLogs = "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists "
+                + "with the same name as the alias";
+            assertThat(e.getCause().getMessage(), equalTo(expectedLogs));
         }
     }
 
@@ -2495,7 +2492,7 @@ public class DataStreamIT extends ESIntegTestCase {
             """);
 
         String dataStreamName = "effective-mappings-test";
-        Index writeIndex;
+        DataStream dataStream;
         {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
                 TEST_REQUEST_TIMEOUT,
@@ -2503,7 +2500,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 dataStreamName
             );
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-            writeIndex = getDataStream(dataStreamName).getWriteIndex();
+            dataStream = getDataStream(dataStreamName);
         }
 
         ProjectMetadata projectMetadata = client().admin()
@@ -2514,12 +2511,14 @@ public class DataStreamIT extends ESIntegTestCase {
             .metadata()
             .getProject(ProjectId.DEFAULT);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
+        IndexSettingProviders indexSettingProviders = internalCluster().getInstance(IndexSettingProviders.class);
         CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
             projectMetadata,
             composableIndexTemplate,
             mappingOverrides,
-            writeIndex,
-            indicesService
+            dataStream,
+            indicesService,
+            indexSettingProviders
         );
         assertNotNull(effectiveMappings);
         Map<String, Object> effectiveMappingMap = XContentHelper.convertToMap(effectiveMappings.uncompressed(), true, XContentType.JSON)
@@ -2552,7 +2551,10 @@ public class DataStreamIT extends ESIntegTestCase {
                 dataStreamName
             )
         ).actionGet();
-        assertThat(getDataStream(dataStreamName).getEffectiveMappings(projectMetadata, indicesService), equalTo(effectiveMappings));
+        assertThat(
+            getDataStream(dataStreamName).getEffectiveMappings(projectMetadata, indicesService, indexSettingProviders),
+            equalTo(effectiveMappings)
+        );
     }
 
     private DataStream getDataStream(String dataStreamName) throws ExecutionException, InterruptedException {

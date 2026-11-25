@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class FixedLengthAscTopNEncoder extends SortableAscTopNEncoder {
@@ -17,6 +18,12 @@ class FixedLengthAscTopNEncoder extends SortableAscTopNEncoder {
     FixedLengthAscTopNEncoder(int length) {
         this.length = length;
         this.descEncoder = new FixedLengthDescTopNEncoder(length, this);
+    }
+
+    @Override
+    protected int maxBytesRefValueSize(Block b) {
+        assert length == b.valueMaxByteSize();
+        return length;
     }
 
     @Override

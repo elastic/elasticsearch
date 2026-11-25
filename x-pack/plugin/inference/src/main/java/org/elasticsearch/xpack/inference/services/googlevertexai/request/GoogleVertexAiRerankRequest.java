@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.RerankRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 
 import java.net.URI;
@@ -24,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class GoogleVertexAiRerankRequest implements RerankRequest {
+public class GoogleVertexAiRerankRequest implements OutboundRerankRequest {
 
     private final GoogleVertexAiRerankModel model;
 
@@ -52,9 +51,9 @@ public class GoogleVertexAiRerankRequest implements RerankRequest {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.nonStreamingUri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.nonStreamingUri()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(
                 new GoogleVertexAiRerankRequestEntity(
                     query,
@@ -63,19 +62,13 @@ public class GoogleVertexAiRerankRequest implements RerankRequest {
                     topN != null ? topN : model.getTaskSettings().topN(),
                     model.getServiceSettings().modelId()
                 )
-            ).getBytes(StandardCharsets.UTF_8)
+            ).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
 
-        httpPost.setEntity(byteEntity);
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-
-        decorateWithAuth(httpPost);
+        model.authHeaderDecorator().accept(httpPost, model);
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
-    }
-
-    public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     public GoogleVertexAiRerankModel model() {
@@ -93,7 +86,7 @@ public class GoogleVertexAiRerankRequest implements RerankRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

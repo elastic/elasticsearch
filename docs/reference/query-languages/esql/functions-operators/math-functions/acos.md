@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ACOS` function [esql-acos]
 
-:::{include} ../../_snippets/functions/layout/acos.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/acos.md
 :::

@@ -33,9 +33,11 @@ import java.util.Map;
 
 import static org.elasticsearch.system_indices.task.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
-/**
- * Starts the process of migrating system indices. See {@link SystemIndexMigrator} for the actual migration logic.
- */
+/// [PersistentTasksExecutor] that migrates system indices to the current version format when upgrading Elasticsearch.
+/// For each system index that requires migration, [SystemIndexMigrator] creates a new index with the up-to-date
+/// mappings and settings, reindexes the data into it, and swaps the alias. Progress is durably checkpointed in
+/// [SystemIndexMigrationTaskState] so that the task can safely resume from the last completed index if the node
+/// running it leaves the cluster.
 public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<SystemIndexMigrationTaskParams> {
     private final Client client; // NOTE: *NOT* an OriginSettingClient. We have to do that later.
     private final ClusterService clusterService;
@@ -60,6 +62,16 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         this.projectResolver = client.projectResolver();
     }
 
+    /// Intentionally kept `false` for now.
+    ///
+    /// The [SystemIndexMigrationExecutor] executes a run-to-completion one-shot migration task, not a
+    /// continuously-running workflow, so there is no meaningful service gap to close by reassigning early.
+    /// The task is retried automatically if the node leaves, and the durable checkpoint in
+    /// [SystemIndexMigrationTaskState] ensures it resumes from where it left off. Early reassignment would risk
+    /// concurrent reindex operations on the same indices during the overlap window, with low benefit.
+    ///
+    /// TODO: this should not be a persistent task and should instead be switched to a regular transport action, if
+    /// feasible (see #145753 discussion).
     @Override
     public boolean automaticReassignmentOnShutdown() {
         return false;

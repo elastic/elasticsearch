@@ -11,9 +11,17 @@ package org.elasticsearch.index.codec.zstd;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
+@RunWith(ESRandomizedRunner.class)
 public class Zstd814BestSpeedStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
+
+    static {
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
 
     private final Codec codec = new Elasticsearch93Lucene104Codec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
 

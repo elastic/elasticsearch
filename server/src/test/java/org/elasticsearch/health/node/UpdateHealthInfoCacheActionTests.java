@@ -9,6 +9,7 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -17,11 +18,13 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction.Request;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,13 +35,16 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.health.node.HealthInfoTests.randomDataRecoveryHealthInfo;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     private static ThreadPool threadPool;
@@ -54,9 +60,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         clusterService = createClusterService(threadPool);
         CapturingTransport transport = new CapturingTransport();
         transportService = transport.createTransportService(
@@ -76,8 +80,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         clusterService.close();
         transportService.close();
     }
@@ -90,7 +93,11 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
 
     public void testAction() throws ExecutionException, InterruptedException {
         DiskHealthInfo diskHealthInfo = new DiskHealthInfo(HealthStatus.GREEN, null);
-        Request request = new Request.Builder().nodeId(localNode.getId()).diskHealthInfo(diskHealthInfo).build();
+        LocalRecoveryRetriesHealthInfo localRecoveryRetriesHealthInfo = HealthInfoTests.randomLocalRecoveryRetriesHealthInfo();
+        Request request = new Request.Builder().nodeId(localNode.getId())
+            .diskHealthInfo(diskHealthInfo)
+            .localRecoveryRetriesHealthInfo(localRecoveryRetriesHealthInfo)
+            .build();
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
@@ -100,7 +107,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 threadPool,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 healthInfoCache
             ),
             null,
@@ -110,6 +117,49 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         AcknowledgedResponse actualResponse = listener.get();
         assertThat(actualResponse, equalTo(expectedResponse));
         assertThat(healthInfoCache.getHealthInfo().diskInfoByNode().get(localNode.getId()), equalTo(diskHealthInfo));
+        assertThat(
+            healthInfoCache.getHealthInfo().localRecoveryRetriesHealthInfoByNode(),
+            equalTo(Map.of(localNode.getId(), localRecoveryRetriesHealthInfo))
+        );
+    }
+
+    public void testOlderTransportVersionOmitsLocalRecoveryRetriesHealthInfo() throws Exception {
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
+            .dlmFrozenTransitionsHealthInfo(HealthInfoTests.randomDlmFrozenTransitionsHealthInfo())
+            .dataRecoveryHealthInfo(randomDataRecoveryHealthInfo())
+            .build();
+        // Version that supports data_recovery_health_info but not local_recovery_retries_health_info:
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("local_recovery_retries_health_info")
+        );
+        Request copy = copyWriteable(request, writableRegistry(), Request::new, oldVersion);
+        assertThat(copy.getLocalRecoveryRetriesHealthInfo(), nullValue());
+        assertThat(copy.getDataRecoveryHealthInfo(), equalTo(request.getDataRecoveryHealthInfo()));
+        assertThat(copy.getNodeId(), equalTo(request.getNodeId()));
+    }
+
+    public void testOlderTransportVersionOmitsDlmFrozenTransitionsHealthInfo() throws Exception {
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
+            .dlmFrozenTransitionsHealthInfo(HealthInfoTests.randomDlmFrozenTransitionsHealthInfo())
+            .build();
+        // Version that supports file_settings_health_info but not dlm_frozen_transitions_health_info.
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("dlm_frozen_transitions_health_info")
+        );
+        Request copy = copyWriteable(request, writableRegistry(), Request::new, oldVersion);
+        assertThat(copy.getDlmFrozenTransitionsHealthInfo(), nullValue());
+        assertThat(copy.getNodeId(), equalTo(request.getNodeId()));
+    }
+
+    public void testOlderTransportVersionOmitsDataRecoveryHealthInfo() throws Exception {
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
+            .dataRecoveryHealthInfo(randomDataRecoveryHealthInfo())
+            .build();
+        // Version that supports dlm_frozen_transitions_health_info but not data_recovery_health_info.
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_recovery_health_info"));
+        Request copy = copyWriteable(request, writableRegistry(), Request::new, oldVersion);
+        assertThat(copy.getDataRecoveryHealthInfo(), nullValue());
+        assertThat(copy.getNodeId(), equalTo(request.getNodeId()));
     }
 
     public void testRequestSerialization() {
@@ -128,13 +178,25 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         var dslHealthInfo = request.getDslHealthInfo();
         var repoHealthInfo = request.getRepositoriesHealthInfo();
         var fileSettingsHealthInfo = request.getFileSettingsHealthInfo();
-        switch (randomInt(4)) {
+        var dlmFrozenTransitionsHealthInfo = request.getDlmFrozenTransitionsHealthInfo();
+        var dataRecoveryHealthInfo = request.getDataRecoveryHealthInfo();
+        var localRecoveryRetriesHealthInfo = request.getLocalRecoveryRetriesHealthInfo();
+        switch (randomInt(7)) {
             case 0 -> nodeId = randomAlphaOfLength(10);
             case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
             case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);
             case 3 -> repoHealthInfo = randomValueOtherThan(repoHealthInfo, HealthInfoTests::randomRepoHealthInfo);
             case 4 -> fileSettingsHealthInfo = HealthInfoTests.mutateFileSettingsHealthInfo(
                 (fileSettingsHealthInfo == null) ? FileSettingsHealthInfo.INDETERMINATE : fileSettingsHealthInfo
+            );
+            case 5 -> dlmFrozenTransitionsHealthInfo = randomValueOtherThan(
+                dlmFrozenTransitionsHealthInfo,
+                HealthInfoTests::randomDlmFrozenTransitionsHealthInfo
+            );
+            case 6 -> dataRecoveryHealthInfo = randomValueOtherThan(dataRecoveryHealthInfo, HealthInfoTests::randomDataRecoveryHealthInfo);
+            case 7 -> localRecoveryRetriesHealthInfo = randomValueOtherThan(
+                localRecoveryRetriesHealthInfo,
+                HealthInfoTests::randomLocalRecoveryRetriesHealthInfo
             );
             default -> throw new IllegalStateException();
         }
@@ -143,6 +205,9 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
             .dslHealthInfo(dslHealthInfo)
             .repositoriesHealthInfo(repoHealthInfo)
             .fileSettingsHealthInfo(fileSettingsHealthInfo)
+            .dlmFrozenTransitionsHealthInfo(dlmFrozenTransitionsHealthInfo)
+            .dataRecoveryHealthInfo(dataRecoveryHealthInfo)
+            .localRecoveryRetriesHealthInfo(localRecoveryRetriesHealthInfo)
             .build();
     }
 }

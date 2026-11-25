@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.test.rest;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.regex.Matcher;
@@ -34,6 +35,33 @@ public class ESRestTestCaseTests extends ESTestCase {
         assertThat(matcher.group(3), equalTo("global"));
         assertThat(matcher.group(4), equalTo("global => [*]"));
         assertThat(matcher.group(5), equalTo("1"));
+    }
+
+    public void testListedTransientStatusShouldBeRetryable() {
+        assertThat(ESRestTestCase.isRetryableStatus(RestStatus.NOT_FOUND.getStatus(), RestStatus.NOT_FOUND), is(true));
+        assertThat(
+            ESRestTestCase.isRetryableStatus(
+                RestStatus.SERVICE_UNAVAILABLE.getStatus(),
+                RestStatus.NOT_FOUND,
+                RestStatus.SERVICE_UNAVAILABLE
+            ),
+            is(true)
+        );
+    }
+
+    public void testUnlistedStatusShouldNotBeRetryable() {
+        assertThat(
+            ESRestTestCase.isRetryableStatus(
+                RestStatus.INTERNAL_SERVER_ERROR.getStatus(),
+                RestStatus.NOT_FOUND,
+                RestStatus.SERVICE_UNAVAILABLE
+            ),
+            is(false)
+        );
+    }
+
+    public void testEmptyRetryableSetShouldNotBeRetryable() {
+        assertThat(ESRestTestCase.isRetryableStatus(RestStatus.NOT_FOUND.getStatus()), is(false));
     }
 
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -38,6 +39,11 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final RepositoryUsageStats repositoryUsageStats;
     final CCSTelemetrySnapshot ccsMetrics;
     final CCSTelemetrySnapshot esqlMetrics;
+    final ProjectRoutingUsageSnapshot projectRoutingUsageSnapshot;
+    @Nullable
+    final TagsConfigSnapshot tagsConfig;
+    @Nullable
+    final SearchTierStats searchTierStats;
     final long timestamp;
     final String clusterUUID;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
@@ -56,7 +62,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         VersionStats versionStats,
         ClusterSnapshotStats clusterSnapshotStats,
         Map<String, RemoteClusterStats> remoteClustersStats,
-        boolean skipMRT
+        boolean skipMRT,
+        @Nullable TagsConfigSnapshot tagsConfig,
+        @Nullable SearchTierStats searchTierStats
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
@@ -65,6 +73,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
         ccsMetrics = new CCSTelemetrySnapshot(skipMRT == false);
         esqlMetrics = new CCSTelemetrySnapshot(false);
+        projectRoutingUsageSnapshot = new ProjectRoutingUsageSnapshot();
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -76,9 +85,12 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         nodes.forEach(node -> {
             ccsMetrics.add(node.getSearchCcsMetrics());
             esqlMetrics.add(node.getEsqlCcsMetrics());
+            projectRoutingUsageSnapshot.add(node.getProjectRoutingUsageSnapshot());
         });
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
+        this.tagsConfig = tagsConfig;
+        this.searchTierStats = searchTierStats;
 
         this.repositoryUsageStats = nodes.stream()
             .map(ClusterStatsNodeResponse::repositoryUsageStats)
@@ -168,6 +180,26 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         }
 
         builder.endObject();
+
+        if (tagsConfig != null) {
+            builder.startObject("tags");
+            tagsConfig.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        if (searchTierStats != null) {
+            builder.startObject("search_tier");
+            searchTierStats.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        long totalQueries = projectRoutingUsageSnapshot.getSearchQueriesTotal() + projectRoutingUsageSnapshot.getEsqlQueriesTotal();
+        if (totalQueries > 0) {
+            builder.startObject("project_routing");
+            builder.field("queries", totalQueries);
+            projectRoutingUsageSnapshot.toXContent(builder, params);
+            builder.endObject();
+        }
 
         return builder;
     }

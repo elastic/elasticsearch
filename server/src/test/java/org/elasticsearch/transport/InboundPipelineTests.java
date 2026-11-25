@@ -224,7 +224,7 @@ public class InboundPipelineTests extends ESTestCase {
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(recycler);
-        final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
+        final Supplier<CircuitBreaker> breaker = () -> NoopCircuitBreaker.INSTANCE;
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
@@ -266,7 +266,7 @@ public class InboundPipelineTests extends ESTestCase {
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(recycler);
-        final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
+        final Supplier<CircuitBreaker> breaker = () -> NoopCircuitBreaker.INSTANCE;
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 

@@ -68,16 +68,14 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     protected HttpServer httpServer;
 
     @Before
-    public void setUp() throws Exception {
+    public void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        super.setUp();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopHttpServer() throws Exception {
         httpServer.stop(0);
-        super.tearDown();
     }
 
     protected void restartHttpServer() throws IOException {

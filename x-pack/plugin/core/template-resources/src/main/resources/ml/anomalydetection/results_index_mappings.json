@@ -172,6 +172,14 @@
     "empty_bucket_count" : {
       "type" : "long"
     },
+    "event" : {
+      "properties" : {
+        "ingested" : {
+          "type" : "date",
+          "format" : "strict_date_optional_time||epoch_millis"
+        }
+      }
+    },
     "event_count" : {
       "type" : "long"
     },

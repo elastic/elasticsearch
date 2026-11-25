@@ -83,25 +83,27 @@ public final class LocateEvaluator implements ExpressionEvaluator {
 
   public IntBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock substrBlock,
       IntBlock startBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (strBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
               warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
               result.appendNull();
               continue position;
+        }
+        if (substrBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
         }
         switch (substrBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -109,10 +111,11 @@ public final class LocateEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (startBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (startBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -131,7 +134,7 @@ public final class LocateEvaluator implements ExpressionEvaluator {
 
   public IntVector eval(int positionCount, BytesRefVector strVector, BytesRefVector substrVector,
       IntVector startVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -156,7 +159,7 @@ public final class LocateEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

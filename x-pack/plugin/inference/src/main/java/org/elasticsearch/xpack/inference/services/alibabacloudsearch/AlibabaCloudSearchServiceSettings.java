@@ -7,15 +7,21 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -24,10 +30,18 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
+/**
+ * Holds the settings common to every AlibabaCloud AI Search task (service id, host, workspace, HTTP schema, and rate limiting)
+ * together with the parsing, serialization, and update machinery that would otherwise be duplicated. Unlike other providers whose
+ * task-specific settings extend a common superclass, the task-specific AlibabaCloud AI Search settings <em>wrap</em> an instance of
+ * this class, which is also serialized on its own; it therefore stays concrete.
+ */
 public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
@@ -40,35 +54,144 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public static final String HTTP_SCHEMA_NAME = "http_schema";
     private static final Set<String> VALID_SCHEMAS = Set.of("https", "http");
 
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
-    public static AlibabaCloudSearchServiceSettings fromMap(
-        Map<String, Object> map,
-        ConfigurationParseContext context,
-        ValidationException validationException
+    /**
+     * Builds an {@link ObjectParser} for AlibabaCloud AI Search service settings, wiring the common fields (service_id, host,
+     * workspace, http_schema), {@link #DEFAULT_RATE_LIMIT_SETTINGS}, and the {@code api_key} no-op.
+     */
+    public static <B extends Builder<? extends ServiceSettings>> ObjectParser<B, ConfigurationParseContext> buildCommonParser(
+        boolean ignoreUnknownFields,
+        Supplier<B> builderSupplier
     ) {
-
-        var serviceId = extractRequiredString(map, SERVICE_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var host = extractRequiredString(map, HOST, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var workspaceName = extractRequiredString(map, WORKSPACE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var httpSchema = extractOptionalString(map, HTTP_SCHEMA_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        validateHttpSchema(httpSchema, validationException);
-
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            AlibabaCloudSearchService.NAME,
-            context
-        );
-
-        return new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings);
+        var parser = new ServiceSettingsOPBuilder<>(ignoreUnknownFields, builderSupplier).enableRateLimitSettings(
+            Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowApiKey().build();
+        parser.declareString(Builder::setServiceId, new ParseField(SERVICE_ID));
+        parser.declareString(Builder::setHost, new ParseField(HOST));
+        parser.declareString(Builder::setWorkspaceName, new ParseField(WORKSPACE_NAME));
+        parser.declareString(Builder::setHttpSchema, new ParseField(HTTP_SCHEMA_NAME));
+        return parser;
     }
 
-    static void validateHttpSchema(String httpSchema, ValidationException validationException) {
+    /**
+     * Validates that {@code http_schema}, when present, is one of the supported schemas, throwing an {@link IllegalArgumentException}
+     * otherwise.
+     */
+    static void validateHttpSchema(@Nullable String httpSchema) {
         if (httpSchema != null && VALID_SCHEMAS.contains(httpSchema) == false) {
-            validationException.addValidationError("Invalid value for [http_schema]. Must be one of [https, http]");
+            throw new IllegalArgumentException("Invalid value for [" + HTTP_SCHEMA_NAME + "]. Must be one of [https, http]");
+        }
+    }
+
+    /**
+     * Accumulates the parsed common fields and assembles an {@link AlibabaCloudSearchServiceSettings}, enforcing that the required
+     * {@code service_id}, {@code host} and {@code workspace} fields are present and that {@code http_schema} is valid. Task-specific
+     * builders extend this and contribute their own fields.
+     *
+     * @param <T> the task-specific settings type produced by {@link #build(AlibabaCloudSearchServiceSettings)}
+     */
+    public abstract static class Builder<T extends ServiceSettings> {
+
+        private String serviceId;
+        private String host;
+        private String workspaceName;
+        private String httpSchema;
+        private RateLimitSettings rateLimitSettings;
+
+        public void setServiceId(String serviceId) {
+            this.serviceId = serviceId;
+        }
+
+        public void setHost(String host) {
+            this.host = host;
+        }
+
+        public void setWorkspaceName(String workspaceName) {
+            this.workspaceName = workspaceName;
+        }
+
+        public void setHttpSchema(String httpSchema) {
+            this.httpSchema = httpSchema;
+        }
+
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        protected abstract T build(AlibabaCloudSearchServiceSettings commonSettings);
+
+        public final T build() {
+            validateStringIsNotNullOrEmpty(serviceId, SERVICE_ID);
+            validateStringIsNotNullOrEmpty(host, HOST);
+            validateStringIsNotNullOrEmpty(workspaceName, WORKSPACE_NAME);
+            validateHttpSchema(httpSchema);
+            return build(new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings));
+        }
+    }
+
+    /**
+     * Creates a task-specific settings instance from a map of settings using the given parser.
+     *
+     * @param map     the map to parse
+     * @param context the context in which the parsing is done
+     * @param parser  the parser to use for parsing the settings
+     * @return the created settings
+     */
+    public static <T extends ServiceSettings> T fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
+    ) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, context).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, SERVICE_SETTINGS.toString());
+        }
+    }
+
+    /**
+     * Builds an {@link ObjectParser} for AlibabaCloud AI Search update requests, wiring {@link #DEFAULT_RATE_LIMIT_SETTINGS}, the
+     * {@code api_key} no-op, and the mutable {@code http_schema} field. The immutable fields ({@code service_id}, {@code host} and
+     * {@code workspace}) are intentionally not declared so that a strict update parser rejects attempts to change them.
+     */
+    public static <U extends CommonUpdate> ObjectParser<U, Void> buildCommonUpdateParser(Supplier<U> updateSupplier) {
+        var parser = UpdateServiceSettingsOPBuilder.of(updateSupplier, CommonUpdate::setRateLimitSettings).build();
+        StatefulValue.declareNullable(parser, (update, value) -> update.httpSchema = value, p -> {
+            String value = p.text();
+            validateHttpSchema(value);
+            return value;
+        }, new ParseField(HTTP_SCHEMA_NAME), ObjectParser.ValueType.STRING_OR_NULL);
+        return parser;
+    }
+
+    /**
+     * Common fields parsed from an update request. Because settings are immutable, each task-specific update builds the new instance
+     * itself, calling {@link #mergedCommonSettings(AlibabaCloudSearchServiceSettings)} to resolve the shared fields.
+     */
+    public static class CommonUpdate {
+
+        protected StatefulValue<String> httpSchema = StatefulValue.undefined();
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        /**
+         * Resolves the common settings to use after applying the update following the tri-state convention: an omitted field keeps
+         * the current value, an explicit null resets the field to its default ({@code null} for {@code http_schema}, the default rate
+         * limit for {@code rate_limit}), and a present value replaces the current one.
+         */
+        protected AlibabaCloudSearchServiceSettings mergedCommonSettings(AlibabaCloudSearchServiceSettings existing) {
+            return new AlibabaCloudSearchServiceSettings(
+                existing.modelId(),
+                existing.getHost(),
+                existing.getWorkspaceName(),
+                applyUpdate(httpSchema, existing.getHttpSchema()),
+                applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS)
+            );
         }
     }
 
@@ -103,36 +226,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     @Override
     public String modelId() {
         return serviceId;
-    }
-
-    public AlibabaCloudSearchServiceSettings updateServiceSettings(
-        Map<String, Object> serviceSettings,
-        ValidationException validationException
-    ) {
-        var extractedHttpSchema = extractOptionalString(
-            serviceSettings,
-            HTTP_SCHEMA_NAME,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-
-        validateHttpSchema(extractedHttpSchema, validationException);
-
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            AlibabaCloudSearchService.NAME,
-            ConfigurationParseContext.REQUEST
-        );
-
-        return new AlibabaCloudSearchServiceSettings(
-            this.serviceId,
-            this.host,
-            this.workspaceName,
-            extractedHttpSchema != null ? extractedHttpSchema : this.httpSchema,
-            extractedRateLimitSettings
-        );
     }
 
     public String getHost() {
@@ -213,11 +306,12 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         return Objects.equals(serviceId, that.serviceId)
             && Objects.equals(host, that.host)
             && Objects.equals(workspaceName, that.workspaceName)
-            && Objects.equals(httpSchema, that.httpSchema);
+            && Objects.equals(httpSchema, that.httpSchema)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(serviceId, host, workspaceName, httpSchema);
+        return Objects.hash(serviceId, host, workspaceName, httpSchema, rateLimitSettings);
     }
 }

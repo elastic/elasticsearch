@@ -33,21 +33,28 @@ import static org.junit.Assert.assertTrue;
  *   <li><b>STORED_FIELD</b> - Lucene stored field</li>
  *   <li><b>DOC_VALUES</b> - Doc values</li>
  *   <li><b>IGNORED_SOURCE</b> - Stored in _ignored_source</li>
+ *   <li><b>ON_FAILURE</b> - Stored in the {@code ._on_failure} column (see {@link OnFailureStoredValues})</li>
  * </ul>
  *
- * <p>Internally, the verifier checks both the primary field name and the fallback field (fieldName._original), and fails if the field is
- * stored at unexpected locations.
+ * <p>Internally, the verifier checks the primary field name, the fallback field (fieldName._original), the on-failure column
+ * (fieldName._on_failure), the ignore-malformed column (fieldName._ignore_malformed), and fails if the field is stored at unexpected
+ * locations.
  */
 public class FieldStorageVerifier {
 
     public enum StorageType {
         STORED_FIELD,
         DOC_VALUES,
-        IGNORED_SOURCE
+        IGNORED_SOURCE,
+        ON_FAILURE,
+        /** Value was stored in the {@code ._ignore_malformed} BDV column (see {@link IgnoreMalformedStoredValues}). */
+        IGNORE_MALFORMED
     }
 
     private final String fieldName;
     private final String fallbackFieldName;
+    private final String onFailureFieldName;
+    private final String ignoreMalformedFieldName;
     private final LuceneDocument document;
 
     private final EnumSet<StorageType> expectedStorageTypes = EnumSet.noneOf(StorageType.class);
@@ -55,6 +62,8 @@ public class FieldStorageVerifier {
     private FieldStorageVerifier(String fieldName, LuceneDocument document) {
         this.fieldName = fieldName;
         this.fallbackFieldName = fieldName + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX;
+        this.onFailureFieldName = fieldName + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX;
+        this.ignoreMalformedFieldName = fieldName + IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX;
         this.document = document;
     }
 
@@ -74,6 +83,16 @@ public class FieldStorageVerifier {
 
     public FieldStorageVerifier expectIgnoredSource() {
         expectedStorageTypes.add(StorageType.IGNORED_SOURCE);
+        return this;
+    }
+
+    public FieldStorageVerifier expectOnFailure() {
+        expectedStorageTypes.add(StorageType.ON_FAILURE);
+        return this;
+    }
+
+    public FieldStorageVerifier expectIgnoreMalformed() {
+        expectedStorageTypes.add(StorageType.IGNORE_MALFORMED);
         return this;
     }
 
@@ -108,6 +127,12 @@ public class FieldStorageVerifier {
         checkFieldStorage(fieldName, storage);
         checkFieldStorage(fallbackFieldName, storage);
 
+        // check on_failure column (doc values in fieldName._on_failure)
+        checkOnFailureStorage(storage);
+
+        // check ignore_malformed column (doc values in fieldName._ignore_malformed)
+        checkIgnoreMalformedStorage(storage);
+
         // check ignored source
         checkIgnoredSource(fieldName, storage);
         checkIgnoredSource(fallbackFieldName, storage);
@@ -124,6 +149,22 @@ public class FieldStorageVerifier {
             if (field.fieldType().docValuesType() != DocValuesType.NONE) {
                 storage.add(StorageType.DOC_VALUES, fieldName);
                 assertThat(field, notNullValue());
+            }
+        }
+    }
+
+    private void checkOnFailureStorage(StorageLocations storage) {
+        for (IndexableField field : document.getFields(onFailureFieldName)) {
+            if (field.fieldType().docValuesType() != DocValuesType.NONE) {
+                storage.add(StorageType.ON_FAILURE, onFailureFieldName);
+            }
+        }
+    }
+
+    private void checkIgnoreMalformedStorage(StorageLocations storage) {
+        for (IndexableField field : document.getFields(ignoreMalformedFieldName)) {
+            if (field.fieldType().docValuesType() != DocValuesType.NONE || field.fieldType().stored()) {
+                storage.add(StorageType.IGNORE_MALFORMED, ignoreMalformedFieldName);
             }
         }
     }

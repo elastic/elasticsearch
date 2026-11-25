@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -163,6 +165,16 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
                 }
             }
             return false;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            if (Strings.isNullOrBlank(jobId)) {
+                ActionRequestValidationException e = new ActionRequestValidationException();
+                e.addValidationError(Job.ID.getPreferredName() + " cannot be empty");
+                return e;
+            }
+            return super.validate();
         }
 
         @Override

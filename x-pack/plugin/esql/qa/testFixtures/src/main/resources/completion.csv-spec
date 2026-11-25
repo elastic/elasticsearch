@@ -30,6 +30,7 @@ completion after a search
 required_capability: completion
 required_capability: match_operator_colon
 required_capability: routing_function_update
+skip_columnar: completion field type cannot be reconstructed from doc values in columnar mode (Lucene completion suggester stores opaque binary data incompatible with synthetic _source)
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -87,4 +88,16 @@ ROW prompt="test prompt"
 
 completion:keyword
 temperature:1 TEST PROMPT
+;
+
+completionWithTimeout
+required_capability: completion
+required_capability: inference_accept_timeout
+
+ROW prompt="Who is Victor Hugo?"
+| COMPLETION completion_output = prompt WITH { "inference_id": "test_completion", "timeout": "30s" }
+;
+
+prompt:keyword      | completion_output:keyword
+Who is Victor Hugo? | WHO IS VICTOR HUGO?
 ;

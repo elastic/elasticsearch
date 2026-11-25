@@ -1,0 +1,5 @@
+FROM (FROM employees
+      | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
+     ),
+     (FROM languages)
+| STATS c = COUNT(*)

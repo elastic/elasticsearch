@@ -1,0 +1,506 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [user_managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "User-managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "user_managed_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_role:
+        name: "user_managed_api_key"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      security.put_role:
+        name: "service_account_admin"
+        body: >
+          {
+            "cluster": ["manage_service_account"]
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_admin"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["service_account_admin"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: boundary-elastic-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: boundary_worker
+        name: boundary-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: disabled_worker
+        name: disabled-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: disabled_worker
+        name: disabled-token-while-off
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: role_def_worker
+        name: role-def-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: union_worker
+        name: union-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: missing_role_worker
+        name: missing-role-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: boundary_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: disabled_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: role_def_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: union_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: missing_role_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "sa_admin"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "service_account_admin"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "user_managed_api_key"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "user_managed_missing_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "user_managed_monitor"
+        ignore: 404
+
+---
+"Test manage_service_account cannot administer user-managed accounts":
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2FfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_admin
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: boundary_worker
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: boundary_worker
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2FfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_admin
+      security.create_service_token:
+        namespace: apps
+        service: boundary_worker
+        name: boundary-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2FfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_admin
+      security.delete_service_token:
+        namespace: apps
+        service: boundary_worker
+        name: boundary-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2FfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_admin
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: boundary_worker
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_admin
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: boundary-elastic-token
+  - is_true: created
+  - match: { "token.name": "boundary-elastic-token" }
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic c2FfYWRtaW46eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_admin
+      security.create_service_token:
+        namespace: ELASTIC
+        service: foo
+        name: case-dispatch-token
+  - match: { "error.type": "illegal_argument_exception" }
+  - match: { "error.reason": "service account [ELASTIC/foo] does not exist" }
+
+---
+"Test reserved elastic namespace is rejected for user-managed accounts":
+  - do:
+      catch: bad_request
+      security.put_user_managed_service_account:
+        namespace: elastic
+        service: custom
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+  - match: { error.type: action_request_validation_exception }
+
+  - do:
+      catch: bad_request
+      security.put_user_managed_service_account:
+        namespace: ELASTIC
+        service: custom
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+  - match: { error.type: action_request_validation_exception }
+
+  - do:
+      catch: bad_request
+      security.delete_user_managed_service_account:
+        namespace: elastic
+        service: kibana
+  - match: { error.type: action_request_validation_exception }
+
+  - do:
+      catch: bad_request
+      security.delete_user_managed_service_account:
+        namespace: ELASTIC
+        service: kibana
+  - match: { error.type: action_request_validation_exception }
+
+---
+"Test disabled user-managed account cannot authenticate":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: disabled_worker
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: disabled_worker
+        name: disabled-token
+  - set: { "token.value": disabled_service_token }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: disabled_worker
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": false
+          }
+  - match: { created: false }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${disabled_service_token}
+      security.authenticate: {}
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: disabled_worker
+        name: disabled-token-while-off
+  - is_true: created
+  - set: { "token.value": disabled_service_token_while_off }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${disabled_service_token_while_off}
+      security.authenticate: {}
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: disabled_worker
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+  - match: { created: false }
+
+  - do:
+      headers:
+        Authorization: Bearer ${disabled_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/disabled_worker" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${disabled_service_token_while_off}
+      security.authenticate: {}
+  - match: { username: "apps/disabled_worker" }
+
+---
+"Test changing a role definition changes user-managed authorization":
+  - do:
+      security.put_role:
+        name: "user_managed_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: role_def_worker
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: role_def_worker
+        name: role-def-token
+  - set: { "token.value": role_def_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${role_def_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": false }
+
+  - do:
+      security.put_role:
+        name: "user_managed_monitor"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      headers:
+        Authorization: Bearer ${role_def_service_token}
+      security.authenticate: {}
+  - match: { roles: ["user_managed_monitor"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${role_def_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": false }
+  - match: { "cluster.manage_own_api_key": true }
+
+---
+"Test a user-managed account with two roles has the union of their privileges":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: union_worker
+        body: >
+          {
+            "roles": ["user_managed_monitor", "user_managed_api_key"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: union_worker
+        name: union-token
+  - set: { "token.value": union_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${union_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/union_worker" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${union_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": true }
+  - match: { has_all_requested: true }
+
+---
+"Test a user-managed account whose role does not exist yet":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: missing_role_worker
+        body: >
+          {
+            "roles": ["user_managed_missing_role"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: missing_role_worker
+        name: missing-role-token
+  - set: { "token.value": missing_role_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/missing_role_worker" }
+  - match: { roles: ["user_managed_missing_role"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+  - match: { "cluster.monitor": false }
+  - match: { has_all_requested: false }
+
+  - do:
+      security.put_role:
+        name: "user_managed_missing_role"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { has_all_requested: true }

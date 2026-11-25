@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# On Windows, we need to refresh PATH
+if command -v choco > /dev/null; then
+  export PATH=$(cmd.exe //c "refreshenv > nul & bash -c 'echo \$PATH' ")
+fi
+
+if [[ -f build/task-status.json ]]; then
+  # pnpm creates symlinks for the packages inside node_modules
+  # But something in our build is deleting those symlinks (I'm not sure what)
+  # The other files/dirs in node_modules are fine, but the symlinks disappear during the build
+  # So, for now, we need to fix node_modules before we can run node scripts
+  cd "$WORKSPACE/.buildkite"
+  rm -rf node_modules
+  pnpm install
+
+  # Finalize the current run (stamp build scan URL from Buildkite metadata) and
+  # merge with any previous runs (saved by smart-retry pre-command). On the first
+  # attempt, build/previous-task-status.json won't exist — the script handles
+  # that by wrapping the current run as the sole entry.
+  node scripts/smart-retry/finalize-task-status.ts \
+    "$WORKSPACE/build/task-status.json" \
+    "$WORKSPACE/build/previous-task-status.json" \
+    "$WORKSPACE/build/task-status-merged.json" \
+    "$WORKSPACE/build/.buildscan-id" \
+    && mv "$WORKSPACE/build/task-status-merged.json" "$WORKSPACE/build/task-status.json"
+
+  cd "$WORKSPACE/build"
+  gzip -k task-status.json
+  buildkite-agent artifact upload task-status.json.gz
+  cd "$WORKSPACE/.buildkite"
+
+  echo "+++ Overall job status"
+  node scripts/smart-retry/summarize-task-status.ts "$WORKSPACE/build/task-status.json"
+  cd "$WORKSPACE"
+fi
+
+if [[ "${JACOCO_REPORTING_ENABLED:-}" == "true" ]]; then
+  # Turn each JaCoCo XML report ({project}/build/reports/jacoco/{task}/{name}.xml) into a single
+  # self-contained HTML page, upload that one file, and link it from a single annotation.
+  # JaCoCo's own HTML report for :server is ~15k files, and uploading them one artifact at a time
+  # took ~20 minutes per job. Failures here must never fail the job.
+  jacoco_annotation=""
+  if ! command -v node > /dev/null; then
+    echo "Skipping JaCoCo report upload: node is not on PATH"
+  else
+    while IFS= read -r report_xml; do
+      report_xml="${report_xml#./}"
+      report_dir="${report_xml%/*}"
+      # {project}/build/reports/jacoco/{task} -> "{project} ({task})"
+      project_path="${report_dir%/build/reports/jacoco/*}"
+      report_task="${report_dir#*/build/reports/jacoco/}"
+      # find's -path wildcards also match "/", so skip XML files nested deeper than {task}/
+      [[ "$report_task" == */* ]] && continue
+      report_html="${report_dir}/coverage.html"
+      report_title="${BUILDKITE_LABEL:-} / ${project_path} (${report_task})"
+
+      src_args=()
+      if [[ -d "${project_path}/src/main/java" ]]; then
+        src_args=(--src "${project_path}/src/main/java")
+      fi
+
+      if node .buildkite/scripts/jacoco/single-page-report.ts --xml "$report_xml" --out "$report_html" --title "$report_title" ${src_args[@]+"${src_args[@]}"} \
+        && buildkite-agent artifact upload "$report_html"; then
+        artifact_id="$(buildkite-agent artifact search "$report_html" --step "${BUILDKITE_JOB_ID:-}" --format '%i' || true)"
+        if [[ -n "$artifact_id" ]]; then
+          artifact_url="https://buildkite.com/organizations/${BUILDKITE_ORGANIZATION_SLUG}/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}/jobs/${BUILDKITE_JOB_ID}/artifacts/${artifact_id}"
+          jacoco_annotation+="<div>:coverage: <a href=\"${artifact_url}\"><code>${report_title}</code></a></div>"
+        fi
+      fi
+    done < <(find . -maxdepth 10 \( -name .git -o -name node_modules \) -prune -o -path '*/build/reports/jacoco/*/*.xml' -type f -print 2>/dev/null)
+  fi
+
+  if [[ -n "$jacoco_annotation" ]]; then
+    printf '%s' "$jacoco_annotation" | buildkite-agent annotate --context "jacoco-reports" --append --style "info" || true
+  fi
+fi
+
+# Propagate GCP preemption exit code when Gradle ran with a daemon (always the case in
+# Gradle 9, even with --no-daemon). When preempted, the Gradle build writes the desired
+# exit code (default 47) to a well-known file so retry rules (exit_status: 47) fire
+# correctly. run-gradle.sh and packaging-test.sh consume this file themselves; this hook
+# handles any remaining jobs that invoke ./gradlew directly.
+#
+# In the case that BUILDKITE_COMMAND_EXIT_STATUS is 0, that should mean that gradle completed its work before exiting,
+# so even though there was a preemption, we shouldn't need to retry
+PREEMPTION_FILE="/tmp/gradle-preemption-exit-${BUILDKITE_JOB_ID:-local}"
+if [[ -f "$PREEMPTION_FILE" && "${BUILDKITE_COMMAND_EXIT_STATUS:-}" != "0" ]]; then
+  PREEMPTION_EXIT=$(cat "$PREEMPTION_FILE")
+  rm -f "$PREEMPTION_FILE"
+  echo "+++ Exiting with preemption exit code $PREEMPTION_EXIT"
+  echo "GCP terminated this instance early."
+  echo "It should automatically retry and pick up where it left off in a new step."
+  echo "You should be able to ignore this failed step."
+  exit "$PREEMPTION_EXIT"
+fi

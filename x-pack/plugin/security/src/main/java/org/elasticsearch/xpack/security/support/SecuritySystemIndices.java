@@ -36,7 +36,9 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS;
 
 /**
  * Responsible for handling system indices for the Security plugin
@@ -453,6 +455,23 @@ public class SecuritySystemIndices {
                                 }
                                 builder.endObject();
                             }
+                            if (mappingVersion.onOrAfter(ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE)) {
+                                builder.startObject("data_source");
+                                {
+                                    builder.field("type", "nested");
+                                    builder.startObject("properties");
+                                    {
+                                        builder.startObject("names");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                        builder.startObject("privileges");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
                         }
                         builder.endObject();
                     }
@@ -561,10 +580,59 @@ public class SecuritySystemIndices {
                             builder.endObject();
 
                             defineRealmDomain(builder, "realm_domain");
+                            if (mappingVersion.onOrAfter(ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS)) {
+                                // The API key a user-managed service account's creator acted through. API key documents
+                                // share this object but never write the field.
+                                defineAuthorApiKey(builder);
+                            }
                         }
                         builder.endObject();
                     }
                     builder.endObject();
+
+                    if (mappingVersion.onOrAfter(ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS)) {
+                        // Who last replaced a user-managed service account. The same shape as "creator", which the
+                        // account's creator shares with API keys, minus the user's metadata, which is not recorded.
+                        builder.startObject("updated_by");
+                        {
+                            builder.field("type", "object");
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("principal");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("full_name");
+                                builder.field("type", "text");
+                                builder.endObject();
+
+                                builder.startObject("email");
+                                builder.field("type", "text");
+                                builder.field("analyzer", "email");
+                                builder.endObject();
+
+                                builder.startObject("realm");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("realm_type");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                defineRealmDomain(builder, "realm_domain");
+                                defineAuthorApiKey(builder);
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+
+                        // When a user-managed service account was last replaced. When it was created shares the
+                        // "creation_time" field with API keys.
+                        builder.startObject("update_time");
+                        builder.field("type", "date");
+                        builder.field("format", "epoch_millis");
+                        builder.endObject();
+                    }
 
                     builder.startObject("rules");
                     builder.field("type", "object");
@@ -1047,6 +1115,28 @@ public class SecuritySystemIndices {
         }
     }
 
+    /**
+     * The API key an author of a user-managed service account acted through, by id and name.
+     */
+    private static void defineAuthorApiKey(XContentBuilder builder) throws IOException {
+        builder.startObject("api_key");
+        {
+            builder.field("type", "object");
+            builder.startObject("properties");
+            {
+                builder.startObject("id");
+                builder.field("type", "keyword");
+                builder.endObject();
+
+                builder.startObject("name");
+                builder.field("type", "keyword");
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
     private static void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
         builder.startObject(fieldName);
         {
@@ -1108,6 +1198,19 @@ public class SecuritySystemIndices {
          * Mapping for cross-cluster API keys to include the certificate_identity field.
          */
         ADD_CERTIFICATE_IDENTITY_FIELD(4),
+
+        /**
+         * Mapping for {@code global.data_source} configurable cluster privilege on roles.
+         */
+        ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE(5),
+
+        /**
+         * Mapping for who created and last replaced a user-managed service account and when: the {@code updated_by}
+         * and {@code update_time} fields, and the {@code api_key} an author acted through. The creator and creation
+         * time reuse the existing {@code creator} and {@code creation_time} fields, and {@code creator} gains
+         * {@code api_key}.
+         */
+        ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS(6),
 
         ;
 

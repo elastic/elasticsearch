@@ -95,10 +95,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(runtimeFieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(runtimeFieldMapping(this::minimalMapping)), orig, ToXContent.EMPTY_PARAMS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, ToXContent.EMPTY_PARAMS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
     }
@@ -134,10 +134,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     public final void testMinimalMappingToMaximal() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
-        createMapperService(runtimeFieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(runtimeFieldMapping(this::minimalMapping)), orig, INCLUDE_DEFAULTS);
         orig.endObject();
         XContentBuilder parsedFromOrig = JsonXContent.contentBuilder().startObject();
-        createMapperService(orig).documentMapper().mapping().toXContent(parsedFromOrig, INCLUDE_DEFAULTS);
+        mappingToXContent(createMapperService(orig), parsedFromOrig, INCLUDE_DEFAULTS);
         parsedFromOrig.endObject();
         assertEquals(Strings.toString(orig), Strings.toString(parsedFromOrig));
     }
@@ -284,6 +284,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             null,
             searchExecutionContext::lookup,
             mockContext()::sourcePath,
+            () -> false,
             MappedFieldType.FielddataOperation.SCRIPT
         );
     }
@@ -305,7 +306,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             allowExpensiveQueries,
             false,
             mappedFieldType,
-            SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+            SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
         );
     }
 
@@ -323,8 +324,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
             (fieldName) -> fieldOnlyMappedAsRuntimeField,
-            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", null, lookupSupplier, context::sourcePath, fdo))
-                .build(null, null),
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
+                new FieldDataContext("test", null, lookupSupplier, context::sourcePath, () -> false, fdo)
+            ).build(null, null),
             sourceProvider,
             LeafFieldLookupProvider.fromStoredFields()
         );
@@ -332,7 +334,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
             MappedFieldType.FielddataOperation fdo = args.getArgument(1);
-            return ft.fielddataBuilder(new FieldDataContext("test", null, context::lookup, context::sourcePath, fdo))
+            return ft.fielddataBuilder(new FieldDataContext("test", null, context::lookup, context::sourcePath, () -> false, fdo))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         when(context.getMatchingFieldNames(any())).thenReturn(Set.of("dummy_field"));
@@ -542,7 +544,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                     true,
                     fieldOnlyMappedAsRuntimeField,
                     null,
-                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
                 ).lookup();
             }
         };

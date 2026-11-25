@@ -10,25 +10,41 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 
 @FunctionName("match")
 public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     public MatchTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    private static List<TestCaseSupplier.TypedDataSupplier> forceLiteral(List<TestCaseSupplier.TypedDataSupplier> suppliers) {
+        return suppliers.stream().map(s -> new TestCaseSupplier.TypedDataSupplier(s.name(), s.supplier(), s.type(), true)).toList();
     }
 
     @ParametersFactory
@@ -46,6 +62,80 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
+    }
+
+    /**
+     * Builds a {@link FieldAttribute} backed by a union-typed ({@code UnionTypeEsField}) field with the given
+     * per-branch source types, resolved to {@code targetType} - simulating a genuinely type-conflicted field
+     * (e.g. mapped {@code keyword} in one index, {@code text} in another) after analysis, where
+     * {@code ResolveUnionTypes} has already replaced the original {@code TO_TEXT}/{@code TO_STRING} conversion
+     * with a synthetic {@link FieldAttribute} carrying the per-branch conversion knowledge (see
+     * {@code Analyzer.ResolveUnionTypes}, "Replace the entire convert function with a new FieldAttribute").
+     * {@code legacy} selects between the two {@code UnionTypeEsField} representations: {@code true} for the
+     * pre-{@code compact_multi_type_es_field} {@link MultiTypeEsField} (keyed by index name - what a
+     * cross-cluster search against an older remote cluster still produces), {@code false} for the modern
+     * {@link CompactMultiTypeEsField} (keyed by source type).
+     */
+    static FieldAttribute unionFieldAttribute(String name, DataType targetType, boolean legacy, DataType... branchSourceTypes) {
+        Configuration config = randomConfiguration();
+        Map<DataType, Expression> byType = new HashMap<>();
+        Map<String, Expression> byIndex = new HashMap<>();
+        int i = 0;
+        for (DataType sourceType : branchSourceTypes) {
+            FieldAttribute source = new FieldAttribute(
+                Source.EMPTY,
+                name,
+                new EsField(name, sourceType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            );
+            Expression convert = targetType == DataType.KEYWORD
+                ? new ToString(Source.EMPTY, source, config)
+                : new ToText(Source.EMPTY, source);
+            if (legacy) {
+                byIndex.put("idx" + i++, convert);
+            } else {
+                byType.put(sourceType, convert);
+            }
+        }
+        EsField esField = legacy
+            ? new MultiTypeEsField(name, targetType, true, byIndex, EsField.TimeSeriesFieldType.NONE, null)
+            : new CompactMultiTypeEsField(name, targetType, true, byType, EsField.TimeSeriesFieldType.NONE, null);
+        return new FieldAttribute(Source.EMPTY, name, esField);
+    }
+
+    public void testToTextUnionFieldWithLegacyRepresentationAndNonTextBranchIsRuntimeSearch() {
+        FieldAttribute field = unionFieldAttribute("field", DataType.TEXT, true, DataType.KEYWORD, DataType.TEXT);
+        Match match = new Match(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD), null);
+        assertTrue(
+            "a union field resolved via the legacy MultiTypeEsField representation with a non-TEXT branch must not be pushed down",
+            match.isRuntimeSearch()
+        );
+    }
+
+    public void testToStringUnionFieldWithLegacyRepresentationAndNonKeywordBranchIsRuntimeSearch() {
+        FieldAttribute field = unionFieldAttribute("field", DataType.KEYWORD, true, DataType.TEXT, DataType.KEYWORD);
+        Match match = new Match(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD), null);
+        assertTrue(
+            "a union field resolved via the legacy MultiTypeEsField representation with a non-KEYWORD branch must not be pushed down",
+            match.isRuntimeSearch()
+        );
+    }
+
+    public void testToTextUnionFieldWithCompactRepresentationAndNonTextBranchIsRuntimeSearch() {
+        FieldAttribute field = unionFieldAttribute("field", DataType.TEXT, false, DataType.KEYWORD, DataType.TEXT);
+        Match match = new Match(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD), null);
+        assertTrue(
+            "a union field resolved via the compact representation with a non-TEXT branch must not be pushed down",
+            match.isRuntimeSearch()
+        );
+    }
+
+    public void testToStringUnionFieldWithCompactRepresentationAndNonKeywordBranchIsRuntimeSearch() {
+        FieldAttribute field = unionFieldAttribute("field", DataType.KEYWORD, false, DataType.TEXT, DataType.KEYWORD);
+        Match match = new Match(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef("x"), DataType.KEYWORD), null);
+        assertTrue(
+            "a union field resolved via the compact representation with a non-KEYWORD branch must not be pushed down",
+            match.isRuntimeSearch()
+        );
     }
 
     protected static List<TestCaseSupplier> testCaseSuppliers() {
@@ -69,7 +159,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.booleanCases(),
-                TestCaseSupplier.booleanCases(),
+                forceLiteral(TestCaseSupplier.booleanCases()),
                 List.of(),
                 false
             )
@@ -82,7 +172,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ipCases(),
-                TestCaseSupplier.ipCases(),
+                forceLiteral(TestCaseSupplier.ipCases()),
                 List.of(),
                 false
             )
@@ -95,7 +185,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
-                TestCaseSupplier.versionCases(""),
+                forceLiteral(TestCaseSupplier.versionCases("")),
                 List.of(),
                 false
             )
@@ -109,7 +199,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
-                TestCaseSupplier.dateCases(),
+                forceLiteral(TestCaseSupplier.dateCases()),
                 List.of(),
                 false
             )
@@ -123,7 +213,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.dateNanosCases(),
+                forceLiteral(TestCaseSupplier.dateNanosCases()),
                 List.of(),
                 false
             )
@@ -157,7 +247,8 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 "field",
                 "query",
                 (lhs, rhs) -> List.of(),
-                false
+                false,
+                true
             )
         );
     }
@@ -171,7 +262,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                forceLiteral(TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true)),
                 List.of(),
                 false
             )
@@ -184,7 +275,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+                forceLiteral(TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)),
                 List.of(),
                 false
             )
@@ -197,7 +288,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true),
+                forceLiteral(TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true)),
                 List.of(),
                 false
             )
@@ -210,7 +301,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true),
+                forceLiteral(TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true)),
                 List.of(),
                 false
             )
@@ -227,7 +318,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -241,7 +332,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -255,7 +346,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.longCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -269,7 +360,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -286,7 +377,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -300,7 +391,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.booleanCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -313,7 +404,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ipCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -326,7 +417,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -340,7 +431,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -354,7 +445,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )

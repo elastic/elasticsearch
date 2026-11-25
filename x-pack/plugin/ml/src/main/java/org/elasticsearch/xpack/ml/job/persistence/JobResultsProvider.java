@@ -52,7 +52,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -197,14 +196,14 @@ public class JobResultsProvider {
      */
     public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
 
-        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns())
             .setQuery(
                 QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1), CategorizerState.v54DocumentId(job.getId(), 1))
             )
             .setTrackTotalHits(false)
             .setIndicesOptions(IndicesOptions.strictExpand());
 
-        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns())
             .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
             .setTrackTotalHits(false)
             .setIndicesOptions(IndicesOptions.strictExpand());
@@ -654,10 +653,10 @@ public class JobResultsProvider {
                         return;
                     }
                     SearchResponse searchResponse = itemResponse.getResponse();
-                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                    List<ShardSearchFailure> shardFailures = searchResponse.getShardFailures();
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                    if (CollectionUtils.isEmpty(shardFailures) == false) {
-                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                    if (shardFailures.isEmpty() == false) {
+                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, shardFailures);
                         listener.onFailure(
                             new ElasticsearchStatusException(
                                 ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
@@ -737,8 +736,6 @@ public class JobResultsProvider {
 
         AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String stateIndex = AnomalyDetectorsIndex.jobStateIndexPattern();
-
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
             .add(createLatestDataCountsSearch(resultsIndex, jobId))
             .add(createLatestModelSizeStatsSearch(resultsIndex))
@@ -746,7 +743,7 @@ public class JobResultsProvider {
 
         if (snapshotId != null) {
             msearch.add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, snapshotId)));
-            msearch.add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
+            msearch.add(createDocIdSearch(AnomalyDetectorsIndex.jobStateIndexPatterns(), Quantiles.documentId(jobId)));
         }
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
@@ -765,10 +762,10 @@ public class JobResultsProvider {
                         return;
                     }
                     SearchResponse searchResponse = itemResponse.getResponse();
-                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                    List<ShardSearchFailure> shardFailures = searchResponse.getShardFailures();
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                    if (CollectionUtils.isEmpty(shardFailures) == false) {
-                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                    if (shardFailures.isEmpty() == false) {
+                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, shardFailures);
                         errorHandler.accept(
                             new ElasticsearchStatusException(
                                 ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
@@ -812,7 +809,11 @@ public class JobResultsProvider {
     }
 
     private SearchRequestBuilder createDocIdSearch(String index, String id) {
-        return client.prepareSearch(index)
+        return createDocIdSearch(new String[] { index }, id);
+    }
+
+    private SearchRequestBuilder createDocIdSearch(String[] indices, String id) {
+        return client.prepareSearch(indices)
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(id))

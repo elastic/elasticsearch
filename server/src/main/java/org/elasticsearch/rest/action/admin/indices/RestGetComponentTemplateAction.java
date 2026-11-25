@@ -12,13 +12,15 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,6 +33,15 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetComponentTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local",
+        "include_defaults",
+        Settings.FLAT_SETTINGS_PARAM,
+        "settings_filter"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
 
     private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("local_param_deprecated");
 
@@ -62,10 +73,13 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetComponentTemplateAction.INSTANCE,
             getRequest,
-            new RestToXContentListener<>(channel, r -> {
-                final boolean templateExists = r.getComponentTemplates().isEmpty() == false;
-                return (templateExists || implicitAll) ? OK : NOT_FOUND;
-            })
+            new RestChunkedToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getRestStatus(GetComponentTemplateAction.Response response) {
+                    final boolean templateExists = response.getComponentTemplates().isEmpty() == false;
+                    return (templateExists || implicitAll) ? OK : NOT_FOUND;
+                }
+            }
         );
     }
 
@@ -78,4 +92,15 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return SUPPORTED_CAPABILITIES;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

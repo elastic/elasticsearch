@@ -103,6 +103,7 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
 
         final var preExistingIndexName = addRandomIndexNameNoCollision(allIndexNames);
         createIndex(preExistingIndexName);
+        ensureGreen(preExistingIndexName);
 
         final ClusterStateListener listener = event -> {
             final var projectMetadata = event.state().metadata().getProject(ProjectId.DEFAULT);
@@ -199,7 +200,7 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
                     () -> masterClusterService.getMasterService()
                         .pendingTasks()
                         .stream()
-                        .filter(pct -> pct.getSource().toString().startsWith("create-index"))
+                        .filter(pct -> pct.getSource().startsWith("create-index"))
                         .count() == totalRequestCount
                 )
             );

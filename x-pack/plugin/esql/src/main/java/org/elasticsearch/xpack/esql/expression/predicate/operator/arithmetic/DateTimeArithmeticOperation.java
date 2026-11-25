@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -124,7 +125,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     /**
      * Override this to allow processing literals of type {@link DataType#DATE_PERIOD} when folding constants.
-     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * Used in {@link DateTimeArithmeticOperation#doFold}.
      * @param left the left period
      * @param right the right period
      * @return the result of the evaluation
@@ -133,7 +134,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     /**
      * Override this to allow processing literals of type {@link DataType#TIME_DURATION} when folding constants.
-     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * Used in {@link DateTimeArithmeticOperation#doFold}.
      * @param left the left duration
      * @param right the right duration
      * @return the result of the evaluation
@@ -141,7 +142,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
     abstract Duration fold(Duration left, Duration right);
 
     @Override
-    public final Object fold(FoldContext ctx) {
+    public final Object doFold(Source source, FoldContext ctx) {
         DataType leftDataType = left().dataType();
         DataType rightDataType = right().dataType();
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
@@ -171,15 +172,12 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        if (isNull(leftDataType) || isNull(rightDataType)) {
-            return null;
-        }
-        return super.fold(ctx);
+        return super.doFold(source, ctx);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ZoneId zoneId = configuration().zoneId();
+        ZoneId zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
         if (dataType() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;
@@ -223,7 +221,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), children(), configuration());
+        return Objects.hash(super.hashCode(), configuration());
     }
 
     @Override

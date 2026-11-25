@@ -10,7 +10,6 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitSet;
@@ -21,8 +20,13 @@ public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery
     private final int k;
     private final BitSetProducer parentsFilter;
 
-    DiversifiedIVFKnnCollectorManager(int k, IndexSearcher searcher, BitSetProducer parentsFilter) {
-        super(k, searcher);
+    DiversifiedIVFKnnCollectorManager(
+        int k,
+        SharedMinCompetitiveScore sharedScore,
+        QueryTransformCache queryTransformCache,
+        BitSetProducer parentsFilter
+    ) {
+        super(k, sharedScore, queryTransformCache);
         this.k = k;
         this.parentsFilter = parentsFilter;
     }

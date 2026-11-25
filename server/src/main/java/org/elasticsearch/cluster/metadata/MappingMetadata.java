@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -29,7 +31,9 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 /**
  * Mapping configuration for a type.
  */
-public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
+public class MappingMetadata implements SimpleDiffable<MappingMetadata>, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MappingMetadata.class);
 
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
         MapperService.SINGLE_MAPPING_NAME,
@@ -41,6 +45,8 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     private final CompressedXContent source;
 
     private final boolean routingRequired;
+
+    private volatile long ramBytesUsed = -1;
 
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -112,6 +118,22 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
 
     public CompressedXContent source() {
         return this.source;
+    }
+
+    /**
+     * Returns an estimated heap footprint for this mapping metadata instance. The result is memoized because
+     * {@link MappingMetadata} is immutable.
+     */
+    @Override
+    public long ramBytesUsed() {
+        if (ramBytesUsed == -1L) {
+            ramBytesUsed = computeRamBytesUsed();
+        }
+        return ramBytesUsed;
+    }
+
+    private long computeRamBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(type) + source.ramBytesUsed();
     }
 
     /**

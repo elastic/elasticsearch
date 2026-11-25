@@ -62,7 +62,6 @@ import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Shared tests for testing grouped aggregations.
@@ -351,6 +350,33 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             simpleWithMode(AggregatorMode.FINAL)
         );
         assertSimpleOutput(runner.deepCopy(), results);
+    }
+
+    /**
+     * Forces output chunking through the whole {@code INITIAL -> INTERMEDIATE -> FINAL} pipeline by pinning
+     * {@code maxPageSize == 1}, so each stage's {@code evaluate()} is invoked once per single-group slice rather than
+     * once over all groups. This guards every aggregator against evaluators that assume a single evaluate call covering
+     * all groups and against page-local key building that only works for the full, in-order selection.
+     */
+    public final void testChunkedEvaluationAcrossModes() {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        int end = between(50, 60);
+        runner.input(simpleInput(runner.blockFactory(), end));
+        List<Page> results = runner.run(
+            chunkedFactory(AggregatorMode.INITIAL),
+            chunkedFactory(AggregatorMode.INTERMEDIATE),
+            chunkedFactory(AggregatorMode.FINAL)
+        );
+        assertSimpleOutput(runner.deepCopy(), results);
+    }
+
+    private Operator.OperatorFactory chunkedFactory(AggregatorMode mode) {
+        return HashAggregationOperatorTests.randomBuilder()
+            .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+            .mode(mode)
+            .aggregators(List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels(mode))))
+            .maxPageSize(1)
+            .build();
     }
 
     private SourceOperator nullValues(SourceOperator source, BlockFactory blockFactory) {
@@ -819,6 +845,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
+                    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+                        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, page);
+                    }
+
+                    @Override
                     public void addIntermediateInput(int positionOffset, IntArrayBlock groupIds, Page page) {
                         addIntermediateInputInternal(positionOffset, groupIds, page);
                     }
@@ -916,7 +947,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
         @Override
         protected BlockHash wrapBlockHash(DriverContext driverContext, BlockHash hash) {
-            return new BlockHashWrapper(driverContext.blockFactory(), hash) {
+            final BlockFactory blockFactory = driverContext.blockFactory();
+            return new BlockHashWrapper(blockFactory, hash) {
                 @Override
                 public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
                     blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
@@ -938,7 +970,32 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                         @Override
                         public void add(int positionOffset, IntVector groupIds) {
-                            add(positionOffset, groupIds.asBlock());
+                            if (groupIds.getPositionCount() > 0 && randomInt(2) == 0) {
+                                addAsRuns(positionOffset, groupIds);
+                            } else {
+                                add(positionOffset, groupIds.asBlock());
+                            }
+                        }
+
+                        /**
+                         * Hand the same ids over the way a hash does when its keys come in runs, so that every aggregator
+                         * is checked on {@code addRuns}: the ones that combine a run, and the default that expands it.
+                         */
+                        private void addAsRuns(int positionOffset, IntVector groupIds) {
+                            final GroupRuns runs = new GroupRuns(blockFactory);
+                            try {
+                                int start = 0;
+                                for (int p = 1; p <= groupIds.getPositionCount(); p++) {
+                                    if (p == groupIds.getPositionCount() || groupIds.getInt(p) != groupIds.getInt(start)) {
+                                        runs.appendRunEnd(p);
+                                        runs.setGroupId(runs.runCount() - 1, groupIds.getInt(start));
+                                        start = p;
+                                    }
+                                }
+                                addInput.addRuns(positionOffset, runs);
+                            } finally {
+                                runs.release();
+                            }
                         }
 
                         @Override

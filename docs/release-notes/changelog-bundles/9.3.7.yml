@@ -1,0 +1,61 @@
+version: 9.3.7
+released: true
+generated: 2026-06-30T17:05:13.164599818Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 107188
+    summary: Fix bug causing incorrect error on force deleting already deleted model
+    area: Machine Learning
+    type: bug
+    issues:
+      - 105420
+  - pr: 142335
+    summary: Pass through `includeSourceInError`
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 151633
+    summary: Resolve surrogates in union type field resolution before plan serialization
+    area: ES|QL
+    type: bug
+    issues:
+      - 151475
+  - pr: 151794
+    summary: "[Inference] Add requires org.apache.commons.lang3 to module-info"
+    area: Inference
+    type: upgrade
+    issues: []
+  - pr: 152000
+    summary: "Revert \"[ML] Add extra validation in `trained_model` creation\""
+    area: Machine Learning
+    type: bug
+    issues: []

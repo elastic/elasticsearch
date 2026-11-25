@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 153838
+summary: Charge remote reindex HTTP buffers to request breaker
+type: bug

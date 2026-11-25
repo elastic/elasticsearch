@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -40,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Returns the maximum value of multiple columns.
  */
-public class Greatest extends EsqlScalarFunction implements OptionalArgument {
+public class Greatest extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Greatest", Greatest::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Greatest.class)
         .unaryVariadic(Greatest::new)
@@ -73,7 +76,9 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
+        briefSummary = "Returns the maximum value from multiple columns.",
         description = "Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>>\n"
             + "except it is intended to run on multiple columns at once.",
         note = "When run on `keyword` or `text` fields, this returns the last string in alphabetical order. "
@@ -119,9 +124,15 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 
@@ -131,26 +142,31 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
+        // Compute in a local and publish only the final type: this field is shared by every thread that holds the plan.
+        DataType type = null;
         for (int position = 0; position < children().size(); position++) {
             Expression child = children().get(position);
-            if (dataType == null || dataType == NULL) {
-                dataType = child.dataType().noText();
+            if (type == null || type == NULL) {
+                type = child.dataType().noText();
                 continue;
             }
+            DataType expected = type;
             TypeResolution resolution = TypeResolutions.isType(
                 child,
-                t -> t.noText() == dataType,
+                t -> t.noText() == expected,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                dataType.typeName()
+                expected.typeName()
             );
             if (resolution.unresolved()) {
+                dataType = type;
                 return resolution;
             }
         }
+        dataType = type;
 
-        if (dataType != NULL && EVALUATOR_MAP.containsKey(dataType) == false && DataType.isString(dataType) == false) {
-            return new TypeResolution("Cannot use [" + dataType.typeName() + "] with function [" + getWriteableName() + "]");
+        if (type != NULL && EVALUATOR_MAP.containsKey(type) == false && DataType.isString(type) == false) {
+            return new TypeResolution("Cannot use [" + type.typeName() + "] with function [" + getWriteableName() + "]");
         }
 
         return TypeResolution.TYPE_RESOLVED;

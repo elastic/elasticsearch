@@ -102,7 +102,8 @@ public class InferenceRunnerTests extends ESTestCase {
 
         var testDocsIterator = mock(TestDocsIterator.class);
         when(testDocsIterator.hasNext()).thenReturn(true, false);
-        when(testDocsIterator.next()).thenReturn(buildSearchHits(List.of(Map.of("key", 1), Map.of("key", 2))));
+        Deque<SearchHit> testHits = buildSearchHits(List.of(Map.of("key", 1), Map.of("key", 2)));
+        when(testDocsIterator.next()).thenReturn(testHits);
         when(testDocsIterator.getTotalHits()).thenReturn(2L);
         var config = ClassificationConfig.EMPTY_PARAMS;
 
@@ -118,6 +119,7 @@ public class InferenceRunnerTests extends ESTestCase {
         }).when(modelLoadingService).getModelForInternalInference(anyString(), any());
 
         run(createInferenceRunner(extractedFields, testDocsIterator)).assertSuccess();
+        testHits.forEach(SearchHit::decRef);
 
         var argumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 

@@ -10,15 +10,20 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -31,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Sets up classes for Snapshot/Restore.
@@ -38,6 +44,7 @@ import java.util.function.BiConsumer;
 public final class RepositoriesModule {
 
     private final RepositoriesService repositoriesService;
+    private final SnapshotMetrics snapshotMetrics;
 
     public RepositoriesModule(
         Environment env,
@@ -49,8 +56,13 @@ public final class RepositoriesModule {
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings,
         TelemetryProvider telemetryProvider,
-        SnapshotMetrics snapshotMetrics
+        ShardGenerationSizeListener shardGenerationSizeListener
     ) {
+        this.snapshotMetrics = new SnapshotMetrics(
+            telemetryProvider.getMeterRegistry(),
+            new CachingSnapshotAndShardByStateMetricsService(clusterService),
+            this::getRepositoryService
+        );
         final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
@@ -103,6 +115,11 @@ public final class RepositoriesModule {
             }
         }
 
+        if (shardGenerationSizeListener != ShardGenerationSizeListener.NOOP) {
+            factories.replaceAll((type, factory) -> withShardGenerationSizeListener(factory, shardGenerationSizeListener));
+            internalFactories.replaceAll((type, factory) -> withShardGenerationSizeListener(factory, shardGenerationSizeListener));
+        }
+
         List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks = new ArrayList<>();
         for (RepositoryPlugin repoPlugin : repoPlugins) {
             BiConsumer<Snapshot, IndexVersion> preRestoreCheck = repoPlugin.addPreRestoreVersionCheck();
@@ -137,12 +154,38 @@ public final class RepositoriesModule {
             internalRepositoryTypes,
             threadPool,
             client,
-            preRestoreChecks,
-            snapshotMetrics
+            preRestoreChecks
         );
+    }
+
+    private static Repository.Factory withShardGenerationSizeListener(Repository.Factory factory, ShardGenerationSizeListener listener) {
+        return new Repository.Factory() {
+            @Override
+            public Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception {
+                return register(factory.create(projectId, metadata));
+            }
+
+            @Override
+            public Repository create(
+                @Nullable ProjectId projectId,
+                RepositoryMetadata metadata,
+                Function<String, Repository.Factory> typeLookup
+            ) throws Exception {
+                return register(factory.create(projectId, metadata, typeLookup));
+            }
+
+            private Repository register(Repository repository) {
+                repository.setShardGenerationSizeListener(listener);
+                return repository;
+            }
+        };
     }
 
     public RepositoriesService getRepositoryService() {
         return repositoriesService;
+    }
+
+    public SnapshotMetrics getSnapshotMetrics() {
+        return snapshotMetrics;
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.junit.Before;
 
@@ -89,7 +90,8 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
             null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
-            timingStatsReporter
+            timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP
         );
     }
 }

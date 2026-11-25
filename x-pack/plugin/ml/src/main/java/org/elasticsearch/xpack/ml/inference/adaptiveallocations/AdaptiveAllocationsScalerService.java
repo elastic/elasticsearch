@@ -21,8 +21,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,18 +38,21 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Periodically schedules adaptive allocations scaling. This process consists
@@ -101,96 +104,90 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 return;
             }
             metrics.add(
-                meterRegistry.registerLongsGauge(
+                meterRegistry.registerLongAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current",
                     "the actual number of allocations",
                     "",
-                    this::observeAllocationCount
+                    this::recordAllocationCount
                 )
             );
             metrics.add(
-                meterRegistry.registerLongsGauge(
+                meterRegistry.registerLongAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current",
                     "the number of allocations needed according to the adaptive allocations scaler",
                     "",
-                    () -> observeLong(AdaptiveAllocationsScaler::getNeededNumberOfAllocations)
+                    measurement -> recordLong(AdaptiveAllocationsScaler::getNeededNumberOfAllocations, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.measured_request_rate.current",
                     "the request rate reported by the stats API",
                     "1/s",
-                    () -> observeDouble(AdaptiveAllocationsScaler::getLastMeasuredRequestRate)
+                    measurement -> recordDouble(AdaptiveAllocationsScaler::getLastMeasuredRequestRate, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.estimated_request_rate.current",
                     "the request rate estimated by the adaptive allocations scaler",
                     "1/s",
-                    () -> observeDouble(AdaptiveAllocationsScaler::getRequestRateEstimate)
+                    measurement -> recordDouble(AdaptiveAllocationsScaler::getRequestRateEstimate, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.measured_inference_time.current",
                     "the inference time reported by the stats API",
                     "s",
-                    () -> observeDouble(AdaptiveAllocationsScaler::getLastMeasuredInferenceTime)
+                    measurement -> recordDouble(AdaptiveAllocationsScaler::getLastMeasuredInferenceTime, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerDoublesGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.estimated_inference_time.current",
                     "the inference time estimated by the adaptive allocations scaler",
                     "s",
-                    () -> observeDouble(AdaptiveAllocationsScaler::getInferenceTimeEstimate)
+                    measurement -> recordDouble(AdaptiveAllocationsScaler::getInferenceTimeEstimate, measurement)
                 )
             );
             metrics.add(
-                meterRegistry.registerLongsGauge(
+                meterRegistry.registerLongAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.queue_size.current",
                     "the queue size reported by the stats API",
                     "s",
-                    () -> observeLong(AdaptiveAllocationsScaler::getLastMeasuredQueueSize)
+                    measurement -> recordLong(AdaptiveAllocationsScaler::getLastMeasuredQueueSize, measurement)
                 )
             );
         }
 
-        Collection<LongWithAttributes> observeLong(Function<AdaptiveAllocationsScaler, Long> getValue) {
-            List<LongWithAttributes> observations = new ArrayList<>();
+        void recordLong(Function<AdaptiveAllocationsScaler, Long> getValue, LongAsyncMeasurement measurement) {
             for (AdaptiveAllocationsScaler scaler : scalers.values()) {
                 Long value = getValue.apply(scaler);
                 if (value != null) {
-                    observations.add(new LongWithAttributes(value, Map.of("deployment_id", scaler.getDeploymentId())));
+                    measurement.record(value, Map.of("deployment_id", scaler.getDeploymentId()));
                 }
             }
-            return observations;
         }
 
-        Collection<DoubleWithAttributes> observeDouble(Function<AdaptiveAllocationsScaler, Double> getValue) {
-            List<DoubleWithAttributes> observations = new ArrayList<>();
+        void recordDouble(Function<AdaptiveAllocationsScaler, Double> getValue, DoubleAsyncMeasurement measurement) {
             for (AdaptiveAllocationsScaler scaler : scalers.values()) {
                 Double value = getValue.apply(scaler);
                 if (value != null) {
-                    observations.add(new DoubleWithAttributes(value, Map.of("deployment_id", scaler.getDeploymentId())));
+                    measurement.record(value, Map.of("deployment_id", scaler.getDeploymentId()));
                 }
             }
-            return observations;
         }
 
-        Collection<LongWithAttributes> observeAllocationCount() {
-            return scalers.values().stream().map(scaler -> {
-                var value = scaler.getNumberOfAllocations();
+        void recordAllocationCount(LongAsyncMeasurement measurement) {
+            for (AdaptiveAllocationsScaler scaler : scalers.values()) {
                 var min = scaler.getMinNumberOfAllocations();
                 var scalesToZero = min == null || min == 0;
-
-                return new LongWithAttributes(
-                    value,
+                measurement.record(
+                    scaler.getNumberOfAllocations(),
                     Map.ofEntries(Map.entry("deployment_id", scaler.getDeploymentId()), Map.entry("scales_to_zero", scalesToZero))
                 );
-            }).toList();
+            }
         }
     }
 
@@ -283,6 +280,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     public synchronized void start() {
+        // Stats from a previous time as master are stale, so start fresh.
+        lastInferenceStatsByDeploymentAndNode.clear();
+        lastInferenceStatsTimestampMillis = null;
         updateAutoscalers(clusterService.state());
         metrics.init();
         clusterService.addListener(this);
@@ -441,6 +441,24 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     hasRecentObservedScaleUp.add(deploymentId);
                 }
             }
+            AdaptiveAllocationsScaler scaler = scalers.get(deploymentId);
+            if (scaler != null) {
+                // The last time the deployment was used or started on any node.
+                Instant lastActivity = assignmentStats.getNodeStats()
+                    .stream()
+                    .flatMap(nodeStats -> Stream.of(nodeStats.getLastAccess(), nodeStats.getStartTime()))
+                    .filter(Objects::nonNull)
+                    .max(Comparator.naturalOrder())
+                    .orElse(null);
+                scaler.maybeInitTimeWithoutRequestsSeconds(
+                    lastActivity == null ? 0.0 : Math.max(0.0, (now - lastActivity.toEpochMilli()) / 1000.0)
+                );
+            }
+            // A deployment without allocations has no node stats. Evaluate it with empty stats anyway, so
+            // that the scaler applies the minimum number of allocations (e.g. it was raised while at zero).
+            if (assignmentStats.getNodeStats().isEmpty()) {
+                recentStatsByDeployment.put(deploymentId, new Stats(0, 0, 0, 0.0));
+            }
         }
 
         if (statsTimeInterval == null) {
@@ -451,6 +469,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
             AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.get(deploymentId);
+            if (adaptiveAllocationsScaler == null) {
+                // The deployment was removed or adaptive allocations were disabled while the stats were requested.
+                continue;
+            }
             adaptiveAllocationsScaler.process(stats, statsTimeInterval, numberOfAllocations.get(deploymentId));
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
             if (newNumberOfAllocations != null) {
@@ -486,21 +508,25 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     public boolean maybeStartAllocation(TrainedModelAssignment assignment) {
         if (assignment.getAdaptiveAllocationsSettings() != null
-            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE
-            && (assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == null
-                || assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == 0)) {
+            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
 
+            // Scale up when no allocations are requested; otherwise, wait for them.
             // Prevent against a flurry of scale up requests.
-            if (deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
+            if (assignment.getTaskParams().getNumberOfAllocations() == 0
+                && deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
+                // Scale up to (at least) the minimum, so that a delayed request doesn't reduce
+                // the allocations after the scaler has already scaled up to the minimum.
+                Integer minNumberOfAllocations = assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations();
+                int numberOfAllocations = minNumberOfAllocations == null ? 1 : Math.max(1, minNumberOfAllocations);
                 lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
-                var updateListener = updateAssigmentListener(assignment.getDeploymentId(), 1);
+                var updateListener = updateAssigmentListener(assignment.getDeploymentId(), numberOfAllocations);
                 var cleanUpListener = ActionListener.runAfter(
                     updateListener,
                     () -> deploymentIdsWithInFlightScaleFromZeroRequests.remove(assignment.getDeploymentId())
                 );
 
                 deploymentIdsWithInFlightScaleFromZeroRequests.add(assignment.getDeploymentId());
-                updateNumberOfAllocations(assignment.getDeploymentId(), 1, cleanUpListener);
+                updateNumberOfAllocations(assignment.getDeploymentId(), numberOfAllocations, cleanUpListener);
             }
 
             AdaptiveAllocationsScaler scaler = scalers.get(assignment.getDeploymentId());

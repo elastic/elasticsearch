@@ -31,3 +31,33 @@ These can be run with:
 
 Refer to the [rest-api-spec documentation](../../../rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc)
 for information about writing YAML REST tests.
+
+## Overriding mappings with `@custom` component templates
+
+If you need to override a field mapping from the built-in templates (for example, to restore `keyword` semantics for a field that is
+mapped as `match_only_text` by default), you can install a `@custom` component template that is referenced by the corresponding index
+template.
+
+Example (Kibana Dev Tools):
+
+```http
+PUT _component_template/logs-otel@custom
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "attributes.exception.message": {
+          "type": "match_only_text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+

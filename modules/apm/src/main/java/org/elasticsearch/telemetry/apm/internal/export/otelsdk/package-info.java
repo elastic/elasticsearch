@@ -9,6 +9,5 @@
 
 /**
  * OpenTelemetry SDK export: telemetry is sent to APM servers using the <strong>OpenTelemetry SDK</strong>.
- * This path is selected when SDK-based metrics export is enabled.
  */
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;

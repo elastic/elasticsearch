@@ -7,7 +7,7 @@
 package org.elasticsearch.protocol.xpack;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -18,7 +18,7 @@ import java.util.Locale;
 /**
  * Fetch information about X-Pack from the cluster.
  */
-public class XPackInfoRequest extends LegacyActionRequest {
+public class XPackInfoRequest extends UntypedActionRequest {
 
     public enum Category {
         BUILD,

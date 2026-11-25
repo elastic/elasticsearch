@@ -1,0 +1,2 @@
+FROM k8s-downsampled, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
+| WHERE @timestamp > "2025-10-07"

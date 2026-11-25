@@ -40,8 +40,9 @@ docker run -p 9200:9200 -d --name elasticsearch \
   -e "xpack.security.enabled=false" \
   -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
-  docker.elastic.co/elasticsearch/elasticsearch:{{version.stack}}
+  docker.elastic.co/elasticsearch/elasticsearch:{{version.stack}} <1>
 ```
+1. Replace {{version.stack}} with the version of {{es}} you want to use.
 
 ::::{warning}
 This {{es}} setup is for development purposes only. Never use this configuration in production. Refer to [Set up {{es}}](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md) for production-grade installation instructions, including Docker.
@@ -138,9 +139,6 @@ The `album` table should contain **347** entries and the `artist` table should c
 
 ::::
 
-
-This tutorial uses a very basic setup. To use advanced functionality such as filtering rules and incremental syncs, enable `track_commit_timestamp` on your PostgreSQL database. Refer to postgresql-connector-client-tutorial for more details.
-
 Now it’s time for the real fun! We’ll set up a connector to create a searchable mirror of our PostgreSQL data in {{es}}.
 
 ## Create a connector [es-connectors-tutorial-api-create-connector]
@@ -161,7 +159,6 @@ PUT _connector/my-connector-id
 
 ::::{tip}
 `service_type` refers to the third-party data source you’re connecting to.
-
 ::::
 
 
@@ -257,10 +254,11 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \ <1>
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
+1. Replace {{version.stack}} with the version of {{es}} you want to use.
 
 Verify your connector is connected by getting the connector status (should be `needs_configuration`) and `last_seen` field (note that time is reported in UTC). The `last_seen` field indicates that the connector successfully connected to {{es}}.
 
@@ -284,7 +282,7 @@ Configuration updates via the API are possible only *after schema registration*.
 ::::
 
 
-Run the following API call to configure the connector with our connectors-postgresql-client-configuration,PostgreSQL configuration details:
+Run the following API call to configure the connector with our PostgreSQL configuration details:
 
 ```console
 PUT _connector/my-connector-id/_configuration
@@ -303,8 +301,7 @@ PUT _connector/my-connector-id/_configuration
 % TEST[skip:TODO]
 
 ::::{note}
-Configuration details are specific to the connector type. The keys and values will differ depending on which third-party data source you’re connecting to. Refer to the individual connectors-references,connector references for these configuration details.
-
+Configuration details are specific to the connector type. The keys and values will differ depending on which third-party data source you’re connecting to. Refer to the individual [connector references](/reference/search-connectors/connector-reference.md) for these configuration details.
 ::::
 
 ## Sync your data [es-connectors-tutorial-api-sync]

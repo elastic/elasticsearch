@@ -46,6 +46,8 @@ final class CountedCollector<R extends SearchPhaseResult> {
      * Sets the result to the given array index and then runs {@link #countDown()}
      */
     void onResult(R result) {
+        // Accumulate the per-shard metrics into the action's merged reference before consuming
+        context.accumulateDirectoryMetrics(result.getDirectoryMetrics());
         resultConsumer.consumeResult(result, this::countDown);
     }
 

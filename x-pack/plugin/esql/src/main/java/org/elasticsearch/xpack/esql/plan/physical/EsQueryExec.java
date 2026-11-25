@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -114,7 +115,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
     public record ScoreSort(Order.OrderDirection direction) implements Sort {
         @Override
         public SortBuilder<?> sortBuilder() {
-            return new ScoreSortBuilder();
+            return new ScoreSortBuilder().order(Direction.from(direction).asOrder());
         }
 
         @Override
@@ -242,27 +243,31 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags);
+            : passIdentityTo(new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags));
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : passIdentityTo(
+                new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags)
+            );
     }
 
     public boolean canPushSorts() {
-        return indexMode != IndexMode.TIME_SERIES;
+        return indexMode.isTsdb() == false;
     }
 
     public EsQueryExec withSorts(List<Sort> sorts) {
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             assert false : "time-series index mode doesn't support sorts";
             throw new UnsupportedOperationException("time-series index mode doesn't support sorts");
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : passIdentityTo(
+                new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags)
+            );
     }
 
     /**
@@ -274,15 +279,17 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
         QueryBuilder thisQuery = queryWithoutTag();
         return Objects.equals(thisQuery, query)
             ? this
-            : new EsQueryExec(
-                source(),
-                indexPattern,
-                indexMode,
-                attrs,
-                limit,
-                sorts,
-                estimatedRowSize,
-                List.of(new QueryBuilderAndTags(query, List.of()))
+            : passIdentityTo(
+                new EsQueryExec(
+                    source(),
+                    indexPattern,
+                    indexMode,
+                    attrs,
+                    limit,
+                    sorts,
+                    estimatedRowSize,
+                    List.of(new QueryBuilderAndTags(query, List.of()))
+                )
             );
     }
 
@@ -348,18 +355,20 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(indexPattern).append("], ").append("indexMode[").append(indexMode).append("], ");
-        NodeUtils.toString(sb, attrs, format);
-        sb.append(", limit[")
-            .append(limit != null ? limit.toString(format) : "")
-            .append("], sort[")
-            .append(sorts != null ? sorts.toString() : "")
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append("], indexMode[").append(indexMode).append("], ");
+        NodeUtils.toString(sb, attrs, format, mapper);
+        sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
+        // Sorts and queryBuilderAndTags both carry raw user content (sort keys, Lucene-pushdown
+        // DSL); route them through the opaque mapper so they render raw under identity and redact
+        // under an anonymizing mapper, with no identity branch.
+        sb.append("sort[")
+            .append(mapper.opaque(sorts != null ? sorts.toString() : ""))
             .append("] estimatedRowSize[")
             .append(estimatedRowSize)
             .append("] queryBuilderAndTags [")
-            .append(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
-            .append("]");
+            .append(mapper.opaque(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : ""))
+            .append(']');
     }
 
     public enum Direction {

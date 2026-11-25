@@ -11,9 +11,21 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.EMPTY;
@@ -24,13 +36,16 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
  * PromQL label matcher between a label name, a value pattern and match type (=, !=, =~, !~).
  *
  * Examples:
- *   {job="api"}              → [LabelMatcher("job", "api", EQ)]
- *   {status=~"5.."}          → [LabelMatcher("status", "5..", REG)]
- *   {env!~"test|dev"}        → [LabelMatcher("env", "test|dev", NREG)]
+ *   {job="api"}              -> [LabelMatcher("job", "api", EQ)]
+ *   {status=~"5.."}          -> [LabelMatcher("status", "5..", REG)]
+ *   {env!~"test|dev"}        -> [LabelMatcher("env", "test|dev", NREG)]
+ *   {host=?_hosts}           -> [LabelMatcher("host", ["34.107.161.234", "140.248.133.94"], EQ)]
  */
-public class LabelMatcher {
+public class LabelMatcher implements NodeStringRenderable {
 
     public static final String NAME = "__name__";
+    public static final String TYPE = "__type__";
+    public static final String UNIT = "__unit__";
 
     public enum Matcher {
         EQ("=", false),
@@ -67,50 +82,152 @@ public class LabelMatcher {
     }
 
     private final String name;
-    private final String value;
+    private final List<String> values;
     private final Matcher matcher;
+    private final int maxRegexLength;
 
     private Automaton automaton;
 
     public LabelMatcher(String name, String value, Matcher matcher) {
+        this(name, List.of(value), matcher);
+    }
+
+    public LabelMatcher(String name, List<String> values, Matcher matcher) {
+        this(name, values, matcher, MAX_REGEX_LENGTH);
+    }
+
+    /** Tests lift the length bound to reach the compiler's own overflow guard with a pattern the bound would reject first. */
+    LabelMatcher(String name, List<String> values, Matcher matcher, int maxRegexLength) {
         this.name = name;
-        this.value = value;
+        this.values = values;
         this.matcher = matcher;
+        this.maxRegexLength = maxRegexLength;
     }
 
     public String name() {
         return name;
     }
 
-    public String value() {
-        return value;
+    /**
+     * Returns the single value for this matcher.
+     * For multi-value matchers, returns the first value.
+     * Use {@link #values()} to get all values.
+     */
+    public String getFirstValue() {
+        return values.getFirst();
+    }
+
+    /**
+     * Returns all values for this matcher.
+     * For single-value matchers, returns a singleton list.
+     */
+    public List<String> values() {
+        return values;
+    }
+
+    /**
+     * Returns true if this matcher has multiple values.
+     */
+    public boolean isMultiValue() {
+        return values.size() > 1;
     }
 
     public Matcher matcher() {
         return matcher;
     }
 
+    /**
+     * The bound the regexp query applies through {@code index.max_regex_length}, at its default: a label matcher has no
+     * index to read the setting from, but an unbounded pattern is how a query author overflows the compiler's stack.
+     */
+    public static final int MAX_REGEX_LENGTH = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+
+    // TODO: externalize this to allow pluggable strategies (such as caching across labels/requests)
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     public Automaton automaton() {
-        if (automaton == null) {
-            automaton = automaton(value, matcher);
+        if (automaton != null) {
+            return automaton;
+        }
+        // A bad pattern is the user's, so every failure is a client error; QlIllegalArgumentException would be a 500.
+        // determinize() and complement() throw it too, so the guard covers the whole build, not just the parse.
+        try {
+            automaton = buildAutomaton();
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("The regex used in a label matcher is too complex to determinize", e);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            // Lucene's parser recurses on nested groups; this Error must not escape the request.
+            throw new IllegalArgumentException("The regex used in a label matcher is too deeply nested");
         }
         return automaton;
     }
 
-    // TODO: externalize this to allow pluggable strategies (such as caching across labels/requests)
-    private static Automaton automaton(String value, Matcher matcher) {
-        Automaton automaton;
+    private static final String BREAKER_LABEL = "promql_label_matcher";
+
+    private Automaton buildAutomaton() {
+        // Matchers are built while parsing, before any request breaker exists, so each build is bounded the way constant
+        // folding is: by a fresh fold budget, held only while the automaton is built. A length limit alone does not bound
+        // the size: nested bounded repeats multiply.
+        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(Source.EMPTY);
+        long held = 0;
         try {
-            automaton = matcher.isRegex ? new RegExp(value).toAutomaton() : Automata.makeString(value);
-            automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            Automaton result;
+            if (isMultiValue() && matcher.isRegex() == false) {
+                // Multi-value exact match: union of all literal values
+                List<Automaton> automata = values.stream().map(Automata::makeString).toList();
+                result = CircuitBreakingOperations.union(automata, breaker, BREAKER_LABEL);
+            } else if (isMultiValue()) {
+                // Multi-value regex: union of all regex patterns
+                List<Automaton> automata = new ArrayList<>(values.size());
+                for (String value : values) {
+                    Automaton automaton = regexAutomaton(value, breaker);
+                    held += hold(automaton, breaker);
+                    automata.add(automaton);
+                }
+                result = CircuitBreakingOperations.union(automata, breaker, BREAKER_LABEL);
+            } else {
+                // Single value
+                String v = getFirstValue();
+                result = matcher.isRegex() ? regexAutomaton(v, breaker) : Automata.makeString(v);
+            }
+            held += hold(result, breaker);
+            // The DFA is not minimized. Everything read from it (isTotal, isEmpty, run and getSingleton) needs a deterministic
+            // automaton without dead states, which determinize and complement both produce, and a matcher does not outlive
+            // the planning of its query, so the smaller automaton would not be worth a step whose memory can only be guessed.
+            result = CircuitBreakingOperations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
+            held += hold(result, breaker);
+            // negate if needed
+            if (matcher == NEQ || matcher == NREG) {
+                result = CircuitBreakingOperations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
+            }
+            return result;
+        } finally {
+            breaker.addWithoutBreaking(-held);
+        }
+    }
+
+    private static long hold(Automaton automaton, CircuitBreaker breaker) {
+        long bytes = automaton.ramBytesUsed();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+        return bytes;
+    }
+
+    private Automaton regexAutomaton(String regex, CircuitBreaker breaker) {
+        if (regex.length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + regex.length()
+                    + "] used in a label matcher has exceeded the allowed maximum of ["
+                    + maxRegexLength
+                    + "]"
+            );
+        }
+        CircuitBreakingRegExp re;
+        try {
+            re = new CircuitBreakingRegExp(regex, RegExp.ALL, 0);
         } catch (IllegalArgumentException ex) {
-            throw new QlIllegalArgumentException(ex, "Cannot parse regex {}", value);
+            throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
         }
-        // negate if needed
-        if (matcher == NEQ || matcher == NREG) {
-            automaton = Operations.complement(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        }
-        return automaton;
+        return re.toAutomaton(breaker, BREAKER_LABEL);
     }
 
     public boolean matchesAll() {
@@ -138,16 +255,34 @@ public class LabelMatcher {
             return false;
         }
         LabelMatcher label = (LabelMatcher) o;
-        return matcher == label.matcher && Objects.equals(name, label.name) && Objects.equals(value, label.value);
+        return matcher == label.matcher && Objects.equals(name, label.name) && Objects.equals(values, label.values);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, value, matcher);
+        return Objects.hash(name, values, matcher);
     }
 
     @Override
     public String toString() {
-        return name + matcher.value + value;
+        return name + matcher.value + values;
+    }
+
+    /**
+     * Routes the label name and every match value through the mapper (the match operator is
+     * structural and stays). Reproduces {@code toString()}'s {@code name op [v1, v2]} shape so that
+     * under {@link NodeStringMapper#IDENTITY} this equals {@link #toString()}; under an anonymizing
+     * mapper the label name and the (potentially sensitive) values tokenize.
+     */
+    @Override
+    public void nodeString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(mapper.column(name)).append(matcher.value).append('[');
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(mapper.column(values.get(i)));
+        }
+        sb.append(']');
     }
 }

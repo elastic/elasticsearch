@@ -41,6 +41,11 @@ import java.util.OptionalLong;
 public class CompressedExponentialHistogram extends AbstractExponentialHistogram {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CompressedExponentialHistogram.class);
+    /**
+     * The total size of an {@link CompressedExponentialHistogram} instance, excluding the bytes array storing the histogram data.
+     */
+    public static final long SIZE = SHALLOW_SIZE + ZeroBucket.SHALLOW_SIZE + 2 * Buckets.SHALLOW_SIZE
+        + CompressedHistogramData.SHALLOW_SIZE;
 
     private double zeroThreshold;
     private long valueCount;
@@ -124,6 +129,29 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
     }
 
     /**
+     * Serializes the given histogram so that exactly the same data can be reconstructed via
+     * {@link #reset(double, long, double, double, double, BytesRef)}.
+     * <p>
+     * If the histogram is already a {@link CompressedExponentialHistogram}, the already-encoded bytes are
+     * copied directly to the output without re-encoding.
+     *
+     * @param output the output to write the serialized bytes to
+     * @param histogram the histogram to serialize
+     */
+    public static void writeHistogramBytes(OutputStream output, ExponentialHistogram histogram) throws IOException {
+        if (histogram instanceof CompressedExponentialHistogram compressed) {
+            output.write(compressed.encodedData.rawBytes(), compressed.encodedData.rawOffset(), compressed.encodedData.rawLength());
+        } else {
+            CompressedHistogramData.write(
+                output,
+                histogram.scale(),
+                histogram.negativeBuckets().iterator(),
+                histogram.positiveBuckets().iterator()
+            );
+        }
+    }
+
+    /**
      * Serializes the given histogram, so that exactly the same data can be reconstructed via
      * {@link #reset(double, long, double, double, double, BytesRef)}.
      *
@@ -139,7 +167,7 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + ZeroBucket.SHALLOW_SIZE + 2 * Buckets.SHALLOW_SIZE + CompressedHistogramData.SHALLOW_SIZE;
+        return SIZE;
     }
 
     private final class Buckets implements ExponentialHistogram.Buckets {
@@ -149,6 +177,7 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
         private final boolean isForPositiveBuckets; // false if for negative buckets
         private long cachedValueCount;
         private long cachedMaxIndex;
+        private int cachedBucketCount;
 
         private Buckets(boolean isForPositiveBuckets) {
             this.isForPositiveBuckets = isForPositiveBuckets;
@@ -158,15 +187,18 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
         private void resetCachedData() {
             cachedValueCount = -1;
             cachedMaxIndex = Long.MIN_VALUE;
+            cachedBucketCount = 0;
         }
 
         private void computeCachedDataIfRequired() {
             if (cachedValueCount == -1) {
                 cachedValueCount = 0;
+                cachedBucketCount = 0;
                 BucketIterator it = iterator();
                 while (it.hasNext()) {
                     cachedMaxIndex = it.peekIndex();
                     cachedValueCount += it.peekCount();
+                    cachedBucketCount++;
                     it.advance();
                 }
             }
@@ -191,6 +223,12 @@ public class CompressedExponentialHistogram extends AbstractExponentialHistogram
         public long valueCount() {
             computeCachedDataIfRequired();
             return cachedValueCount;
+        }
+
+        @Override
+        public int bucketCount() {
+            computeCachedDataIfRequired();
+            return cachedBucketCount;
         }
 
         private class CompressedBucketsIterator implements CopyableBucketIterator {

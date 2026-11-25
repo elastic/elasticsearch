@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,8 +23,11 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -39,8 +44,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * }
  * </pre>
  */
-public final class InferenceStringGroup implements Writeable, ToXContentObject {
+public final class InferenceStringGroup implements Accountable, Writeable, ToXContentObject {
     public static final String CONTENT_FIELD = "content";
+
+    /**
+     * The {@link DataType}s that can be used as embedding inputs. {@link DataType#HTML} is excluded, as it is only meant to be used as a
+     * {@link TaskType#DOCUMENT_EXTRACTION} input.
+     */
+    public static final Set<DataType> SUPPORTED_EMBEDDING_DATA_TYPES = Collections.unmodifiableSet(
+        EnumSet.of(DataType.TEXT, DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF)
+    );
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferenceStringGroup, Void> PARSER = new ConstructingObjectParser<>(
@@ -54,22 +67,43 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
         }
     );
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceStringGroup.class);
+
     static {
         PARSER.declareObjectArray(constructorArg(), InferenceString.PARSER::apply, new ParseField(CONTENT_FIELD));
     }
 
     private final List<InferenceString> inferenceStrings;
     private final boolean containsNonTextEntry;
+    private final boolean containsPdfEntry;
 
     /**
      * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
+     * @throws IllegalArgumentException if the list is empty or any input has a {@link DataType} outside
+     *                                  {@link #SUPPORTED_EMBEDDING_DATA_TYPES}
      */
     public InferenceStringGroup(List<InferenceString> inferenceStrings) {
         this.inferenceStrings = Objects.requireNonNull(inferenceStrings);
         if (this.inferenceStrings.isEmpty()) {
             throw new IllegalArgumentException("InferenceStringGroup constructor argument cannot be an empty list");
         }
-        containsNonTextEntry = inferenceStrings.stream().anyMatch(s -> s.isText() == false);
+        boolean nonTextEntryFound = false;
+        boolean pdfEntryFound = false;
+        for (InferenceString inferenceString : inferenceStrings) {
+            if (SUPPORTED_EMBEDDING_DATA_TYPES.contains(inferenceString.dataType()) == false) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Data type [%s] is not supported for embedding inputs, supported data types are %s",
+                        inferenceString.dataType(),
+                        SUPPORTED_EMBEDDING_DATA_TYPES
+                    )
+                );
+            }
+            nonTextEntryFound |= inferenceString.isNonText();
+            pdfEntryFound |= inferenceString.isPdf();
+        }
+        containsNonTextEntry = nonTextEntryFound;
+        containsPdfEntry = pdfEntryFound;
     }
 
     public InferenceStringGroup(StreamInput in) throws IOException {
@@ -82,7 +116,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
 
     // Convenience constructor for the common use case of a single text input
     public InferenceStringGroup(String input) {
-        this(singletonList(new InferenceString(DataType.TEXT, input)));
+        this(singletonList(InferenceString.ofText(input)));
     }
 
     public List<InferenceString> inferenceStrings() {
@@ -93,8 +127,16 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
         return containsNonTextEntry;
     }
 
+    public boolean containsPdfEntry() {
+        return containsPdfEntry;
+    }
+
+    public int size() {
+        return inferenceStrings.size();
+    }
+
     public boolean containsMultipleInferenceStrings() {
-        return inferenceStrings.size() > 1;
+        return size() > 1;
     }
 
     @Override
@@ -125,7 +167,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
     }
 
     private void assertSingleElement() {
-        assert inferenceStrings.size() == 1 : "Multiple-input InferenceStringGroup used in code path expecting a single input.";
+        assert size() == 1 : "Multiple-input InferenceStringGroup used in code path expecting a single input.";
     }
 
     /**
@@ -139,10 +181,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
      * @return a list of {@link InferenceString}
      */
     public static List<InferenceString> toInferenceStringList(List<InferenceStringGroup> inferenceStringGroups) {
-        return inferenceStringGroups.stream().map(group -> {
-            assert group.inferenceStrings.size() == 1 : "Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList";
-            return group.inferenceStrings.getFirst();
-        }).toList();
+        return inferenceStringGroups.stream().map(InferenceStringGroup::value).toList();
     }
 
     /**
@@ -157,7 +196,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
      * @return a list of {@link InferenceString}
      */
     public static List<String> toStringList(List<InferenceStringGroup> inferenceStringGroups) {
-        return InferenceString.toStringList(toInferenceStringList(inferenceStringGroups));
+        return inferenceStringGroups.stream().map(InferenceStringGroup::textValue).toList();
     }
 
     /**
@@ -186,6 +225,11 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
             }
         }
         return null;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(inferenceStrings());
     }
 
     @Override

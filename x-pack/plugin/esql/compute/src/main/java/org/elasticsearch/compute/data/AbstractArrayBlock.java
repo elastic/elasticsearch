@@ -14,7 +14,7 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.BitSet;
 
-abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implements Block {
+abstract class AbstractArrayBlock extends AbstractBlockRefCounted implements Block {
     private final MvOrdering mvOrdering;
     protected final int positionCount;
 
@@ -125,7 +125,8 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         return nullsMask != null;
     }
 
-    final int nullValuesCount() {
+    @Override
+    public final int nullValuesCount() {
         return mayHaveNulls() ? nullsMask.cardinality() : 0;
     }
 

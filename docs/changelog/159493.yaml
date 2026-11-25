@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 159493
+summary: Copy single valued binary DV blocks verbatim at merge time
+type: enhancement

@@ -300,6 +300,6 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.Project
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

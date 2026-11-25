@@ -9,10 +9,16 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,7 +37,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         setCommonPropertiesOnRandomBuilder(testBuilder);
         maybeSet(testBuilder::maxErrors, Math.max(randomFloat(), Float.MIN_NORMAL));
         maybeSet(testBuilder::separator, randomAlphaOfLengthBetween(1, 10));
-        maybeSet(testBuilder::realWordErrorLikelihood, randomFloat());
+        maybeSet(testBuilder::realWordErrorLikelihood, Math.max(randomFloat(), Float.MIN_NORMAL));
         maybeSet(testBuilder::confidence, randomFloat());
         maybeSet(testBuilder::collateQuery, randomAlphaOfLengthBetween(3, 20));
         // collate query prune and parameters will only be used when query is set
@@ -77,9 +83,11 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     @Override
     protected void mutateSpecificParameters(PhraseSuggestionBuilder builder) throws IOException {
         switch (randomIntBetween(0, 12)) {
-            case 0 -> builder.maxErrors(randomValueOtherThan(builder.maxErrors(), () -> randomFloat()));
-            case 1 -> builder.realWordErrorLikelihood(randomValueOtherThan(builder.realWordErrorLikelihood(), () -> randomFloat()));
-            case 2 -> builder.confidence(randomValueOtherThan(builder.confidence(), () -> randomFloat()));
+            case 0 -> builder.maxErrors(randomValueOtherThan(builder.maxErrors(), () -> Math.max(randomFloat(), Float.MIN_NORMAL)));
+            case 1 -> builder.realWordErrorLikelihood(
+                randomValueOtherThan(builder.realWordErrorLikelihood(), () -> Math.max(randomFloat(), Float.MIN_NORMAL))
+            );
+            case 2 -> builder.confidence(randomValueOtherThan(builder.confidence(), ESTestCase::randomFloat));
             case 3 -> builder.gramSize(randomValueOtherThan(builder.gramSize(), () -> randomIntBetween(1, 5)));
             case 4 -> builder.tokenLimit(randomValueOtherThan(builder.tokenLimit(), () -> randomIntBetween(1, 20)));
             case 5 -> builder.separator(randomValueOtherThan(builder.separator(), () -> randomAlphaOfLengthBetween(1, 10)));
@@ -148,11 +156,79 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         e = expectThrows(IllegalArgumentException.class, () -> builder.tokenLimit(0));
         assertEquals("token_limit must be >= 1", e.getMessage());
 
+        e = expectThrows(IllegalArgumentException.class, () -> builder.tokenLimit(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT + 1));
+        assertEquals("token_limit must be <= " + NoisyChannelSpellChecker.MAX_TOKEN_LIMIT, e.getMessage());
+
         e = expectThrows(IllegalArgumentException.class, () -> builder.highlight(null, "</b>"));
         assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> builder.highlight("<b>", null));
         assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
+    }
+
+    /**
+     * An older coordinating node may forward a {@code token_limit} above {@link NoisyChannelSpellChecker#MAX_TOKEN_LIMIT}
+     * during a rolling upgrade. The value must be clamped on deserialization and the clamp must be logged so operators
+     * can see it happening.
+     * <p>
+     * The setter rejects oversized values, so the stream is forged: the builder is serialized twice with two valid
+     * {@code token_limit} values that differ only in the low byte of their VInt encoding, the two byte arrays are
+     * diffed to locate the field without depending on the wire layout, and those bytes are overwritten with the VInt
+     * of an oversized value of the same encoded length.
+     */
+    public void testTokenLimitDeserializationClampsOversizedValues() throws IOException {
+        // 1000 and 999 are both two-byte VInts (0xE8 0x07 and 0xE7 0x07); only the low byte differs.
+        byte[] withMax = serializeWithTokenLimit(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT);
+        byte[] withMaxMinusOne = serializeWithTokenLimit(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT - 1);
+        assertEquals(withMax.length, withMaxMinusOne.length);
+        int tokenLimitOffset = -1;
+        for (int i = 0; i < withMax.length; i++) {
+            if (withMax[i] != withMaxMinusOne[i]) {
+                assertEquals("expected exactly one differing byte", -1, tokenLimitOffset);
+                tokenLimitOffset = i;
+            }
+        }
+        assertTrue("token_limit low byte not located in serialized form", tokenLimitOffset >= 0);
+
+        // Any value in (MAX_TOKEN_LIMIT, 16383] is also a two-byte VInt and can replace the original in place.
+        int oversized = randomIntBetween(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT + 1, 16383);
+        byte[] forged = withMax.clone();
+        try (BytesStreamOutput vint = new BytesStreamOutput()) {
+            vint.writeVInt(oversized);
+            byte[] encoded = BytesReference.toBytes(vint.bytes());
+            assertEquals(2, encoded.length);
+            System.arraycopy(encoded, 0, forged, tokenLimitOffset, encoded.length);
+        }
+
+        MockLog.assertThatLogger(() -> {
+            try (StreamInput in = StreamInput.wrap(forged)) {
+                PhraseSuggestionBuilder deserialized = new PhraseSuggestionBuilder(in);
+                assertEquals(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT, (int) deserialized.tokenLimit());
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        },
+            PhraseSuggestionBuilder.class,
+            new MockLog.SeenEventExpectation(
+                "token_limit clamp warning",
+                PhraseSuggestionBuilder.class.getCanonicalName(),
+                Level.WARN,
+                "Received token_limit ["
+                    + oversized
+                    + "] exceeds maximum ["
+                    + NoisyChannelSpellChecker.MAX_TOKEN_LIMIT
+                    + "]; clamping to maximum"
+            )
+        );
+    }
+
+    private static byte[] serializeWithTokenLimit(int tokenLimit) throws IOException {
+        PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder("field");
+        builder.tokenLimit(tokenLimit);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            builder.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
     }
 
     @Override

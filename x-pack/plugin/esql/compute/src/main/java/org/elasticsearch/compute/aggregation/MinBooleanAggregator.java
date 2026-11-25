@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator({ @IntermediateState(name = "min", type = "BOOLEAN"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MinBooleanAggregator {
 
     public static boolean init() {
@@ -21,5 +21,9 @@ class MinBooleanAggregator {
 
     public static boolean combine(boolean current, boolean v) {
         return current && v;
+    }
+
+    public static void combine(BooleanArrayState state, int groupId, boolean v) {
+        state.min(groupId, v);
     }
 }

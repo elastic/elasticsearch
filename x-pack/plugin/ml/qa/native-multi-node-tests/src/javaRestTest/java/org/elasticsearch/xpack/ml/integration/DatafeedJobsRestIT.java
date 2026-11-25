@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -17,6 +19,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,7 +43,16 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DatafeedJobsRestIT extends ESRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster CLUSTER = Clusters.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return CLUSTER.getHttpAddresses();
+    }
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
         "x_pack_rest_user",
@@ -1546,6 +1560,49 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         response = client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"acknowledged\":true}"));
+    }
+
+    public void testNonCcsDatafeedStatsOmitsCrossClusterStats() throws Exception {
+        String jobId = "job-no-ccs-stats";
+        createJob(jobId, "airline");
+        String datafeedId = jobId + "-datafeed";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").setFrequency(TimeValue.timeValueSeconds(5)).build();
+        openJob(client(), jobId);
+
+        Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
+        startRequest.addParameter("start", "2016-06-01T00:00:00Z");
+        Response response = client().performRequest(startRequest);
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
+
+        // While running: running_state should be present but remote_cluster_stats should be absent
+        assertBusy(() -> {
+            try {
+                Response statsResponse = client().performRequest(
+                    new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
+                );
+                String body = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(body, containsString("\"real_time_configured\":true"));
+                assertThat(body, containsString("\"running_state\""));
+                assertFalse("remote_cluster_stats should not appear for non-CCS datafeed", body.contains("remote_cluster_stats"));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Response stopResponse = client().performRequest(
+            new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop")
+        );
+        assertThat(EntityUtils.toString(stopResponse.getEntity()), equalTo("{\"stopped\":true}"));
+
+        // After stopping: neither running_state nor remote_cluster_stats should appear
+        Response stoppedStatsResponse = client().performRequest(
+            new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
+        );
+        String stoppedBody = EntityUtils.toString(stoppedStatsResponse.getEntity());
+        assertThat(stoppedBody, containsString("\"state\":\"stopped\""));
+        assertFalse("remote_cluster_stats should not appear for stopped non-CCS datafeed", stoppedBody.contains("remote_cluster_stats"));
+
+        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
     }
 
     public void testForceDeleteWhileDatafeedIsRunning() throws Exception {

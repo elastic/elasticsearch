@@ -21,6 +21,10 @@ setup:
         policy: "metrics@lifecycle"
 
   - do:
+      ilm.get_lifecycle:
+        policy: "exemplars@lifecycle"
+
+  - do:
       cluster.get_component_template:
         name: data-streams-mappings
   - do:
@@ -63,6 +67,10 @@ setup:
         name: metrics@tsdb-settings
 
   - do:
+      cluster.get_component_template:
+        name: exemplars@settings
+
+  - do:
       indices.get_index_template:
         name: logs
 
@@ -77,6 +85,21 @@ setup:
   - do:
       indices.get_index_template:
         name: .kibana-reporting
+
+---
+"Test registry_installed field is hidden in GET index template response":
+  - do:
+      indices.get_index_template:
+        name: logs
+
+  - is_false: index_templates.0.index_template.registry_installed
+
+  - do:
+      indices.get_index_template:
+        name: logs
+        include_managed_fields: true
+
+  - is_true: index_templates.0.index_template.registry_installed
 
 ---
 "Test logs index auto creation":

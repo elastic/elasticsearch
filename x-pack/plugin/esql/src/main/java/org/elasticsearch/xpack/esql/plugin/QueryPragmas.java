@@ -19,6 +19,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,8 +27,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Holds the pragmas for an ESQL query. Just a wrapper of settings for now.
@@ -36,10 +39,14 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
-    public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
-        "task_concurrency",
-        ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
-    );
+    /**
+     * Cap on scan driver instances for this query. The Setting default is baked from
+     * {@link Settings#EMPTY} at class-load (host JVM) because a {@link Setting} cannot see node
+     * settings then. Production must call {@link #taskConcurrency(Settings)}, which uses this node's
+     * allocated processors via the same {@code 1.5P+1} formula as {@code esql_worker}. An explicit
+     * pragma still wins.
+     */
+    public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting("task_concurrency", defaultTaskConcurrency(Settings.EMPTY));
 
     /**
      * How to cut {@link LuceneSliceQueue slices} to cut each shard into. Is parsed to
@@ -71,6 +78,12 @@ public final class QueryPragmas implements Writeable {
         Setting.intSetting("unavailable_shard_resolution_attempts", 10, -1);
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
+
+    public static final Setting<Boolean> TIME_SERIES_SINGLE_PASS = Setting.boolSetting("time_series_single_pass", true);
+
+    public static final Setting<Boolean> TIME_SERIES_REDUCE_PER_INDEX = Setting.boolSetting("time_series_reduce_per_index", false);
+
+    public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
@@ -109,19 +122,123 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
     /**
+     * Query-level override for the IN subquery hash join threshold.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     */
+    public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting("in_subquery_hash_join_threshold", -1, -1);
+
+    /**
      * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.
      * This applies to forks and subqueries.
      */
     public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
 
     /**
+     * Cap on how many leaf branches an independently executed query may use. The main query and each {@code IN} subquery are checked
+     * separately because each runs through the compute service independently. Where {@link #BRANCH_PARALLEL_DEGREE} limits how many
+     * run at once, this limits how many there are in total.
+     * <p>
+     * Each leaf becomes a data node query (or a coordinator-local source). Nested {@code UnionAll}s are merge segments, not leaves, they
+     * are bounded separately by {@link #MAX_BRANCH_LEVEL}. View compaction also uses this as the flatten budget: nested view unions are
+     * lifted into one merge only when the flat width is within this cap.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
+
+    /**
+     * Cap on how many commands a statement may have, counting the main query and all its subqueries together. The parser enforces it.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_COMMAND_COUNT} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     * <p>
+     * The main pipeline is also bounded by {@code LogicalPlanBuilder#MAX_QUERY_DEPTH} (500), a fixed recursion guard in the parser, so
+     * values above 500 only apply to subqueries and expanded views.
+     */
+    public static final Setting<Integer> MAX_COMMAND_COUNT = Setting.intSetting("max_command_count", 500, 1);
+
+    /**
+     * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time
+     * checks use this as the hard ceiling.
+     */
+    public static final int MAX_BRANCH_COUNT_PER_MERGE_MAX = 20;
+
+    /**
+     * Fixed ceiling on the leaf branches of a parsed plan, so that nested FORKs cannot blow up the plan before analysis. It is well above
+     * the default {@link #MAX_BRANCH_COUNT}, which is enforced after the logical optimizer prunes empty branches. A configured
+     * {@code max_branch_count} above this value has no effect on queries that exceed it at parse time.
+     */
+    public static final int MAX_PARSED_BRANCH_COUNT = 128;
+
+    /**
+     * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or}
+     * chain.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE} supplies the cap. An explicit value overrides the
+     * cluster setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_COUNT_PER_MERGE = Setting.intSetting(
+        "max_branch_count_per_merge",
+        8,
+        1,
+        MAX_BRANCH_COUNT_PER_MERGE_MAX
+    );
+
+    /**
+     * The maximum depth of nested {@code UnionAll}s an independently executed query may use. The main query and each {@code IN} subquery
+     * are checked separately because each runs through the compute service independently. Where {@link #MAX_BRANCH_COUNT} limits how many
+     * branches there are in total, this limits how deeply those unions nest: each nested union becomes a coordinator merge segment that is
+     * wired before any leaf runs. Without a depth limit a skinny chain of two-way unions can grow arbitrarily deep while still staying
+     * under {@link #MAX_BRANCH_COUNT}.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_LEVEL} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_LEVEL = Setting.intSetting("max_branch_level", 5, 1);
+
+    /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
-     * Defaults to allocated processors. Set to 1 to disable parallel parsing.
+     * The Setting default is baked from {@link Settings#EMPTY} at class-load (host JVM). Production
+     * must call {@link #parsingParallelism(Settings)}, which uses this node's allocated processors.
+     * Set to 1 to disable parallel parsing. An explicit pragma still wins.
      */
     public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
-        "parsing_parallelism",
+        "external_parsing_parallelism",
         EsExecutors.allocatedProcessors(Settings.EMPTY),
         1
+    );
+
+    /**
+     * Per-file cap on the number of intra-file byte-range segments whose object-store read streams are
+     * open at once during parallel text parsing. Each open segment holds a storage read stream (one S3
+     * {@code GetObject}) plus, for buffering readers like NDJSON, a per-segment {@code byte[]}; the
+     * consumer emits a segment's pages as soon as that segment finishes parsing (completion order, not
+     * strict segment order), so this is a shallow read-ahead width, not a parallelism. It is deliberately
+     * not {@code external_parsing_parallelism}: a file is already split into about
+     * {@code external_parsing_parallelism} segments and many files read concurrently, so aligning this with the
+     * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
+     * A small default (4) bounds that fan-out independent of file count/length. Safeguard in the spirit of
+     * {@link #BRANCH_PARALLEL_DEGREE}.
+     * <p>
+     * This is a <b>per-file</b> cap. The node-wide bound on concurrently-open segment streams is roughly
+     * {@code (data-node driver instances) × external_max_concurrent_open_segments × (files open per driver)} — tune
+     * with that product in mind, not this value alone.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting("external_max_concurrent_open_segments", 4, 1);
+
+    /**
+     * Bytes the streaming external-source parser may buffer for a single record before failing the query
+     * — guards against a scanner that never finds a boundary reading the input without bound. Defaults to
+     * 64 MiB. Bounded to {@code [1, Integer.MAX_VALUE]} bytes: the cap is held as an {@code int} downstream,
+     * so an out-of-range value is rejected at parse time rather than overflowing later.
+     */
+    public static final Setting<ByteSizeValue> MAX_RECORD_SIZE = Setting.byteSizeSetting(
+        "external_max_record_size",
+        ByteSizeValue.ofMb(64),
+        ByteSizeValue.ofBytes(1),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE)
     );
 
     /**
@@ -131,7 +248,58 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
 
+    /**
+     * Query-level override for the minimum number of docs per Lucene slice (see
+     * {@link LuceneSliceQueue#MIN_DOCS_PER_SLICE}). Defaults to {@code -1}, meaning the compute-engine
+     * default floor is used. When set to a value {@code > 0}, it overrides that floor for this query only.
+     *
+     * <p>Primarily a testing lever: the default floor collapses small indices to a single slice, which
+     * disables {@code DOC}/{@code SEGMENT} parallelism in tests that index only a few documents. Lowering
+     * it lets such tests exercise the multi-slice partitioning paths.
+     */
+    public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
+
+    /**
+     * Turns the fetch phase on or off for one query, whatever {@code esql.query.fetch_phase.enabled} says. A build
+     * without the fetch phase ignores it. Without the pragma the cluster setting decides.
+     */
+    public static final Setting<Boolean> FETCH_PHASE = Setting.boolSetting("fetch_phase", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
+
+    public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
+        EXCHANGE_BUFFER_SIZE,
+        ENRICH_MAX_WORKERS,
+        TASK_CONCURRENCY,
+        DATA_PARTITIONING,
+        PAGE_SIZE,
+        STATUS_INTERVAL,
+        MAX_CONCURRENT_NODES_PER_CLUSTER,
+        MAX_CONCURRENT_SHARDS_PER_NODE,
+        UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS,
+        NODE_LEVEL_REDUCTION,
+        FOLD_LIMIT,
+        FIELD_EXTRACT_PREFERENCE,
+        ROUNDTO_PUSHDOWN_THRESHOLD,
+        MAX_KEYWORD_SORT_FIELDS,
+        EXTERNAL_DISTRIBUTION,
+        IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+        BRANCH_PARALLEL_DEGREE,
+        MAX_BRANCH_COUNT,
+        MAX_COMMAND_COUNT,
+        MAX_BRANCH_COUNT_PER_MERGE,
+        MAX_BRANCH_LEVEL,
+        PARSING_PARALLELISM,
+        MAX_CONCURRENT_OPEN_SEGMENTS,
+        MAX_RECORD_SIZE,
+        FORCE_DOC_SEQUENCE,
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
+        PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
+        SINGLE_NODE_OPTIMIZATIONS,
+        TIME_SERIES_SINGLE_PASS,
+        TIME_SERIES_REDUCE_PER_INDEX,
+        FETCH_PHASE
+    ).map(Setting::getKey).toList();
 
     private final Settings settings;
 
@@ -175,8 +343,25 @@ public final class QueryPragmas implements Writeable {
         return DataPartitioning.valueOf(partitioning.toUpperCase(Locale.ROOT));
     }
 
+    /**
+     * Driver concurrency for this query against {@link Settings#EMPTY} (host JVM). Tests only.
+     * Production must use {@link #taskConcurrency(Settings)}.
+     */
     public int taskConcurrency() {
         return TASK_CONCURRENCY.get(settings);
+    }
+
+    /**
+     * Driver concurrency for this query. An explicit {@link #TASK_CONCURRENCY} pragma wins; otherwise
+     * the search-thread-pool formula ({@code 1.5P+1}) on {@code nodeSettings}.
+     */
+    public int taskConcurrency(Settings nodeSettings) {
+        return settings.hasValue(TASK_CONCURRENCY.getKey()) ? TASK_CONCURRENCY.get(settings) : defaultTaskConcurrency(nodeSettings);
+    }
+
+    /** Same formula as {@code esql_worker}: {@code ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors)}. */
+    private static int defaultTaskConcurrency(Settings nodeSettings) {
+        return ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(nodeSettings));
     }
 
     /**
@@ -235,6 +420,27 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Returns true if time-series single pass aggregation can be enabled when possible
+     */
+    public boolean timeSeriesSinglePass() {
+        return TIME_SERIES_SINGLE_PASS.get(settings);
+    }
+
+    /**
+     * Returns the query-level value when explicitly configured, or the cluster-level value otherwise.
+     */
+    public boolean timeSeriesReducePerIndex(boolean clusterDefault) {
+        return settings.hasValue(TIME_SERIES_REDUCE_PER_INDEX.getKey()) ? TIME_SERIES_REDUCE_PER_INDEX.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Disable or enable the single node optimizations in case the query executes against a single node
+     */
+    public boolean singleNodeOptimizations() {
+        return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /**
      * The maximum amount of memory we can use for {@link Expression#fold} during planing. This
      * defaults to 5% of memory available on the current node. If this method is called on the
      * coordinating node, this is 5% of the coordinating node's memory. If it's called on a data
@@ -267,12 +473,98 @@ public final class QueryPragmas implements Writeable {
         return EXTERNAL_DISTRIBUTION.get(settings);
     }
 
+    /**
+     * Parser threads for this query against {@link Settings#EMPTY} (host JVM). Tests only.
+     * Production must use {@link #parsingParallelism(Settings)}.
+     */
     public int parsingParallelism() {
         return PARSING_PARALLELISM.get(settings);
     }
 
+    /**
+     * Parser threads for this query. An explicit {@link #PARSING_PARALLELISM} pragma wins; otherwise
+     * this node's allocated processors.
+     */
+    public int parsingParallelism(Settings nodeSettings) {
+        return settings.hasValue(PARSING_PARALLELISM.getKey())
+            ? PARSING_PARALLELISM.get(settings)
+            : Math.max(1, EsExecutors.allocatedProcessors(nodeSettings));
+    }
+
+    public int maxConcurrentOpenSegments() {
+        return MAX_CONCURRENT_OPEN_SEGMENTS.get(settings);
+    }
+
+    public ByteSizeValue maxRecordSize() {
+        return MAX_RECORD_SIZE.get(settings);
+    }
+
     public int branchParallelDegree() {
         return BRANCH_PARALLEL_DEGREE.get(settings);
+    }
+
+    /**
+     * Effective leaf-branch cap: an explicit {@link #MAX_BRANCH_COUNT} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchCount(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_COUNT.getKey()) ? MAX_BRANCH_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Effective statement size cap: an explicit {@link #MAX_COMMAND_COUNT} pragma overrides {@code clusterDefault}.
+     */
+    public int maxCommandCount(int clusterDefault) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey()) ? MAX_COMMAND_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxCommandCount(int)}, used in verification messages.
+     */
+    public String maxCommandCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey())
+            ? "[" + MAX_COMMAND_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchCount(int)}, used in verification messages.
+     */
+    public String maxBranchCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_COUNT.getKey())
+            ? "[" + MAX_BRANCH_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
+     * Effective per-merge width cap: an explicit {@link #MAX_BRANCH_COUNT_PER_MERGE} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchCountPerMerge(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_COUNT_PER_MERGE.getKey()) ? MAX_BRANCH_COUNT_PER_MERGE.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchCountPerMerge(int)}, used in verification messages.
+     */
+    public String maxBranchCountPerMergeLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_COUNT_PER_MERGE.getKey())
+            ? "[" + MAX_BRANCH_COUNT_PER_MERGE.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
+     * Effective nesting-level cap: an explicit {@link #MAX_BRANCH_LEVEL} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchLevel(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_LEVEL.getKey()) ? MAX_BRANCH_LEVEL.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchLevel(int)}, used in verification messages.
+     */
+    public String maxBranchLevelLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_LEVEL.getKey())
+            ? "[" + MAX_BRANCH_LEVEL.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
     }
 
     /**
@@ -301,11 +593,57 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
+    public int aggregationPartitioningCountThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey())) {
+            final String v = settings.get(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey());
+            try {
+                // allow smaller value for the threshold in tests than the min setting in the production
+                return Integer.parseInt(v);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("invalid aggregation partitioning threshold [" + v + "]", e);
+            }
+        }
+        return defaultThreshold;
+    }
+
+    public ByteSizeValue aggregationPartitioningMemoryThreshold(ByteSizeValue defaultThreshold) {
+        final String key = PlannerSettings.AGG_PARTITIONING_MEMORY_THRESHOLD.getKey();
+        if (settings.hasValue(key)) {
+            // allow smaller value for the threshold in tests than the min setting in the production
+            return ByteSizeValue.parseBytesSizeValue(settings.get(key), key);
+        }
+        return defaultThreshold;
+    }
+
+    public int timeSeriesTargetChunkRows(int defaultChunkRows) {
+        if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey())) {
+            return PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.get(settings);
+        }
+        return defaultChunkRows;
+    }
+
     public int docsThresholdForAutoPartitioning(int defaultThreshold) {
         if (settings.hasValue(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey())) {
             return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
+    }
+
+    /**
+     * Returns the effective minimum number of docs per Lucene slice. When {@link #MIN_DOCS_PER_SLICE} is set
+     * to a positive value it overrides {@code defaultMinDocsPerSlice}; otherwise the default floor is used.
+     */
+    public int minDocsPerSlice(int defaultMinDocsPerSlice) {
+        int override = MIN_DOCS_PER_SLICE.get(settings);
+        return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * The {@code fetch_phase} pragma, or {@code null} when the query does not set it and the cluster setting decides.
+     */
+    @Nullable
+    public Boolean fetchPhase() {
+        return settings.hasValue(FETCH_PHASE.getKey()) ? FETCH_PHASE.get(settings) : null;
     }
 
     public boolean isEmpty() {

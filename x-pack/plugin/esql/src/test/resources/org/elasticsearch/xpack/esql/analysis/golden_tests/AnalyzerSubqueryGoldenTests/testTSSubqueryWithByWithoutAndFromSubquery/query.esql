@@ -1,0 +1,3 @@
+FROM
+    (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY WITHOUT(pod)),
+    (FROM sample_data)

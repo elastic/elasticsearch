@@ -49,7 +49,7 @@ public class NvidiaRerankModel extends NvidiaModel {
             taskType,
             service,
             NvidiaRerankServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

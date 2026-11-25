@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 157556
+summary: Optimize `bitmap_terms` BKD query for dense runs
+type: enhancement

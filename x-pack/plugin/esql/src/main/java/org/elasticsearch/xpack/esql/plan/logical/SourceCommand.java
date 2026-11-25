@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 
 /**
@@ -30,12 +31,20 @@ public enum SourceCommand {
      * @return true if the command is a valid SourceCommand, false otherwise
      */
     public static boolean isSourceCommand(String command) {
+        return fromName(command) != null;
+    }
+
+    /**
+     * The source command named {@code command}, ignoring case, or {@code null} if it names none.
+     */
+    @Nullable
+    public static SourceCommand fromName(@Nullable String command) {
         for (SourceCommand cmd : values()) {
             if (cmd.name().equalsIgnoreCase(command)) {
-                return true;
+                return cmd;
             }
         }
-        return false;
+        return null;
     }
 
     public IndexMode indexMode() {

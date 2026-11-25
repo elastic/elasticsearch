@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
@@ -41,6 +42,18 @@ public class GeoShapeValuesGenericWriteableTests extends ShapeValuesGenericWrite
         double xs = width * 0.001;
         double ys = height * 0.001;
         Rectangle rectangle = new Rectangle(bbox.minX() + xs, bbox.maxX() - xs, bbox.maxY() - ys, bbox.minY() + ys);
-        return new GenericWriteableWrapper(GeoTestUtils.geoShapeValue(rectangle));
+        GenericWriteableWrapper mutated = new GenericWriteableWrapper(GeoTestUtils.geoShapeValue(rectangle));
+        if (mutated.equals(instance)) {
+            // A box that encodes to a single point has zero width and height, so shrinking it changes nothing
+            double x = bbox.minX() > 0 ? bbox.minX() - 1 : bbox.minX() + 1;
+            double y = bbox.minY() > 0 ? bbox.minY() - 1 : bbox.minY() + 1;
+            mutated = new GenericWriteableWrapper(GeoTestUtils.geoShapeValue(new Point(x, y)));
+        }
+        return mutated;
+    }
+
+    public void testMutateSinglePoint() throws IOException {
+        GenericWriteableWrapper point = new GenericWriteableWrapper(GeoTestUtils.geoShapeValue(new Rectangle(0, 0, 0, 0)));
+        assertNotEquals(point, mutateInstance(point));
     }
 }

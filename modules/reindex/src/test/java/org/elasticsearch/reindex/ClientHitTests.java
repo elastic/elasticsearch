@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,7 +46,7 @@ public class ClientHitTests extends ESTestCase {
         String sortString = randomAlphaOfLengthBetween(1, 20);
         Object[] sortValues = new Object[] { sortLong, sortString };
 
-        SearchHit searchHit = SearchHit.unpooled(randomInt(), docId);
+        SearchHit searchHit = new SearchHit(randomInt(), docId);
         searchHit.shard(
             new SearchShardTarget(randomAlphaOfLength(10), new ShardId(new Index(indexName, randomAlphaOfLength(10)), shardId), null)
         );
@@ -60,39 +61,92 @@ public class ClientHitTests extends ESTestCase {
         searchHit.sortValues(sortValues, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
 
         ClientHit clientHit = new ClientHit(searchHit);
-
-        assertThat(clientHit.getIndex(), equalTo(indexName));
-        assertThat(clientHit.getId(), equalTo(docId));
-        assertThat(clientHit.getVersion(), equalTo(version));
-        assertThat(clientHit.getSeqNo(), equalTo(seqNo));
-        assertThat(clientHit.getPrimaryTerm(), equalTo(primaryTerm));
-        assertThat(clientHit.getSource(), equalTo(source));
-        assertThat(clientHit.getXContentType(), equalTo(XContentType.JSON));
-        assertThat(clientHit.getRouting(), equalTo(routingValue));
-        assertThat(clientHit.getSortValues(), arrayContaining(sortLong, sortString));
+        try {
+            assertThat(clientHit.getIndex(), equalTo(indexName));
+            assertThat(clientHit.getId(), equalTo(docId));
+            assertThat(clientHit.getVersion(), equalTo(version));
+            assertThat(clientHit.getSeqNo(), equalTo(seqNo));
+            assertThat(clientHit.getPrimaryTerm(), equalTo(primaryTerm));
+            assertThat(clientHit.getSource(), equalTo(source));
+            assertThat(clientHit.getXContentType(), equalTo(XContentType.JSON));
+            assertThat(clientHit.getRouting(), equalTo(routingValue));
+            assertThat(clientHit.getSortValues(), arrayContaining(sortLong, sortString));
+        } finally {
+            clientHit.release();
+            searchHit.decRef();
+        }
     }
 
     /** Verifies that source and XContentType are null when the SearchHit has no source. */
     public void testReturnsNullSourceWhenSearchHitHasNoSource() {
-        SearchHit searchHit = SearchHit.unpooled(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
         ClientHit clientHit = new ClientHit(searchHit);
-        assertNull(clientHit.getSource());
-        assertNull(clientHit.getXContentType());
+        try {
+            assertNull(clientHit.getSource());
+            assertNull(clientHit.getXContentType());
+        } finally {
+            clientHit.release();
+            searchHit.decRef();
+        }
+    }
+
+    /** Verifies that a slice-enabled index, which exposes the slice as {@code _slice} and no {@code _routing}, routes by that slice. */
+    public void testSliceFieldIsRoutingFromSlice() {
+        String slice = randomAlphaOfLengthBetween(1, 20);
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        searchHit.addDocumentFields(
+            Map.of(),
+            Map.of(SliceIndexing.FIELD_NAME, new DocumentField(SliceIndexing.FIELD_NAME, List.of(slice)))
+        );
+        ClientHit clientHit = new ClientHit(searchHit);
+        try {
+            assertThat(clientHit.getRouting(), equalTo(slice));
+            assertTrue(clientHit.isRoutingFromSlice());
+        } finally {
+            clientHit.release();
+            searchHit.decRef();
+        }
+    }
+
+    /** Verifies that plain routing, and no routing at all, are not a slice. */
+    public void testPlainRoutingIsNotRoutingFromSlice() {
+        SearchHit routed = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        routed.addDocumentFields(
+            Map.of(),
+            Map.of(RoutingFieldMapper.NAME, new DocumentField(RoutingFieldMapper.NAME, List.of(randomAlphaOfLengthBetween(1, 20))))
+        );
+        SearchHit unrouted = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        ClientHit routedHit = new ClientHit(routed);
+        ClientHit unroutedHit = new ClientHit(unrouted);
+        try {
+            assertFalse(routedHit.isRoutingFromSlice());
+            assertFalse(unroutedHit.isRoutingFromSlice());
+        } finally {
+            routedHit.release();
+            routed.decRef();
+            unroutedHit.release();
+            unrouted.decRef();
+        }
     }
 
     /** Verifies that routing is null when the _routing field is not present. */
     public void testReturnsNullRoutingWhenNotPresent() {
-        SearchHit searchHit = SearchHit.unpooled(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
         ClientHit clientHit = new ClientHit(searchHit);
-        assertNull(clientHit.getRouting());
+        try {
+            assertNull(clientHit.getRouting());
+        } finally {
+            clientHit.release();
+            searchHit.decRef();
+        }
     }
 
-    /** Verifies that the delegate SearchHit is unpooled before wrapping. */
-    public void testUnpoolsSearchHit() {
+    /** Verifies that the delegate SearchHit is correctly wrapped with ref-counting. */
+    public void testDelegatesToSearchHit() {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String docId = randomAlphaOfLengthBetween(1, 20);
         BytesReference source = new BytesArray("{}");
-        SearchHit searchHit = SearchHit.unpooled(randomInt(), docId);
+        SearchHit searchHit = new SearchHit(randomInt(), docId);
         searchHit.sourceRef(source);
         searchHit.shard(
             new SearchShardTarget(
@@ -103,17 +157,26 @@ public class ClientHitTests extends ESTestCase {
         );
 
         ClientHit clientHit = new ClientHit(searchHit);
-
-        assertThat(clientHit.getIndex(), equalTo(indexName));
-        assertThat(clientHit.getId(), equalTo(docId));
-        assertThat(clientHit.getSource(), equalTo(source));
+        try {
+            assertThat(clientHit.getIndex(), equalTo(indexName));
+            assertThat(clientHit.getId(), equalTo(docId));
+            assertThat(clientHit.getSource(), equalTo(source));
+        } finally {
+            clientHit.release();
+            searchHit.decRef();
+        }
     }
 
     /** Verifies that unassigned seq_no and primary_term are returned when not set. */
     public void testDefaultSeqNoAndPrimaryTermWhenUnset() {
-        SearchHit searchHit = SearchHit.unpooled(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
         ClientHit clientHit = new ClientHit(searchHit);
-        assertThat(clientHit.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-        assertThat(clientHit.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
+        try {
+            assertThat(clientHit.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+            assertThat(clientHit.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
+        } finally {
+            clientHit.release();
+            searchHit.decRef();
+        }
     }
 }

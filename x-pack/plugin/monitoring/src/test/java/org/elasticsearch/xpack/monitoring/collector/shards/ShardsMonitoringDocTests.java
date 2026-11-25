@@ -32,10 +32,8 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     private boolean assignedToNode;
     private ShardRouting shardRouting;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initShardRoutingFields() throws Exception {
         stateUuid = randomAlphaOfLength(5);
         assignedToNode = randomBoolean();
         node = assignedToNode ? MonitoringTestUtils.randomMonitoringNode(random()) : null;

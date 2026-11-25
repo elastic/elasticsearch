@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 141718
-summary: Enable zero-copy SIMD vector scoring on searchable snapshots (frozen tier)
-type: enhancement

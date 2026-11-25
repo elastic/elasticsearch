@@ -1,5 +1,0 @@
-area: "ES|QL"
-issues: []
-pr: 144703
-summary: "Added three new simple but useful spatial functions: ST_Dimension, ST_GeometryType, ST_IsEmpty"
-type: enhancement

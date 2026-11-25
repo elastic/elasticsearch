@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator.OutputOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -55,6 +56,16 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
+    /**
+     * Whether {@link org.elasticsearch.compute.operator.topn.GroupedQueue#popAll} should sort rows
+     * by sort key when building the output. Only the coordinator final reduce needs sorted output;
+     * data nodes can skip this sort since their partial results are merged again upstream.
+     * <p>
+     * This is never serialized between nodes and only used locally.
+     * </p>
+     */
+    private final OutputOrdering outputOrdering;
+
     public TopNByExec(
         Source source,
         PhysicalPlan child,
@@ -63,7 +74,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         List<Expression> groupings,
         Integer estimatedRowSize
     ) {
-        this(source, child, order, limitPerGroup, groupings, estimatedRowSize, Set.of());
+        this(source, child, order, limitPerGroup, groupings, estimatedRowSize, Set.of(), OutputOrdering.SORTED);
     }
 
     private TopNByExec(
@@ -73,7 +84,8 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         Expression limitPerGroup,
         List<Expression> groupings,
         Integer estimatedRowSize,
-        Set<Attribute> docValuesAttributes
+        Set<Attribute> docValuesAttributes,
+        OutputOrdering outputOrdering
     ) {
         super(source, child);
         this.order = order;
@@ -81,6 +93,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         this.groupings = groupings;
         this.estimatedRowSize = estimatedRowSize;
         this.docValuesAttributes = docValuesAttributes;
+        this.outputOrdering = outputOrdering;
     }
 
     private TopNByExec(StreamInput in) throws IOException {
@@ -92,7 +105,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readOptionalVInt()
         );
-        // docValueAttributes are only used on the data node and never serialized.
+        // docValueAttributes and outputOrdering are only used on the data node and never serialized.
     }
 
     @Override
@@ -117,11 +130,41 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public TopNByExec replaceChild(PhysicalPlan newChild) {
-        return new TopNByExec(source(), newChild, order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes);
+        return new TopNByExec(source(), newChild, order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes, outputOrdering);
     }
 
     public TopNByExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new TopNByExec(source(), child(), order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes);
+        return new TopNByExec(source(), child(), order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes, outputOrdering);
+    }
+
+    public TopNByExec withSortedOutput() {
+        return new TopNByExec(
+            source(),
+            child(),
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            OutputOrdering.SORTED
+        );
+    }
+
+    public TopNByExec withNonSortedOutput() {
+        return new TopNByExec(
+            source(),
+            child(),
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            OutputOrdering.NOT_SORTED
+        );
+    }
+
+    public OutputOrdering outputOrdering() {
+        return outputOrdering;
     }
 
     public Expression limitPerGroup() {
@@ -157,12 +200,12 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new TopNByExec(source(), child(), order, limitPerGroup, groupings, size, docValuesAttributes);
+            : new TopNByExec(source(), child(), order, limitPerGroup, groupings, size, docValuesAttributes, outputOrdering);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes);
+        return Objects.hash(super.hashCode(), order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes, outputOrdering);
     }
 
     @Override
@@ -174,7 +217,8 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(limitPerGroup, other.limitPerGroup)
                 && Objects.equals(groupings, other.groupings)
                 && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-                && Objects.equals(docValuesAttributes, other.docValuesAttributes);
+                && Objects.equals(docValuesAttributes, other.docValuesAttributes)
+                && outputOrdering == other.outputOrdering;
         }
         return equals;
     }

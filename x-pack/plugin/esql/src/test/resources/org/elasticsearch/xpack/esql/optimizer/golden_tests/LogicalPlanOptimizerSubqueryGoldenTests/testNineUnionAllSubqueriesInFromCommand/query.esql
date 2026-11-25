@@ -1,0 +1,10 @@
+FROM employees,
+     (FROM languages),
+     (FROM languages),
+     (FROM languages),
+     (FROM languages),
+     (FROM languages),
+     (FROM languages),
+     (FROM languages),
+     (FROM languages),
+     (FROM languages)

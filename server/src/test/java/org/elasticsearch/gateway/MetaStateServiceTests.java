@@ -14,6 +14,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -23,16 +25,14 @@ public class MetaStateServiceTests extends ESTestCase {
     private NodeEnvironment env;
     private MetaStateService metaStateService;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMetaStateService() throws Exception {
         env = newNodeEnvironment();
         metaStateService = new MetaStateService(env, xContentRegistry());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeNodeEnvironment() throws Exception {
         env.close();
     }
 

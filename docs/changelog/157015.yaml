@@ -1,0 +1,5 @@
+area: Indices APIs
+issues: []
+pr: 157015
+summary: Fix invalid `index.mode` leaking internal enum path
+type: bug

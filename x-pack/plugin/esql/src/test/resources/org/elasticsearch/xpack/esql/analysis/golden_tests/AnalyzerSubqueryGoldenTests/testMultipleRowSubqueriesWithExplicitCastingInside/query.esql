@@ -1,0 +1,3 @@
+FROM (ROW x = "1" | EVAL x = x::integer)
+   , (ROW x = 1.5 | EVAL x = x::integer)
+   , (ROW x = 3)

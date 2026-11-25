@@ -13,19 +13,20 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -33,6 +34,19 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutMappingAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        RestUtils.REST_TIMEOUT_PARAM,
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "write_index_only"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
+
+    private static final String REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD = "reject_runtime_field_shadowing_sort_field";
 
     @Override
     public List<Route> routes() {
@@ -53,12 +67,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         PutMappingRequest putMappingRequest = new PutMappingRequest(indices);
-
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
-        if (isMappingSourceTyped(SINGLE_MAPPING_NAME, sourceAsMap)) {
-            throw new IllegalArgumentException("Types cannot be provided in put mapping requests");
-        }
-        putMappingRequest.source(sourceAsMap);
+        putMappingRequest.source(new BytesArray(BytesReference.toBytes(request.requiredContent())), request.getXContentType());
         putMappingRequest.ackTimeout(getAckTimeout(request));
         putMappingRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
@@ -66,17 +75,19 @@ public class RestPutMappingAction extends BaseRestHandler {
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));
     }
 
-    private static Map<String, Object> prepareV7Mappings(boolean includeTypeName, Map<String, Object> mappings) {
-        if (includeTypeName && mappings != null && mappings.size() == 1) {
-            String typeName = mappings.keySet().iterator().next();
-            if (Strings.hasText(typeName) == false) {
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> typelessMappings = (Map<String, Object>) mappings.get(typeName);
-            return typelessMappings;
-        }
-        return mappings;
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD);
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

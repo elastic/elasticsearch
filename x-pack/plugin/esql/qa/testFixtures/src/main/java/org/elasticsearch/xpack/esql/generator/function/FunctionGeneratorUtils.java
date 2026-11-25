@@ -37,10 +37,12 @@ final class FunctionGeneratorUtils {
         "counter_integer",
         "aggregate_metric_double",
         "dense_vector",
+        "flattened",
         "tdigest",
         "histogram",
         "exponential_histogram",
-        "date_range"
+        "date_range",
+        "_source"
     );
 
     private FunctionGeneratorUtils() {}

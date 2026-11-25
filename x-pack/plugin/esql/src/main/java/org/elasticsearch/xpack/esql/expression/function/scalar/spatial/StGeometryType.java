@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -20,6 +21,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -30,10 +32,12 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -44,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  * Alternatively, it is well described in PostGIS documentation at
  * <a href="https://postgis.net/docs/ST_GeometryType.html">PostGIS:ST_GeometryType</a>.
  */
-public class StGeometryType extends SpatialUnaryDocValuesFunction {
+public class StGeometryType extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StGeometryType",
@@ -58,8 +62,10 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        signatures = { @Signature(params = { "GEO" }, returnType = "keyword") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Returns the geometry type of the supplied geometry as a string.",
         description = "Returns the geometry type of the supplied geometry, as a string.\n"
             + "For example: `ST_Point`, `ST_LineString`, `ST_Polygon`, `ST_MultiPoint`, `ST_MultiLineString`, "
             + "`ST_MultiPolygon`, or `ST_GeometryCollection`.",
@@ -97,7 +103,7 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
             // Points always have type "ST_Point", so return a constant
             return new ConstantPointTypeEvaluator.Factory(toEvaluator.apply(spatialField()));
         }
-        return new StGeometryTypeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        return new StGeometryTypeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()), context -> new BytesRef());
     }
 
     @Override
@@ -136,8 +142,12 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinary(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        BytesRef scratch = new BytesRef();
+    static void fromWellKnownBinary(
+        BytesRefBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
         int firstValueIndex = wkbBlock.getFirstValueIndex(p);
         int valueCount = wkbBlock.getValueCount(p);
         if (valueCount == 1) {

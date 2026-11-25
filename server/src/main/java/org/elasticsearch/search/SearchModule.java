@@ -66,7 +66,6 @@ import org.elasticsearch.index.query.SpanWithinQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
-import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
@@ -92,6 +91,7 @@ import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -257,6 +257,7 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.DenseVectorQueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -397,6 +398,8 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
+        AggregatorFactories.setMaxNestedDepth(AggregatorFactories.MAX_NESTED_DEPTH_SETTING.get(settings));
+
         ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(telemetryProvider.getMeterRegistry());
 
         registerAggregation(
@@ -1196,15 +1199,13 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
         registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, KnnVectorQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(DenseVectorQueryBuilder.NAME, DenseVectorQueryBuilder::new, DenseVectorQueryBuilder::fromXContent));
 
         registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");
         }));
         registerQuery(new QuerySpec<>(ExactKnnQueryBuilder.NAME, ExactKnnQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[exact_knn] queries cannot be provided directly");
-        }));
-        registerQuery(new QuerySpec<>(ToChildBlockJoinQueryBuilder.NAME, ToChildBlockJoinQueryBuilder::new, parser -> {
-            throw new IllegalArgumentException("[to_child_block_join] queries cannot be provided directly");
         }));
         registerQuery(
             new QuerySpec<>(RandomSamplingQueryBuilder.NAME, RandomSamplingQueryBuilder::new, RandomSamplingQueryBuilder::fromXContent)

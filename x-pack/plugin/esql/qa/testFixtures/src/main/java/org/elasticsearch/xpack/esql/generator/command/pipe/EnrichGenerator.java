@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.EqlGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +36,8 @@ public class EnrichGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         String field = EsqlQueryGenerator.randomKeywordField(previousOutput);
         if (field == null || schema.enrichPolicies().isEmpty()) {
@@ -43,9 +46,17 @@ public class EnrichGenerator implements CommandGenerator {
 
         // TODO add WITH
         CsvTestsDataLoader.EnrichConfig policy = randomFrom(EsqlQueryGenerator.policiesOnKeyword(schema.enrichPolicies()));
-        String cmdString = " | enrich " + policy.policyName() + " on " + field;
+        String cmdString = " | enrich " + modePrefix(previousCommands) + policy.policyName() + " on " + field;
         List<String> enrichFields = parseEnrichFields(policy.loadPolicy());
         return new CommandDescription(ENRICH, this, cmdString, Map.of(ENRICH_FIELDS, enrichFields));
+    }
+
+    // Permanent design constraint: no _remote: mode, an EQL source runs on the coordinator so a remote ENRICH after it is rejected
+    static String modePrefix(List<CommandDescription> previousCommands) {
+        if (previousCommands.isEmpty() || EqlGenerator.EQL.equals(previousCommands.getFirst().commandName()) == false) {
+            return "";
+        }
+        return randomFrom("", "_any:", "_coordinator:");
     }
 
     static List<String> parseEnrichFields(String policyJson) {

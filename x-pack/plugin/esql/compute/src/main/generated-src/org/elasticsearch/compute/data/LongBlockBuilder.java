@@ -25,12 +25,21 @@ import java.util.Arrays;
 final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.Builder {
 
     private long[] values;
+    private final boolean enablePooling;
+    private long extraPooledBytes;
 
-    LongBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+    LongBlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
         super(blockFactory);
+        this.enablePooling = enablePooling;
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
-        values = new long[initialSize];
+        if (enablePooling) {
+            values = blockFactory.acquireLongs(initialSize);
+            estimatedBytes = LocalArrayPool.usedBytesForLongs(values.length);
+            extraPooledBytes = LocalArrayPool.usedBytesForLongs(values.length - initialSize);
+        } else {
+            adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+            values = new long[initialSize];
+        }
     }
 
     @Override
@@ -56,6 +65,7 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
     @Override
     protected void growValuesArray(int newSize) {
         values = Arrays.copyOf(values, newSize);
+        extraPooledBytes = 0;
     }
 
     @Override
@@ -115,9 +125,15 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
     }
 
     private void copyFromVector(LongVector vector, int beginInclusive, int endExclusive) {
-        for (int p = beginInclusive; p < endExclusive; p++) {
-            appendLong(vector.getLong(p));
+        int count = endExclusive - beginInclusive;
+        if (count == 0) {
+            return;
         }
+        ensureCapacity(count);
+        vector.copyTo(beginInclusive, values, valueCount, count);
+        hasNonNullValue = true;
+        valueCount += count;
+        updatePositions(count);
     }
 
     /**
@@ -157,27 +173,42 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
         return this;
     }
 
+    @Override
+    public long estimatedBytes() {
+        return isReleased() ? 0 : estimatedBytes - extraPooledBytes;
+    }
+
     private LongBlock buildBigArraysBlock() {
-        final LongBlock theBlock;
-        final LongArray array = blockFactory.bigArrays().newLongArray(valueCount, false);
-        for (int i = 0; i < valueCount; i++) {
-            array.set(i, values[i]);
-        }
-        if (isDense() && singleValued()) {
-            theBlock = new LongBigArrayVector(array, positionCount, blockFactory).asBlock();
-        } else {
-            theBlock = new LongBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
-        }
         /*
-        * Update the breaker with the actual bytes used.
-        * We pass false below even though we've used the bytes. That's weird,
-        * but if we break here we will throw away the used memory, letting
-        * it be deallocated. The exception will bubble up and the builder will
-        * still technically be open, meaning the calling code should close it
-        * which will return all used memory to the breaker.
-        */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
-        return theBlock;
+         * Keep ownership of the BigArray until adjustBreaker succeeds. If it throws after
+         * wrapping, release the array here; the incomplete block is abandoned without close
+         * so we do not need BigArrayBlock.closeInternal's overhead debit on the failure path.
+         */
+        LongArray array = blockFactory.bigArrays().newLongArray(valueCount, false);
+        try {
+            for (int i = 0; i < valueCount; i++) {
+                array.set(i, values[i]);
+            }
+            final LongBlock theBlock;
+            if (isDense() && singleValued()) {
+                theBlock = new LongBigArrayVector(array, positionCount, blockFactory).asBlock();
+            } else {
+                theBlock = new LongBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+            array = null; // ownership transferred to theBlock
+            return theBlock;
+        } finally {
+            Releasables.close(array);
+        }
     }
 
     @Override
@@ -200,6 +231,9 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
                     mvOrdering,
                     estimatedBytes
                 );
+            }
+            if (enablePooling) {
+                theBlock.enablePooling();
             }
             built();
             return theBlock;

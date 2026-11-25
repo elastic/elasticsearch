@@ -1,5 +1,0 @@
-pr: 139422
-summary: Use common retry logic for Azure
-area: Snapshot/Restore
-type: enhancement
-issues: []

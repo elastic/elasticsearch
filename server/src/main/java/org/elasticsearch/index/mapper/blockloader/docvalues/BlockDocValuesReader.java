@@ -80,7 +80,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.ColumnAtATimeR
     }
 
     /**
-     * Convert from the stored {@link long} into the {@link double} to load.
+     * Convert from the stored {@code long} into the {@code double} to load.
      * Sadly, this will go megamorphic pretty quickly and slow us down,
      * but it gets the job done for now.
      */

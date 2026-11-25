@@ -1,0 +1,198 @@
+setup:
+  - requires:
+      cluster_features: "semantic_field.semantic_field_mapper"
+      reason: "semantic field needs to be available"
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-field-index
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              embedding:
+                type: semantic
+                inference_id: embedding-inference-id
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: doc_1
+        body:
+          content: "first document"
+          embedding: "first document text"
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: doc_2
+        body:
+          content: "second document"
+          embedding: "second document text"
+        refresh: true
+
+  - do:
+      indices.create:
+        index: test-dense-vector-index
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              embedding:
+                type: dense_vector
+                dims: 10
+                similarity: cosine
+
+  - do:
+      index:
+        index: test-dense-vector-index
+        id: doc_1
+        body:
+          content: "first document"
+          embedding: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        refresh: true
+
+  - do:
+      index:
+        index: test-dense-vector-index
+        id: doc_2
+        body:
+          content: "second document"
+          embedding: [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+        refresh: true
+
+---
+"knn query against semantic field infers inference_id from field metadata":
+
+  # Search without specifying inference_id - should be inferred from the semantic field
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input: "test query"
+
+  - match: { hits.total.value: 2 }
+
+  # Search with explicit inference_id should also still work
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: "test query"
+
+  - match: { hits.total.value: 2 }
+
+---
+"knn query against combined dense_vector and semantic fields still requires inference_id":
+
+  - do:
+      catch: bad_request
+      search:
+        index:
+          - test-dense-vector-index
+          - test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input: "test query"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[inference_id] must be specified" }
+
+  - do:
+      search:
+        index:
+          - test-dense-vector-index
+          - test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input: "test query"
+                  inference_id: embedding-inference-id
+
+  - match: { hits.total.value: 4 }
+
+---
+"knn query with image input against semantic field infers inference_id from field metadata":
+
+  # Search with image input without specifying inference_id - should be inferred from the semantic field
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  input:
+                    type: image
+                    value: "data:image/jpeg;base64,abcdef1234567890"
+
+  - match: { hits.total.value: 2 }
+
+  # Search with explicit inference_id and image input should also work
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input:
+                    type: image
+                    value: "data:image/jpeg;base64,abcdef1234567890"
+
+  - match: { hits.total.value: 2 }

@@ -9,20 +9,19 @@
 
 package org.elasticsearch.reindex.management;
 
-import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 
-public class ListReindexRequest extends BaseTasksRequest<ListReindexRequest> {
+public class ListReindexRequest extends ActionRequest {
 
-    private boolean detailed = false;
+    private final boolean detailed;
 
-    public ListReindexRequest() {
-        super();
+    public ListReindexRequest(final boolean detailed) {
+        this.detailed = detailed;
     }
 
     public ListReindexRequest(StreamInput in) throws IOException {
@@ -36,30 +35,12 @@ public class ListReindexRequest extends BaseTasksRequest<ListReindexRequest> {
         out.writeBoolean(detailed);
     }
 
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
+    }
+
     public boolean getDetailed() {
         return this.detailed;
-    }
-
-    public ListReindexRequest setDetailed(boolean detailed) {
-        this.detailed = detailed;
-        return this;
-    }
-
-    @Override
-    public boolean match(Task task) {
-        if (super.match(task) == false) {
-            return false;
-        }
-
-        // Filter for only reindex tasks
-        if (ReindexAction.NAME.equals(task.getAction()) == false) {
-            return false;
-        }
-
-        // Filter out subtasks
-        if (task.getParentTaskId().isSet()) {
-            return false;
-        }
-        return true;
     }
 }

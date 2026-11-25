@@ -44,6 +44,7 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
         operator = "IS NULL",
         returnType = {
             "double",
+            "flattened",
             "integer",
             "long",
             "date_nanos",
@@ -63,6 +64,7 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
             description = "Value to check. It can be a single- or multi-valued column or an expression.",
             type = {
                 "double",
+                "flattened",
                 "integer",
                 "long",
                 "date_nanos",

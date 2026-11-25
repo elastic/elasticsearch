@@ -199,11 +199,13 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         AutoDateHistogramAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
+        // The coarsest rounding is excluded as nothing coarser can follow it. When the minimum interval is "year" it is the only
+        // rounding left, so there is nothing to constrain the bucket ceiling and the neutral interval of 1 is used.
         int maxRoundingInterval = Arrays.stream(roundings, 0, roundings.length - 1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)
-            .reduce(Integer::max)
-            .getAsInt();
+            .max()
+            .orElse(1);
         Settings settings = context.getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         int bucketCeiling = maxBuckets / maxRoundingInterval;
@@ -317,7 +319,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
 
         @Override
         public int hashCode() {
-            return Objects.hash(rounding, Arrays.hashCode(innerIntervals), dateTimeUnit);
+            return Objects.hash(rounding, Arrays.hashCode(innerIntervals), dateTimeUnit, roughEstimateDurationMillis, unitAbbreviation);
         }
 
         @Override
@@ -331,7 +333,9 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             RoundingInfo other = (RoundingInfo) obj;
             return Objects.equals(rounding, other.rounding)
                 && Objects.deepEquals(innerIntervals, other.innerIntervals)
-                && Objects.equals(dateTimeUnit, other.dateTimeUnit);
+                && Objects.equals(dateTimeUnit, other.dateTimeUnit)
+                && roughEstimateDurationMillis == other.roughEstimateDurationMillis
+                && Objects.equals(unitAbbreviation, other.unitAbbreviation);
         }
 
         @Override

@@ -80,7 +80,7 @@ public class UnusedStateRemover implements MlDataRemover {
         List<String> stateDocIdsToDelete = new ArrayList<>();
         BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(
             client,
-            AnomalyDetectorsIndex.jobStateIndexPattern()
+            AnomalyDetectorsIndex.jobStateIndexPatterns()
         );
         while (stateDocIdsIterator.hasNext()) {
             Deque<String> stateDocIds = stateDocIdsIterator.next();
@@ -138,7 +138,8 @@ public class UnusedStateRemover implements MlDataRemover {
     private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, float requestsPerSec, ActionListener<Boolean> listener) {
         LOGGER.info("Found [{}] unused state documents; attempting to delete", unusedDocIds.size());
 
-        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(AnomalyDetectorsIndex.jobStateIndexPattern());
+        var indicesToQuery = WritableIndexExpander.getInstance()
+            .getWritableIndices(Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns()));
 
         if (indicesToQuery.isEmpty()) {
             LOGGER.info("No writable indices found for unused state documents");

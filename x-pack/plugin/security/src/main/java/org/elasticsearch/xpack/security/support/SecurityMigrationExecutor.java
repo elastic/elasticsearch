@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionA
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
@@ -31,6 +30,15 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+/// [PersistentTasksExecutor] that applies one-time, versioned data migrations to the `.security` index.
+/// The [SecurityMigrations.Manager] submits a `security-migration` persistent task whenever the master detects that
+/// the next migration above the index's `migrationsVersion` in [SecurityMigrations.MIGRATIONS_BY_VERSION] (if exists)
+/// is eligible and ready to run.
+///
+/// Migrations run in ascending version order starting from the version in the task params. After each step, the new
+/// version is committed to cluster state via [UpdateIndexMigrationVersionAction], so progress survives task restarts.
+/// The security index is refreshed before the first step and after each commit so that subsequent migrations see a
+/// consistent view.
 public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityMigrationTaskParams> {
 
     private static final Logger logger = LogManager.getLogger(SecurityMigrationExecutor.class);
@@ -51,6 +59,17 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         this.migrationByVersion = migrationByVersion;
     }
 
+    /// Intentionally kept `false` for now.
+    ///
+    /// The [SecurityMigrationExecutor] executes a run-to-completion one-shot set of migration tasks, not a
+    /// continuously-running workflow, so there is no meaningful service gap to close by reassigning early.
+    /// The task is retried automatically if the node leaves, and durable version checkpoints in cluster state ensure
+    /// it resumes from where it left off. Opting in the automated shutdown would increase the chance of concurrent
+    /// execution during the reassignment overlap and could produce conflicts and unnecessary failure-and-retry cycles.
+    /// (e.g. in [SecurityMigrations.RoleMetadataFlattenedMigration]).
+    ///
+    /// TODO: this should not be a persistent task and should instead be switched to a regular transport action, if
+    /// feasible (see #145753 discussion).
     @Override
     public boolean automaticReassignmentOnShutdown() {
         return false;
@@ -136,7 +155,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, RefreshAction.INSTANCE, refreshRequest, ActionListener.wrap(response -> {
             if (response.getFailedShards() != 0) {
                 // Log a warning but do not stop migration, since this is not a critical operation
-                logger.warn("Failed to refresh security index during security migration {}", Arrays.toString(response.getShardFailures()));
+                logger.warn("Failed to refresh security index during security migration {}", response.getShardFailures());
             }
             listener.onResponse(null);
         }, exception -> {

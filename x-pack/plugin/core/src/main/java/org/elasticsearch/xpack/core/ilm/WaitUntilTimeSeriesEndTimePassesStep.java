@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
@@ -44,7 +43,7 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
     @Override
     public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
         String indexName = indexMetadata.getIndex().getName();
-        if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()).isTsdb() == false) {
             // this index is not a time series index so no need to wait
             listener.onResponse(true, EmptyInfo.INSTANCE);
             return;

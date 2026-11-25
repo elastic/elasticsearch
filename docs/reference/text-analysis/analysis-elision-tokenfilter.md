@@ -20,7 +20,7 @@ Customized versions of this filter are included in several of {{es}}'s built-in 
 * [Irish analyzer](/reference/text-analysis/analysis-lang-analyzer.md#irish-analyzer)
 * [Italian analyzer](/reference/text-analysis/analysis-lang-analyzer.md#italian-analyzer)
 
-This filter uses Lucene’s [ElisionFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/util/ElisionFilter.md).
+This filter uses Lucene’s [ElisionFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/util/ElisionFilter.html).
 
 ## Example [analysis-elision-tokenfilter-analyze-ex]
 

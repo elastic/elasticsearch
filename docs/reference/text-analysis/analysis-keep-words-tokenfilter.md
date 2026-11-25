@@ -9,7 +9,7 @@ mapped_pages:
 
 Keeps only tokens contained in a specified word list.
 
-This filter uses Lucene’s [KeepWordFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeepWordFilter.md).
+This filter uses Lucene’s [KeepWordFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeepWordFilter.html).
 
 ::::{note}
 To remove a list of words from a token stream, use the [`stop`](/reference/text-analysis/analysis-stop-tokenfilter.md) filter.

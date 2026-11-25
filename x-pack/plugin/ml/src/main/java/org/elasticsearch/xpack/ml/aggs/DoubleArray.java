@@ -14,7 +14,7 @@ public final class DoubleArray {
     private DoubleArray() {}
 
     /**
-     * Returns a NEW {@link double[]} that is the cumulative sum of the passed array
+     * Returns a NEW {@code double[]} that is the cumulative sum of the passed array
      * @param xs array to cumulatively sum
      * @return new double[]
      */

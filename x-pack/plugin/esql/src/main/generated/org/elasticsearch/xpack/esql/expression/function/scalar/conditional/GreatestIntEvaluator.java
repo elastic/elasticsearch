@@ -70,14 +70,15 @@ public final class GreatestIntEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock[] valuesBlocks) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p)) {
+            result.appendNull();
+            continue position;
+          }
           switch (valuesBlocks[i].getValueCount(p)) {
-            case 0:
-                result.appendNull();
-                continue position;
             case 1:
                 break;
             default:
@@ -98,7 +99,7 @@ public final class GreatestIntEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
@@ -123,7 +124,7 @@ public final class GreatestIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -174,4 +174,9 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser {
 
         return new SparseEmbeddingResults.Embedding(weightedTokens, false);
     }
+
+    @Override
+    public CustomResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException) {
+        return fromMap(map, scope, validationException);
+    }
 }

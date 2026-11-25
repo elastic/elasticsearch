@@ -1,0 +1,4 @@
+@timestamp:date,username:keyword
+2024-02-01T00:00:00.000Z,alice
+2024-02-02T00:00:00.000Z,bob
+2024-02-03T00:00:00.000Z,carol

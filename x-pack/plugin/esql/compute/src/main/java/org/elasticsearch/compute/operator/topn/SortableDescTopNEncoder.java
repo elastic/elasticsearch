@@ -9,12 +9,30 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
  */
 public abstract class SortableDescTopNEncoder implements TopNEncoder {
+    @Override
+    public final int maxValueSize(Block b) {
+        return switch (b.elementType()) {
+            case BOOLEAN -> Byte.BYTES;
+            case INT, FLOAT -> Integer.BYTES;
+            case LONG, DOUBLE -> Long.BYTES;
+            case BYTES_REF -> maxBytesRefValueSize(b);
+            case NULL -> 0;
+            default -> throw new IllegalArgumentException("No encoder for [" + b.elementType() + "]");
+        };
+    }
+
+    /**
+     * Maximum encoded byte size for a single {@code BYTES_REF} value from the block.
+     */
+    protected abstract int maxBytesRefValueSize(Block b);
+
     @Override
     public final void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {
         TopNEncoder.DEFAULT_SORTABLE.encodeLong(~value, bytesRefBuilder);

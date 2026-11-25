@@ -1,0 +1,3 @@
+PROMQL index=k8s step=1h result=(
+  sum by (pod) (label_replace(network.bytes_in, "pod", "x", "region", "nomatch"))
+)

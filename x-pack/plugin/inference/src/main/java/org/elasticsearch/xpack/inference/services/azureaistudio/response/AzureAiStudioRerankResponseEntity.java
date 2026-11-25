@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
 
 import java.io.IOException;
@@ -79,7 +79,7 @@ public class AzureAiStudioRerankResponseEntity extends BaseResponseEntity {
      * </pre>
      */
     @Override
-    protected InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+    protected InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         final var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {

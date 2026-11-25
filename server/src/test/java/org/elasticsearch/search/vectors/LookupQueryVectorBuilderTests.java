@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -52,10 +51,10 @@ public class LookupQueryVectorBuilderTests extends AbstractQueryVectorBuilderTes
 
     @Override
     protected ActionResponse createResponse(float[] array, LookupQueryVectorBuilder builder) {
-        SearchHit hit = SearchHit.unpooled(1, builder.getId());
+        SearchHit hit = new SearchHit(1, builder.getId());
         hit.addDocumentFields(Map.of(builder.getPath(), new DocumentField(builder.getPath(), List.of(array))), Map.of());
-        SearchHits sHits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-        return new SearchResponse(
+        SearchHits sHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse response = new SearchResponse(
             sHits,
             null,
             null,
@@ -68,9 +67,11 @@ public class LookupQueryVectorBuilderTests extends AbstractQueryVectorBuilderTes
             0,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
+        sHits.decRef(); // transfer ownership to response
+        return response;
     }
 
     @Override

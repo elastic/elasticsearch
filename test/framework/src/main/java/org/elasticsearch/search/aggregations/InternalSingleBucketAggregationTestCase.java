@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregat
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,9 +32,8 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
 
     public Supplier<InternalAggregations> subAggregationsSupplier;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeSubAggregations() throws Exception {
         hasInternalMax = randomBoolean();
         hasInternalMin = randomBoolean();
         subAggregationsSupplier = () -> {

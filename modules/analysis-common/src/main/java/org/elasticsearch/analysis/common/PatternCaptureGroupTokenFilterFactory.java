@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
 public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Pattern[] patterns;
     private final boolean preserveOriginal;
+    private final Object sharingKey;
     private static final String PATTERNS_KEY = "patterns";
     private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
@@ -37,10 +38,18 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
         }
 
         preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, true);
+        this.sharingKey = new Key(List.copyOf(regexes), preserveOriginal);
     }
 
     @Override
     public TokenFilter create(TokenStream tokenStream) {
         return new PatternCaptureGroupTokenFilter(tokenStream, preserveOriginal, patterns);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(List<String> patterns, boolean preserveOriginal) {}
 }

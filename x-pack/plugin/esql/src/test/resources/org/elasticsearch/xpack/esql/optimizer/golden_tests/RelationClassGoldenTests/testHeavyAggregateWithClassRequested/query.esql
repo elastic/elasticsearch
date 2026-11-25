@@ -1,0 +1,1 @@
+FROM class_a, class_b METADATA _class | STATS d = COUNT_DISTINCT(emp_no)

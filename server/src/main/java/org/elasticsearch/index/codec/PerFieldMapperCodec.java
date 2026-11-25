@@ -13,31 +13,37 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * {@link PerFieldMapperCodec This Lucene codec} provides the default
- * {@link PostingsFormat} and {@link KnnVectorsFormat} for Elasticsearch. It utilizes the
- * {@link MapperService} to lookup a {@link PostingsFormat} and {@link KnnVectorsFormat} per field. This
- * allows users to change the low level postings format and vectors format for individual fields
- * per index in real time via the mapping API. If no specific postings format or vector format is
- * configured for a specific field the default postings or vector format is used.
+ * The codec Elasticsearch writes with. Postings, doc values and knn vectors are chosen per field by
+ * {@link PerFieldFormatSupplier}; the stored fields implementation comes from the mode it is built with.
+ *
+ * <p>{@code index.codec=default} builds it with Lucene stored fields and {@code index.codec=best_compression} with Zstd.
+ * {@code legacy_default} and {@code legacy_best_compression} select Lucene's own two compression levels.
  */
-public final class PerFieldMapperCodec extends Elasticsearch93Lucene104Codec {
+public final class PerFieldMapperCodec extends Elasticsearch96Codec {
 
     private final PerFieldFormatSupplier formatSupplier;
 
     public PerFieldMapperCodec(
-        Zstd814StoredFieldsFormat.Mode compressionMode,
+        Lucene104Codec.Mode compressionMode,
+        ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
+        ElasticsearchStoredFieldsFormat.Mode legacyMode,
         MapperService mapperService,
         BigArrays bigArrays,
         ThreadPool threadPool
     ) {
-        super(compressionMode);
+        super(
+            compressionMode,
+            storedFieldsMode,
+            legacyMode,
+            mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
+        );
         this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays, threadPool);
         // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch
         // codec that delegates to this new Lucene codec, and make PerFieldMapperCodec extend this new Elasticsearch codec.

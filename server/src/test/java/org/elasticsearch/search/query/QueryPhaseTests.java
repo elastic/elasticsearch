@@ -97,6 +97,8 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,16 +124,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
     private IndexReader reader;
     private IndexShard indexShard;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeShardAndDirectory() throws Exception {
         dir = newDirectory();
         indexShard = newShard(true);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeResources() throws Exception {
         if (reader != null) {
             reader.close();
         }
@@ -846,10 +846,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         writer.close();
         reader = DirectoryReader.open(dir);
 
-        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
-        final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
-        sortFieldLong.setMissingValue(Long.MAX_VALUE);
-        sortFieldDate.setMissingValue(Long.MAX_VALUE);
+        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG, false, Long.MAX_VALUE);
+        final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG, false, Long.MAX_VALUE);
         final Sort sortLong = new Sort(sortFieldLong);
         final Sort sortDate = new Sort(sortFieldDate);
         final Sort sortLongDate = new Sort(sortFieldLong, sortFieldDate);
@@ -1100,7 +1098,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             @Override
             public ReaderContext readerContext() {
-                return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false);
+                return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false, 0L);
             }
         }) {
 

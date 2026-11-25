@@ -16,6 +16,9 @@ base {
   archivesName = 'x-pack-ilm'
 }
 
+// CCRIndexLifecycleIT uses ordered target-cluster parameters where the LEADER phase establishes state the FOLLOWER phase asserts on.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

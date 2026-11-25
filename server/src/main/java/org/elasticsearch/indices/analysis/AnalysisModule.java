@@ -152,6 +152,12 @@ public final class AnalysisModule {
                     public TokenStream create(TokenStream tokenStream) {
                         return tokenStream;
                     }
+
+                    // Deprecated no-op filter retained for very old indices; identity is fine.
+                    @Override
+                    public Object sharingKey() {
+                        return this;
+                    }
                 };
             }
 

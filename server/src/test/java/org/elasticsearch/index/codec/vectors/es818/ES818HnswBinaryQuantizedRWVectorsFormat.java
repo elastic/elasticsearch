@@ -36,6 +36,7 @@ public class ES818HnswBinaryQuantizedRWVectorsFormat extends ES818HnswBinaryQuan
             state,
             maxConn,
             beamWidth,
+            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,

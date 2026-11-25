@@ -19,7 +19,8 @@ public class RoundSerializationTests extends AbstractExpressionSerializationTest
         Source source = randomSource();
         Expression field = randomChild();
         Expression decimals = randomBoolean() ? null : randomChild();
-        return new Round(source, field, decimals);
+        boolean allowNonFinite = randomBoolean();
+        return new Round(source, field, decimals, allowNonFinite);
     }
 
     @Override
@@ -27,11 +28,13 @@ public class RoundSerializationTests extends AbstractExpressionSerializationTest
         Source source = instance.source();
         Expression field = instance.field();
         Expression decimals = instance.decimals();
+        // allowNonFinite is a non-child property, so it is excluded from Node equality; mutate only children.
+        boolean allowNonFinite = instance.allowNonFinite();
         if (randomBoolean()) {
             field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
         } else {
             decimals = randomValueOtherThan(decimals, () -> randomBoolean() ? null : randomChild());
         }
-        return new Round(source, field, decimals);
+        return new Round(source, field, decimals, allowNonFinite);
     }
 }

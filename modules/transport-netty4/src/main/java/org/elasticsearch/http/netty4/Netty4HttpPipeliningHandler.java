@@ -12,7 +12,6 @@ package org.elasticsearch.http.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.compression.JdkZlibEncoder;
@@ -96,22 +95,26 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private final Netty4HttpServerTransport serverTransport;
+    private final String scheme;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
      *
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
+     * @param scheme        either {@code "http"} or {@code "https"} depending on whether TLS is enabled for this channel
      */
     public Netty4HttpPipeliningHandler(
         final int maxEventsHeld,
         final Netty4HttpServerTransport serverTransport,
-        final ThreadWatchdog.ActivityTracker activityTracker
+        final ThreadWatchdog.ActivityTracker activityTracker,
+        final String scheme
     ) {
         this.maxEventsHeld = maxEventsHeld;
         this.activityTracker = activityTracker;
         this.outboundHoldingQueue = new PriorityQueue<>(1, Comparator.comparingInt(t -> t.v1().getSequence()));
         this.serverTransport = serverTransport;
+        this.scheme = scheme;
     }
 
     @Override
@@ -130,12 +133,12 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     } else {
                         nonError = (Exception) cause;
                     }
-                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, nonError);
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, nonError, scheme);
                 } else {
                     assert currentRequestStream == null : "current stream must be null for new request";
                     var contentStream = new Netty4HttpRequestBodyStream(ctx, serverTransport.getThreadPool().getThreadContext());
                     currentRequestStream = contentStream;
-                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream, scheme);
                     shouldRead = false;
                 }
                 handlePipelinedRequest(ctx, netty4HttpRequest);
@@ -437,17 +440,26 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         } catch (Exception e) {
             return handleChunkingFailure(ctx, chunkedWrite, e);
         }
-        final ByteBuf content = Netty4Utils.toByteBuf(bytes);
-        final boolean isPartComplete = bodyPart.isPartComplete();
-        final boolean isBodyComplete = isPartComplete && bodyPart.isLastPart();
-        final ChannelFuture f = ctx.write(isBodyComplete ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-        Netty4Utils.addListener(f, ignored -> bytes.close());
-        combiner.add(f);
+        // Register the release first, so the chunk is released even if it is never written. The pipeline fails a promise it has taken
+        // rather than throwing, so an exception below means the write never took it.
+        final ChannelPromise promise = ctx.newPromise();
+        Netty4Utils.addListener(promise, ignored -> bytes.close());
+        final boolean isPartComplete;
+        try {
+            final ByteBuf content = Netty4Utils.toByteBuf(bytes);
+            isPartComplete = bodyPart.isPartComplete();
+            final boolean isBodyComplete = isPartComplete && bodyPart.isLastPart();
+            ctx.write(isBodyComplete ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content), promise);
+        } catch (Exception e) {
+            promise.tryFailure(e);
+            return handleChunkingFailure(ctx, chunkedWrite, e);
+        }
+        combiner.add(promise);
         return isPartComplete;
     }
 
     private boolean handleChunkingFailure(ChannelHandlerContext ctx, ChunkedWrite chunkedWrite, Exception e) {
-        logger.error(Strings.format("caught exception while encoding response chunk, closing connection %s", ctx.channel()), e);
+        logger.error(Strings.format("caught exception while encoding or writing response chunk, closing connection %s", ctx.channel()), e);
         assert currentChunkedWrite == chunkedWrite;
         currentChunkedWrite = null;
         chunkedWrite.combiner().add(ctx.channel().close());

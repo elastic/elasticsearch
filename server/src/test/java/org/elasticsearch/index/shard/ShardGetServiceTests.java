@@ -25,6 +25,7 @@ import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -47,7 +48,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
-        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
+        return indexShard.getService()
+            .getForUpdate(id, null, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE, SplitShardCountSummary.IRRELEVANT);
     }
 
     public void testGetForUpdate() throws IOException {
@@ -64,7 +66,10 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals(testGet.sourceRef().utf8ToString(), "{\"foo\" : \"bar\"}");
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
@@ -75,11 +80,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
         }
         primary.getEngine().refresh("test");
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 2);
         }
 
@@ -100,6 +111,118 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo() + 1, primaryTerm));
         expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo(), primaryTerm + 1));
         closeShards(primary);
+    }
+
+    public void testPreResolveForUpdate() throws IOException {
+        var splitShardCountSummary = SplitShardCountSummary.UNSET;
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
+        recoverShardFromStore(primary);
+
+        // missing document
+        try (Engine.GetResult missing = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary)) {
+            assertFalse(missing.exists());
+        }
+
+        // the first realtime get has no translog location to read: it refreshes internally and serves an
+        // index-backed get result
+        indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
+        try (Engine.GetResult indexBacked = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary)) {
+            assertTrue(indexBacked.exists());
+            assertFalse(indexBacked.isFromTranslog());
+        }
+
+        // later writes record their translog location, so an un-refreshed write is served from the translog
+        Engine.IndexResult indexed = indexDoc(primary, "test", "0", "{\"foo\" : \"baz\"}");
+        try (Engine.GetResult translogServed = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary)) {
+            assertTrue(translogServed.exists());
+            assertTrue(translogServed.isFromTranslog());
+        }
+
+        primary.refresh("test");
+        Engine.GetResult engineGet = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary);
+        assertTrue(engineGet.exists());
+        assertFalse(engineGet.isFromTranslog());
+
+        GetResult get = primary.getService()
+            .getForUpdate(
+                new TestPreResolved("0", engineGet),
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
+            );
+        assertTrue(get.isExists());
+        assertEquals("{\"foo\" : \"baz\"}", get.sourceRef().utf8ToString());
+        assertEquals(indexed.getSeqNo(), get.getSeqNo());
+
+        // OCC conditions are validated on consumption
+        Engine.GetResult conflicted = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary);
+        expectThrows(
+            VersionConflictEngineException.class,
+            () -> primary.getService()
+                .getForUpdate(
+                    new TestPreResolved("0", conflicted),
+                    indexed.getSeqNo() + 1,
+                    primary.getOperationPrimaryTerm(),
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    SplitShardCountSummary.IRRELEVANT
+                )
+        );
+
+        Engine.GetResult matching = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary);
+        GetResult casGet = primary.getService()
+            .getForUpdate(
+                new TestPreResolved("0", matching),
+                indexed.getSeqNo(),
+                primary.getOperationPrimaryTerm(),
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
+            );
+        assertTrue(casGet.isExists());
+
+        {
+            GetStats before = primary.getService().stats();
+            try (Engine.GetResult counted = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary)) {
+                assertTrue(counted.exists());
+                assertEquals(before.getExistsCount() + 1, primary.getService().stats().getExistsCount());
+            }
+        }
+
+        {
+            GetStats before = primary.getService().stats();
+            Engine.GetResult consumed = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary);
+            assertEquals(before.getExistsCount() + 1, primary.getService().stats().getExistsCount());
+            primary.getService()
+                .getForUpdate(
+                    new TestPreResolved("0", consumed),
+                    UNASSIGNED_SEQ_NO,
+                    UNASSIGNED_PRIMARY_TERM,
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    SplitShardCountSummary.IRRELEVANT
+                );
+            // the id resolution and the fetch are accounted separately
+            assertEquals(before.getExistsCount() + 2, primary.getService().stats().getExistsCount());
+            try (Engine.GetResult missingCounted = primary.getService().preResolveForUpdate("missing", null, splitShardCountSummary)) {
+                assertFalse(missingCounted.exists());
+            }
+            assertEquals(before.getMissingCount() + 1, primary.getService().stats().getMissingCount());
+        }
+        closeShards(primary);
+    }
+
+    private record TestPreResolved(String id, Engine.GetResult getResult) implements ShardGetService.PreResolved {
+        @Override
+        public String routing() {
+            return null;
+        }
+
+        @Override
+        public Engine.GetResult takeGetResult() {
+            return getResult;
+        }
     }
 
     public void testGetFromTranslogWithStringSourceMappingOptionsAndStoredFields() throws IOException {
@@ -240,7 +363,10 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         } else {
             asserter.assertSameIndexOperation(toIndexOp(testGet.sourceRef().utf8ToString()), toIndexOp(expectedResult));
         }
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
@@ -260,11 +386,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             translogInMemorySegmentCountExpected++;
         }
         assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
         }
         primary.getEngine().refresh("test");
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 2);
         }
 
@@ -280,7 +412,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.UNSET,
+                false
             );
         if (testGet2.sourceRef() == null) {
             assertThat("", equalTo(expectedResult));
@@ -291,11 +424,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(testGet2.getFields().containsKey("foo"));
         assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
         assertEquals(++translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 2); // we read from the translog
         }
         primary.getEngine().refresh("test");
-        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = primary.getEngine()
+                .acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertEquals(searcher.getIndexReader().maxDoc(), 3);
         }
 
@@ -309,7 +448,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.UNSET,
+                false
             );
         if (testGet2.sourceRef() == null) {
             assertThat("", equalTo(expectedResult));
@@ -355,23 +495,27 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         var map = engine.getLiveVersionMap();
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafeForGets(map));
 
         // Make the map unsafe by indexing a doc that will be indexed in the append-only mode
         var indexResult = indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertTrue(LiveVersionMapTestUtils.isUnsafe(map));
+        assertTrue(LiveVersionMapTestUtils.isUnsafeForGets(map));
 
         // Issue a get that would enforce safe access mode and switches the maps from unsafe to safe
         var getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.UNSET,
+                false
             );
         assertNull(getResult);
         var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
@@ -379,6 +523,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertThat(lastUnsafeGeneration, equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafeForGets(map));
 
         // A flush shouldn't change the recorded last unsafe generation for gets
         PlainActionFuture<Engine.FlushResult> flushFuture = new PlainActionFuture<>();
@@ -391,13 +536,15 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 indexResult.getId(),
+                null,
                 new String[] { "foo" },
                 true,
                 1,
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.UNSET,
+                false
             );
         assertNull(getResult);
         // But normal get would still work!
@@ -411,7 +558,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.UNSET,
+                false
             );
         assertNotNull(getResult);
         assertTrue(getResult.isExists());
@@ -420,31 +568,36 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         // As long as in safe mode, last unsafe generation stays the same
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafeForGets(map));
         indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         // The first get in safe mode, would trigger a refresh, since we need to start tracking translog locations in the live version map
         getResult = primary.getService()
             .getFromTranslog(
                 "1",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.UNSET,
+                false
             );
         assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
         getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.UNSET,
+                false
             );
         assertNull(getResult);
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
@@ -453,31 +606,37 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         // with no safe access needed, it should switch to append-only. (see https://github.com/elastic/elasticsearch/pull/27752)
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafeForGets(map));
         indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         engine.refresh("test");
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafeForGets(map));
 
         // Redo the same: make the map unsafe and see that the recorded last unsafe generation gets updated, upon a get.
         indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertTrue(LiveVersionMapTestUtils.isUnsafe(map));
+        assertTrue(LiveVersionMapTestUtils.isUnsafeForGets(map));
         getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.UNSET,
+                false
             );
         assertNull(getResult);
         var lastUnsafeGeneration2 = engine.getLastUnsafeSegmentGenerationForGets();
         assertTrue(lastUnsafeGeneration2 > lastUnsafeGeneration);
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+        assertFalse(LiveVersionMapTestUtils.isUnsafeForGets(map));
 
         closeShards(primary);
     }

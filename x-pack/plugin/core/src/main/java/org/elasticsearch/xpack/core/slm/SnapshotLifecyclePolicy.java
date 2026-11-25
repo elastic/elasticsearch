@@ -348,6 +348,11 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             }
         }
 
+        // the config is stored as is, so an inline password would be persisted in plaintext
+        if (configuration != null && configuration.containsKey("encrypted_data")) {
+            err.addValidationError("invalid configuration.encrypted_data: not supported in SLM policies yet");
+        }
+
         // Repository validation, validation of whether the repository actually exists happens
         // elsewhere as it requires cluster state
         if (Strings.hasText(repository) == false) {

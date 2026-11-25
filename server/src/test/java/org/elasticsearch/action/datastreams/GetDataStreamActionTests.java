@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,6 +53,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("effective_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("data_stream_configuration"));
+            assertThat(resultMap.containsKey("minimum_lifecycle_enabled"), equalTo(false));
         }
         {
             // Since this is not a system data stream, we expect the global retention to override the configured retention
@@ -64,11 +66,28 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("effective_retention"), equalTo(globalMaxRetention.getStringRep()));
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("max_global_retention"));
+            assertThat(resultMap.containsKey("minimum_lifecycle_enabled"), equalTo(false));
             Map<String, Map<String, Object>> settingsMap = (Map<String, Map<String, Object>>) resultMap.get("settings");
             assertThat(Settings.builder().loadFromMap(settingsMap).build(), equalTo(dataStreamInfo.getDataStream().getSettings()));
             Map<String, Object> mappingsMap = (Map<String, Object>) resultMap.get("mappings");
             assertThat(new CompressedXContent(mappingsMap), equalTo(dataStreamInfo.getDataStream().getMappings()));
         }
+    }
+
+    public void testNextGenerationManagedByUsesTemplateIndexMode() {
+        TimeValue retention = TimeValue.timeValueDays(10);
+        // The data stream is not a lookup data stream, but its template now is, so the next generation will be unmanaged.
+        DataStream standardDataStream = newDataStreamInstance(false, retention, IndexMode.STANDARD);
+        assertThat(
+            newDataStreamInfo(standardDataStream, IndexMode.LOOKUP).getNextGenerationManagedBy(),
+            equalTo(GetDataStreamAction.Response.ManagedBy.UNMANAGED)
+        );
+        // The data stream is a lookup data stream, but its template no longer is, so the next generation will be managed by the lifecycle.
+        DataStream lookupDataStream = newDataStreamInstance(false, retention, IndexMode.LOOKUP);
+        assertThat(
+            newDataStreamInfo(lookupDataStream, IndexMode.STANDARD).getNextGenerationManagedBy(),
+            equalTo(GetDataStreamAction.Response.ManagedBy.LIFECYCLE)
+        );
     }
 
     /*
@@ -90,7 +109,10 @@ public class GetDataStreamActionTests extends ESTestCase {
     }
 
     private static GetDataStreamAction.Response.DataStreamInfo newDataStreamInfo(boolean isSystem, TimeValue retention) {
-        DataStream dataStream = newDataStreamInstance(isSystem, retention);
+        return newDataStreamInfo(newDataStreamInstance(isSystem, retention), null);
+    }
+
+    private static GetDataStreamAction.Response.DataStreamInfo newDataStreamInfo(DataStream dataStream, IndexMode templateIndexMode) {
         return new GetDataStreamAction.Response.DataStreamInfo(
             dataStream,
             randomBoolean(),
@@ -101,11 +123,17 @@ public class GetDataStreamActionTests extends ESTestCase {
             Map.of(),
             randomBoolean(),
             null,
-            null
+            templateIndexMode,
+            // the data stream has a configured lifecycle, so the minimum lifecycle for time series does not apply
+            randomBoolean()
         );
     }
 
     private static DataStream newDataStreamInstance(boolean isSystem, TimeValue retention) {
+        return newDataStreamInstance(isSystem, retention, null);
+    }
+
+    private static DataStream newDataStreamInstance(boolean isSystem, TimeValue retention, IndexMode indexMode) {
         List<Index> indices = List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(retention).build();
         Settings settings = randomSettings();
@@ -119,6 +147,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             .setLifecycle(lifecycle)
             .setSettings(settings)
             .setMappings(mappings)
+            .setIndexMode(indexMode)
             .build();
     }
 }

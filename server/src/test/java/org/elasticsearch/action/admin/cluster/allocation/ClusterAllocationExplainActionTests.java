@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -137,7 +138,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             )
         );
 
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplanation, true, true));
+        logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NO.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemain(), equalTo(false));
         assertThat(
@@ -194,7 +195,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             )
         );
 
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplanation, true, true));
+        logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
         assertThat(
@@ -249,7 +250,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             )
         );
 
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplanation, true, true));
+        logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
         assertThat(
@@ -302,7 +303,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             )
         );
 
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplanation, true, true));
+        logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
         assertThat(
@@ -438,7 +439,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                     if (shardRouting.primary() == false || indexRoutingTable.getIndex().getName().equals(redIndex)) {
                         // move all replicas and one primary to unassigned
                         shardBuilder.addShard(
-                            shardRouting.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"))
+                            shardRouting.moveToUnassigned(
+                                new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
+                                RecoveryPriority.UNASSIGNED_UNEXPECTED
+                            )
                         );
                     } else {
                         shardBuilder.addShard(shardRouting);

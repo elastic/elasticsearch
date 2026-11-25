@@ -177,6 +177,25 @@ public class MetadataBufferTests extends ESTestCase {
         }
     }
 
+    public void testWriteZLongBoundaryValues() throws IOException {
+        final long[] values = new long[] { 0L, 1L, -1L, Long.MIN_VALUE, Long.MAX_VALUE };
+
+        for (final long value : values) {
+            final MetadataBuffer buffer = new MetadataBuffer();
+            buffer.writeZLong(value);
+
+            final byte[] output = new byte[64];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(output);
+            buffer.writeTo(out, 0, buffer.size());
+
+            assertEquals(
+                "Roundtrip failed for value " + Long.toHexString(value),
+                value,
+                new ByteArrayDataInput(output, 0, out.getPosition()).readZLong()
+            );
+        }
+    }
+
     public void testWriteLongMultipleValues() throws IOException {
         final MetadataBuffer buffer = new MetadataBuffer();
         final int count = randomIntBetween(5, 20);

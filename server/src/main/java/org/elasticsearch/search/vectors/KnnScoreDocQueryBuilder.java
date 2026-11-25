@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -43,6 +42,7 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
     private final VectorData queryVector;
     private final Float vectorSimilarity;
     private final List<QueryBuilder> filterQueries;
+    private final Float oversample;
 
     /**
      * Creates a query builder.
@@ -57,11 +57,31 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
         Float vectorSimilarity,
         List<QueryBuilder> filterQueries
     ) {
+        this(scoreDocs, fieldName, queryVector, vectorSimilarity, filterQueries, null);
+    }
+
+    /**
+     * Creates a query builder.
+     *
+     * @param scoreDocs  the docs and scores this query should match. The array must be
+     *                   sorted in order of ascending doc IDs.
+     * @param oversample the {@code rescore_vector.oversample} the originating kNN search specified, or {@code null} if it
+     *                   did not specify one. Only needed to score inner hits with the same fidelity the kNN search used.
+     */
+    public KnnScoreDocQueryBuilder(
+        ScoreDoc[] scoreDocs,
+        String fieldName,
+        VectorData queryVector,
+        Float vectorSimilarity,
+        List<QueryBuilder> filterQueries,
+        Float oversample
+    ) {
         this.scoreDocs = scoreDocs;
         this.fieldName = fieldName;
         this.queryVector = queryVector;
         this.vectorSimilarity = vectorSimilarity;
         this.filterQueries = filterQueries;
+        this.oversample = oversample;
     }
 
     public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
@@ -79,6 +99,7 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
         } else {
             this.filterQueries = List.of();
         }
+        this.oversample = in.getTransportVersion().supports(ExactKnnQueryBuilder.EXACT_KNN_OVERSAMPLE) ? in.readOptionalFloat() : null;
     }
 
     @Override
@@ -115,6 +136,9 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
         out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             writeQueries(out, filterQueries);
+        }
+        if (out.getTransportVersion().supports(ExactKnnQueryBuilder.EXACT_KNN_OVERSAMPLE)) {
+            out.writeOptionalFloat(oversample);
         }
     }
 
@@ -157,17 +181,16 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
         if (queryRewriteContext.convertToInnerHitsRewriteContext() != null && queryVector != null && fieldName != null) {
-            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
+            // Carry the oversample so the exact query scores inner hits with the same fidelity the kNN search used.
+            QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity, oversample);
             if (filterQueries.isEmpty()) {
                 return exactKnnQuery;
             } else {
                 BoolQueryBuilder boolQuery = new BoolQueryBuilder();
                 boolQuery.must(exactKnnQuery);
                 for (QueryBuilder filter : this.filterQueries) {
-                    // filter can be both over parents or nested docs, so add them as should clauses to a filter
-                    BoolQueryBuilder adjustedFilter = new BoolQueryBuilder().should(filter)
-                        .should(new ToChildBlockJoinQueryBuilder(filter));
-                    boolQuery.filter(adjustedFilter);
+                    // built at the root like the knn search filters, not in the nested scope of the inner hits
+                    boolQuery.filter(new NestedLevelJoinQueryBuilder(new RootScopedQueryBuilder(filter), fieldName));
                 }
                 return boolQuery;
             }
@@ -194,7 +217,8 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(queryVector, other.queryVector)
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
-            && Objects.equals(filterQueries, other.filterQueries);
+            && Objects.equals(filterQueries, other.filterQueries)
+            && Objects.equals(oversample, other.oversample);
     }
 
     @Override
@@ -204,7 +228,7 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
             int hashCode = Objects.hash(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
             result = 31 * result + hashCode;
         }
-        return Objects.hash(result, fieldName, vectorSimilarity, Objects.hashCode(queryVector), filterQueries);
+        return Objects.hash(result, fieldName, vectorSimilarity, Objects.hashCode(queryVector), filterQueries, oversample);
     }
 
     @Override

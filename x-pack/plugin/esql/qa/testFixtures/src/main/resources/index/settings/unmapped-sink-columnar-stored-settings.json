@@ -1,0 +1,10 @@
+{
+  "index": {
+    "mode": "columnar",
+    "mapping": {
+      "source": {
+        "mode": "columnar_stored"
+      }
+    }
+  }
+}

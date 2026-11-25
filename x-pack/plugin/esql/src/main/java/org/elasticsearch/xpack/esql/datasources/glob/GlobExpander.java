@@ -7,29 +7,63 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.DelegatingStorageProvider;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.PartitionValueMatcher;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.WalkLayout;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.NoSuchFileException;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Expands glob patterns and comma-separated path lists into resolved {@link FileList} instances.
@@ -39,7 +73,67 @@ import java.util.Map;
  */
 public final class GlobExpander {
 
+    /** Entries reserved per breaker call. One provider page, so a walk reserves about as often as it lists. */
+    private static final int LISTING_RESERVE_BATCH = 1000;
+
+    /**
+     * Ceiling on {@code listChildren} while building prefix fan-out slots. Independent of the walk's
+     * {@code esql.external.max_directory_listings}: fan-out tunnels a few identity folders until a
+     * branch, and 512 is enough. Sharing the walk ceiling of 3000 would start more parallel prefix
+     * drains without a measured need.
+     */
+    static final int FAN_OUT_SLOT_BUDGET = 512;
+
+    private static final Logger logger = LogManager.getLogger(GlobExpander.class);
+
     private GlobExpander() {}
+
+    /**
+     * A single listing unit for the prefix fan-out. A {@link File} slot holds one object found during the
+     * {@link StorageProvider#listChildren} descent; it is processed inline with no I/O. A {@link Folder} slot
+     * holds a directory prefix whose contents are drained via {@link StorageProvider#listObjects} on an executor
+     * thread.
+     */
+    private sealed interface Slot permits Slot.File, Slot.Folder {
+        /** A single file entry found during the {@code listChildren} descent — no further I/O needed. */
+        record File(StorageEntry entry) implements Slot {}
+
+        /** A directory prefix whose contents are fetched via {@code listObjects} on the fan-out executor. */
+        record Folder(StoragePath prefix) implements Slot {}
+    }
+
+    /**
+     * Accumulated result from processing one {@link Slot}: matched entries, the stashed anchor for
+     * all-rejected {@code _file.*} runs, and exclusion telemetry. Merge in slot order to reproduce the
+     * flat listing's key order for providers where {@link StorageProvider#listsInKeyOrder()} is true.
+     */
+    private record SlotResult(
+        List<StorageEntry> matched,
+        @Nullable StorageEntry fileHintAnchor,
+        int excludedCount,
+        int globKeptCount,
+        @Nullable String excludedExample,
+        @Nullable String excludedExampleEntry
+    ) {
+        static SlotResult empty() {
+            return new SlotResult(new ArrayList<>(), null, 0, 0, null, null);
+        }
+
+        /** Concatenates {@code this} and {@code other} in order, keeping the first anchor/example from either. */
+        SlotResult merge(SlotResult other) {
+            List<StorageEntry> merged = new ArrayList<>(matched.size() + other.matched.size());
+            merged.addAll(matched);
+            merged.addAll(other.matched);
+            return new SlotResult(
+                merged,
+                fileHintAnchor != null ? fileHintAnchor : other.fileHintAnchor,
+                excludedCount + other.excludedCount,
+                globKeptCount + other.globKeptCount,
+                excludedExample != null ? excludedExample : other.excludedExample,
+                excludedExampleEntry != null ? excludedExampleEntry : other.excludedExampleEntry
+            );
+        }
+    }
 
     /** Creates a file list from raw entries. Primarily for tests. */
     public static FileList fileListOf(List<StorageEntry> entries, String pattern) {
@@ -51,6 +145,29 @@ public final class GlobExpander {
         return new GenericFileList(entries, pattern, partitionMetadata);
     }
 
+    /**
+     * Creates a file list from raw entries and runs {@link #detectPartitions} over them, the same
+     * detection the listing rail applies to a hint-collapsed concrete path. Detector notices ride
+     * {@link FileList#listingWarnings()}. {@link PartitionConfig.Strategy#NONE} and an empty detect
+     * leave metadata null. The list stays resolved; an empty {@code entries} is still not the
+     * {@link FileList#UNRESOLVED} sentinel. {@code partitionConfig} is required.
+     */
+    public static FileList detectedFileListOf(List<StorageEntry> entries, String pattern, PartitionConfig partitionConfig) {
+        Check.notNull(partitionConfig, "partitionConfig cannot be null");
+        List<String> notices = new ArrayList<>();
+        PartitionMetadata metadata = detectPartitions(entries, partitionConfig, notices::add);
+        return new GenericFileList(entries, pattern, metadata, notices);
+    }
+
+    /**
+     * A file list that is a prefix of what the pattern matches, as a bounded listing produces. For tests that need
+     * the shape a schema-only listing has: {@link FileList#isTruncated()} is what tells a reader of such a list
+     * that it is not the dataset.
+     */
+    public static FileList truncatedFileListOf(List<StorageEntry> entries, String pattern) {
+        return new GenericFileList(entries, pattern, null, List.of(), true);
+    }
+
     /** Compresses a raw file list into a compact representation (dictionary or Hive-partitioned). */
     public static FileList compact(FileList raw, String basePath) {
         if (raw instanceof GenericFileList generic) {
@@ -59,43 +176,193 @@ public final class GlobExpander {
         return raw;
     }
 
-    /** Returns a copy of the file list with per-file schema reconciliation info attached. */
-    public static FileList withSchemaInfo(FileList fileList, Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        if (fileList instanceof GenericFileList generic) {
-            return generic.withSchemaInfo(schemaInfo);
-        }
-        return fileList;
-    }
-
     /**
      * Expands a glob/comma pattern and compresses the result into a compact representation
-     * (DictionaryFileList or HiveFileList). This is the primary entry point for the resolver.
+     * (DictionaryFileList or DirectoryGroupedFileList). This is the primary entry point for the resolver.
+     * Notices raised while listing ride on the returned {@link FileList#listingWarnings()}; nothing is emitted here
+     * except the file-exclusion line, which is logged and rides the listing only from a segment that listed nothing.
      */
     public static FileList expandAndCompact(
         String path,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         StoragePath storagePath
     ) throws IOException {
-        return expandAndCompact(path, provider, hints, hivePartitioning, storagePath, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        return expandAndCompact(path, provider, hints, config, storagePath, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
     /**
      * Expands a glob/comma pattern and compresses the result, with safety caps on discovery.
+     * The two-int overload leaves the listing walk uncapped so tests can isolate the kept-files cap.
      */
     public static FileList expandAndCompact(
         String path,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         StoragePath storagePath,
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        FileList expanded = path.indexOf(',') >= 0
-            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion)
-            : doExpandGlob(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+        return expandAndCompact(path, provider, hints, config, storagePath, maxDiscoveredFiles, maxGlobExpansion, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Expands a glob/comma pattern and compresses the result, with safety caps on kept files, brace expansion,
+     * and objects visited while listing.
+     */
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects
+    ) throws IOException {
+        return expandAndCompact(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
+        );
+    }
+
+    /**
+     * As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it.
+     * <p>
+     * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
+     * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
+     * is left uncompacted, because neither compacted encoding carries the truncation flag — see
+     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Schema discovery passes a
+     * bound for its first attempt; the scan also bounds its first attempt. {@code Integer.MAX_VALUE} is the
+     * unbounded path.
+     */
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory
+    ) throws IOException {
+        return expandAndCompact(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            NEVER_CANCELLED
+        );
+    }
+
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled
+    ) throws IOException {
+        return expandAndCompact(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            cancelled,
+            null
+        );
+    }
+
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange
+    ) throws IOException {
+        return expandAndCompact(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            cancelled,
+            folderRange,
+            PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
+    }
+
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) throws IOException {
+        FileList expanded = expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            cancelled,
+            folderRange,
+            maxDirectoryListings
+        );
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -106,17 +373,914 @@ public final class GlobExpander {
         return expanded;
     }
 
-    public static PartitionDetector resolveDetector(PartitionConfig config) {
-        if (config == null) {
-            return HivePartitionDetector.INSTANCE;
+    /**
+     * Async equivalent of
+     * {@link #expandAndCompact(String, StorageProvider, List, Map, StoragePath, int, int, int, ListingExtents, PlanningMemory,
+     * BooleanSupplier)}.
+     * Uses a parallel prefix fan-out (via {@link ThrottledIterator}) when the provider supports key-ordered listing
+     * ({@link StorageProvider#listsInKeyOrder()}) and the listing is unbounded. The fan-out submits each folder drain
+     * to {@code fanOutExecutor}, so the calling thread is not blocked waiting for the drains to complete; the
+     * {@code listener} fires on the executor thread that completes the last drain.
+     */
+    public static void expandAndCompactAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener
+    ) {
+        expandAndCompactAsync(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            concurrency,
+            isCancelled,
+            fanOutExecutor,
+            listener,
+            null
+        );
+    }
+
+    public static void expandAndCompactAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        final String basePath = storagePath.patternPrefix().toString();
+        expandAsync(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            concurrency,
+            isCancelled,
+            fanOutExecutor,
+            ActionListener.wrap(expanded -> {
+                if (expanded.isResolved() == false || expanded.fileCount() == 0) {
+                    listener.onResponse(expanded);
+                    return;
+                }
+                if (expanded instanceof GenericFileList raw) {
+                    listener.onResponse(FileListCompactor.compact(basePath, raw));
+                } else {
+                    listener.onResponse(expanded);
+                }
+            }, listener::onFailure),
+            folderRange
+        );
+    }
+
+    public static void expandAndCompactAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) {
+        final String basePath = storagePath.patternPrefix().toString();
+        expandAsync(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            concurrency,
+            isCancelled,
+            fanOutExecutor,
+            ActionListener.wrap(expanded -> {
+                if (expanded.isResolved() == false || expanded.fileCount() == 0) {
+                    listener.onResponse(expanded);
+                    return;
+                }
+                if (expanded instanceof GenericFileList raw) {
+                    listener.onResponse(FileListCompactor.compact(basePath, raw));
+                } else {
+                    listener.onResponse(expanded);
+                }
+            }, listener::onFailure),
+            folderRange,
+            maxDirectoryListings
+        );
+    }
+
+    /**
+     * Expands a whole path — glob or comma-separated list — applying the filter hints. Each glob (a lone pattern, or
+     * every segment of a comma list) is expanded through {@link #expandGlobWithRewriteFallback}, which recovers the
+     * files a glob rewrite can hide behind a value-spelling mismatch. A comma list is handled per segment so one
+     * segment's rewrite-to-empty cannot be masked by another segment that still matches.
+     * Objects matching the dataset's {@code file_exclusions} patterns are excluded — by default names beginning
+     * with {@code _} or {@code .}, see {@link ExclusionConfig}. Directory placeholder keys (paths ending in
+     * {@code /}, and the prefix's own marker) are always skipped.
+     */
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
+    ) throws IOException {
+        return expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, (FolderRangePredicate) null);
+    }
+
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        @Nullable FolderRangePredicate folderRange
+    ) throws IOException {
+        return expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            Integer.MAX_VALUE,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            NEVER_CANCELLED,
+            folderRange
+        );
+    }
+
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects
+    ) throws IOException {
+        return expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
+        );
+    }
+
+    /** As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it. */
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory
+    ) throws IOException {
+        return expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            NEVER_CANCELLED
+        );
+    }
+
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled
+    ) throws IOException {
+        return expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            cancelled,
+            null
+        );
+    }
+
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange
+    ) throws IOException {
+        return expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            cancelled,
+            folderRange,
+            PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
+    }
+
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) throws IOException {
+        PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
+        // A comma list is several globs; a key budget has no single meaning across them, so it resolves unbounded.
+        return isTopLevelCommaList(path)
+            ? doExpandCommaSeparated(
+                path,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                memory,
+                cancelled,
+                folderRange,
+                maxDirectoryListings
+            )
+            : expandGlobWithRewriteFallback(
+                path,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                extents,
+                memory,
+                cancelled,
+                folderRange,
+                maxDirectoryListings
+            );
+    }
+
+    /**
+     * Async equivalent of
+     * {@link #expand(String, StorageProvider, List, Map, int, int, int, ListingExtents, PlanningMemory, BooleanSupplier)}.
+     * Walk-eligible globs with concurrency &gt; 1 list directories on {@code fanOutExecutor} even when
+     * the provider does not list in key order. Prefix fan-out still requires key order. Comma-separated
+     * paths expand each glob segment through the same async walk, sharing one directory-listing budget.
+     */
+    public static void expandAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener
+    ) {
+        expandAsync(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            concurrency,
+            isCancelled,
+            fanOutExecutor,
+            listener,
+            null
+        );
+    }
+
+    public static void expandAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        expandAsync(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            extents,
+            memory,
+            concurrency,
+            isCancelled,
+            fanOutExecutor,
+            listener,
+            folderRange,
+            PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
+    }
+
+    public static void expandAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ListingExtents extents,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) {
+        PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
+        if (isTopLevelCommaList(path)) {
+            doExpandCommaSeparatedAsync(
+                path,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                memory,
+                concurrency,
+                isCancelled,
+                fanOutExecutor,
+                listener,
+                folderRange,
+                maxDirectoryListings
+            );
+        } else {
+            expandGlobWithRewriteFallbackAsync(
+                path,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                extents,
+                memory,
+                concurrency,
+                isCancelled,
+                fanOutExecutor,
+                listener,
+                folderRange,
+                maxDirectoryListings
+            );
         }
+    }
+
+    /**
+     * Expands a single glob, re-listing without narrowing if — and only if — a narrowed listing came back empty.
+     *
+     * <p>Two things narrow a listing, and neither is allowed to decide that a dataset is empty. A Hive
+     * {@link #rewriteSegment} may splice an exact string folder name into {@code key=*}, and that folder can
+     * still miss a typed match stored under another spelling. And a bound stops the drain once it has counted
+     * its matching files, which a partition-value filter or a {@code _file.*} hint can then drop every one of
+     * — leaving the listing empty with matches still beyond where it stopped. Both report empty for a dataset
+     * that has data, which is silent zero rows rather than a slow query.
+     *
+     * <p>So emptiness after a Hive rewrite is decided by listing the original glob once more, with the bound dropped and
+     * the rewrite skipped, while the partition hints stay. Numeric and boolean hints never splice; the first listing
+     * already walks {@code key=*} and {@link PartitionValueMatcher} keeps every typed spelling
+     * ({@code month=6}/{@code 06}/{@code 006}, {@code true}/{@code TRUE}). Where a value filter runs on the original
+     * pattern, {@link PartitionValueMatcher} keeps those spellings and drops folders the typed comparison excludes;
+     * where {@code PartitionValueFilter#forGlob} declines the pattern, the only partition hints re-applied are the
+     * ones {@link #folderPostFilterHints} keeps: a closed integral range and an equality whose printed form is not
+     * the unique on-disk spelling (non-integral, integer, boolean). The equality an exact-string splice carried is
+     * not one of them, and neither is a {@code NOT_EQUALS} or a range that is not a closed integral span, so the
+     * retry lists a superset rather than a subset. The {@code _file.*} filters stay too — they are exact and can
+     * hide nothing.
+     *
+     * <p>TEMPLATE does not print a typed value into a {@code *} slot; only an exact string folder name is spliced.
+     * The narrowed glob is already the longest exact prefix (string account/region still in the path, numeric
+     * month/day/hour left as {@code *}). Matches stay on that prefix. An untruncated empty listing is a miss of
+     * that folder, not of the dataset: one inference-anchor file is probed from the parent prefix so the
+     * resolver can return zero rows with schema instead of “matched no files”. The probe is one LIST of the
+     * parent, not a flatten of the original glob. A truncated empty still retries that same prefix with the
+     * bound dropped.
+     *
+     * <p>A spelling miss with survivors is not an unfiltered re-list. A value filter that keeps nothing still
+     * keeps one inference-anchor file from the excluded set when that prune is trusted, so that pass is not
+     * the caller's "matched no files" error. The cap fires only when matching files (or an untrusted superset)
+     * exceed it. A matching partition that itself exceeds the cap still throws with the typed filter applied.
+     * A multi-value hint does not rewrite the glob, so this method does not retry it. Hints stay on the query,
+     * so the row filter still yields zero rows from an anchor the listing kept.
+     *
+     * <p>Narrowing is only ever an optimisation: the query's filter still runs on the rows, so listing a superset
+     * is always correct while listing a subset is a wrong answer. When nothing narrowed the glob there is nothing
+     * to disambiguate and this expands once, with no retry. A non-empty Hive splice is not retried; only an exact
+     * string folder name is spliced, so a typed numeric or boolean comparison cannot hide a sibling spelling.
+     */
+    private static FileList expandGlobWithRewriteFallback(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) throws IOException {
+        String effective = effectivePattern(pattern, hints, partitionConfig);
+        boolean rewritten = effective.equals(pattern) == false;
+        boolean bounded = extents.boundsFileSet();
+        int leftover = remainingDirectoryListings(provider, maxDirectoryListings);
+        if (provider instanceof DirectoryListingCounter && leftover <= 0) {
+            // Comma leftover 0: skip rather than walk with max=0 (finishSurvivors of the prefix).
+            return FileList.EMPTY;
+        }
+        if (rewritten == false && bounded == false) {
+            return doExpandGlob(
+                pattern,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                ListingExtents.UNBOUNDED,
+                memory,
+                cancelled,
+                true,
+                folderRange,
+                leftover
+            );
+        }
+
+        FileList narrowed = null;
+        // A rewritten prefix may name a folder that does not exist; the local filesystem throws where object stores
+        // return empty. Hive treats that throw as empty and retries the original glob. TEMPLATE's exact prefix is
+        // the dataset at that folder: a missing prefix is empty (same as S3) and must not list the original glob.
+        // Any other listing IO still fails.
+        IOException failure = null;
+        try {
+            narrowed = doExpandGlob(
+                pattern,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                extents,
+                memory,
+                cancelled,
+                true,
+                folderRange,
+                leftover
+            );
+        } catch (IOException e) {
+            // Only a rewritten prefix is a folder we invented. A bound on the original glob that throws
+            // is the storage's own missing directory and must not be mapped to empty.
+            if (rewritten && keepExactTemplatePrefix(partitionConfig) && isMissingPrefix(e)) {
+                narrowed = FileList.EMPTY;
+            } else {
+                failure = e;
+            }
+        }
+        if (failure == null && (narrowed.isResolved() == false || narrowed.fileCount() > 0)) {
+            return narrowed;
+        }
+        // An untruncated empty drain saw every key under the prefix. Hive retries the original glob because the
+        // splice may have missed a spelling. TEMPLATE keeps the exact prefix for matches; an empty miss still
+        // probes one parent-prefix file as a schema anchor so the resolver is not “matched no files”.
+        // A truncated empty result was cut short by matches a partition-value or _file.* filter dropped — matches
+        // past the bound may survive it.
+        if (failure == null && narrowed.isTruncated() == false && retryOriginalGlobOnEmpty(rewritten, partitionConfig) == false) {
+            FileList anchored = exactPrefixInferenceAnchor(
+                pattern,
+                effective,
+                provider,
+                hints,
+                partitionConfig,
+                nameFilter,
+                fileOrder,
+                memory,
+                cancelled,
+                maxDiscoveredFiles,
+                maxListedObjects
+            );
+            return anchored != null ? anchored : narrowed;
+        }
+        // Only the rewrite can throw spuriously — it may name a folder that does not exist, where the local
+        // filesystem throws and object stores return empty. A bound cannot invent an IOException, so when it was
+        // the only narrowing the error is the storage's own and is surfaced rather than retried. TEMPLATE already
+        // mapped a missing prefix to empty above; any other throw is the storage's own and is surfaced.
+        // Hive may retry a missing rewritten folder (padded sibling). A store failure is not a miss.
+        if (failure != null && (rewritten == false || keepExactTemplatePrefix(partitionConfig) || isMissingPrefix(failure) == false)) {
+            throw failure;
+        }
+
+        final IOException narrowedFailure = failure;
+        String retryPattern = rewriteFallbackPattern(pattern, effective, partitionConfig);
+        // A bound-only retry never spliced, so it must not claim the partition filter is what changed.
+        String retryDetail = rewriteFallbackRetryDetail(rewritten, retryPattern.equals(pattern));
+        logger.debug(() -> "Narrowed listing of [" + pattern + "] yielded no files; " + retryDetail, narrowedFailure);
+        leftover = remainingDirectoryListings(provider, maxDirectoryListings);
+        if (provider instanceof DirectoryListingCounter && leftover <= 0) {
+            return narrowed != null ? narrowed : FileList.EMPTY;
+        }
+        try {
+            // Skip the splice on Hive so month=6 is not listed again. TEMPLATE retries the exact-string prefix.
+            return doExpandGlob(
+                retryPattern,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                ListingExtents.UNBOUNDED,
+                memory,
+                cancelled,
+                false,
+                folderRange,
+                leftover
+            );
+        } catch (IOException retryFailure) {
+            SuppressedFailures.attach(retryFailure, failure);
+            throw retryFailure;
+        }
+    }
+
+    /**
+     * TEMPLATE splice is an exact string folder name, so the narrowed glob is already the longest exact prefix.
+     * Hive still retries the original glob because an exact-string {@link #rewriteSegment} listed a prefix that
+     * may not be the only typed match.
+     * Requires a non-null template: that is the same gate {@link #rewriteGlobWithHints} uses, so a
+     * {@code TEMPLATE} config with no template (unreachable via {@link PartitionConfig#fromConfig}) cannot
+     * Hive-splice then skip the original-glob retry.
+     */
+    private static boolean keepExactTemplatePrefix(PartitionConfig partitionConfig) {
+        return partitionConfig != null
+            && PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null;
+    }
+
+    /**
+     * Local filesystems throw when a directory is absent; object stores list the prefix as empty.
+     * {@link NoSuchFileException} and {@link FileNotFoundException} are that absence. Other listing IO is
+     * still a failure.
+     */
+    private static boolean isMissingPrefix(Throwable e) {
+        return e instanceof NoSuchFileException || e instanceof FileNotFoundException;
+    }
+
+    /**
+     * Whether an untruncated empty rewrite should list the original glob. TEMPLATE already listed the exact
+     * prefix; retrying the original glob would drop string splices and flatten the dataset. An empty miss
+     * still takes {@link #exactPrefixInferenceAnchor} instead of returning {@link FileList#EMPTY}.
+     */
+    private static boolean retryOriginalGlobOnEmpty(boolean rewritten, PartitionConfig partitionConfig) {
+        return rewritten && keepExactTemplatePrefix(partitionConfig) == false;
+    }
+
+    /**
+     * One glob-matching file under the parent of the last spliced TEMPLATE folder. The leftover is a
+     * schema-inference anchor, not a flatten of the original glob. Never lists above the original
+     * pattern prefix. {@code null} when the parent cannot be listed or holds no glob match — then the
+     * empty prefix listing stands.
+     * <p>
+     * Cost: one extra {@code listObjects} on every untruncated empty TEMPLATE miss. When the splice is
+     * the first glob directory, the parent is the dataset prefix and the probe lists recursively until
+     * the first glob-and-literal match, capped by {@code maxListedObjects} (usually one page).
+     */
+    @Nullable
+    private static FileList exactPrefixInferenceAnchor(
+        String pattern,
+        String effective,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int maxDiscoveredFiles,
+        int maxListedObjects
+    ) throws IOException {
+        if (keepExactTemplatePrefix(partitionConfig) == false || maxDiscoveredFiles <= 0 || effective.equals(pattern)) {
+            return null;
+        }
+        StoragePath original = StoragePath.of(pattern);
+        WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            original.patternPrefix(),
+            original.globPart(),
+            partitionConfig.pathTemplate()
+        );
+        StoragePath parent = inferenceAnchorParent(pattern, effective, layout);
+        if (parent == null) {
+            return null;
+        }
+        StorageEntry found = findAnchor(
+            provider,
+            List.of(parent),
+            original.patternPrefix(),
+            new GlobMatcher(original.globPart()),
+            nameFilter,
+            FileMetadataFilter.resolve(hints),
+            Set.of(),
+            cancelled,
+            maxListedObjects,
+            layout
+        );
+        if (found == null) {
+            return null;
+        }
+        List<StorageEntry> kept = new ArrayList<>(1);
+        kept.add(found);
+        fileOrder.apply(kept);
+        List<String> notices = new ArrayList<>();
+        PartitionMetadata meta = detectPartitions(kept, partitionConfig, notices::add);
+        reserveRetained(memory, 1, 0, true);
+        return inferenceAnchorListing(kept, pattern, meta, notices);
+    }
+
+    /**
+     * Directory to probe for one schema-inference file after an empty exact-string TEMPLATE prefix.
+     * Parent of the last rewritten <em>placeholder</em> folder (not a trailing template literal),
+     * never above {@code pattern}'s listing prefix, and never a glob (a wildcard before the splice
+     * clamps to that dataset prefix). Repeated slashes in the rewritten path are kept.
+     */
+    @Nullable
+    static StoragePath inferenceAnchorParent(String pattern, String effective, @Nullable WalkLayout layout) {
+        StoragePath original = StoragePath.of(pattern);
+        StoragePath datasetPrefix = original.patternPrefix();
+        String origPath = original.path();
+        String effPath = StoragePath.of(effective).path();
+        if (origPath == null || origPath.isEmpty() || effPath == null || effPath.isEmpty()) {
+            return null;
+        }
+        String[] origRaw = origPath.split("/");
+        String[] effRaw = effPath.split("/");
+        List<Integer> origDirs = globDirectoryIndices(origRaw);
+        List<Integer> effDirs = globDirectoryIndices(effRaw);
+        int n = Math.min(origDirs.size(), effDirs.size());
+        int prefixDirCount = nonEmptySegmentCount(datasetPrefix.path());
+        int lastPlaceholder = -1;
+        int lastAny = -1;
+        for (int d = 0; d < n; d++) {
+            if (origRaw[origDirs.get(d)].equals(effRaw[effDirs.get(d)]) == false) {
+                lastAny = d;
+                int globLevel = d - prefixDirCount;
+                if (layout == null || globLevel < 0) {
+                    lastPlaceholder = d;
+                } else if (globLevel < layout.depth() && layout.level(globLevel).isPlaceholder()) {
+                    lastPlaceholder = d;
+                }
+            }
+        }
+        int splice = lastPlaceholder >= 0 ? lastPlaceholder : lastAny;
+        if (splice < 0) {
+            return null;
+        }
+        String loc = original.toString();
+        String root = loc.endsWith(origPath) ? loc.substring(0, loc.length() - origPath.length()) : loc;
+        int cut = effDirs.get(splice);
+        StringBuilder parentPath = new StringBuilder(root);
+        for (int i = 0; i < cut; i++) {
+            if (i > 0) {
+                parentPath.append('/');
+            }
+            parentPath.append(effRaw[i]);
+        }
+        parentPath.append('/');
+        StoragePath parent = StoragePath.of(parentPath.toString());
+        if (parent.isPattern()) {
+            return datasetPrefix;
+        }
+        String parentLoc = parent.toString();
+        String datasetLoc = datasetPrefix.toString();
+        if (datasetLoc.startsWith(parentLoc) && parentLoc.equals(datasetLoc) == false) {
+            return datasetPrefix;
+        }
+        return parent;
+    }
+
+    /** Non-empty glob-directory indices; the last non-empty raw slot is the filename. */
+    private static List<Integer> globDirectoryIndices(String[] raw) {
+        List<Integer> idx = new ArrayList<>();
+        for (int i = 0; i < raw.length; i++) {
+            if (raw[i].isEmpty() == false) {
+                idx.add(i);
+            }
+        }
+        if (idx.isEmpty() == false) {
+            idx.remove(idx.size() - 1);
+        }
+        return idx;
+    }
+
+    private static int nonEmptySegmentCount(String path) {
+        return nonEmptyPathSegments(path).size();
+    }
+
+    private static List<String> nonEmptyPathSegments(String path) {
+        if (path == null || path.isEmpty()) {
+            return List.of();
+        }
+        List<String> segs = new ArrayList<>();
+        for (String segment : path.split("/")) {
+            if (segment.isEmpty() == false) {
+                segs.add(segment);
+            }
+        }
+        return segs;
+    }
+
+    /**
+     * {@code true} when every TEMPLATE literal on {@code entry} matches {@code layout}, right-aligned
+     * to the directories above the filename the same way {@link TemplatePartitionDetector} binds.
+     */
+    private static boolean matchesTemplateLiterals(WalkLayout layout, StorageEntry entry) {
+        if (layout == null) {
+            return true;
+        }
+        List<String> dirs = nonEmptyPathSegments(entry.path().path());
+        if (dirs.size() <= 1) {
+            return false;
+        }
+        dirs = dirs.subList(0, dirs.size() - 1);
+        List<TemplateSegment> segments = layout.segments();
+        if (dirs.size() < segments.size()) {
+            return false;
+        }
+        int offset = dirs.size() - segments.size();
+        for (int t = 0; t < segments.size(); t++) {
+            if (segments.get(t) instanceof TemplateSegment.Literal(String value) && value.equals(dirs.get(offset + t)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Pattern the empty-rewrite retry lists. TEMPLATE keeps the exact-string prefix; Hive lists the original glob
+     * so a padded sibling the splice missed can still be found.
+     */
+    private static String rewriteFallbackPattern(String pattern, String effective, PartitionConfig partitionConfig) {
+        return keepExactTemplatePrefix(partitionConfig) ? effective : pattern;
+    }
+
+    private static String rewriteFallbackRetryDetail(boolean rewritten, boolean retryIsOriginalGlob) {
+        if (rewritten == false) {
+            return "re-listing without the bound";
+        }
+        if (retryIsOriginalGlob) {
+            return "re-listing the original glob with the partition filter";
+        }
+        return "re-listing the exact prefix without the bound";
+    }
+
+    /**
+     * The single place that decides which detector a resolved {@link PartitionConfig} selects. Takes a non-null
+     * config: the listing boundary always resolves one, so a null here is a programming error rather than a
+     * user-reachable state.
+     */
+    public static PartitionDetector resolveDetector(PartitionConfig config) {
         return switch (config.strategy()) {
             case NONE -> null;
             case HIVE -> HivePartitionDetector.INSTANCE;
             case TEMPLATE -> {
                 String template = config.pathTemplate();
-                if (template == null || template.isEmpty()) {
-                    yield null;
+                // A template that names no columns cannot build a detector: parseTemplateColumns matches a segment
+                // in full, so `year={year}` contributes none, and TemplatePartitionDetector's constructor rejects
+                // that. Falling back to Hive is what such a dataset resolved to before the setting reached the read
+                // path, so a stored one keeps its columns instead of failing every query.
+                if (template == null || TemplatePartitionDetector.parseTemplateColumns(template).isEmpty()) {
+                    yield HivePartitionDetector.INSTANCE;
                 }
                 yield new TemplatePartitionDetector(template);
             }
@@ -124,70 +1288,300 @@ public final class GlobExpander {
         };
     }
 
+    /**
+     * Returns true if the given path string represents multiple files — either because it contains
+     * glob metacharacters in the path component, or because it is a comma-separated list.
+     *
+     * IPv6 host literals in URL authorities (e.g. {@code http://[::1]/data/*.parquet}) use bracket
+     * notation per RFC 3986 §3.2.2. Those brackets are parsed as part of the authority, not the
+     * path, so they are not treated as glob character-class syntax.
+     *
+     * For {@code http}/{@code https}, commas are never treated as list separators — the scheme does
+     * not support glob expansion or multi-resource lists. {@link StoragePath} strips the query string
+     * from the path for those schemes, so metacharacters in the query are invisible to
+     * {@link StoragePath#isPattern()}.
+     */
     public static boolean isMultiFile(String path) {
         if (path == null) {
             return false;
         }
-        for (char c : StoragePath.GLOB_METACHARACTERS) {
-            if (path.indexOf(c) >= 0) {
-                return true;
+        try {
+            StoragePath sp = StoragePath.of(path);
+            // For http/https the query string is stripped by StoragePath.of(), so isPattern()
+            // sees only the resource path. Commas and glob metacharacters in the query are
+            // structural URL delimiters, not list separators or wildcards.
+            if (sp.scheme().equalsIgnoreCase("http") || sp.scheme().equalsIgnoreCase("https")) {
+                return sp.isPattern();
             }
+            return hasTopLevelComma(path) || sp.isPattern();
+        } catch (IllegalArgumentException e) {
+            // Not a parseable URL; fall back to scanning the whole string
+            return hasTopLevelComma(path) || StoragePath.containsGlobMetacharacter(path);
         }
-        return path.indexOf(',') >= 0;
     }
 
     public static FileList expandGlob(String pattern, StorageProvider provider) throws IOException {
-        return expandGlob(pattern, provider, null, true);
+        return expandGlob(pattern, provider, null, (Map<String, Object>) null);
     }
 
     public static FileList expandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
         @Nullable Map<String, Object> config
     ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, hivePartitioning, partitionConfig, config, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            PartitionConfig.fromConfig(config),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            nameFilter,
+            fileOrder,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
+        );
     }
 
     public static FileList expandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning
-    ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, hivePartitioning, null, null, Integer.MAX_VALUE, Integer.MAX_VALUE);
-    }
-
-    public static FileList expandGlob(
-        String pattern,
-        StorageProvider provider,
-        @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        return doExpandGlob(pattern, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+        return expandGlob(pattern, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, Integer.MAX_VALUE);
+    }
+
+    public static FileList expandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects
+    ) throws IOException {
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            PartitionConfig.fromConfig(config),
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
+        );
+    }
+
+    /** As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it. */
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory
+    ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            NEVER_CANCELLED
+        );
     }
 
     static FileList doExpandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config,
+        PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
-        int maxGlobExpansion
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled
+    ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            cancelled,
+            true,
+            null
+        );
+    }
+
+    /**
+     * Lists {@code pattern}, splicing hint values into it only when {@code allowRewrite} is true. The empty-rewrite
+     * retry passes false so a second pass cannot splice {@code month=6} again. Hints still feed the walk, the value
+     * filter, and {@code _file.*} either way. The flag is not a query input, so it stays off {@link ListingIdentity}.
+     */
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        boolean allowRewrite
+    ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            cancelled,
+            allowRewrite,
+            null
+        );
+    }
+
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        boolean allowRewrite,
+        @Nullable FolderRangePredicate folderRange
+    ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            cancelled,
+            allowRewrite,
+            folderRange,
+            PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
+    }
+
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        boolean allowRewrite,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) throws IOException {
+        return doExpandGlob(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            cancelled,
+            allowRewrite,
+            folderRange,
+            maxDirectoryListings,
+            null,
+            false
+        );
+    }
+
+    static FileList doExpandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        boolean allowRewrite,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings,
+        @Nullable PartitionPruningWalk.WalkResult precomputedWalk,
+        boolean walkComputed
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
 
-        String effectivePattern = pattern;
-        if (hints != null && hints.isEmpty() == false && hivePartitioning) {
-            effectivePattern = rewriteGlobWithHints(pattern, hints, partitionConfig);
-        }
+        String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
 
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
@@ -196,11 +1590,12 @@ public final class GlobExpander {
                 return FileList.UNRESOLVED;
             }
             // Hints resolved all wildcards to a concrete path — resolve via exists()
-            if (provider.exists(storagePath)) {
-                var obj = provider.newObject(storagePath);
-                StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
-                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), hivePartitioning, partitionConfig, config);
-                return new GenericFileList(List.of(entry), pattern, partitionMetadata);
+            var obj = provider.newObject(storagePath);
+            if (obj.exists()) {
+                StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified(), obj.probedVersion());
+                List<String> notices = new ArrayList<>();
+                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), partitionConfig, notices::add);
+                return new GenericFileList(List.of(entry), pattern, partitionMetadata, notices);
             }
             return FileList.EMPTY;
         }
@@ -208,185 +1603,2861 @@ public final class GlobExpander {
         StoragePath prefix = storagePath.patternPrefix();
         String glob = storagePath.globPart();
 
-        // Brace-only fast path: use exists()+newObject() instead of listing
-        if (BraceExpander.isBraceOnly(glob)) {
-            List<String> candidates = BraceExpander.expand(glob, maxGlobExpansion);
-            if (candidates != null) {
-                List<StorageEntry> matched = new ArrayList<>();
-                String prefixStr = prefix.toString();
-                for (String candidate : candidates) {
-                    StoragePath fullPath = StoragePath.of(prefixStr + candidate);
-                    if (provider.exists(fullPath)) {
-                        var obj = provider.newObject(fullPath);
-                        matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
-                    }
-                    checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+        // One reader of the pattern. The matcher is built first, and it answers whether the pattern names a finite
+        // set of keys — which is a property of the parse, not something to rediscover by scanning the characters
+        // again. A second scan was a second opinion that had to agree with the matcher by hand; when the two drifted
+        // the only symptom was silently choosing the wrong strategy.
+        GlobMatcher matcher = new GlobMatcher(glob);
+        FileMetadataFilter fileHints = FileMetadataFilter.resolve(hints);
+
+        // Enumerable pattern: probe each key with exists() instead of listing a prefix that may hold millions.
+        List<String> candidates = matcher.enumerateKeys(maxGlobExpansion);
+        if (candidates != null) {
+            List<StorageEntry> matched = new ArrayList<>();
+            StorageEntry fileHintAnchor = null;
+            String prefixStr = prefix.toString();
+            for (String candidate : candidates) {
+                StoragePath fullPath = StoragePath.of(prefixStr + candidate);
+                var obj = provider.newObject(fullPath);
+                if (obj.exists()) {
+                    StorageEntry entry = new StorageEntry(fullPath, obj.length(), obj.lastModified(), obj.probedVersion());
+                    fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
                 }
-                if (matched.isEmpty()) {
-                    return FileList.EMPTY;
-                }
-                matched.sort(Comparator.comparing(e -> e.path().toString()));
-                PartitionMetadata partitionMetadata = detectPartitions(matched, hivePartitioning, partitionConfig, config);
-                return new GenericFileList(matched, pattern, partitionMetadata);
             }
-            // candidates == null means expansion exceeded cap; fall through to listing
+            if (matched.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
+                matched.add(fileHintAnchor);
+            }
+            if (matched.isEmpty()) {
+                return FileList.EMPTY;
+            }
+            matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig, glob);
+            if (matched.isEmpty()) {
+                return FileList.EMPTY;
+            }
+            fileOrder.apply(matched);
+            List<String> notices = new ArrayList<>();
+            PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, notices::add);
+            return new GenericFileList(matched, pattern, partitionMetadata, notices);
         }
 
-        GlobMatcher matcher = new GlobMatcher(glob);
         boolean recursive = matcher.needsRecursion();
 
-        List<StorageEntry> matched = new ArrayList<>();
-        String prefixStr = prefix.toString();
+        // A globstar, or a leading Hive key=*, names a partition level the textual rewrite cannot always narrow
+        // (a multi-value hint leaves key=*). The walk narrows the enumeration itself. Every declined shape
+        // (unprovable narrowing) falls through to the flat listing below; a store failure or discovery-cap
+        // error does not. See PartitionPruningWalk for the fail-closed rules and the trust boundary.
+        // There is no brace retry: a guessed spelling drops percent-encoded folders.
+        // A file-set bound does not skip the walk: the walk is what keeps a time filter from prefix-draining
+        // the dataset. After a successful walk the bound keeps the first matching files in listing order.
+        // A walk that withdraws still falls through to the bounded flat drain below.
+        // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
+        // would prune again and undo the rejection.
+        boolean suppressValueFilter = false;
+        if (walkComputed || wouldWalk(prefix, glob, hints, partitionConfig, folderRange)) {
+            List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
+            PartitionPruningWalk.WalkResult walk;
+            if (walkComputed) {
+                walk = precomputedWalk;
+            } else {
+                try {
+                    walk = PartitionPruningWalk.tryWalk(
+                        provider,
+                        prefix,
+                        matcher,
+                        nameFilter,
+                        partitionHints,
+                        maxDiscoveredFiles,
+                        glob,
+                        folderRange,
+                        fileHints.isEmpty() ? null : fileHints::matches,
+                        maxListedObjects,
+                        maxDirectoryListings,
+                        cancelled,
+                        walkPathTemplate(partitionConfig)
+                    );
+                } catch (DiscoveredFilesLimitException e) {
+                    // Walk cannot stop at the file-set bound: the collector throws once matched.size()
+                    // exceeds maxDiscoveredFiles. A bound still needs some files, so fall through to
+                    // the bounded flat drain rather than failing FIRST_FILE_WINS on a large pruned set.
+                    if (extents.boundsFileSet() == false) {
+                        throw e;
+                    }
+                    walk = null;
+                }
+            }
+            // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
+            // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
+            // through to the flat listing with the value filter still on — Stage 2 keeps one excluded file.
+            if (walk != null && walk.matched().isEmpty()) {
+                // _file.* rejected every glob match in surviving folders. Keep that stash — not a file
+                // from a pruned directory, which would be the partition-all-pruned inference path.
+                if (walk.fileKeepStash() != null && maxDiscoveredFiles > 0) {
+                    List<StorageEntry> walked = new ArrayList<>(1);
+                    walked.add(walk.fileKeepStash());
+                    fileOrder.apply(walked);
+                    List<String> walkNotices = new ArrayList<>();
+                    PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
+                    if (walkPruningProven(walk.prunedColumns(), walkedMetadata) && walkTypesConsistent(walk, walkedMetadata)) {
+                        throwIfCancelled(cancelled);
+                        reserveRetained(memory, walked.size(), 0, true);
+                        if (walk.excludedCount() > 0) {
+                            logger.debug(
+                                "{}",
+                                exclusionNotice(
+                                    walk.excludedCount(),
+                                    walk.globKeptCount(),
+                                    prefix.toString(),
+                                    walk.excludedExample(),
+                                    walk.excludedExampleEntry()
+                                )
+                            );
+                        }
+                        return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
+                    }
+                    // Walk pruning was not trusted. Do not re-apply the partition hint on the flat retry.
+                    suppressValueFilter = true;
+                } else if (fileOrder.equals(FileOrderConfig.DEFAULT) && walk.prunedColumns().isEmpty() == false && maxDiscoveredFiles > 0) {
+                    StorageEntry anchor = findAnchor(
+                        provider,
+                        walk.prunedDirs(),
+                        prefix,
+                        matcher,
+                        nameFilter,
+                        fileHints,
+                        walk.columnFullTypes().keySet(),
+                        cancelled,
+                        maxListedObjects,
+                        null
+                    );
+                    if (anchor != null) {
+                        List<String> walkNotices = new ArrayList<>();
+                        PartitionMetadata detected = detectPartitions(List.of(anchor), partitionConfig, walkNotices::add);
+                        if (walkPruningProven(walk.prunedColumns(), detected)) {
+                            PartitionMetadata metadata = overlayWalkTypes(
+                                detected,
+                                walk.columnFullTypes(),
+                                List.of(anchor),
+                                partitionConfig,
+                                pattern
+                            );
+                            throwIfCancelled(cancelled);
+                            reserveRetained(memory, 1, 0, true);
+                            return inferenceAnchorListing(List.of(anchor), pattern, metadata, walkNotices);
+                        }
+                    }
+                }
+            } else if (walk != null) {
+                List<StorageEntry> walked = walk.matched();
+                fileOrder.apply(walked);
+                List<String> walkNotices = new ArrayList<>();
+                PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
+                if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
+                    if (walkTypesConsistent(walk, walkedMetadata)) {
+                        // Prove the walk on the full matched set, then apply the file-set bound. Truncating first
+                        // can hide a type-widening folder past the prefix and reject a correct walk, after which
+                        // the bounded flat drain prefix-lists unfiltered.
+                        boolean truncated = extents.boundsFileSet() && walked.size() > extents.maxFiles();
+                        if (truncated) {
+                            walked = new ArrayList<>(walked.subList(0, extents.maxFiles()));
+                            walkedMetadata = detectPartitions(walked, partitionConfig, ignored -> {});
+                        }
+                        // globKeptCount is glob matches after exclusion, before _file.*, matching the flat path.
+                        if (walk.excludedCount() > 0) {
+                            String exclusionNotice = exclusionNotice(
+                                walk.excludedCount(),
+                                walk.globKeptCount(),
+                                prefix.toString(),
+                                walk.excludedExample(),
+                                walk.excludedExampleEntry()
+                            );
+                            logger.debug("{}", exclusionNotice);
+                            if (walked.isEmpty()) {
+                                walkNotices.add(exclusionNotice);
+                            }
+                        }
+                        return new GenericFileList(walked, pattern, walkedMetadata, walkNotices, truncated);
+                    }
+                    logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
+                    suppressValueFilter = true;
+                } else {
+                    logger.debug(
+                        "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
+                        pattern,
+                        walk.prunedColumns()
+                    );
+                    suppressValueFilter = true;
+                }
+            }
+        }
 
-        try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
-            while (iterator.hasNext()) {
+        // Value-filter before the discovery cap. A brace used to hide non-matching folders from this loop; without
+        // it, counting them would trip max_discovered_files on files the query will not read. When the filter keeps
+        // nothing, one excluded file is promoted as a schema-inference anchor if the prune is trusted. A truncated
+        // page is not promoted; a match may sit past the bound. Files the value filter drops are held aside. The
+        // walk's proven-column and type checks do not run when the
+        // walk withdraws, so a kept subset can hide a stray (the column is file data) or narrow a type. Those files
+        // go back. A closed range is then applied again, the same post-filter main already had — except on the
+        // inference-anchor path, where re-applying it would empty the listing.
+        PartitionValueFilter valueFilter = suppressValueFilter
+            ? PartitionValueFilter.NONE
+            : PartitionValueFilter.forGlob(glob, hints, partitionConfig, folderRange);
+
+        List<StorageEntry> matched = new ArrayList<>();
+        List<StorageEntry> valueExcluded = new ArrayList<>();
+        StorageEntry fileHintAnchor = null;
+        String prefixStr = prefix.toString();
+        // One log line per listing, however many objects it drops. The counts are the useful part: how many of the
+        // objects the resource selected were then dropped tells whether a stray marker or most of the data is
+        // missing. Enumerating them would log a line per partition on a prefix with a marker in each.
+        int excludedCount = 0;
+        // Exclusion totals are glob matches before _file.* prune, same as the pre-filter count.
+        int globKeptCount = 0;
+        String excludedExample = null;
+        String excludedExampleEntry = null;
+        int listed = 0;
+
+        // Set below, once the drain has stopped: true when it stopped at the file-set extent rather than exhausting.
+        boolean truncated = false;
+        int reserved = 0;
+        // The literal run the pattern requires after the prefix. `patternPrefix` stops at the last separator
+        // because that is the widest thing every provider lists; this is the rest, so a flat-namespace store can
+        // exclude what this loop would otherwise drop. A provider that cannot narrow ignores it, and the filtering
+        // below is unchanged either way.
+        String namePrefix = storagePath.literalNamePrefix();
+        try (StorageIterator iterator = provider.listObjects(prefix, namePrefix, recursive)) {
+            // Files the glob selected, not keys the store handed over: a selective glob lists its whole parent, so
+            // counting keys made the bound a property of unrelated data sharing the prefix. Keys stay capped by
+            // `maxListedObjects`, which is the setting for that.
+            //
+            // Tested before hasNext() because on S3 hasNext() fetches the next page, which reaching the bound would
+            // then discard. So the bound marks the listing truncated without establishing more matches exist: a
+            // dataset of exactly the extent is flagged truncated when it is not, costing it a cache entry and
+            // saving every larger one a request. Cancel is the same: a keep-only check lets a sparse glob keep
+            // issuing LIST pages after the query is gone.
+            while (cancelled.getAsBoolean() == false && globKeptCount < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
+                listed++;
+                checkListedObjectsLimit(listed, maxListedObjects);
                 String entryPath = entry.path().toString();
                 String relativePath;
                 if (entryPath.startsWith(prefixStr)) {
                     relativePath = entryPath.substring(prefixStr.length());
                 } else {
+                    // Defensive fallback: provider returned a path that does not begin with the listing prefix.
+                    // objectName() yields only the last component, so the exclusion check below will miss a hidden
+                    // intermediate directory (e.g. _delta_log/file.json → sees "file.json", not "_delta_log").
+                    // TODO: investigate which providers hit this branch and whether they can be fixed upstream.
                     relativePath = entry.path().objectName();
                 }
+                if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+                    // Directory placeholder key (e.g. the S3 console "folder" object). These are not files, so they
+                    // are skipped as listing normalization rather than left to exclusion policy — a dataset should
+                    // not have to configure away an artefact of how a console represents a folder.
+                    //
+                    // The empty case is the placeholder for the listing prefix ITSELF — listing `s3://b/data/*`
+                    // returns the key `s3://b/data/`, whose path relative to the prefix is "". It is not caught by
+                    // the endsWith check, and a `*` glob matches the empty string, so without this the marker
+                    // reaches the reader and fails the query naming an object the user never referenced.
+                    continue;
+                }
                 if (matcher.matches(relativePath)) {
-                    matched.add(entry);
-                    checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+                    String excludedBy = nameFilter.excludedBy(relativePath);
+                    if (excludedBy == null) {
+                        globKeptCount++;
+                        reserved = reserveRetained(memory, matched.size() + valueExcluded.size(), reserved, false);
+                        throwIfCancelled(cancelled);
+                        if (valueFilter.excludes(entry)) {
+                            valueExcluded.add(entry);
+                            continue;
+                        }
+                        fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                    } else {
+                        // Matched what the user asked for and was dropped anyway. Keep the first one so the notice
+                        // can name a concrete file and the entry responsible; "some files were excluded" on its own
+                        // leaves nothing to act on.
+                        excludedCount++;
+                        if (excludedExample == null) {
+                            excludedExample = relativePath;
+                            excludedExampleEntry = excludedBy;
+                        }
+                    }
                 }
             }
+        }
+        truncated = globKeptCount >= extents.maxFiles();
+
+        return finishListing(
+            pattern,
+            prefixStr,
+            glob,
+            matched,
+            valueExcluded,
+            fileHintAnchor,
+            fileHints,
+            excludedCount,
+            globKeptCount,
+            excludedExample,
+            excludedExampleEntry,
+            truncated,
+            reserved,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            fileOrder,
+            memory,
+            cancelled
+        );
+    }
+
+    /**
+     * Turns what a drain kept into the listing: the exclusion notice, the value filter's proof check, the schema anchor,
+     * the folder post-filters, the heap reservation and the partition detection. Shared by the flat drain and the
+     * fan-out so the two cannot disagree about what a listing is; they differ only in how the entries were gathered.
+     *
+     * @param reserved how many of the retained entries the drain has already reserved heap for
+     */
+    private static FileList finishListing(
+        String pattern,
+        String prefixStr,
+        String glob,
+        List<StorageEntry> matched,
+        List<StorageEntry> valueExcluded,
+        @Nullable StorageEntry fileHintAnchor,
+        FileMetadataFilter fileHints,
+        int excludedCount,
+        int globKeptCount,
+        @Nullable String excludedExample,
+        @Nullable String excludedExampleEntry,
+        boolean truncated,
+        int reserved,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        BooleanSupplier cancelled
+    ) {
+        // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
+        // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
+        List<String> listingWarnings = new ArrayList<>();
+        String exclusionNotice = null;
+        if (excludedCount > 0) {
+            exclusionNotice = exclusionNotice(excludedCount, globKeptCount, prefixStr, excludedExample, excludedExampleEntry);
+            logger.debug("{}", exclusionNotice);
+        }
+
+        if (cancelled.getAsBoolean()) {
+            throw new TaskCancelledException("listing cancelled");
+        }
+        // Only once the drain has stopped, and only when it kept something: an empty keep already re-listed.
+        // A data-column hint never binds a folder, so it is not something the kept files have to detect.
+        if (valueExcluded.isEmpty() == false && matched.isEmpty() == false) {
+            List<String> prunedColumns = observedPrunedColumns(matched, valueExcluded, partitionConfig, hints);
+            if (prunedColumns.isEmpty() == false && valueFilterTrusted(matched, valueExcluded, partitionConfig, prunedColumns) == false) {
+                logger.debug(
+                    "Value-filtered listing of [{}] does not prove partition column(s) {}; keeping the filtered-out files",
+                    pattern,
+                    prunedColumns
+                );
+                for (StorageEntry excluded : valueExcluded) {
+                    fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                }
+            }
+        } else if (matched.isEmpty()
+            && fileHintAnchor == null
+            && valueExcluded.isEmpty() == false
+            && truncated == false
+            && maxDiscoveredFiles > 0) {
+                List<String> prunedColumns = observedPrunedColumns(List.of(), valueExcluded, partitionConfig, hints);
+                // valueFilterTrusted cannot run here: matched is empty so filteredMeta would be null.
+                PartitionMetadata excludedMeta = detectPartitions(valueExcluded, partitionConfig, ignored -> {});
+                boolean trusted = prunedColumns.isEmpty() == false && walkPruningProven(Set.copyOf(prunedColumns), excludedMeta);
+                if (trusted) {
+                    fileOrder.apply(valueExcluded);
+                    List<StorageEntry> kept = new ArrayList<>(1);
+                    StorageEntry stash = null;
+                    for (StorageEntry candidate : valueExcluded) {
+                        stash = addOrStashAnchor(candidate, fileHints, kept, stash, maxDiscoveredFiles);
+                        if (kept.isEmpty() == false) {
+                            break;
+                        }
+                    }
+                    StorageEntry anchor = kept.isEmpty() == false ? kept.get(0) : stash;
+                    if (anchor != null) {
+                        detectPartitions(List.of(anchor), partitionConfig, listingWarnings::add);
+                        PartitionMetadata oneFile = excludedMeta.valuedOver(fileListOf(List.of(anchor), pattern), partitionConfig);
+                        // The loop reserved the excluded buffer as it grew. Reservation is one-way, so this
+                        // flush cannot drop it to 1; it only avoids charging another N on top.
+                        // exclusionNotice rides empty listings only; an inference-anchor is not empty.
+                        reserveRetained(memory, 1, reserved, true);
+                        return inferenceAnchorListing(List.of(anchor), pattern, oneFile, listingWarnings);
+                    }
+                } else {
+                    logger.debug(
+                        "Value-filtered listing of [{}] does not prove partition column(s) {}; keeping the filtered-out files",
+                        pattern,
+                        prunedColumns
+                    );
+                    for (StorageEntry excluded : valueExcluded) {
+                        fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
+                    }
+                }
+            }
+
+        // Same truncated guard as the partition-value branch above. A bound that filled with
+        // _file.* rejects has not seen the rest of the pattern; a match may sit past it.
+        // expandGlobWithRewriteFallback then re-lists unbounded, where a genuine all-miss
+        // still promotes.
+        if (matched.isEmpty() && fileHintAnchor != null && truncated == false && maxDiscoveredFiles > 0) {
+            matched.add(fileHintAnchor);
         }
 
         if (matched.isEmpty()) {
-            return FileList.EMPTY;
+            // FileList.EMPTY is a shared sentinel and cannot carry per-listing warnings. Litter-only
+            // prefixes still need the exclusion text on a cacheable empty listing.
+            // Carries `truncated` even when nothing matched: the shared EMPTY sentinel cannot hold it, so a
+            // bounded empty listing takes the GenericFileList branch whether or not there are warnings.
+            return emptyListing(pattern, exclusionNotice, truncated);
         }
 
-        matched.sort(Comparator.comparing(e -> e.path().toString()));
+        matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig, glob);
+        if (matched.isEmpty()) {
+            // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
+            // it as a complete empty listing would hide files past the bound that fall inside the range.
+            return emptyListing(pattern, exclusionNotice, truncated);
+        }
 
-        PartitionMetadata partitionMetadata = detectPartitions(matched, hivePartitioning, partitionConfig, config);
+        // Charge the listing that is kept. valueExcluded was reserved as the drain grew; putting those files
+        // into matched must not charge them a second time.
+        reserveRetained(memory, matched.size(), reserved, true);
 
-        return new GenericFileList(matched, pattern, partitionMetadata);
+        fileOrder.apply(matched);
+
+        // Every path kept, not a sample of them: the drain stops at the bound, so `matched` is already no longer
+        // than it, and ordinal-aligned partition metadata has to cover the listing it hangs off
+        // (PartitionMetadata#coversFileCount) — a narrower sample would describe a listing that cannot be built.
+        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
+
+        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
     }
 
-    static PartitionMetadata detectPartitions(
-        List<StorageEntry> files,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config
-    ) {
-        if (hivePartitioning == false && partitionConfig == null) {
-            return null;
+    private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated) {
+        if (exclusionNotice == null && truncated == false) {
+            return FileList.EMPTY;
         }
-        if (partitionConfig != null && PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
-            return null;
+        return new GenericFileList(List.of(), pattern, null, exclusionNotice == null ? List.of() : List.of(exclusionNotice), truncated);
+    }
+
+    /**
+     * Async counterpart of {@link #expandGlobWithRewriteFallback}. Uses the same two-step logic (narrow then
+     * retry on empty) but chains the steps through {@link ActionListener} so the calling thread is not blocked
+     * when fan-out or the async walk is active. Bounded walk-eligible globs with concurrency &gt; 1 list
+     * directories on {@code fanOutExecutor}; the file-set bound is applied to the walked files. Callers
+     * with no walk and no fan-out still see the flat drain run synchronously on the calling thread.
+     */
+    private static void expandGlobWithRewriteFallbackAsync(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) {
+        String effective = effectivePattern(pattern, hints, partitionConfig);
+        boolean rewritten = effective.equals(pattern) == false;
+        boolean bounded = extents.boundsFileSet();
+        int leftover = remainingDirectoryListings(provider, maxDirectoryListings);
+        if (provider instanceof DirectoryListingCounter && leftover <= 0) {
+            listener.onResponse(FileList.EMPTY);
+            return;
+        }
+        if (rewritten == false && bounded == false) {
+            doExpandGlobAsync(
+                pattern,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                ListingExtents.UNBOUNDED,
+                memory,
+                concurrency,
+                isCancelled,
+                fanOutExecutor,
+                true,
+                folderRange,
+                leftover,
+                listener
+            );
+            return;
         }
 
-        PartitionDetector detector = resolveDetector(partitionConfig);
-        if (detector == null) {
-            if (hivePartitioning) {
-                detector = HivePartitionDetector.INSTANCE;
-            } else {
-                return null;
+        // Narrowed attempt first; on empty or IOException from the rewrite, retry without Hive narrowing.
+        // TEMPLATE retries the exact-string prefix (or surfaces the error) rather than the original glob.
+        final boolean finalRewritten = rewritten;
+        final String retryPattern = rewriteFallbackPattern(pattern, effective, partitionConfig);
+        final boolean keepExactPrefix = keepExactTemplatePrefix(partitionConfig);
+        doExpandGlobAsync(
+            pattern,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            extents,
+            memory,
+            concurrency,
+            isCancelled,
+            fanOutExecutor,
+            true,
+            folderRange,
+            leftover,
+            ActionListener.wrap(narrowed -> {
+                if (narrowed.isResolved() == false || narrowed.fileCount() > 0) {
+                    listener.onResponse(narrowed);
+                    return;
+                }
+                // Same rule as the synchronous fallback: TEMPLATE empty miss probes an inference anchor.
+                // Blocking listObjects here, same as the walk callback in doExpandGlob. fanOutExecutor
+                // (or DIRECT) is an ES thread, not an S3 SDK event loop.
+                if (narrowed.isTruncated() == false && retryOriginalGlobOnEmpty(finalRewritten, partitionConfig) == false) {
+                    try {
+                        FileList anchored = exactPrefixInferenceAnchor(
+                            pattern,
+                            effective,
+                            provider,
+                            hints,
+                            partitionConfig,
+                            nameFilter,
+                            fileOrder,
+                            memory,
+                            isCancelled,
+                            maxDiscoveredFiles,
+                            maxListedObjects
+                        );
+                        listener.onResponse(anchored != null ? anchored : narrowed);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                    return;
+                }
+                logger.debug(
+                    () -> "Narrowed listing of ["
+                        + pattern
+                        + "] yielded no files; "
+                        + rewriteFallbackRetryDetail(finalRewritten, retryPattern.equals(pattern))
+                );
+                int retryLeftover = remainingDirectoryListings(provider, maxDirectoryListings);
+                if (provider instanceof DirectoryListingCounter && retryLeftover <= 0) {
+                    listener.onResponse(narrowed);
+                    return;
+                }
+                doExpandGlobAsync(
+                    retryPattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    ListingExtents.UNBOUNDED,
+                    memory,
+                    concurrency,
+                    isCancelled,
+                    fanOutExecutor,
+                    false,
+                    folderRange,
+                    retryLeftover,
+                    listener
+                );
+            }, narrowFailure -> {
+                // Local-filesystem missing prefix is empty, same as the sync path and same as S3. Other listing
+                // IO still fails. Neither case lists the original glob.
+                if (finalRewritten && keepExactPrefix && isMissingPrefix(narrowFailure)) {
+                    // Blocking listObjects; same ES-thread contract as the empty-narrowed branch above.
+                    try {
+                        FileList anchored = exactPrefixInferenceAnchor(
+                            pattern,
+                            effective,
+                            provider,
+                            hints,
+                            partitionConfig,
+                            nameFilter,
+                            fileOrder,
+                            memory,
+                            isCancelled,
+                            maxDiscoveredFiles,
+                            maxListedObjects
+                        );
+                        listener.onResponse(anchored != null ? anchored : FileList.EMPTY);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                    return;
+                }
+                // Only the rewrite can throw spuriously (a folder that does not exist on a local filesystem).
+                // A bound cannot invent an IOException from a path that exists, so when it was the only narrowing
+                // the error is the storage's own and is surfaced rather than retried.
+                if (finalRewritten == false || keepExactPrefix || isMissingPrefix(narrowFailure) == false) {
+                    listener.onFailure(narrowFailure);
+                    return;
+                }
+                logger.debug(
+                    () -> "Narrowed listing of [" + pattern + "] failed; re-listing without the narrowing that produced it",
+                    narrowFailure
+                );
+                int retryLeftover = remainingDirectoryListings(provider, maxDirectoryListings);
+                if (provider instanceof DirectoryListingCounter && retryLeftover <= 0) {
+                    listener.onResponse(FileList.EMPTY);
+                    return;
+                }
+                doExpandGlobAsync(
+                    retryPattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    ListingExtents.UNBOUNDED,
+                    memory,
+                    concurrency,
+                    isCancelled,
+                    fanOutExecutor,
+                    false,
+                    folderRange,
+                    retryLeftover,
+                    ActionListener.wrap(listener::onResponse, retryFailure -> {
+                        retryFailure.addSuppressed(narrowFailure);
+                        listener.onFailure(retryFailure);
+                    })
+                );
+            })
+        );
+    }
+
+    /**
+     * Async counterpart of {@link #doExpandGlob}. Walk-eligible globs with concurrency &gt; 1 run
+     * {@link PartitionPruningWalk#tryWalkAsync} on {@code fanOutExecutor} even when
+     * {@link StorageProvider#listsInKeyOrder()} is false — the walk merges by slot, not by store key order.
+     * A file-set bound does not skip that walk; {@link #doExpandGlob} keeps at most the bound. Concurrency 1
+     * stays on the sequential walk inside {@link #doExpandGlob}.
+     *
+     * <p>After an async walk the rest of {@link #doExpandGlob} (anchor probe, flat fallback) runs on a
+     * {@code fanOutExecutor} thread — {@code esql_external_io} / {@code metadataReadExecutor}. That pool
+     * is for listing I/O; ThreadPool submission preserves thread context. The caller never joins the pool.
+     *
+     * <p>Prefix fan-out still needs key order, unbounded listing, and concurrency &gt; 1. Non-walk paths that
+     * miss those gates complete synchronously on the calling thread via {@link #doExpandGlob}.
+     *
+     * <p>A glob with an active partition value filter still walks (or flat-drains) rather than prefix-fan-out:
+     * the folder drains do not apply the value filter or re-list unfiltered for a schema anchor.
+     */
+    static void doExpandGlobAsync(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        ListingExtents extents,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        boolean allowRewrite,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings,
+        ActionListener<FileList> listener
+    ) {
+        // Fan-out is only beneficial when: unbounded, concurrency available, and the provider guarantees key order
+        // (so concatenating per-prefix results reproduces the flat listing's ordering without a sort).
+        boolean fanOutEligible = concurrency > 1 && extents.boundsFileSet() == false && provider.listsInKeyOrder();
+
+        String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
+        StoragePath storagePath;
+        try {
+            storagePath = StoragePath.of(effectivePattern);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        // Walk is independent of prefix fan-out: it lists directories and merges by slot, so it does not
+        // need listsInKeyOrder(). A file-set bound still walks (same gate as doExpandGlob). Concurrency 1
+        // stays on the sequential walk inside doExpandGlob below.
+        if (concurrency > 1 && storagePath.isPattern()) {
+            GlobMatcher walkMatcher = new GlobMatcher(storagePath.globPart());
+            if (walkMatcher.enumerateKeys(maxGlobExpansion) == null
+                && wouldWalk(storagePath.patternPrefix(), storagePath.globPart(), hints, partitionConfig, folderRange)) {
+                FileMetadataFilter walkFileHints = FileMetadataFilter.resolve(hints);
+                PartitionPruningWalk.tryWalkAsync(
+                    provider,
+                    storagePath.patternPrefix(),
+                    walkMatcher,
+                    nameFilter,
+                    partitionPruningHints(hints),
+                    maxDiscoveredFiles,
+                    storagePath.globPart(),
+                    folderRange,
+                    walkFileHints.isEmpty() ? null : walkFileHints::matches,
+                    maxListedObjects,
+                    maxDirectoryListings,
+                    isCancelled,
+                    concurrency,
+                    fanOutExecutor,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(PartitionPruningWalk.WalkResult walk) {
+                            ActionListener.completeWith(
+                                listener,
+                                () -> doExpandGlob(
+                                    pattern,
+                                    provider,
+                                    hints,
+                                    partitionConfig,
+                                    maxDiscoveredFiles,
+                                    maxGlobExpansion,
+                                    maxListedObjects,
+                                    nameFilter,
+                                    fileOrder,
+                                    extents,
+                                    memory,
+                                    isCancelled,
+                                    allowRewrite,
+                                    folderRange,
+                                    maxDirectoryListings,
+                                    walk,
+                                    true
+                                )
+                            );
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (extents.boundsFileSet() && e instanceof DiscoveredFilesLimitException) {
+                                ActionListener.completeWith(
+                                    listener,
+                                    () -> doExpandGlob(
+                                        pattern,
+                                        provider,
+                                        hints,
+                                        partitionConfig,
+                                        maxDiscoveredFiles,
+                                        maxGlobExpansion,
+                                        maxListedObjects,
+                                        nameFilter,
+                                        fileOrder,
+                                        extents,
+                                        memory,
+                                        isCancelled,
+                                        allowRewrite,
+                                        folderRange,
+                                        maxDirectoryListings,
+                                        null,
+                                        true
+                                    )
+                                );
+                                return;
+                            }
+                            listener.onFailure(e);
+                        }
+                    },
+                    walkPathTemplate(partitionConfig)
+                );
+                return;
             }
         }
 
-        PartitionMetadata result = detector.detect(files, config);
+        if (fanOutEligible == false) {
+            ActionListener.completeWith(
+                listener,
+                () -> doExpandGlob(
+                    pattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    extents,
+                    memory,
+                    isCancelled,
+                    allowRewrite,
+                    folderRange,
+                    maxDirectoryListings
+                )
+            );
+            return;
+        }
+
+        // Fan-out path: non-pattern and enumerable are cheaper as a sync drain.
+        if (storagePath.isPattern() == false) {
+            ActionListener.completeWith(
+                listener,
+                () -> doExpandGlob(
+                    pattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    extents,
+                    memory,
+                    isCancelled,
+                    allowRewrite,
+                    folderRange,
+                    maxDirectoryListings
+                )
+            );
+            return;
+        }
+
+        GlobMatcher matcher = new GlobMatcher(storagePath.globPart());
+        if (matcher.enumerateKeys(maxGlobExpansion) != null) {
+            ActionListener.completeWith(
+                listener,
+                () -> doExpandGlob(
+                    pattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    extents,
+                    memory,
+                    isCancelled,
+                    allowRewrite,
+                    folderRange,
+                    maxDirectoryListings
+                )
+            );
+            return;
+        }
+
+        // Fan-out: try to build slots for the parallel drain.
+        StoragePath prefix = storagePath.patternPrefix();
+        boolean recursive = matcher.needsRecursion();
+        FileMetadataFilter fileHints = FileMetadataFilter.resolve(hints);
+
+        // Count objects seen during slot construction so fan-out drains start from a correct baseline.
+        AtomicInteger sharedListedCount = new AtomicInteger();
+        List<Slot> slots = null;
+        // The folder drain does not apply the partition value filter (nor re-list unfiltered for a schema anchor),
+        // so an active value filter keeps the flat listing, which does both. Nor does fanning out buy anything for a
+        // glob that does not descend: the flat listing is then one request for the prefix.
+        boolean valueFilterActive = PartitionValueFilter.forGlob(
+            storagePath.globPart(),
+            hints,
+            partitionConfig,
+            folderRange
+        ) != PartitionValueFilter.NONE;
+        try {
+            if (valueFilterActive == false && recursive) {
+                slots = buildSlots(provider, prefix, matcher, FAN_OUT_SLOT_BUDGET, sharedListedCount);
+            }
+        } catch (IOException e) {
+            logger.debug("Prefix fan-out for [{}] could not build slots; falling back to flat listing", pattern, e);
+        }
+
+        // buildSlots yields either no folder slots (files only: the slots are the whole listing, so reuse them rather
+        // than listing the prefix again) or at least two.
+        if (slots != null) {
+            try {
+                checkListedObjectsLimit(sharedListedCount.get(), maxListedObjects);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            fanOutAsync(
+                pattern,
+                storagePath.globPart(),
+                prefix.toString(),
+                provider,
+                matcher,
+                nameFilter,
+                slots,
+                hints,
+                fileHints,
+                maxDiscoveredFiles,
+                maxListedObjects,
+                recursive,
+                partitionConfig,
+                fileOrder,
+                concurrency,
+                memory,
+                isCancelled,
+                fanOutExecutor,
+                listener,
+                sharedListedCount
+            );
+        } else {
+            // Slots unavailable (listChildren unsupported, budget exhausted, or a value filter): use the flat drain.
+            ActionListener.completeWith(
+                listener,
+                () -> doExpandGlob(
+                    pattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    extents,
+                    memory,
+                    isCancelled,
+                    allowRewrite,
+                    folderRange,
+                    maxDirectoryListings
+                )
+            );
+        }
+    }
+
+    /**
+     * Descends from {@code root} via {@link StorageProvider#listChildren} to produce the slot list for
+     * parallel fan-out. Single-directory levels are tunnelled through (collecting any files alongside them as
+     * {@link Slot.File} entries). The first level with more than one directory yields one {@link Slot.Folder}
+     * per directory, interleaved with {@link Slot.File} entries at the same level in provider listing order.
+     *
+     * <p>Returns {@code null} when the provider does not support {@code listChildren} (it returned null),
+     * when the budget is exhausted, or when the root has only files (no directories). The caller falls back
+     * to the flat drain in all these cases.
+     *
+     * <p>A directory the pattern cannot match is not given a slot, and that is what keeps the fan-out's cost a
+     * property of the glob rather than of the prefix it happens to sit under. One slot is one {@code listObjects},
+     * so enumerating every child of the pattern prefix means a selective glob pays a request per sibling it can
+     * never match: {@code patternPrefix} cuts at the last {@code /} before the first metacharacter, so
+     * {@code date=2024-01-0*} roots at the parent of every date partition the dataset has ever had. Nine matching
+     * folders under four thousand cost four thousand requests to answer, where the flat drain this fan-out is meant
+     * to beat would have paged the same keys in a fraction of that. Skipping them is sound rather than an
+     * approximation — {@code couldContainMatch} excludes a directory only when the pattern excludes it at its own
+     * depth, and then no key beneath it is addressable by the pattern at any depth.
+     */
+    @Nullable
+    private static List<Slot> buildSlots(
+        StorageProvider provider,
+        StoragePath root,
+        GlobMatcher matcher,
+        int budget,
+        AtomicInteger listedCount
+    ) throws IOException {
+        List<Slot> prefixFileSlots = new ArrayList<>();
+        String rootPrefixStr = root.toString();
+        StoragePath current = root;
+        int remaining = budget;
+        while (remaining > 0) {
+            remaining--;
+            StorageChildren children = provider.listChildren(current, PartitionPruningWalk.MAX_LISTED_CHILDREN);
+            if (children == null) {
+                // Provider does not support listChildren
+                return null;
+            }
+            // Only objects count toward the cap: a folder is a prefix, which the flat listing never sees as a key.
+            listedCount.addAndGet(children.files().size());
+            List<StorageEntry> files = children.files();
+            List<StoragePath> dirs = matchableDirectories(children.directories(), rootPrefixStr, matcher);
+
+            if (dirs.isEmpty()) {
+                // No subdirectories: files here are the entire listing at this prefix.
+                // Return them as File slots so the caller can skip the redundant flat LIST.
+                for (StorageEntry f : files) {
+                    prefixFileSlots.add(new Slot.File(f));
+                }
+                // Files collected from the ancestors tunnelled through sort anywhere relative to this level's.
+                prefixFileSlots.sort(GlobExpander::compareSlotKeys);
+                return prefixFileSlots;
+            }
+
+            if (dirs.size() == 1) {
+                // Single-child tunnel: collect files and descend.
+                for (StorageEntry f : files) {
+                    prefixFileSlots.add(new Slot.File(f));
+                }
+                current = dirs.get(0);
+                continue;
+            }
+
+            // Multiple directories: build the final slot list by merging all three sequences in key order.
+            // prefixFileSlots are files from ancestor levels (tunnel-through) whose paths may sort anywhere
+            // relative to the current-level dirs, so a sort over all entries gives correct flat-listing order.
+            List<Slot> slots = new ArrayList<>(prefixFileSlots.size() + files.size() + dirs.size());
+            slots.addAll(prefixFileSlots);
+            for (StorageEntry f : files) {
+                slots.add(new Slot.File(f));
+            }
+            for (StoragePath d : dirs) {
+                slots.add(new Slot.Folder(d));
+            }
+            slots.sort(GlobExpander::compareSlotKeys);
+            return slots;
+        }
+        // Budget exhausted
+        return null;
+    }
+
+    /**
+     * The subset of {@code dirs} the pattern could match something under, each tested at its own depth below
+     * {@code rootPrefix}. Returns {@code dirs} itself when none was excluded, so the common case of a glob that
+     * matches its whole prefix allocates nothing.
+     */
+    private static List<StoragePath> matchableDirectories(List<StoragePath> dirs, String rootPrefixStr, GlobMatcher matcher) {
+        List<StoragePath> matchable = null;
+        for (int i = 0; i < dirs.size(); i++) {
+            StoragePath dir = dirs.get(i);
+            if (couldContainMatch(dir, rootPrefixStr, matcher)) {
+                if (matchable != null) {
+                    matchable.add(dir);
+                }
+            } else if (matchable == null) {
+                matchable = new ArrayList<>(dirs.subList(0, i));
+            }
+        }
+        return matchable == null ? dirs : matchable;
+    }
+
+    /**
+     * Whether {@code dir} is worth a slot. Keeps it whenever its path does not sit under the listing prefix, which
+     * is the same case the flat drain handles defensively: without the prefix there is no depth to test the pattern
+     * at, and skipping on a path nobody could relativise would drop files rather than requests.
+     */
+    private static boolean couldContainMatch(StoragePath dir, String rootPrefixStr, GlobMatcher matcher) {
+        String dirPath = dir.toString();
+        if (dirPath.startsWith(rootPrefixStr) == false) {
+            return true;
+        }
+        String relative = dirPath.substring(rootPrefixStr.length());
+        // Every provider here strips the separator a store's own listing puts on a directory before building the
+        // path, so this normalizes a spelling the interface permits rather than one any of them returns. Kept
+        // because its absence does not cost a request: the separator would split into a trailing empty segment
+        // that no pattern segment matches, excluding every directory and returning no files.
+        if (relative.endsWith("/")) {
+            relative = relative.substring(0, relative.length() - 1);
+        }
+        return matcher.couldContainMatch(relative);
+    }
+
+    /**
+     * Orders slots as the provider orders the keys they stand for: a file by its key, a folder by its prefix and the
+     * separator, since every key under the folder sorts together right there. Object stores order keys by UTF-8 bytes,
+     * which is code point order, not the UTF-16 order of {@link String#compareTo}: they differ between a supplementary
+     * character and one in the range above the surrogates.
+     */
+    private static int compareSlotKeys(Slot a, Slot b) {
+        return compareByCodePoint(slotKey(a), slotKey(b));
+    }
+
+    private static String slotKey(Slot slot) {
+        return switch (slot) {
+            case Slot.File file -> file.entry().path().toString();
+            case Slot.Folder folder -> folder.prefix().toString() + StoragePath.PATH_SEPARATOR;
+        };
+    }
+
+    private static int compareByCodePoint(String a, String b) {
+        int i = 0;
+        int j = 0;
+        while (i < a.length() && j < b.length()) {
+            int ca = a.codePointAt(i);
+            int cb = b.codePointAt(j);
+            if (ca != cb) {
+                return Integer.compare(ca, cb);
+            }
+            i += Character.charCount(ca);
+            j += Character.charCount(cb);
+        }
+        return Integer.compare(a.length() - i, b.length() - j);
+    }
+
+    /**
+     * Processes one pre-materialised {@link StorageEntry} (from the {@code listChildren} descent) through the
+     * same per-entry rules as the flat drain. No I/O; runs inline.
+     */
+    private static SlotResult processFileEntry(
+        StorageEntry entry,
+        String rootPrefixStr,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        FileMetadataFilter fileHints,
+        int maxDiscoveredFiles,
+        AtomicInteger sharedKeptCount
+    ) {
+        String entryPath = entry.path().toString();
+        String relativePath = entryPath.startsWith(rootPrefixStr) ? entryPath.substring(rootPrefixStr.length()) : entry.path().objectName();
+        if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+            return SlotResult.empty();
+        }
+        if (matcher.matches(relativePath)) {
+            String excludedBy = nameFilter.excludedBy(relativePath);
+            if (excludedBy == null) {
+                if (fileHints.isEmpty() || fileHints.matches(entry)) {
+                    checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
+                    return new SlotResult(new ArrayList<>(List.of(entry)), null, 0, 1, null, null);
+                } else {
+                    // Filtered by _file.* hint: stash as anchor (not a kept entry).
+                    return new SlotResult(new ArrayList<>(), entry, 0, 1, null, null);
+                }
+            } else {
+                return new SlotResult(new ArrayList<>(), null, 1, 0, relativePath, excludedBy);
+            }
+        }
+        return SlotResult.empty();
+    }
+
+    /**
+     * Drains a single folder prefix via {@link StorageProvider#listObjects}, applying the same per-entry rules
+     * as the flat drain. Checks cancellation before each {@code hasNext()} so retry backoff inside the iterator
+     * is not started after cancellation.
+     */
+    private static SlotResult drainFolderSlot(
+        StoragePath drainPrefix,
+        String rootPrefixStr,
+        StorageProvider provider,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        FileMetadataFilter fileHints,
+        int maxDiscoveredFiles,
+        int maxListedObjects,
+        boolean recursive,
+        AtomicInteger sharedListedCount,
+        AtomicInteger sharedKeptCount,
+        PlanningMemory memory,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        List<StorageEntry> localMatched = new ArrayList<>();
+        int reserved = 0;
+        StorageEntry fileHintAnchor = null;
+        int excludedCount = 0;
+        int globKeptCount = 0;
+        String excludedExample = null;
+        String excludedExampleEntry = null;
+
+        try (StorageIterator iterator = provider.listObjects(drainPrefix, recursive)) {
+            while (isCancelled.getAsBoolean() == false && iterator.hasNext()) {
+                StorageEntry entry = iterator.next();
+                checkListedObjectsLimit(sharedListedCount.incrementAndGet(), maxListedObjects);
+                String entryPath = entry.path().toString();
+                String relativePath = entryPath.startsWith(rootPrefixStr)
+                    ? entryPath.substring(rootPrefixStr.length())
+                    : entry.path().objectName();
+                if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+                    continue;
+                }
+                if (matcher.matches(relativePath)) {
+                    String excludedBy = nameFilter.excludedBy(relativePath);
+                    if (excludedBy == null) {
+                        globKeptCount++;
+                        if (fileHints.isEmpty() || fileHints.matches(entry)) {
+                            localMatched.add(entry);
+                            // Reserved as the drain grows, as the flat listing does, so a dataset too large for the node
+                            // trips partway through rather than after the list exists.
+                            reserved = reserveRetained(memory, localMatched.size(), reserved, false);
+                            checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
+                        } else {
+                            fileHintAnchor = fileHintAnchor != null ? fileHintAnchor : entry;
+                        }
+                    } else {
+                        excludedCount++;
+                        if (excludedExample == null) {
+                            excludedExample = relativePath;
+                            excludedExampleEntry = excludedBy;
+                        }
+                    }
+                }
+            }
+        }
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException("listing cancelled");
+        }
+        reserveRetained(memory, localMatched.size(), reserved, true);
+        return new SlotResult(localMatched, fileHintAnchor, excludedCount, globKeptCount, excludedExample, excludedExampleEntry);
+    }
+
+    /**
+     * Async parallel fan-out over the given {@code slots}. {@link Slot.File} slots are processed inline
+     * (no I/O); {@link Slot.Folder} slots are drained on {@code fanOutExecutor} so up to {@code concurrency}
+     * folder drains run at the same time. Slot results are collected into an {@link AtomicReferenceArray} and
+     * merged in slot order on completion, which reproduces the flat listing's key order for providers where
+     * {@link StorageProvider#listsInKeyOrder()} is true.
+     *
+     * <p>{@link ThrottledIterator} limits the number of in-flight drains. A failure in any slot is captured
+     * atomically; remaining slots that have not started are skipped.
+     */
+    private static void fanOutAsync(
+        String pattern,
+        String glob,
+        String rootPrefixStr,
+        StorageProvider provider,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<Slot> slots,
+        @Nullable List<PartitionFilterHint> hints,
+        FileMetadataFilter fileHints,
+        int maxDiscoveredFiles,
+        int maxListedObjects,
+        boolean recursive,
+        PartitionConfig partitionConfig,
+        FileOrderConfig fileOrder,
+        int concurrency,
+        PlanningMemory memory,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        AtomicInteger sharedListedCount
+    ) {
+        int size = slots.size();
+        AtomicReferenceArray<SlotResult> results = new AtomicReferenceArray<>(size);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicInteger sharedKeptCount = new AtomicInteger();
+
+        // This thread's measurement only commits when it closes. Once a drain is dispatched, the last one to finish runs the
+        // completion and can carry planning on to finish() before that, which would drop the slot listing's CPU. Commit it now.
+        PlanningCpuTracker.checkpointCurrentThread();
+        // Planning can only finish on another thread once the thread running the slot loop drops its reference, which it
+        // does when the loop stops: the slots run out, or the permits do right after a folder dispatch. File slots release
+        // their permit inline and cannot end the listing, so committing after the last slot and before each folder dispatch
+        // covers them without a CPU clock read per file.
+        ThrottledIterator.run(indexIterator(size), checkpointAfterLastSlot(size, (releasable, i) -> {
+            if (failure.get() != null || isCancelled.getAsBoolean()) {
+                // Record cancellation so the completion callback propagates TaskCancelledException rather
+                // than returning an empty FileList that the caller would misread as "no files matched".
+                failure.compareAndSet(null, new TaskCancelledException("listing cancelled"));
+                releasable.close();
+                return;
+            }
+            Slot slot = slots.get(i);
+            switch (slot) {
+                case Slot.File(StorageEntry entry) -> {
+                    // File slots have no I/O — process inline and release the permit immediately.
+                    try {
+                        SlotResult fileResult = processFileEntry(
+                            entry,
+                            rootPrefixStr,
+                            matcher,
+                            nameFilter,
+                            fileHints,
+                            maxDiscoveredFiles,
+                            sharedKeptCount
+                        );
+                        reserveRetained(memory, fileResult.matched().size(), 0, true);
+                        results.set(i, fileResult);
+                    } catch (Exception e) {
+                        failure.compareAndSet(null, e);
+                    } finally {
+                        releasable.close();
+                    }
+                }
+                case Slot.Folder(StoragePath prefix) -> {
+                    // Folder slots block on I/O — submit to the fan-out executor so the calling thread is free.
+                    Runnable drain = () -> {
+                        try {
+                            if (failure.get() == null && isCancelled.getAsBoolean() == false) {
+                                results.set(
+                                    i,
+                                    drainFolderSlot(
+                                        prefix,
+                                        rootPrefixStr,
+                                        provider,
+                                        matcher,
+                                        nameFilter,
+                                        fileHints,
+                                        maxDiscoveredFiles,
+                                        maxListedObjects,
+                                        recursive,
+                                        sharedListedCount,
+                                        sharedKeptCount,
+                                        memory,
+                                        isCancelled
+                                    )
+                                );
+                            } else {
+                                // Skipped: record cancellation, or the merge would read the null slot as "no files".
+                                failure.compareAndSet(null, new TaskCancelledException("listing cancelled"));
+                            }
+                        } catch (Exception e) {
+                            failure.compareAndSet(null, e);
+                        } finally {
+                            // Releasing the permit can let another drain complete the listing and finish planning
+                            // before this drain's measurement settles, so commit its planning CPU first.
+                            PlanningCpuTracker.checkpointCurrentThread();
+                            releasable.close();
+                        }
+                    };
+                    try {
+                        // The permits can run out right after this dispatch, ending the loop on this thread.
+                        PlanningCpuTracker.checkpointCurrentThread();
+                        fanOutExecutor.execute(drain);
+                    } catch (Exception submitEx) {
+                        // Executor rejected the task (e.g. shutting down): record and release the permit
+                        // so ThrottledIterator's ref count reaches zero and the completion callback fires.
+                        try {
+                            failure.compareAndSet(null, submitEx);
+                        } finally {
+                            releasable.close();
+                        }
+                    }
+                }
+            }
+        }), Math.max(1, concurrency), () -> {
+            Exception e = failure.get();
+            if (e != null) {
+                listener.onFailure(e);
+                return;
+            }
+            // Every slot must have produced a result by now. A missing one means a drain ended without recording either
+            // one or a failure; merging would silently drop a folder's files, so refuse rather than return a short listing.
+            for (int i = 0; i < size; i++) {
+                if (results.get(i) == null) {
+                    listener.onFailure(
+                        isCancelled.getAsBoolean()
+                            ? new TaskCancelledException("listing cancelled")
+                            : new IllegalStateException("listing of [" + pattern + "] ended without a result for slot [" + i + "]")
+                    );
+                    return;
+                }
+            }
+            // Merge slot results in slot order (= flat listing key order for key-ordered providers).
+            // Pre-allocate the combined list to avoid O(N²) copies from repeated ArrayList construction.
+            int totalMatched = 0;
+            for (int i = 0; i < size; i++) {
+                SlotResult r = results.get(i);
+                if (r != null) totalMatched += r.matched().size();
+            }
+            List<StorageEntry> allMatched = new ArrayList<>(totalMatched);
+            StorageEntry mergedAnchor = null;
+            int mergedExcluded = 0, mergedKept = 0;
+            String mergedExcludedExample = null, mergedExcludedExampleEntry = null;
+            for (int i = 0; i < size; i++) {
+                SlotResult r = results.get(i);
+                if (r != null) {
+                    allMatched.addAll(r.matched());
+                    if (mergedAnchor == null) mergedAnchor = r.fileHintAnchor();
+                    mergedExcluded += r.excludedCount();
+                    mergedKept += r.globKeptCount();
+                    if (mergedExcludedExample == null) {
+                        mergedExcludedExample = r.excludedExample();
+                        mergedExcludedExampleEntry = r.excludedExampleEntry();
+                    }
+                }
+            }
+            SlotResult merged = new SlotResult(
+                allMatched,
+                mergedAnchor,
+                mergedExcluded,
+                mergedKept,
+                mergedExcludedExample,
+                mergedExcludedExampleEntry
+            );
+            try {
+                // Every drain has already reserved heap for what it kept, so the rest of the listing is the flat
+                // drain's own: same notice, anchor, folder post-filters and partition detection.
+                listener.onResponse(
+                    finishListing(
+                        pattern,
+                        rootPrefixStr,
+                        glob,
+                        merged.matched(),
+                        new ArrayList<>(),
+                        merged.fileHintAnchor(),
+                        fileHints,
+                        merged.excludedCount(),
+                        merged.globKeptCount(),
+                        merged.excludedExample(),
+                        merged.excludedExampleEntry(),
+                        false,
+                        merged.matched().size(),
+                        hints,
+                        partitionConfig,
+                        maxDiscoveredFiles,
+                        fileOrder,
+                        memory,
+                        isCancelled
+                    )
+                );
+            } catch (Exception finishFailure) {
+                listener.onFailure(finishFailure);
+            }
+        }, fanOutExecutor, e -> {
+            if (failure.compareAndSet(null, e) == false) {
+                logger.debug("Additional failure during fan-out drain (suppressed by first failure)", e);
+            }
+        });
+    }
+
+    /**
+     * Wraps a slot loop's item consumer to {@link PlanningCpuTracker#checkpointCurrentThread() checkpoint} after the last
+     * slot. Slots are handed out in order, so the loop that processes the last one stops right after it, on the same
+     * thread, and that stop can let another thread finish planning.
+     */
+    private static BiConsumer<Releasable, Integer> checkpointAfterLastSlot(int size, BiConsumer<Releasable, Integer> consumer) {
+        return (releasable, i) -> {
+            try {
+                consumer.accept(releasable, i);
+            } finally {
+                if (i == size - 1) {
+                    PlanningCpuTracker.checkpointCurrentThread();
+                }
+            }
+        };
+    }
+
+    /** An {@link Iterator} over the integers {@code [0, count)}. */
+    private static Iterator<Integer> indexIterator(int count) {
+        return new Iterator<>() {
+            private int next = 0;
+
+            @Override
+            public boolean hasNext() {
+                return next < count;
+            }
+
+            @Override
+            public Integer next() {
+                if (next >= count) {
+                    throw new NoSuchElementException();
+                }
+                return next++;
+            }
+        };
+    }
+
+    /**
+     * The one line a listing reports for everything {@code file_exclusions} dropped from it, however many objects that
+     * is, counted against everything the resource pattern selected (kept plus dropped). Callers log it at DEBUG, since
+     * the default exclusion list makes it fire on every folder a Spark or Hadoop job wrote, and attach it to an empty
+     * listing, where it is the reason the resolver's "matched no files" error gives.
+     */
+    private static String exclusionNotice(
+        int excludedCount,
+        int matchedCount,
+        String prefix,
+        String excludedExample,
+        String excludedExampleEntry
+    ) {
+        // Use only the last non-empty path segment of the prefix so warnings remain distinct across
+        // segments of a comma list (needed for exact-text dedup in NoticeBuffer) without leaking the
+        // full storage URI.
+        String trimmed = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+        String prefixName = StoragePath.objectName(trimmed);
+        String under = prefixName.isEmpty() ? "" : " under [" + prefixName + "]";
+        return excludedCount
+            + " of "
+            + (matchedCount + excludedCount)
+            + " objects matching the resource"
+            + under
+            + (excludedCount == 1 ? " was excluded by the [" : " were excluded by the [")
+            + ExclusionConfig.CONFIG_FILE_EXCLUSIONS
+            + "] dataset setting, for example ["
+            + excludedExample.substring(excludedExample.lastIndexOf('/') + 1)
+            + "] which matched entry ["
+            + excludedExampleEntry
+            + "]";
+    }
+
+    /**
+     * Mutates {@code matched}: appends {@code entry} when there are no {@code _file.*} hints or it matches them,
+     * then returns {@code anchor} unchanged. Otherwise leaves {@code matched} alone and returns {@code anchor} if
+     * set, else this reject, as the schema-inference stash. The discovered-files cap fires only on a kept file, so a
+     * {@code _file.*} filter can hold the kept set under the cap while listing continues. An all-pruned result is
+     * genuinely zero rows, but the resolver needs one file to infer schema; the caller promotes a stashed anchor when
+     * {@code matched} is empty and the listing is untruncated. A truncated empty keep retries unbounded instead:
+     * the rejects seen are only those ahead of the bound, so the stash is not a property of the dataset. That also
+     * keeps a genuine {@code _file.*} miss out of {@link #expandGlobWithRewriteFallback}'s rewrite-only retry.
+     * <p>
+     * One stashed file is intentional. The previous post-filter path returned every pre-filter match when
+     * {@code _file.*} emptied the list, which would put those files back under {@code max_discovered_files} and
+     * undo the cap split. Union across pruned files that contribute no rows is not worth holding the full glob.
+     * The donor is the first listing-order reject, not a {@code file_order} pick over the pre-filter set.
+     */
+    /**
+     * Reserves heap for the entries retained since the last reservation, a batch at a time.
+     * <p>
+     * One batch is a provider page, so a walk reserves about as often as it fetches, and the check itself costs a
+     * comparison per entry rather than a breaker call. The reservation is deliberately one batch AHEAD of nothing:
+     * a dataset the node cannot hold trips partway through its listing rather than once the whole thing is built,
+     * which is the only ordering that lets the breaker do its job here.
+     *
+     * @param flush reserve whatever is left over, however small - for the end of a walk
+     * @return the new high-water mark, to be passed back on the next call
+     */
+    /** For a caller with no query behind it: a listing nobody can cancel because nobody is waiting on it. */
+    public static final BooleanSupplier NEVER_CANCELLED = () -> false;
+
+    /**
+     * Aborts a listing whose query is gone. Listing a large dataset is many sequential page requests and nothing
+     * downstream can shorten that, so a cancelled query would otherwise keep paying for pages whose result is
+     * discarded - twice over where a bounded attempt is followed by a full one. The flat drain tests cancel
+     * before {@code hasNext()} so a walk that keeps nothing still stops; the keep-path check remains so a
+     * matching walk aborts without waiting for the next loop.
+     */
+    private static void throwIfCancelled(BooleanSupplier cancelled) {
+        if (cancelled.getAsBoolean()) {
+            throw new TaskCancelledException("listing cancelled");
+        }
+    }
+
+    private static int reserveRetained(PlanningMemory memory, int retained, int reservedUpTo, boolean flush) {
+        if (retained <= reservedUpTo || (flush == false && retained < reservedUpTo + LISTING_RESERVE_BATCH)) {
+            return reservedUpTo;
+        }
+        memory.reserve((long) (retained - reservedUpTo) * FileList.LISTING_BYTES_PER_ENTRY);
+        return retained;
+    }
+
+    private static StorageEntry addOrStashAnchor(
+        StorageEntry entry,
+        FileMetadataFilter fileHints,
+        List<StorageEntry> matched,
+        @Nullable StorageEntry anchor,
+        int maxDiscoveredFiles
+    ) {
+        if (fileHints.isEmpty() || fileHints.matches(entry)) {
+            matched.add(entry);
+            checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+            return anchor;
+        }
+        return anchor != null ? anchor : entry;
+    }
+
+    /**
+     * One-file listing used when partition hints prune every folder. The leftover file is a schema-inference
+     * stash, not the dataset: closed-range post-filter is skipped so it cannot empty the listing, and
+     * {@link FileList#isInferenceAnchor()} tells stats pushdown the footer is not the whole glob.
+     */
+    private static FileList inferenceAnchorListing(
+        List<StorageEntry> files,
+        String pattern,
+        @Nullable PartitionMetadata partitionMetadata,
+        List<String> notices
+    ) {
+        return new GenericFileList(files, pattern, partitionMetadata, notices, false, true);
+    }
+
+    /**
+     * First glob-matching file under a pruned directory that binds every walk-seen partition key. Directory
+     * placeholders, exclusion-policy hits, and files missing a walk-listed key (a stray) are skipped. A
+     * {@code _file.*} reject is still the one-file stash. Provider failures on one dir try the next; a
+     * failure on the last dir is surfaced so a single-directory probe cannot turn a 503 into a glob miss.
+     * That last-dir rule only holds because the caller falls back to the flat listing, which then
+     * surfaces a 503 that this method swallowed on every earlier directory. Cancel aborts. Stops at
+     * the first keep rather than draining the subtree.
+     */
+    @Nullable
+    private static StorageEntry findAnchor(
+        StorageProvider provider,
+        List<StoragePath> prunedDirs,
+        StoragePath listingPrefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        FileMetadataFilter fileHints,
+        Set<String> requiredKeys,
+        BooleanSupplier cancelled,
+        int maxListedObjects,
+        @Nullable WalkLayout layout
+    ) throws IOException {
+        if (prunedDirs.isEmpty()) {
+            return null;
+        }
+        String prefixStr = listingPrefix.toString();
+        boolean recursive = matcher.needsRecursion();
+        int listed = 0;
+        for (int d = 0; d < prunedDirs.size(); d++) {
+            StoragePath dir = prunedDirs.get(d);
+            throwIfCancelled(cancelled);
+            StorageEntry found = null;
+            try (StorageIterator iterator = provider.listObjects(dir, recursive)) {
+                while (iterator.hasNext()) {
+                    throwIfCancelled(cancelled);
+                    StorageEntry entry = iterator.next();
+                    listed++;
+                    checkListedObjectsLimit(listed, maxListedObjects);
+                    String entryPath = entry.path().toString();
+                    String relativePath = entryPath.startsWith(prefixStr)
+                        ? entryPath.substring(prefixStr.length())
+                        : entry.path().objectName();
+                    if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+                        continue;
+                    }
+                    if (matcher.matches(relativePath) == false) {
+                        continue;
+                    }
+                    if (nameFilter.excludedBy(relativePath) != null) {
+                        continue;
+                    }
+                    if (requiredKeys.isEmpty() == false && bindsWalkKeys(entry, requiredKeys) == false) {
+                        continue;
+                    }
+                    if (matchesTemplateLiterals(layout, entry) == false) {
+                        continue;
+                    }
+                    List<StorageEntry> kept = new ArrayList<>(1);
+                    StorageEntry stash = addOrStashAnchor(entry, fileHints, kept, null, Integer.MAX_VALUE);
+                    found = kept.isEmpty() == false ? kept.get(0) : stash;
+                    break;
+                }
+            } catch (IOException | UncheckedIOException | ExternalUnavailableException e) {
+                if (found != null) {
+                    return found;
+                }
+                Throwable t = e instanceof UncheckedIOException u ? u.getCause() : e;
+                if (d == prunedDirs.size() - 1) {
+                    if (isMissingPrefix(t)) {
+                        return null;
+                    }
+                    if (e instanceof UncheckedIOException u) {
+                        throw u.getCause();
+                    }
+                    throw e;
+                }
+                logger.debug(() -> "Anchor probe of pruned dir [" + dir + "] failed; trying next", e);
+                continue;
+            } catch (ListedObjectsLimitException e) {
+                if (found != null) {
+                    return found;
+                }
+                logger.debug(() -> "Anchor probe of pruned dir [" + dir + "] hit the listed-objects cap; falling through", e);
+                return null;
+            }
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /** Whether {@code entry}'s path binds every Hive key the walk listed (first {@code key=} of each name). */
+    private static boolean bindsWalkKeys(StorageEntry entry, Set<String> requiredKeys) {
+        for (String key : requiredKeys) {
+            if (hivePartitionValue(entry.path(), key) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Overlay walk-seen types onto the one-file detection for shared keys, then rebuild values for that file
+     * so a peeked {@code month=abc} keeps {@code month} KEYWORD rather than the leftover folder's INTEGER.
+     */
+    @Nullable
+    private static PartitionMetadata overlayWalkTypes(
+        @Nullable PartitionMetadata detected,
+        Map<String, DataType> walkFullTypes,
+        List<StorageEntry> files,
+        PartitionConfig config,
+        String pattern
+    ) {
+        if (detected == null || walkFullTypes == null || walkFullTypes.isEmpty()) {
+            return detected;
+        }
+        Map<String, DataType> overlayed = new LinkedHashMap<>(detected.partitionColumns());
+        boolean changed = false;
+        for (Map.Entry<String, DataType> e : overlayed.entrySet()) {
+            DataType walkType = walkFullTypes.get(e.getKey());
+            if (walkType != null && walkType != e.getValue()) {
+                overlayed.put(e.getKey(), walkType);
+                changed = true;
+            }
+        }
+        if (changed == false) {
+            return detected;
+        }
+        return new PartitionMetadata(overlayed, Map.of()).valuedOver(fileListOf(files, pattern), config);
+    }
+
+    /**
+     * The partition columns a listing carries, decided entirely by the resolved {@link PartitionConfig}. One input,
+     * one decision: no separate enable flag and no raw settings map alongside it.
+     */
+    static PartitionMetadata detectPartitions(List<StorageEntry> files, PartitionConfig partitionConfig, Consumer<String> warningSink) {
+        if (PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
+            return null;
+        }
+        PartitionDetector detector = resolveDetector(partitionConfig);
+        if (detector == null) {
+            return null;
+        }
+        PartitionMetadata result = detector.detect(files, warningSink);
         if (result == null || result.isEmpty()) {
             return null;
         }
         return result;
     }
 
-    private static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
+    /** Whether the glob's first segment is the recursive wildcard — the shape the partition-pruning walk narrows. */
+    private static boolean globstarLeads(String glob) {
+        return glob.equals("**") || glob.startsWith("**/");
+    }
+
+    /**
+     * Whether this pattern would try the partition walk. A file-set bound is applied after a successful
+     * walk rather than skipping it: a prefix drain of the dataset is the case the walk exists to avoid.
+     * A walk that withdraws still falls through to the bounded flat drain, which applies the value filter
+     * and keeps a subset.
+     * <p>
+     * It is the gate at the walk in {@link #doExpandGlob} and {@link #doExpandGlobAsync}, lifted out so the
+     * condition reads as one named question rather than a conjunction written inline. Async walk is
+     * independent of prefix fan-out eligibility.
+     */
+    static boolean wouldWalk(String glob, @Nullable List<PartitionFilterHint> hints, PartitionConfig partitionConfig) {
+        return wouldWalk(null, glob, hints, partitionConfig, null);
+    }
+
+    static boolean wouldWalk(
+        String glob,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        return wouldWalk(null, glob, hints, partitionConfig, folderRange);
+    }
+
+    static boolean wouldWalk(
+        @Nullable StoragePath prefix,
+        String glob,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        if (partitionPruningHints(hints).isEmpty() && folderRange == null) {
+            return false;
+        }
+        if (walkableGlob(glob) && walkableStrategy(partitionConfig)) {
+            return true;
+        }
+        return walkableTemplate(prefix, glob, partitionConfig);
+    }
+
+    private static boolean walkableTemplate(@Nullable StoragePath prefix, String glob, PartitionConfig partitionConfig) {
+        if (templateValueFilter(partitionConfig) == false) {
+            return false;
+        }
+        if (prefix == null) {
+            return false;
+        }
+        return TemplatePartitionDetector.walkLayout(prefix, glob, partitionConfig.pathTemplate()) != null;
+    }
+
+    @Nullable
+    private static String walkPathTemplate(PartitionConfig partitionConfig) {
+        return partitionConfig != null && PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            ? partitionConfig.pathTemplate()
+            : null;
+    }
+
+    /**
+     * Whether {@code glob} is a shape the partition walk can narrow: a leading {@code **}, or a leading Hive
+     * {@code key=*} segment. {@code year=*}/{@code city=*} is the keyed form a multi-value hint no longer rewrites.
+     * A keyed glob may descend an unhinted leading {@code key=*} when a hinted key of that glob is still pending;
+     * a {@code **} glob still withdraws at the first unhinted level.
+     */
+    private static boolean walkableGlob(String glob) {
+        if (globstarLeads(glob)) {
+            return true;
+        }
+        int slash = glob.indexOf('/');
+        String first = slash < 0 ? glob : glob.substring(0, slash);
+        if (PartitionValueMatcher.folderKey(first) == null) {
+            return false;
+        }
+        int eq = first.indexOf('=');
+        return "*".equals(first.substring(eq + 1));
+    }
+
+    /**
+     * Whether {@code glob} names a Hive {@code key=} folder anywhere — a leading {@code key=*}, a later
+     * {@code month=*}, or a globbed value such as {@code region=*-x}. Broader than {@link #walkableGlob}: the walk
+     * still needs a leading {@code key=*} or {@code **}, but the flat value filter can bind any of these segments.
+     */
+    private static boolean hiveKeyedGlob(String glob) {
+        if (walkableGlob(glob)) {
+            return true;
+        }
+        int from = 0;
+        while (from < glob.length()) {
+            int slash = glob.indexOf('/', from);
+            String segment = slash < 0 ? glob.substring(from) : glob.substring(from, slash);
+            if (PartitionValueMatcher.folderKey(segment) != null) {
+                return true;
+            }
+            if (slash < 0) {
+                return false;
+            }
+            from = slash + 1;
+        }
+        return false;
+    }
+
+    /** Whether {@code glob} has a Hive {@code key=} segment named {@code column}. */
+    private static boolean globNamesHiveColumn(String glob, String column) {
+        int from = 0;
+        while (from < glob.length()) {
+            int slash = glob.indexOf('/', from);
+            String segment = slash < 0 ? glob.substring(from) : glob.substring(from, slash);
+            if (column.equals(PartitionValueMatcher.folderKey(segment))) {
+                return true;
+            }
+            if (slash < 0) {
+                return false;
+            }
+            from = slash + 1;
+        }
+        return false;
+    }
+
+    /**
+     * Whether the resolved strategy licenses matching {@code key=value} folders during the listing walk: {@code HIVE}
+     * always; {@code AUTO} only without a usable template (then it is Hive-or-nothing — with one, detection could
+     * resolve to template columns the walk knows nothing about). {@code TEMPLATE} walks by position when the glob
+     * has fixed depth ({@link #walkableTemplate}); {@code NONE} has no partition columns. TEMPLATE still
+     * value-filters a flat listing when the walk withdraws.
+     */
+    private static boolean walkableStrategy(PartitionConfig config) {
+        return switch (config.strategy()) {
+            case HIVE -> true;
+            case AUTO -> config.pathTemplate() == null || TemplatePartitionDetector.parseTemplateColumns(config.pathTemplate()).isEmpty();
+            case TEMPLATE, NONE -> false;
+        };
+    }
+
+    /**
+     * A folder prune is trusted only when the pruned listing itself detects the pruned-on column as a partition
+     * column. A stray file outside the {@code key=value} structure breaks detection and makes the column a data
+     * column whose values could live anywhere; this check turns that from silently dropped rows into a flat
+     * re-listing. Passes only on the pruned columns; non-pruned column types are verified by
+     * {@link #walkTypesConsistent}.
+     */
+    private static boolean walkPruningProven(Set<String> prunedColumns, @Nullable PartitionMetadata metadata) {
+        if (prunedColumns.isEmpty()) {
+            return true;
+        }
+        return metadata != null && metadata.partitionColumns().keySet().containsAll(prunedColumns);
+    }
+
+    /**
+     * Verifies that the walk did not narrow the type of any non-pruned partition column relative to what the full
+     * value set (including values inside pruned subtrees) would produce. A pruned subtree may be the sole source of
+     * a type-widening folder value for another column: e.g. {@code year=2023/month=abc} (widening {@code month} to
+     * keyword) pruned by {@code year >= 2024} — the walked listing sees only {@code month=06} and detects
+     * {@code month} as integer, while the flat listing would detect it as keyword. No file is dropped, but the
+     * declared schema would differ. The walk addresses this by peeking one level into pruned dirs to capture shadow
+     * values (see {@code PartitionPruningWalk}); this method checks whether those shadow values change any
+     * column's inferred type — including pruned columns, whose walked type may narrow when only matching
+     * folders survive (e.g. {@code month=06} is INTEGER alone but KEYWORD with {@code month=abc} present).
+     *
+     * <p><b>Residual limitation.</b> The peek is one level deep: if the type-widening value is more than one
+     * level inside the pruned subtree (e.g. {@code a=1/b=x/month=abc} pruned at {@code a}), the divergence in
+     * {@code month}'s type is not detected. Such cases are unusual (consistent partition layouts rarely vary type
+     * across different parent subtrees) and a flat re-listing is the safe fallback for any undetected case.
+     */
+    private static boolean walkTypesConsistent(PartitionPruningWalk.WalkResult walk, @Nullable PartitionMetadata metadata) {
+        if (metadata == null || walk.prunedColumns().isEmpty()) {
+            return true;
+        }
+        Map<String, DataType> fullTypes = walk.columnFullTypes();
+        for (Map.Entry<String, DataType> e : metadata.partitionColumns().entrySet()) {
+            DataType fullType = fullTypes.get(e.getKey());
+            if (fullType != null && fullType != e.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Hint columns that actually occur as a partition folder in the files this listing saw. A data-column hint
+     * ({@code status == "ok"}) never does, and demanding it would reject every real partition prune.
+     */
+    private static List<String> observedPrunedColumns(
+        List<StorageEntry> filtered,
+        List<StorageEntry> excluded,
+        PartitionConfig config,
+        @Nullable List<PartitionFilterHint> hints
+    ) {
+        List<String> columns = new ArrayList<>();
+        for (PartitionFilterHint hint : partitionPruningHints(hints)) {
+            String column = hint.columnName();
+            if (columns.contains(column)) {
+                continue;
+            }
+            if (columnObserved(filtered, column, config) || columnObserved(excluded, column, config)) {
+                columns.add(column);
+            }
+        }
+        return columns;
+    }
+
+    private static boolean columnObserved(List<StorageEntry> files, String column, PartitionConfig config) {
+        String template = config.pathTemplate();
+        for (StorageEntry file : files) {
+            if (hivePartitionValue(file.path(), column) != null) {
+                return true;
+            }
+            if (template != null && templatePartitionValue(file.path(), column, template) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a flat value prune may stand. The walk applies {@link #walkPruningProven} and
+     * {@link #walkTypesConsistent} only to a walk that finished; a withdraw (unhinted parent, no
+     * {@code listChildren}) never does. The filtered files have to detect every pruned column, and their types
+     * have to match the files the filter dropped — a stray makes the column file data, and a dropped
+     * {@code month=abc} is what keeps {@code month} a keyword. A failed check puts the files back;
+     * {@link #withoutFoldersOutsideClosedRange} then drops closed-range folders again, dotted segment included.
+     */
+    private static boolean valueFilterTrusted(
+        List<StorageEntry> filtered,
+        List<StorageEntry> excluded,
+        PartitionConfig config,
+        List<String> prunedColumns
+    ) {
+        PartitionMetadata filteredMeta = detectPartitions(filtered, config, ignored -> {});
+        if (filteredMeta == null || filteredMeta.partitionColumns().keySet().containsAll(prunedColumns) == false) {
+            return false;
+        }
+        List<StorageEntry> all = new ArrayList<>(filtered.size() + excluded.size());
+        all.addAll(filtered);
+        all.addAll(excluded);
+        PartitionMetadata fullMeta = detectPartitions(all, config, ignored -> {});
+        if (fullMeta == null) {
+            return false;
+        }
+        for (Map.Entry<String, DataType> column : filteredMeta.partitionColumns().entrySet()) {
+            DataType fullType = fullMeta.partitionColumns().get(column.getKey());
+            if (fullType != null && fullType != column.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The hints that may prune {@code key=value} folders during the listing walk: every non-{@code _file.*} filter
+     * column. Also the exact hint set the cache key carries for a walk-eligible pattern — see {@link ListingIdentity}.
+     */
+    public static List<PartitionFilterHint> partitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
+        if (hints == null || hints.isEmpty()) {
+            return List.of();
+        }
+        List<PartitionFilterHint> partitionHints = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if (FileMetadataColumns.isFileMetadataColumn(hint.columnName()) == false && hint.values().isEmpty() == false) {
+                partitionHints.add(hint);
+            }
+        }
+        return partitionHints;
+    }
+
+    /**
+     * Aborts when a listing kept more files than {@code maxDiscoveredFiles}. Public so a cached
+     * listing can be re-checked after a live cap drop without expanding again.
+     */
+    public static void checkDiscoveredFilesLimit(int discoveredCount, int maxDiscoveredFiles) {
         if (discoveredCount > maxDiscoveredFiles) {
-            throw new QlIllegalArgumentException(
-                "Glob pattern discovered too many files ({}, limit {}). "
-                    + "Narrow your glob pattern, add partition filters, "
-                    + "or increase the [esql.external.max_discovered_files] cluster setting.",
-                discoveredCount,
-                maxDiscoveredFiles
-            );
+            throw new DiscoveredFilesLimitException(discoveredCount, maxDiscoveredFiles);
+        }
+    }
+
+    static void checkListedObjectsLimit(int listedCount, int maxListedObjects) {
+        if (listedCount > maxListedObjects) {
+            throw new ListedObjectsLimitException(listedCount, maxListedObjects);
         }
     }
 
     public static FileList expandCommaSeparated(String pathList, StorageProvider provider) throws IOException {
-        return expandCommaSeparated(pathList, provider, null, true);
+        return expandCommaSeparated(pathList, provider, null, (Map<String, Object>) null);
     }
 
     public static FileList expandCommaSeparated(
         String pathList,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning
+        @Nullable Map<String, Object> config
     ) throws IOException {
-        return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        return doExpandCommaSeparated(
+            pathList,
+            provider,
+            hints,
+            PartitionConfig.fromConfig(config),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            ExclusionConfig.fromConfig(config).compile(),
+            FileOrderConfig.forListing(config),
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
+        );
     }
 
     public static FileList expandCommaSeparated(
         String pathList,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        @Nullable Map<String, Object> config,
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+        return expandCommaSeparated(pathList, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, Integer.MAX_VALUE);
+    }
+
+    public static FileList expandCommaSeparated(
+        String pathList,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects
+    ) throws IOException {
+        return doExpandCommaSeparated(
+            pathList,
+            provider,
+            hints,
+            PartitionConfig.fromConfig(config),
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            ExclusionConfig.fromConfig(config).compile(),
+            FileOrderConfig.forListing(config),
+            PlanningMemory.NONE,
+            NEVER_CANCELLED
+        );
     }
 
     private static FileList doExpandCommaSeparated(
         String pathList,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config,
+        PartitionConfig partitionConfig,
         int maxDiscoveredFiles,
-        int maxGlobExpansion
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        BooleanSupplier cancelled
+    ) throws IOException {
+        return doExpandCommaSeparated(
+            pathList,
+            provider,
+            hints,
+            partitionConfig,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            nameFilter,
+            fileOrder,
+            memory,
+            cancelled,
+            null,
+            PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
+    }
+
+    private static FileList doExpandCommaSeparated(
+        String pathList,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
     ) throws IOException {
         Check.notNull(pathList, "pathList cannot be null");
         Check.notNull(provider, "provider cannot be null");
 
-        String[] segments = pathList.split(",");
-        List<StorageEntry> allEntries = new ArrayList<>();
+        DirectoryListingCounter counted = new DirectoryListingCounter(provider, maxDirectoryListings);
+        CommaUnion union = new CommaUnion();
 
-        for (String segment : segments) {
-            String trimmed = segment.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-
+        for (String trimmed : commaSegments(pathList)) {
             StoragePath segmentPath = StoragePath.of(trimmed);
             if (segmentPath.isPattern()) {
-                int remainingBudget = maxDiscoveredFiles - allEntries.size();
-                FileList expanded = doExpandGlob(
-                    trimmed,
-                    provider,
-                    hints,
-                    hivePartitioning,
-                    partitionConfig,
-                    config,
-                    remainingBudget,
-                    maxGlobExpansion
-                );
-                if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
-                    allEntries.addAll(g.files());
+                int remainingBudget = remainingDiscoveredFiles(maxDiscoveredFiles, union.entries.size());
+                if (remainingBudget <= 0) {
+                    // Earlier segments already filled the kept-files cap. Expanding further would only
+                    // walk, or turn a rewrite-hit _file.* miss into a fallback that throws limit 0.
+                    continue;
                 }
+                if (counted.remaining() <= 0) {
+                    // Same as the kept-files cap: leftover 0 must not start a walk. Walk with
+                    // maxDirectoryListings=0 finishSurvivors the prefix with no month prune.
+                    continue;
+                }
+                // Per segment, so a segment a rewrite narrows to empty falls back on its own instead of being masked
+                // by another segment that still matches. Directory listings share one ceiling across segments;
+                // FileList does not report listed-objects, so that cap is still per segment.
+                FileList expanded = expandGlobWithRewriteFallback(
+                    trimmed,
+                    counted,
+                    hints,
+                    partitionConfig,
+                    remainingBudget,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    // Discovery order only. fileOrder is applied once on the concatenated list so
+                    // list+desc is reverse(concat) rather than reverse(concat(reverse(g1), reverse(g2))).
+                    FileOrderConfig.DEFAULT,
+                    // A key budget has no single meaning across the segments of a comma list, so each
+                    // segment lists unbounded whatever the caller asked for.
+                    ListingExtents.UNBOUNDED,
+                    // Each segment reserves against the same budget, so a comma list is charged for every entry it
+                    // retains rather than for none of them. ExternalSourceResolver.chargeListingPlanning subtracts
+                    // exactly that reservation to find what is left to charge, and a segment reserving nothing made
+                    // the subtraction remove bytes nobody had taken.
+                    memory,
+                    cancelled,
+                    folderRange,
+                    counted.remaining()
+                );
+                union.absorb(expanded);
             } else {
-                if (provider.exists(segmentPath)) {
-                    var obj = provider.newObject(segmentPath);
-                    allEntries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified()));
-                    checkDiscoveredFilesLimit(allEntries.size(), maxDiscoveredFiles);
+                addLiteralCommaSegment(union, counted, segmentPath, maxDiscoveredFiles);
+            }
+        }
+
+        return union.finish(pathList, fileOrder, partitionConfig);
+    }
+
+    /**
+     * Async counterpart of {@link #doExpandCommaSeparated}. Each glob segment runs through
+     * {@link #expandGlobWithRewriteFallbackAsync} so a walk-eligible path lists directories on
+     * {@code fanOutExecutor}. Segments stay in declaration order and share one directory-listing
+     * ceiling: independent per-path caps would sum past the node setting.
+     */
+    private static void doExpandCommaSeparatedAsync(
+        String pathList,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) {
+        Check.notNull(pathList, "pathList cannot be null");
+        Check.notNull(provider, "provider cannot be null");
+        expandCommaSegmentAsync(
+            0,
+            new CommaExpansion(
+                pathList,
+                commaSegments(pathList),
+                new DirectoryListingCounter(provider, maxDirectoryListings),
+                new CommaUnion(),
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                memory,
+                concurrency,
+                isCancelled,
+                fanOutExecutor,
+                listener,
+                folderRange
+            )
+        );
+    }
+
+    private static void expandCommaSegmentAsync(int index, CommaExpansion expansion) {
+        while (index < expansion.segments.size()) {
+            String trimmed = expansion.segments.get(index++);
+            StoragePath segmentPath;
+            try {
+                segmentPath = StoragePath.of(trimmed);
+            } catch (Exception e) {
+                expansion.listener.onFailure(e);
+                return;
+            }
+            if (segmentPath.isPattern()) {
+                int remainingBudget = remainingDiscoveredFiles(expansion.maxDiscoveredFiles, expansion.union.entries.size());
+                if (remainingBudget <= 0) {
+                    continue;
+                }
+                if (expansion.counted.remaining() <= 0) {
+                    continue;
+                }
+                int next = index;
+                // Sync completions continue this loop; async ones recurse from the listener.
+                AtomicBoolean inCaller = new AtomicBoolean(true);
+                expandGlobWithRewriteFallbackAsync(
+                    trimmed,
+                    expansion.counted,
+                    expansion.hints,
+                    expansion.partitionConfig,
+                    remainingBudget,
+                    expansion.maxGlobExpansion,
+                    expansion.maxListedObjects,
+                    expansion.nameFilter,
+                    FileOrderConfig.DEFAULT,
+                    ListingExtents.UNBOUNDED,
+                    expansion.memory,
+                    expansion.concurrency,
+                    expansion.isCancelled,
+                    expansion.fanOutExecutor,
+                    ActionListener.wrap(expanded -> {
+                        expansion.union.absorb(expanded);
+                        if (inCaller.compareAndSet(true, false) == false) {
+                            expandCommaSegmentAsync(next, expansion);
+                        }
+                    }, expansion.listener::onFailure),
+                    expansion.folderRange,
+                    expansion.counted.remaining()
+                );
+                if (inCaller.compareAndSet(true, false)) {
+                    return;
+                }
+                index = next;
+                continue;
+            }
+            try {
+                addLiteralCommaSegment(expansion.union, expansion.counted, segmentPath, expansion.maxDiscoveredFiles);
+            } catch (Exception e) {
+                expansion.listener.onFailure(e);
+                return;
+            }
+        }
+        ActionListener.completeWith(
+            expansion.listener,
+            () -> expansion.union.finish(expansion.pathList, expansion.fileOrder, expansion.partitionConfig)
+        );
+    }
+
+    /**
+     * Immutable inputs for {@link #expandCommaSegmentAsync}. The union and listing counter mutate
+     * across segments; everything else is the original expand call.
+     */
+    private record CommaExpansion(
+        String pathList,
+        List<String> segments,
+        DirectoryListingCounter counted,
+        CommaUnion union,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange
+    ) {}
+
+    private static void addLiteralCommaSegment(CommaUnion union, StorageProvider provider, StoragePath segmentPath, int maxDiscoveredFiles)
+        throws IOException {
+        var obj = provider.newObject(segmentPath);
+        if (obj.exists()) {
+            union.entries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified(), obj.probedVersion()));
+            checkDiscoveredFilesLimit(union.entries.size(), maxDiscoveredFiles);
+        }
+    }
+
+    private static int remainingDiscoveredFiles(int maxDiscoveredFiles, int kept) {
+        return kept >= maxDiscoveredFiles ? 0 : maxDiscoveredFiles - kept;
+    }
+
+    /**
+     * Concatenated comma-list state. Glob segments absorb independently so a rewrite-to-empty on one
+     * cannot be masked by another that still matches. Only the first inference-anchor is kept, and
+     * only when no real match survives.
+     */
+    private static final class CommaUnion {
+        private final List<StorageEntry> entries = new ArrayList<>();
+        private final List<String> warnings = new ArrayList<>();
+        private FileList anchor;
+
+        void absorb(FileList expanded) {
+            warnings.addAll(expanded.listingWarnings());
+            if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
+                if (g.isInferenceAnchor()) {
+                    if (anchor == null) {
+                        anchor = g;
+                    }
+                } else {
+                    entries.addAll(g.files());
                 }
             }
         }
 
-        if (allEntries.isEmpty()) {
-            return FileList.EMPTY;
+        FileList finish(String pathList, FileOrderConfig fileOrder, PartitionConfig partitionConfig) {
+            if (entries.isEmpty()) {
+                if (anchor == null) {
+                    return warnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pathList, null, warnings);
+                }
+                GenericFileList donor = (GenericFileList) anchor;
+                List<String> notices = new ArrayList<>(warnings);
+                return new GenericFileList(donor.files(), pathList, donor.partitionMetadata(), notices, false, true);
+            }
+            fileOrder.apply(entries);
+            PartitionMetadata partitionMetadata = detectPartitions(entries, partitionConfig, warnings::add);
+            return new GenericFileList(entries, pathList, partitionMetadata, warnings);
+        }
+    }
+
+    /**
+     * Live leftover of {@code esql.external.max_directory_listings} for the next walk. A
+     * {@link DirectoryListingCounter} reports remaining after listings already issued, so a rewrite
+     * retry cannot reuse the start-of-segment snapshot. Other providers keep the caller's cap.
+     */
+    private static int remainingDirectoryListings(StorageProvider provider, int maxDirectoryListings) {
+        return provider instanceof DirectoryListingCounter counted ? counted.remaining() : maxDirectoryListings;
+    }
+
+    /**
+     * Counts every {@code listChildren} issued for a comma list so later glob segments inherit the
+     * remaining directory-listing ceiling rather than a fresh copy of the node cap. Further calls
+     * after the ceiling return {@code null} so a rewrite retry cannot issue a second copy of the leftover.
+     * Comma expansion skips a glob when {@link #remaining()} is 0 rather than walking with a zero
+     * cap, which would {@code finishSurvivors} the prefix unpruned.
+     */
+    private static final class DirectoryListingCounter extends DelegatingStorageProvider {
+        private final StorageProvider inner;
+        private final int maxDirectoryListings;
+        private final AtomicInteger issued = new AtomicInteger();
+
+        DirectoryListingCounter(StorageProvider inner, int maxDirectoryListings) {
+            this.inner = inner;
+            this.maxDirectoryListings = maxDirectoryListings;
         }
 
-        allEntries.sort(Comparator.comparing(e -> e.path().toString()));
+        int remaining() {
+            int used = issued.get();
+            return used >= maxDirectoryListings ? 0 : maxDirectoryListings - used;
+        }
 
-        PartitionMetadata partitionMetadata = detectPartitions(allEntries, hivePartitioning, partitionConfig, config);
+        @Override
+        protected StorageProvider delegate() {
+            return inner;
+        }
 
-        return new GenericFileList(allEntries, pathList, partitionMetadata);
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+            while (true) {
+                int used = issued.get();
+                if (used >= maxDirectoryListings) {
+                    return null;
+                }
+                if (issued.compareAndSet(used, used + 1)) {
+                    return inner.listChildren(prefix, limit);
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            // The caller owns the inner provider.
+        }
+    }
+
+    /**
+     * The pattern an expansion will actually list once the hints have narrowed it. The one place that decides
+     * whether a hint reaches the glob at all; {@link #doExpandGlob} and {@link #listingCacheDiscriminator} both
+     * route through it so that the listing cache key cannot drift from the listing it names.
+     */
+    static String effectivePattern(String pattern, @Nullable List<PartitionFilterHint> hints, PartitionConfig partitionConfig) {
+        if (hints == null || hints.isEmpty() || PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
+            return pattern;
+        }
+        return rewriteGlobWithHints(pattern, hints, partitionConfig);
+    }
+
+    /**
+     * Everything about a query that determines which files a {@code path} lists: the resolved
+     * {@link PartitionConfig} (strategy AND path template), the effective (post-rewrite) glob pattern, the
+     * {@code _file.*} metadata filters, the partition hints when the effective pattern is walk-eligible or a rewrite
+     * left the original pattern walk-eligible (see {@link PartitionPruningWalk}), the resolved
+     * {@link ExclusionConfig}, the resolved {@link FileOrderConfig}, and the {@link ListingExtents} the caller
+     * asked for - a bounded ask and an unbounded one over the same pattern are different values, so they are
+     * different addresses.
+     * These are the inputs {@link #doExpandGlob} consults beyond the storage contents themselves — via
+     * {@link #effectivePattern}, {@link #applyFileMetadataFilters} and {@link #partitionPruningHints} — and this
+     * value shares those same helpers, so the listing cache key cannot drift from the listing it names. It binds only
+     * the cache key: a new
+     * hint channel added to {@link #doExpandGlob} must be added here by hand, or that channel silently reintroduces
+     * the poisoning bug.
+     *
+     * <p>{@link #encode} is injective — every variable-length piece is length-prefixed, so no user-controlled filter
+     * literal (which may hold any character, including the delimiters) can forge a field boundary and collide two
+     * different filters onto one key. Equal encodings therefore genuinely mean equal listings. A new field added to
+     * this record joins {@code equals} for free but must be added to {@code encode} by hand to stay in the key.
+     */
+    private record ListingIdentity(
+        PartitionConfig partitionConfig,
+        String effectivePattern,
+        List<String> encodedFileHints,
+        List<String> encodedPartitionHints,
+        ExclusionConfig exclusionConfig,
+        FileOrderConfig fileOrder,
+        int maxFiles,
+        String folderRangeIdentity
+    ) {
+
+        static ListingIdentity of(
+            String path,
+            @Nullable List<PartitionFilterHint> hints,
+            PartitionConfig partitionConfig,
+            ExclusionConfig exclusionConfig,
+            FileOrderConfig fileOrder,
+            ListingExtents extents,
+            @Nullable FolderRangePredicate folderRange
+        ) {
+            String effectivePattern = effectiveWholePathPattern(path, hints, partitionConfig);
+            // The empty-rewrite retry lists the original glob with these hints. A splice can make the effective
+            // pattern non-walkable (month=* becomes month=6) while the original stays walkable, so a deeper open
+            // range still changes the retry. Those hints join the key. A splice that hits does not consult them;
+            // including them only fragments the cache. Provider support cannot be known at key time.
+            boolean retryMayFilterOriginal = effectivePattern.equals(path) == false && walkShapeEligible(path, partitionConfig);
+            return new ListingIdentity(
+                partitionConfig,
+                effectivePattern,
+                encodedHints(fileMetadataHints(hints)),
+                // The walk is the second hint channel into the listing: partition hints decide which folders are
+                // enumerated without changing the effective pattern, so on a walk-eligible pattern they must join
+                // the identity or a filtered query poisons the cache. Eligibility is the effective pattern, or the
+                // original when a rewrite made the effective pattern non-walkable: the empty-rewrite retry walks
+                // the original. A keyed data/year=*/** rewrites to data/year=2024/** and stays walkable, so the
+                // walk prunes under that prefix. Over-inclusion merely fragments, safely.
+                // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
+                // spellings such as 2.5 and narrow the detected type). A typed equality does not either: printing
+                // 6 would miss month=06, printing 6.0 would miss price=6.00, printing true would miss TRUE. A
+                // multi-value hint does not rewrite either. All of these change which files the listing keeps, so
+                // they join the identity: the walk's hints on a walkable pattern, every partition hint while
+                // {@link #templateValueFilter} holds (fixed-depth TEMPLATE walks; globstar TEMPLATE still only
+                // value-filters), the hints a rewritten walkable original may apply on retry, and the flat
+                // post-filter hints on any other pattern. Do not drop the templateValueFilter term: globstar
+                // TEMPLATE is not walkShapeEligible.
+                walkShapeEligible(effectivePattern, partitionConfig) || templateValueFilter(partitionConfig) || retryMayFilterOriginal
+                    ? encodedHints(partitionPruningHints(hints))
+                    : encodedHints(folderPostFilterHints(hints, partitionConfig, globPartOrEmpty(effectivePattern))),
+                exclusionConfig,
+                fileOrder,
+                // How far the listing was asked to run is part of which files it holds, so it is part of the key.
+                // Without it a prefix of a dataset and the whole dataset collide on one address, which is why a
+                // bounded listing had to bypass the cache: there was no way for a holder to say which of the two
+                // values it had.
+                extents.maxFiles(),
+                folderRange == null ? "" : folderRange.identity()
+            );
+        }
+
+        String encode() {
+            StringBuilder sb = new StringBuilder();
+            // Strategy AND template both discriminate: the cached FileList carries its PartitionMetadata, and two
+            // datasets on one glob with the same strategy but different templates produce different partition
+            // columns from an identical effective pattern. The template is user-controlled free text, so it is
+            // length-prefixed like every other variable-length field; the null marker keeps a null template and an
+            // empty one distinct so injectivity stays trivially provable.
+            appendLengthPrefixed(sb, partitionConfig.strategy().name());
+            sb.append(partitionConfig.pathTemplate() == null ? '0' : '1');
+            appendLengthPrefixed(sb, partitionConfig.pathTemplate() == null ? "" : partitionConfig.pathTemplate());
+            appendLengthPrefixed(sb, effectivePattern);
+            sb.append(encodedFileHints.size()).append(':');
+            for (String encodedHint : encodedFileHints) {
+                appendLengthPrefixed(sb, encodedHint);
+            }
+            sb.append(encodedPartitionHints.size()).append(':');
+            for (String encodedHint : encodedPartitionHints) {
+                appendLengthPrefixed(sb, encodedHint);
+            }
+            // The exclusion list is framed like encodedFileHints above — a count, then that many
+            // length-prefixed entries — so no user-supplied glob can forge a field boundary. Entry order is
+            // preserved rather than sorted: order does not change semantics (any-match), so two same-set
+            // different-order configs merely get distinct keys, which is safe over-fragmentation and keeps
+            // encode() aligned with the record's equals.
+            sb.append(exclusionConfig.fileExclusions().size()).append(':');
+            for (String glob : exclusionConfig.fileExclusions()) {
+                appendLengthPrefixed(sb, glob);
+            }
+            // Compacted listings bake file order; flipping file_sort_by or file_order must miss the cache even when
+            // the discovered set is identical. Fixed vocabulary, still length-prefixed so the framing
+            // stays uniform with every other field.
+            appendLengthPrefixed(sb, fileOrder.sortBy().name());
+            appendLengthPrefixed(sb, fileOrder.order().name());
+            // How far the listing was asked to run. Two different asks are two different values and take
+            // different addresses; what comes back under a bounded key is whatever that ask produces, which is a
+            // prefix when the bound bit and the whole pattern when an empty bounded pass was retried unbounded
+            // (see expandGlobWithRewriteFallback) - a superset of what the bound promised, and so a correct answer
+            // for every holder of this key. Length-prefixed like every other field so no content can forge a
+            // field boundary.
+            appendLengthPrefixed(sb, Integer.toString(maxFiles));
+            appendLengthPrefixed(sb, folderRangeIdentity);
+            return sb.toString();
+        }
+    }
+
+    /**
+     * Whether any glob of {@code effectivePattern} (the lone post-rewrite pattern, or a comma segment of it) has the
+     * shape and strategy the walk acts on. Ignores whether the walk would actually prune — the identity only needs
+     * to be at least as fine-grained as the listing decision it names.
+     */
+    private static boolean walkShapeEligible(String effectivePattern, PartitionConfig partitionConfig) {
+        if (walkableStrategy(partitionConfig) == false && templateValueFilter(partitionConfig) == false) {
+            return false;
+        }
+        List<String> segments = hasTopLevelComma(effectivePattern) ? commaSegments(effectivePattern) : List.of(effectivePattern);
+        for (String segment : segments) {
+            try {
+                StoragePath storagePath = StoragePath.of(segment);
+                if (storagePath.isPattern() == false) {
+                    continue;
+                }
+                if (walkableStrategy(partitionConfig) && walkableGlob(storagePath.globPart())) {
+                    return true;
+                }
+                if (walkableTemplate(storagePath.patternPrefix(), storagePath.globPart(), partitionConfig)) {
+                    return true;
+                }
+            } catch (IllegalArgumentException e) {
+                // Unparseable segment: the expansion that follows raises the error; it cannot be walk-eligible.
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The glob suffix {@link #doExpandGlob} filters on. Cache identity must scan the same string: a literal
+     * prefix such as {@code year=2024} is not a glob segment, and treating the whole URL as one would key
+     * hints the listing never applies.
+     */
+    private static String globPartOrEmpty(String pattern) {
+        try {
+            StoragePath storagePath = StoragePath.of(pattern);
+            return storagePath.isPattern() ? storagePath.globPart() : "";
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
+    }
+
+    /** Appends {@code <charLength>':'<value>}, an injective framing that no value content can forge a boundary in. */
+    private static void appendLengthPrefixed(StringBuilder sb, String value) {
+        sb.append(value.length()).append(':').append(value);
+    }
+
+    /**
+     * A string that identifies the listing a given set of hints produces for a given path: equal discriminators
+     * guarantee equal listings, so it is safe to key the listing cache on it. See {@link ListingIdentity} for the
+     * inputs and why they are exhaustive; hints that reach none of them leave the discriminator untouched, so an
+     * incidentally-filtered query still shares the un-filtered entry. On a walk-eligible pattern, and on a rewritten
+     * pattern whose original glob is walk-eligible, every non-{@code _file.*} hint joins the key — pre-resolution
+     * nothing can tell a partition column from a data column, so over-inclusion (safe fragmentation) is the only
+     * sound reading. The exclusion settings resolve from
+     * {@code config} via {@link ExclusionConfig#fromConfig}. File order resolves via {@link FileOrderConfig#forListing}.
+     */
+    public static String listingCacheDiscriminator(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config
+    ) {
+        return listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED, null);
+    }
+
+    public static String listingCacheDiscriminator(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        ListingExtents extents
+    ) {
+        return listingCacheDiscriminator(path, hints, config, extents, null);
+    }
+
+    public static String listingCacheDiscriminator(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        return listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED, folderRange);
+    }
+
+    public static String listingCacheDiscriminator(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        ListingExtents extents,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        return ListingIdentity.of(
+            path,
+            hints,
+            PartitionConfig.fromConfig(config),
+            ExclusionConfig.fromConfig(config),
+            FileOrderConfig.forListing(config),
+            extents,
+            folderRange
+        ).encode();
+    }
+
+    /**
+     * Mirrors {@link #expand}'s glob/comma dispatch: in a comma list only the pattern segments are rewritten, over
+     * the same {@link #commaSegments} decomposition the expansion walks, against the same resolved
+     * {@link PartitionConfig} the expansion uses.
+     */
+    private static String effectiveWholePathPattern(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (isTopLevelCommaList(path) == false) {
+            return effectivePattern(path, hints, partitionConfig);
+        }
+        List<String> segments = commaSegments(path);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < segments.size(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            String segment = segments.get(i);
+            sb.append(isPattern(segment) ? effectivePattern(segment, hints, partitionConfig) : segment);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Compiles the glob syntax used by file listing for matching object names relative to the listing prefix.
+     *
+     * @param glob the path portion after the listing prefix
+     * @return a predicate that accepts names matched by {@code glob}
+     */
+    public static Predicate<String> compileGlobMatcher(String glob) {
+        GlobMatcher matcher = new GlobMatcher(glob);
+        return matcher::matches;
+    }
+
+    /**
+     * The non-empty, trimmed segments of a comma-separated path list. The one decomposition shared by the expansion
+     * ({@link #doExpandCommaSeparated}), the identity that names its result ({@link #effectiveWholePathPattern}), and
+     * the local-disk allowlist gate ({@code LocalFileAccess#check}), so none of them can disagree on which segments a
+     * path has. A single-file (or brace-only) path yields exactly one segment, so callers can treat {@code size() > 1}
+     * as "this is a multi-file listing".
+     */
+    public static List<String> commaSegments(String pathList) {
+        List<String> segments = new ArrayList<>();
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i < pathList.length(); i++) {
+            char c = pathList.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth = Math.max(0, depth - 1);
+            } else if (c == ',' && depth == 0) {
+                addSegment(segments, pathList.substring(start, i));
+                start = i + 1;
+            }
+        }
+        addSegment(segments, pathList.substring(start));
+        return segments;
+    }
+
+    /**
+     * Ceiling matching {@link GlobMatcher}'s per-group cap so format inference cannot expand a wider set than
+     * listing would.
+     */
+    private static final int MAX_BRACE_ALTERNATIVES = 1024;
+
+    /**
+     * Expands brace groups in an object name while keeping {@code *}, {@code ?}, and {@code [} as themselves.
+     * Used to infer the formats a resource pattern implies without listing objects — {@link GlobMatcher#enumerateKeys}
+     * returns null when a wildcard is present, which would hide {@code *.{parquet,csv}}.
+     *
+     * <p>Nested or unterminated brace groups, and numeric ranges that cannot be expanded, are left as the original
+     * spelling so the caller treats them as unreadable names rather than inventing a format.
+     */
+    public static List<String> expandBracesKeepingWildcards(String name) {
+        if (name == null) {
+            return List.of();
+        }
+        if (name.isEmpty() || name.indexOf('{') < 0) {
+            return List.of(name);
+        }
+        List<String> out = new ArrayList<>();
+        expandBracesKeepingWildcards(name, out);
+        // Incomplete expansion of a huge group would look like a unique format. Fall back to the
+        // original spelling so inference treats it as unreadable rather than silently picking a subset.
+        if (out.size() > MAX_BRACE_ALTERNATIVES) {
+            return List.of(name);
+        }
+        return out;
+    }
+
+    private static void expandBracesKeepingWildcards(String name, List<String> out) {
+        int open = name.indexOf('{');
+        if (open < 0) {
+            out.add(name);
+            return;
+        }
+        int close = name.indexOf('}', open + 1);
+        if (close < 0) {
+            out.add(name);
+            return;
+        }
+        String body = name.substring(open + 1, close);
+        if (body.indexOf('{') >= 0) {
+            out.add(name);
+            return;
+        }
+        String[] spellings = BraceExpander.expandBraceContent(body, MAX_BRACE_ALTERNATIVES);
+        if (spellings == null) {
+            out.add(name);
+            return;
+        }
+        String prefix = name.substring(0, open);
+        String suffix = name.substring(close + 1);
+        for (String spelling : spellings) {
+            expandBracesKeepingWildcards(prefix + spelling + suffix, out);
+        }
+    }
+
+    private static void addSegment(List<String> segments, String segment) {
+        String trimmed = segment.trim();
+        if (trimmed.isEmpty() == false) {
+            segments.add(trimmed);
+        }
+    }
+
+    /**
+     * Whether a path holds a top-level comma, i.e. is a list of resources rather than one. A comma inside a brace
+     * group belongs to the glob, not to the list: splitting on it blindly tore {@code s3://b/x.{csv,tsv}} into
+     * {@code s3://b/x.{csv} and {@code tsv}}, and the second fragment failed for having no scheme — so brace
+     * alternation, which the matcher has always supported, was unusable through the entry point datasets take.
+     */
+    private static boolean hasTopLevelComma(String path) {
+        int depth = 0;
+        for (int i = 0; i < path.length(); i++) {
+            char c = path.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth = Math.max(0, depth - 1);
+            } else if (c == ',' && depth == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether {@code path} is a comma-separated list of resources (as opposed to a single glob or literal).
+     * For {@code http}/{@code https}, commas are never treated as list separators — the scheme does not
+     * support glob expansion or multi-resource lists. For all other schemes, delegates to
+     * {@link #hasTopLevelComma}.
+     */
+    private static boolean isTopLevelCommaList(String path) {
+        try {
+            StoragePath sp = StoragePath.of(path);
+            if (sp.scheme().equalsIgnoreCase("http") || sp.scheme().equalsIgnoreCase("https")) {
+                return false;
+            }
+        } catch (IllegalArgumentException e) {
+            // Not a parseable URL — treat as non-HTTP and fall through
+        }
+        return hasTopLevelComma(path);
+    }
+
+    /**
+     * Whether a comma-list segment is a glob, matching {@link #doExpandCommaSeparated}'s test. An unparseable
+     * segment is reported as a non-pattern so that building a cache key never fails: the expansion that follows
+     * raises the parse error, exactly as it does today.
+     */
+    private static boolean isPattern(String segment) {
+        try {
+            return StoragePath.of(segment).isPattern();
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /** A hint list encoded injectively (each field length-prefixed) and ordered, for use in a cache key. */
+    private static List<String> encodedHints(List<PartitionFilterHint> hints) {
+        if (hints.isEmpty()) {
+            return List.of();
+        }
+        List<String> encoded = new ArrayList<>(hints.size());
+        for (PartitionFilterHint hint : hints) {
+            StringBuilder sb = new StringBuilder();
+            appendLengthPrefixed(sb, hint.columnName());
+            appendLengthPrefixed(sb, hint.operator().name());
+            sb.append(hint.values().size()).append(':');
+            for (Object value : hint.values()) {
+                // The value's type is part of its identity: _file.name == "6" and _file.name == 6 filter differently.
+                appendLengthPrefixed(sb, value == null ? "\0null" : value.getClass().getName());
+                appendLengthPrefixed(sb, value == null ? "\0null" : value.toString());
+            }
+            encoded.add(sb.toString());
+        }
+        Collections.sort(encoded);
+        return encoded;
+    }
+
+    /** The subset of hints that {@link #applyFileMetadataFilters} prunes the listing with. */
+    static List<PartitionFilterHint> fileMetadataHints(@Nullable List<PartitionFilterHint> hints) {
+        if (hints == null || hints.isEmpty()) {
+            return List.of();
+        }
+        List<PartitionFilterHint> fileHints = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if (FileMetadataColumns.isFileMetadataColumn(hint.columnName())) {
+                fileHints.add(hint);
+            }
+        }
+        return fileHints;
     }
 
     public static String rewriteGlobWithHints(String pattern, List<PartitionFilterHint> hints) {
@@ -399,11 +4470,25 @@ public final class GlobExpander {
             return pattern;
         }
 
-        if (partitionConfig != null && partitionConfig.pathTemplate() != null) {
+        // Only a TEMPLATE strategy may drive the template rewrite. It narrows the glob to the template's spelling of
+        // the value — a bare segment — which is sound only when detection is certainly template-based. Under HIVE a
+        // coincidental bare folder (data/2024/) would be listed instead of the real data/year=2024/, and because that
+        // listing is non-empty the rewrite-to-empty fallback never fires, so the query returns the wrong rows rather
+        // than a superset. Under AUTO, detection may still resolve to Hive at detect time. HIVE and AUTO keep the
+        // key=value segment rewrite below, which is what they had before the setting reached the read path.
+        if (partitionConfig != null
+            && PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null) {
             String templateRewritten = rewriteGlobWithTemplate(pattern, rewritableHints, partitionConfig.pathTemplate());
             if (templateRewritten != null) {
                 return templateRewritten;
             }
+            // Under TEMPLATE the column value is the WHOLE directory segment, so the key=value rewrite below would
+            // narrow on the wrong axis: for a template-bound value of "part=a" it would spell the segment
+            // "part=part=a" and list a sibling directory of that literal name instead. That listing is non-empty, so
+            // the rewrite-to-empty fallback would not fire. The rewrite is never useful under TEMPLATE anyway — the
+            // template rewrite above is the only one that matches how the value was bound.
+            return pattern;
         }
 
         String[] segments = pattern.split("/");
@@ -417,62 +4502,98 @@ public final class GlobExpander {
         return result.toString();
     }
 
+    /**
+     * Narrows a TEMPLATE glob by splicing an exact string folder name into a {@code *} slot. A numeric or boolean
+     * value is one spelling of a typed comparison ({@code 6} vs {@code 06}, {@code true} vs {@code TRUE}); leaving
+     * the wildcard lets {@link PartitionValueMatcher} keep every typed match. Guessing {@code 06} from {@code 6}
+     * would invent a spelling.
+     */
     public static String rewriteGlobWithTemplate(String pattern, Map<String, PartitionFilterHint> rewritableHints, String template) {
-        List<String> templateColumns = TemplatePartitionDetector.parseTemplateColumns(template);
-        if (templateColumns.isEmpty()) {
+        List<TemplateSegment> templateSegments = TemplatePartitionDetector.parseTemplate(template);
+        if (hasPlaceholder(templateSegments) == false) {
             return null;
         }
 
-        String[] segments = pattern.split("/");
-        List<Integer> wildcardPositions = new ArrayList<>();
-        for (int i = 0; i < segments.length; i++) {
-            if ("*".equals(segments[i])) {
-                wildcardPositions.add(i);
+        StoragePath parsed;
+        try {
+            parsed = StoragePath.of(pattern);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        String path = parsed.path();
+        if (path == null || path.isEmpty() || pattern.endsWith(path) == false) {
+            return null;
+        }
+
+        // Edit a path()-shaped split (leading empty and filename kept). Joining directorySegments
+        // would drop the leading slash and smash the authority: s3://bucket + logs/... = s3://bucketlogs/...
+        String[] raw = path.split("/");
+        List<Integer> nonEmptyIdx = new ArrayList<>();
+        for (int i = 0; i < raw.length; i++) {
+            if (raw[i].isEmpty() == false) {
+                nonEmptyIdx.add(i);
             }
         }
-
-        if (wildcardPositions.size() < templateColumns.size()) {
+        if (nonEmptyIdx.size() < templateSegments.size() + 1) {
             return null;
         }
-
-        // Map template columns to wildcard positions (positional mapping)
-        int offset = wildcardPositions.size() - templateColumns.size();
+        List<Integer> dirIdx = nonEmptyIdx.subList(0, nonEmptyIdx.size() - 1);
+        int offset = dirIdx.size() - templateSegments.size();
         boolean changed = false;
-        for (int t = 0; t < templateColumns.size(); t++) {
-            String colName = templateColumns.get(t);
-            PartitionFilterHint hint = rewritableHints.get(colName);
-            if (hint == null) {
-                continue;
-            }
-            int segIdx = wildcardPositions.get(offset + t);
-            List<Object> values = hint.values();
-            if (hint.isSingleValue()) {
-                segments[segIdx] = escapeGlobMeta(String.valueOf(values.get(0)));
-            } else {
-                StringBuilder sb = new StringBuilder("{");
-                for (int v = 0; v < values.size(); v++) {
-                    if (v > 0) {
-                        sb.append(',');
+        for (int t = 0; t < templateSegments.size(); t++) {
+            int rawIdx = dirIdx.get(offset + t);
+            String globSlot = raw[rawIdx];
+            switch (templateSegments.get(t)) {
+                case TemplateSegment.Literal(String value) -> {
+                    if ("*".equals(globSlot)) {
+                        // A leftover * lists sibling directories that fail extractByTemplate and
+                        // drop partition detection for the whole batch. Pin the required name.
+                        raw[rawIdx] = value;
+                        changed = true;
+                    } else if (value.equals(globSlot) == false) {
+                        return null;
                     }
-                    sb.append(escapeGlobMeta(String.valueOf(values.get(v))));
                 }
-                segments[segIdx] = sb.append('}').toString();
+                case TemplateSegment.Placeholder(String name) -> {
+                    if ("*".equals(globSlot) == false) {
+                        return null;
+                    }
+                    PartitionFilterHint hint = rewritableHints.get(name);
+                    if (hint == null) {
+                        continue;
+                    }
+                    List<Object> values = hint.values();
+                    if (hint.isSingleValue() == false) {
+                        // Multi-value IN leaves the * slot. A brace of guessed spellings misses percent-encoded
+                        // folders while one guessed hit keeps the listing non-empty, so the empty fallback never runs.
+                        continue;
+                    }
+                    // Only a string that is the on-disk folder name. String.valueOf(6) would splice "6"
+                    // and miss "06". A decoded value ("a b") would splice a folder that is stored encoded
+                    // ("a%20b/") and the empty retry is now conclusive. Numeric levels stay * and the
+                    // position walk (or the flat typed filter) keeps every spelling that typed-matches.
+                    if (values.get(0) instanceof String value && exactTemplateFolderName(value)) {
+                        raw[rawIdx] = value;
+                        changed = true;
+                    }
+                }
             }
-            changed = true;
         }
 
         if (changed == false) {
             return null;
         }
+        String newPath = String.join("/", raw);
+        return pattern.substring(0, pattern.length() - path.length()) + newPath;
+    }
 
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < segments.length; i++) {
-            if (i > 0) {
-                result.append('/');
+    private static boolean hasPlaceholder(List<TemplateSegment> segments) {
+        for (TemplateSegment segment : segments) {
+            if (segment instanceof TemplateSegment.Placeholder) {
+                return true;
             }
-            result.append(segments[i]);
         }
-        return result.toString();
+        return false;
     }
 
     private static Map<String, PartitionFilterHint> indexRewritableHints(List<PartitionFilterHint> hints) {
@@ -483,6 +4604,364 @@ public final class GlobExpander {
             }
         }
         return byColumn;
+    }
+
+    // A closed integral range is not spelled as a brace. The brace is the integer literals, so rating >= 1 AND
+    // rating <= 3 would drop rating=2.5 and then type the column INTEGER. The listing keeps the original glob
+    // (one listObjects, same prefix) and drops a folder only when PartitionValueMatcher excludes it.
+
+    private static List<PartitionFilterHint> closedRangeFilterHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (hints == null || hints.isEmpty() || partitionConfig == null) {
+            return List.of();
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
+        if (hive == false && template == false) {
+            return List.of();
+        }
+        Map<String, PartitionFilterHint> alreadyConcrete = indexRewritableHints(hints);
+        Map<String, List<PartitionFilterHint>> rangesByColumn = null;
+        for (PartitionFilterHint hint : hints) {
+            if (alreadyConcrete.containsKey(hint.columnName()) || rangeOperator(hint.operator()) == false) {
+                continue;
+            }
+            if (rangesByColumn == null) {
+                rangesByColumn = Maps.newHashMapWithExpectedSize(hints.size());
+            }
+            List<PartitionFilterHint> columnHints = rangesByColumn.get(hint.columnName());
+            if (columnHints == null) {
+                columnHints = new ArrayList<>();
+                rangesByColumn.put(hint.columnName(), columnHints);
+            }
+            columnHints.add(hint);
+        }
+        if (rangesByColumn == null) {
+            return List.of();
+        }
+        List<PartitionFilterHint> filterHints = new ArrayList<>();
+        for (List<PartitionFilterHint> columnHints : rangesByColumn.values()) {
+            if (integralClosedSpan(columnHints)) {
+                filterHints.addAll(columnHints);
+            }
+        }
+        return filterHints;
+    }
+
+    /**
+     * {@code EQUALS} and {@code IN} hints whose values include a non-integral number. The glob rewrite leaves
+     * those segments as {@code *}; this is the pass that still drops a folder the number excludes.
+     */
+    private static List<PartitionFilterHint> nonIntegralEqualityHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (hints == null || hints.isEmpty() || partitionConfig == null) {
+            return List.of();
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
+        if (hive == false && template == false) {
+            return List.of();
+        }
+        List<PartitionFilterHint> equality = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if ((hint.operator() == Operator.EQUALS || hint.operator() == Operator.IN) && containsNonIntegralNumber(hint.values())) {
+                equality.add(hint);
+            }
+        }
+        return equality;
+    }
+
+    /**
+     * {@code EQUALS} and {@code IN} hints whose values are an integral number or a boolean. {@code rewriteSegment}
+     * leaves those segments as {@code *}; this is the pass that still drops a folder the typed comparison excludes,
+     * including on a non-walkable keyed glob the walk never visits. Only a column the glob names as {@code key=} is
+     * kept, so a data-column equality does not fragment the listing cache.
+     */
+    private static List<PartitionFilterHint> integralOrBooleanEqualityHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        @Nullable String glob
+    ) {
+        if (hints == null || hints.isEmpty() || partitionConfig == null || glob == null || glob.isEmpty()) {
+            return List.of();
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
+        if (hive == false && template == false) {
+            return List.of();
+        }
+        List<PartitionFilterHint> equality = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if ((hint.operator() == Operator.EQUALS || hint.operator() == Operator.IN)
+                && containsIntegralOrBoolean(hint.values())
+                && globNamesHiveColumn(glob, hint.columnName())) {
+                equality.add(hint);
+            }
+        }
+        return equality;
+    }
+
+    /** A {@link Float} or {@link Double} hint value, whose printed form is not the only on-disk spelling. */
+    private static boolean containsNonIntegralNumber(List<Object> values) {
+        for (Object value : values) {
+            if (value instanceof Float || value instanceof Double) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsIntegralOrBoolean(List<Object> values) {
+        for (Object value : values) {
+            if (integralBound(value) || value instanceof Boolean) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean rangeOperator(Operator operator) {
+        return switch (operator) {
+            case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> true;
+            case EQUALS, NOT_EQUALS, IN, LIKE -> false;
+        };
+    }
+
+    private static boolean integralClosedSpan(List<PartitionFilterHint> bounds) {
+        boolean hasLower = false;
+        boolean hasUpper = false;
+        long lower = 0;
+        long upper = 0;
+        for (PartitionFilterHint hint : bounds) {
+            List<Object> values = hint.values();
+            if (values.size() != 1 || integralBound(values.get(0)) == false) {
+                return false;
+            }
+            long value = ((Number) values.get(0)).longValue();
+            switch (hint.operator()) {
+                case GREATER_THAN_OR_EQUAL -> {
+                    lower = hasLower ? Math.max(lower, value) : value;
+                    hasLower = true;
+                }
+                case GREATER_THAN -> {
+                    if (value == Long.MAX_VALUE) {
+                        return false;
+                    }
+                    long inclusive = value + 1;
+                    lower = hasLower ? Math.max(lower, inclusive) : inclusive;
+                    hasLower = true;
+                }
+                case LESS_THAN_OR_EQUAL -> {
+                    upper = hasUpper ? Math.min(upper, value) : value;
+                    hasUpper = true;
+                }
+                case LESS_THAN -> {
+                    if (value == Long.MIN_VALUE) {
+                        return false;
+                    }
+                    long inclusive = value - 1;
+                    upper = hasUpper ? Math.min(upper, inclusive) : inclusive;
+                    hasUpper = true;
+                }
+                case EQUALS, NOT_EQUALS, IN, LIKE -> throw new IllegalArgumentException("not a range operator [" + hint.operator() + "]");
+            }
+        }
+        if (hasLower == false || hasUpper == false || upper < lower) {
+            return false;
+        }
+        // upper >= lower, so a negative distance is long subtraction overflow.
+        return upper - lower >= 0;
+    }
+
+    private static boolean integralBound(Object value) {
+        return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long;
+    }
+
+    /**
+     * Hints the flat listing applies after listObjects, without rewriting the glob. The listing-cache identity
+     * keys the same set on a pattern the walk does not already key: a filtered query must not share an unfiltered
+     * entry. Integer and boolean equalities join the closed-range and non-integral-equality set: they no longer
+     * splice {@code key=*}, and a non-walkable keyed glob has no walk to apply them.
+     */
+    private static List<PartitionFilterHint> folderPostFilterHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        @Nullable String glob
+    ) {
+        List<PartitionFilterHint> filterHints = new ArrayList<>();
+        filterHints.addAll(closedRangeFilterHints(hints, partitionConfig));
+        filterHints.addAll(nonIntegralEqualityHints(hints, partitionConfig));
+        filterHints.addAll(integralOrBooleanEqualityHints(hints, partitionConfig, glob));
+        return filterHints;
+    }
+
+    private static List<StorageEntry> withoutFoldersOutsideClosedRange(
+        List<StorageEntry> matched,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        @Nullable String glob
+    ) {
+        List<PartitionFilterHint> rangeHints = folderPostFilterHints(hints, partitionConfig, glob);
+        if (rangeHints.isEmpty()) {
+            return matched;
+        }
+        Map<String, List<PartitionFilterHint>> byColumn = Maps.newHashMapWithExpectedSize(rangeHints.size());
+        for (PartitionFilterHint hint : rangeHints) {
+            List<PartitionFilterHint> columnHints = byColumn.get(hint.columnName());
+            if (columnHints == null) {
+                columnHints = new ArrayList<>();
+                byColumn.put(hint.columnName(), columnHints);
+            }
+            columnHints.add(hint);
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        String template = hive ? null : partitionConfig.pathTemplate();
+        boolean[] drop = new boolean[matched.size()];
+        for (Map.Entry<String, List<PartitionFilterHint>> entry : byColumn.entrySet()) {
+            String column = entry.getKey();
+            List<String> values = new ArrayList<>();
+            int[] indexes = new int[matched.size()];
+            int present = 0;
+            for (int i = 0; i < matched.size(); i++) {
+                FoundValue found = hive
+                    ? hivePartitionValue(matched.get(i).path(), column)
+                    : templatePartitionValue(matched.get(i).path(), column, template);
+                if (found == null) {
+                    continue;
+                }
+                indexes[present] = i;
+                values.add(found.value);
+                present++;
+            }
+            if (present == 0) {
+                continue;
+            }
+            boolean[] keep = PartitionValueMatcher.matchesFolders(values, entry.getValue());
+            for (int i = 0; i < present; i++) {
+                if (keep[i] == false) {
+                    drop[indexes[i]] = true;
+                }
+            }
+        }
+        List<StorageEntry> kept = new ArrayList<>(matched.size());
+        for (int i = 0; i < matched.size(); i++) {
+            if (drop[i] == false) {
+                kept.add(matched.get(i));
+            }
+        }
+        return kept;
+    }
+
+    /** TEMPLATE with at least one placeholder: the listing value-filters, and a fixed-depth glob may walk. */
+    private static boolean templateValueFilter(PartitionConfig config) {
+        return PartitionConfig.Strategy.TEMPLATE == config.strategy()
+            && config.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(config.pathTemplate()).isEmpty() == false;
+    }
+
+    /**
+     * Hive or template hints applied inside the flat {@code listObjects} loop, before the discovery cap. Empty when
+     * this glob's strategy cannot value-filter. A missing segment and an undecidable comparison keep the file; the
+     * Hive NULL partition is never an exclusion.
+     */
+    private record PartitionValueFilter(
+        boolean hive,
+        @Nullable String template,
+        Map<String, List<PartitionFilterHint>> byColumn,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        static final PartitionValueFilter NONE = new PartitionValueFilter(false, null, Map.of(), null);
+
+        static PartitionValueFilter forGlob(
+            String glob,
+            @Nullable List<PartitionFilterHint> hints,
+            PartitionConfig config,
+            @Nullable FolderRangePredicate folderRange
+        ) {
+            boolean walkableHive = walkableGlob(glob) && walkableStrategy(config);
+            boolean template = walkableHive == false && templateValueFilter(config);
+            boolean matchHiveFolders;
+            List<PartitionFilterHint> pruning;
+            if (walkableHive) {
+                matchHiveFolders = true;
+                pruning = partitionPruningHints(hints);
+            } else if (template) {
+                matchHiveFolders = false;
+                pruning = partitionPruningHints(hints);
+            } else if (walkableStrategy(config) && hiveKeyedGlob(glob)) {
+                // Non-walkable keyed glob (data/*/month=* or region=*-x/month=*). The walk is off, so the
+                // in-loop filter uses the same hint set the post-filter and cache identity keep.
+                matchHiveFolders = true;
+                pruning = folderPostFilterHints(hints, config, glob);
+            } else {
+                return NONE;
+            }
+            if (pruning.isEmpty() && folderRange == null) {
+                return NONE;
+            }
+            Map<String, List<PartitionFilterHint>> grouped = Maps.newHashMapWithExpectedSize(Math.max(pruning.size(), 1));
+            for (PartitionFilterHint hint : pruning) {
+                grouped.computeIfAbsent(hint.columnName(), k -> new ArrayList<>()).add(hint);
+            }
+            return new PartitionValueFilter(matchHiveFolders, matchHiveFolders ? null : config.pathTemplate(), grouped, folderRange);
+        }
+
+        boolean excludes(StorageEntry entry) {
+            if (byColumn.isEmpty() && folderRange == null) {
+                return false;
+            }
+            for (Map.Entry<String, List<PartitionFilterHint>> column : byColumn.entrySet()) {
+                FoundValue found = hive
+                    ? hivePartitionValue(entry.path(), column.getKey())
+                    : templatePartitionValue(entry.path(), column.getKey(), template);
+                if (found == null) {
+                    continue;
+                }
+                String raw = found.value();
+                // Hive folderValue already turns the NULL partition into null, which keepsIsolated keeps.
+                // A template segment can still be the literal sentinel.
+                if (hive == false && raw != null && HivePartitionDetector.HIVE_DEFAULT_PARTITION.equals(raw)) {
+                    continue;
+                }
+                if (PartitionValueMatcher.keepsIsolated(raw, column.getValue()) == false) {
+                    return true;
+                }
+            }
+            if (folderRange != null && folderRange.mayContain(PartitionValueMatcher.pathBindings(entry.path().path())) == false) {
+                return true;
+            }
+            return false;
+        }
+    }
+
+    // null when this file has no partition value for the column. The Hive default partition is a found null.
+    private record FoundValue(@Nullable String value) {}
+
+    @Nullable
+    private static FoundValue hivePartitionValue(StoragePath path, String column) {
+        for (String segment : HivePartitionDetector.directorySegments(path.path())) {
+            String key = PartitionValueMatcher.folderKey(segment);
+            if (column.equals(key)) {
+                return new FoundValue(PartitionValueMatcher.folderValue(segment));
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static FoundValue templatePartitionValue(StoragePath path, String column, String template) {
+        String value = TemplatePartitionDetector.columnValue(path.path(), column, template);
+        return value == null ? null : new FoundValue(value);
     }
 
     private static String rewriteSegment(String segment, Map<String, PartitionFilterHint> rewritableHints) {
@@ -503,34 +4982,248 @@ public final class GlobExpander {
         }
 
         List<Object> values = hint.values();
-        if (hint.isSingleValue()) {
-            return key + "=" + escapeGlobMeta(String.valueOf(values.get(0)));
+        if (hint.isSingleValue() == false) {
+            // Multi-value IN leaves key=*. The walk (or the flat value filter, when the walk withdraws) matches the
+            // decoded folder value, so percent-encoded and zero-padded spellings stay without a guessed brace.
+            return segment;
         }
-
-        // Multiple values: use glob brace syntax key={v1,v2,...}
-        StringBuilder sb = new StringBuilder(key).append("={");
-        for (int i = 0; i < values.size(); i++) {
-            if (i > 0) {
-                sb.append(',');
-            }
-            sb.append(escapeGlobMeta(String.valueOf(values.get(i))));
+        // Only a string that is the on-disk folder name. String.valueOf(6) would splice "6" and miss "06";
+        // Boolean.TRUE would splice "true" and miss "TRUE". A decoded value ("a b") would splice a folder
+        // stored encoded ("a%20b/"). The walk (or the flat value filter) keeps every typed match.
+        if (values.get(0) instanceof String value && exactTemplateFolderName(value)) {
+            return key + "=" + value;
         }
-        return sb.append('}').toString();
+        return segment;
     }
 
-    private static String escapeGlobMeta(String value) {
-        if (value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0) {
-            return value;
+    /**
+     * Whether a partition value can be spliced into a glob as itself. A value holding a glob metacharacter cannot:
+     * spliced raw it would be read as a wildcard and widen the listing, which is a wrong answer.
+     *
+     * <p>It used to be escaped instead, by wrapping each metacharacter in a one-character class — {@code a*b}
+     * became {@code a[*]b}. That made the rewrite depend on class support, and it emitted {@code [[]} for a literal
+     * bracket, which the matcher then refused to parse; a filter as ordinary as {@code WHERE dept == 'a[b'} on a
+     * Hive dataset produced an uncaught parse failure at query time.
+     *
+     * <p>Declining is simply better. The rewrite is an optimisation — it narrows which prefix is listed, and the
+     * row filter still runs — so skipping it lists a superset, which is always correct. There is no reason to
+     * carry an escaping mechanism to save a listing on a partition value nobody writes.
+     */
+    private static boolean globExpressible(String value) {
+        return value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0;
+    }
+
+    /**
+     * A TEMPLATE splice must be the folder name on disk. {@link TemplatePartitionDetector} percent-decodes
+     * segments, so {@code region == "a b"} is the decoded value of {@code a%20b/} and {@code "a+b"} of
+     * {@code a%2Bb/}; splicing the decoded form lists a folder that does not exist and the empty retry is
+     * conclusive. Only RFC 3986 unreserved characters are a spelling a writer would leave unescaped;
+     * anything else stays {@code *} and the typed filter keeps the encoded match.
+     */
+    private static boolean exactTemplateFolderName(String value) {
+        if (globExpressible(value) == false) {
+            return false;
         }
-        StringBuilder sb = new StringBuilder(value.length() + 4);
         for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '*' || c == '?' || c == '[' || c == '{') {
-                sb.append('[').append(c).append(']');
-            } else {
-                sb.append(c);
+            if (isUnreservedFolderChar(value.charAt(i)) == false) {
+                return false;
             }
         }
-        return sb.toString();
+        return true;
+    }
+
+    /** RFC 3986 unreserved: {@code ALPHA / DIGIT / "-" / "." / "_" / "~"}. */
+    private static boolean isUnreservedFolderChar(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~';
+    }
+
+    public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {
+        FileMetadataFilter fileHints = FileMetadataFilter.resolve(hints);
+        if (fileHints.isEmpty()) {
+            return entries;
+        }
+
+        int beforeCount = entries.size();
+        List<StorageEntry> filtered = new ArrayList<>(entries.size());
+        for (StorageEntry entry : entries) {
+            if (fileHints.matches(entry)) {
+                filtered.add(entry);
+            }
+        }
+
+        if (filtered.size() < beforeCount) {
+            logger.debug("File metadata filter pruned {}/{} files from listing", beforeCount - filtered.size(), beforeCount);
+        }
+        return filtered;
+    }
+
+    /**
+     * Requested {@code _file.*} hints with LIKE automata compiled once for the listing. A pattern that
+     * cannot be compiled is undecidable and keeps every file, matching {@link PartitionValueMatcher}.
+     */
+    private static final class FileMetadataFilter {
+        static final FileMetadataFilter NONE = new FileMetadataFilter(List.of(), null);
+
+        private final List<PartitionFilterHint> hints;
+        @Nullable
+        private final ByteRunAutomaton[] likeRuns;
+
+        private FileMetadataFilter(List<PartitionFilterHint> hints, ByteRunAutomaton[] likeRuns) {
+            this.hints = hints;
+            this.likeRuns = likeRuns;
+        }
+
+        static FileMetadataFilter resolve(@Nullable List<PartitionFilterHint> hints) {
+            List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
+            if (fileHints.isEmpty()) {
+                return NONE;
+            }
+            ByteRunAutomaton[] likeRuns = null;
+            for (int i = 0; i < fileHints.size(); i++) {
+                PartitionFilterHint hint = fileHints.get(i);
+                if (hint.operator() != Operator.LIKE) {
+                    continue;
+                }
+                if (likeRuns == null) {
+                    likeRuns = new ByteRunAutomaton[fileHints.size()];
+                }
+                likeRuns[i] = PartitionValueMatcher.compileLike(hint);
+            }
+            return new FileMetadataFilter(fileHints, likeRuns);
+        }
+
+        boolean isEmpty() {
+            return hints.isEmpty();
+        }
+
+        boolean matches(StorageEntry entry) {
+            for (int i = 0; i < hints.size(); i++) {
+                PartitionFilterHint hint = hints.get(i);
+                ByteRunAutomaton likeRun = likeRuns == null ? null : likeRuns[i];
+                if (matchesFileHint(entry, hint, likeRun) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    private static boolean matchesFileHint(StorageEntry entry, PartitionFilterHint hint, @Nullable ByteRunAutomaton likeRun) {
+        Object value = fileColumnValue(entry, hint.columnName());
+        if (hint.operator() == Operator.LIKE) {
+            // FileMetadataFilter already compiled; null means the pattern was undecidable. Do not compile again.
+            if (likeRun == null) {
+                return true;
+            }
+            Object pattern = hint.values().isEmpty() ? null : hint.values().get(0);
+            return kept(PartitionValueMatcher.matchesLike(value, pattern, likeRun));
+        }
+        return switch (hint.columnName()) {
+            case FileMetadataColumns.MODIFIED -> matchesModified(entry.lastModified(), hint);
+            case FileMetadataColumns.RECORD_REF -> true;
+            case FileMetadataColumns.PATH, FileMetadataColumns.NAME, FileMetadataColumns.DIRECTORY, FileMetadataColumns.SIZE -> kept(
+                PartitionValueMatcher.matches(value, hint)
+            );
+            default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
+        };
+    }
+
+    /**
+     * Storage-stat value for a {@code _file.*} column. A missing parent directory and
+     * {@code _file.record_ref} yield {@code null}, which {@link #kept} treats as keep.
+     */
+    private static Object fileColumnValue(StorageEntry entry, String column) {
+        return switch (column) {
+            case FileMetadataColumns.PATH -> entry.path().toString();
+            case FileMetadataColumns.NAME -> entry.path().objectName();
+            case FileMetadataColumns.DIRECTORY -> {
+                StoragePath parent = entry.path().parentDirectory();
+                yield parent == null ? null : parent.toString();
+            }
+            case FileMetadataColumns.SIZE -> entry.length();
+            case FileMetadataColumns.MODIFIED -> entry.lastModified();
+            case FileMetadataColumns.RECORD_REF -> null;
+            default -> throw new AssertionError("unexpected file metadata hint [" + column + "]");
+        };
+    }
+
+    /**
+     * Parse each {@code _file.modified} hint once. A literal that is not a full instant is undecidable, and one such
+     * literal makes the whole hint undecidable, so that hint is dropped and every file is kept for it. Hints that
+     * parse are replaced with their epoch-millis values and reused for every file.
+     */
+    private static List<PartitionFilterHint> resolveModifiedHints(List<PartitionFilterHint> hints) {
+        List<PartitionFilterHint> resolved = null;
+        for (int i = 0; i < hints.size(); i++) {
+            PartitionFilterHint hint = hints.get(i);
+            if (FileMetadataColumns.MODIFIED.equals(hint.columnName()) == false) {
+                if (resolved != null) {
+                    resolved.add(hint);
+                }
+                continue;
+            }
+            if (resolved == null) {
+                resolved = new ArrayList<>(hints.size());
+                resolved.addAll(hints.subList(0, i));
+            }
+            PartitionFilterHint parsed = parsedModifiedHint(hint);
+            if (parsed != null) {
+                resolved.add(parsed);
+            }
+        }
+        return resolved == null ? hints : resolved;
+    }
+
+    /**
+     * The hint with each literal read as epoch millis, or {@code null} when a literal cannot be read that way.
+     * An empty value list decides nothing.
+     */
+    @Nullable
+    private static PartitionFilterHint parsedModifiedHint(PartitionFilterHint hint) {
+        if (hint.values().isEmpty()) {
+            return null;
+        }
+        List<Object> millis = new ArrayList<>(hint.values().size());
+        for (Object value : hint.values()) {
+            Long parsed = epochMillis(value);
+            if (parsed == null) {
+                return null;
+            }
+            millis.add(parsed);
+        }
+        return new PartitionFilterHint(hint.columnName(), hint.operator(), millis);
+    }
+
+    /**
+     * A missing modification time is not a value the filter can exclude: {@link StorageEntry} normalises one the store
+     * could not provide to {@link Instant#EPOCH}, so both null and the epoch keep the file. {@code hint} values are
+     * epoch millis.
+     */
+    private static boolean matchesModified(Instant actual, PartitionFilterHint hint) {
+        if (actual == null || actual.equals(Instant.EPOCH)) {
+            return true;
+        }
+        return kept(PartitionValueMatcher.matches(actual.toEpochMilli(), hint));
+    }
+
+    /** Epoch millis of a {@code Long} or a full-instant {@code String}, or {@code null} when the literal cannot be read. */
+    @Nullable
+    private static Long epochMillis(Object value) {
+        if (value instanceof Long l) {
+            return l;
+        }
+        if (value instanceof String s) {
+            try {
+                return Instant.parse(s).toEpochMilli();
+            } catch (DateTimeParseException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /** {@code null} from the matcher means the hint cannot be decided, so the file is kept. */
+    private static boolean kept(@Nullable Boolean matches) {
+        return matches == null || matches;
     }
 }

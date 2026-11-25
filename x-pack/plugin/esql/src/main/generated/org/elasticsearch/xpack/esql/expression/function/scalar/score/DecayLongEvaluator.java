@@ -31,29 +31,17 @@ public final class DecayLongEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
-  private final long origin;
-
-  private final long scale;
-
-  private final long offset;
-
-  private final double decay;
-
-  private final Decay.DecayFunction decayFunction;
+  private final DecayScorers.NumericScorer scorer;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public DecayLongEvaluator(Source source, ExpressionEvaluator value, long origin, long scale,
-      long offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
+  public DecayLongEvaluator(Source source, ExpressionEvaluator value,
+      DecayScorers.NumericScorer scorer, DriverContext driverContext) {
     this.source = source;
     this.value = value;
-    this.origin = origin;
-    this.scale = scale;
-    this.offset = offset;
-    this.decay = decay;
-    this.decayFunction = decayFunction;
+    this.scorer = scorer;
     this.driverContext = driverContext;
   }
 
@@ -76,12 +64,13 @@ public final class DecayLongEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valueBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -90,17 +79,17 @@ public final class DecayLongEvaluator implements ExpressionEvaluator {
               continue position;
         }
         long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
-        result.appendDouble(Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        result.appendDouble(Decay.process(value, this.scorer));
       }
       return result.build();
     }
   }
 
   public DoubleVector eval(int positionCount, LongVector valueVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);
-        result.appendDouble(p, Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        result.appendDouble(p, Decay.process(value, this.scorer));
       }
       return result.build();
     }
@@ -108,7 +97,7 @@ public final class DecayLongEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "DecayLongEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+    return "DecayLongEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
   }
 
   @Override
@@ -118,7 +107,7 @@ public final class DecayLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
@@ -128,35 +117,23 @@ public final class DecayLongEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    private final long origin;
+    private final DecayScorers.NumericScorer scorer;
 
-    private final long scale;
-
-    private final long offset;
-
-    private final double decay;
-
-    private final Decay.DecayFunction decayFunction;
-
-    public Factory(Source source, ExpressionEvaluator.Factory value, long origin, long scale,
-        long offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value,
+        DecayScorers.NumericScorer scorer) {
       this.source = source;
       this.value = value;
-      this.origin = origin;
-      this.scale = scale;
-      this.offset = offset;
-      this.decay = decay;
-      this.decayFunction = decayFunction;
+      this.scorer = scorer;
     }
 
     @Override
     public DecayLongEvaluator get(DriverContext context) {
-      return new DecayLongEvaluator(source, value.get(context), origin, scale, offset, decay, decayFunction, context);
+      return new DecayLongEvaluator(source, value.get(context), scorer, context);
     }
 
     @Override
     public String toString() {
-      return "DecayLongEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+      return "DecayLongEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
     }
   }
 }

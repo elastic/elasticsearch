@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Releasable;
@@ -20,11 +21,11 @@ import org.elasticsearch.core.Releasables;
  */
 public class ValuesNextLongLong implements Releasable {
     private final BlockFactory blockFactory;
-    private final LongLongHash hashes;
+    private final LongLongHashTable hashes;
 
     public ValuesNextLongLong(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
-        this.hashes = new LongLongHash(1, blockFactory.bigArrays());
+        this.hashes = HashImplFactory.newLongLongHash(blockFactory);
     }
 
     void add(int groupId, long v) {

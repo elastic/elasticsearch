@@ -8,14 +8,15 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -31,8 +32,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValues;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -66,7 +68,6 @@ import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHi
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +108,7 @@ class DownsampleShardIndexer {
     private final DownsampleShardPersistentTaskState state;
     private final String[] dimensions;
     private final AbstractFieldDownsampler.DownsamplerCountPerValueType fieldCounts;
+    private final String temporalityFieldName;
     private volatile boolean abort = false;
     ByteSizeValue downsampleBulkSize = DOWNSAMPLE_BULK_SIZE;
     ByteSizeValue downsampleMaxBytesInFlight = DOWNSAMPLE_MAX_BYTES_IN_FLIGHT;
@@ -145,6 +147,9 @@ class DownsampleShardIndexer {
                 null
             );
             this.dimensions = dimensions;
+            this.temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(
+                searchExecutionContext.getIndexSettings().getSettings()
+            );
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
@@ -197,11 +202,13 @@ class DownsampleShardIndexer {
 
         TimeValue duration = TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime);
         logger.info(
-            "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], failed [{}], took [{}]",
+            "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], "
+                + "skipped already indexed [{}], failed [{}], took [{}]",
             indexShard.shardId(),
             task.getNumReceived(),
             task.getNumSent(),
             task.getNumIndexed(),
+            task.getNumSkippedAlreadyIndexed(),
             task.getNumFailed(),
             duration
         );
@@ -247,8 +254,10 @@ class DownsampleShardIndexer {
     }
 
     private Query createQuery() {
-        if (this.state.started() && this.state.tsid() != null) {
-            return SortedSetDocValuesField.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
+        // The executor creates the state with the INITIALIZED status and the last tsid found in the target index, so the
+        // presence of a tsid is what signals a resumed task, not the status.
+        if (this.state.tsid() != null) {
+            return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
         }
         return Queries.ALL_DOCS_INSTANCE;
     }
@@ -313,20 +322,47 @@ class DownsampleShardIndexer {
                 long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
                 long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
+                List<BulkItemResponse> failedItems = List.of();
+                if (response.hasFailures()) {
+                    // Version conflicts are expected when a task resumes after an interruption, the documents are created with op type
+                    // CREATE, so the bucket that were already indexed by the previous run are rejected. They are skipped rather
+                    // than counted as failures.
+                    int conflicts = 0;
+                    for (BulkItemResponse item : response.getItems()) {
+                        if (item.isFailed() == false) {
+                            continue;
+                        }
+                        if (item.getFailure().getStatus() == RestStatus.CONFLICT) {
+                            conflicts++;
+                        } else {
+                            if (failedItems.isEmpty()) {
+                                failedItems = new ArrayList<>();
+                            }
+                            failedItems.add(item);
+                        }
+                    }
+                    if (conflicts > 0) {
+                        task.addNumSkippedAlreadyIndexed(conflicts);
+                        logger.debug(
+                            "Shard [{}] skipped [{}] downsampled documents that were already indexed",
+                            indexShard.shardId(),
+                            conflicts
+                        );
+                    }
+                }
                 task.setAfterBulkInfo(
                     new DownsampleAfterBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
                         executionId,
                         bulkIngestTookMillis,
                         bulkTookMillis,
-                        response.hasFailures(),
+                        failedItems.isEmpty() == false,
                         RestStatus.OK.getStatus()
                     )
                 );
                 task.updateBulkInfo(bulkIngestTookMillis, bulkTookMillis);
 
-                if (response.hasFailures()) {
-                    List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
+                if (failedItems.isEmpty() == false) {
                     task.addNumFailed(failedItems.size());
 
                     Map<String, String> failures = failedItems.stream()
@@ -375,13 +411,20 @@ class DownsampleShardIndexer {
         private final ExponentialHistogramFieldDownsampler[] exponentialHistogramDownsamplers;
         private final TDigestHistogramFieldDownsampler[] tDigestHistogramDownsamplers;
         private final NumericMetricFieldDownsampler[] numericDownsamplers;
-        // Aggregate counter downsampler is dealt with separately than the numeric ones because
-        // they additionally require timestamps.
+        // Aggregate counter and histogram downsamplers are dealt with separately because
+        // they additionally require timestamps when temporality is cumulative.
         private final NumericMetricFieldDownsampler.AggregateCounter[] aggregateCounterDownsamplers;
+        private final ExponentialHistogramFieldDownsampler.AggregateHistogram[] aggregateHistogramDownsamplers;
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
         long lastHistoTimestamp = Long.MAX_VALUE;
+
+        /**
+         * The array index of the dimension storing the temporality in {@link #dimensionDownsamplers}.
+         * {@code -1} if there is no temporality dimension.
+         */
+        private final int temporalityDimensionIndex;
 
         TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor, String[] dimensions) {
             this.bulkProcessor = bulkProcessor;
@@ -392,14 +435,17 @@ class DownsampleShardIndexer {
             int formattedValueFieldIndex = 0;
             this.formattedDocValuesDownsamplers = new LastValueFieldDownsampler[fieldCounts.formattedValueFields()];
             int exponentialHistogramFieldIndex = 0;
-            this.exponentialHistogramDownsamplers = new ExponentialHistogramFieldDownsampler[fieldCounts.exponentialHistogramFields()];
+            this.exponentialHistogramDownsamplers = new ExponentialHistogramFieldDownsampler[fieldCounts
+                .nonAggregateExponentialHistogramFields()];
             int tDigestHistogramFieldIndex = 0;
             this.tDigestHistogramDownsamplers = new TDigestHistogramFieldDownsampler[fieldCounts.tDigestHistogramFields()];
             int aggregateCounterFieldIndex = 0;
             this.aggregateCounterDownsamplers = fieldCounts.aggregateCounterFields() == 0
                 ? EMPTY_AGGREGATE_COUNTERS
                 : new NumericMetricFieldDownsampler.AggregateCounter[fieldCounts.aggregateCounterFields()];
-
+            int aggregateHistogramFieldIndex = 0;
+            this.aggregateHistogramDownsamplers = new ExponentialHistogramFieldDownsampler.AggregateHistogram[fieldCounts
+                .aggregateExponentialHistogramFields()];
             for (AbstractFieldDownsampler<?> fieldDownsampler : fieldDownsamplers) {
                 switch (fieldDownsampler) {
                     case NumericMetricFieldDownsampler.AggregateCounter aggregateCounter -> {
@@ -418,6 +464,10 @@ class DownsampleShardIndexer {
                         assert formattedValueFieldIndex < formattedDocValuesDownsamplers.length;
                         formattedDocValuesDownsamplers[formattedValueFieldIndex++] = lastValueDownsampler;
                     }
+                    case ExponentialHistogramFieldDownsampler.AggregateHistogram aggregateHistogram -> {
+                        assert aggregateHistogramFieldIndex < aggregateHistogramDownsamplers.length;
+                        aggregateHistogramDownsamplers[aggregateHistogramFieldIndex++] = aggregateHistogram;
+                    }
                     case ExponentialHistogramFieldDownsampler exponentialHistogramDownsampler -> {
                         assert exponentialHistogramFieldIndex < exponentialHistogramDownsamplers.length;
                         exponentialHistogramDownsamplers[exponentialHistogramFieldIndex++] = exponentialHistogramDownsampler;
@@ -430,9 +480,21 @@ class DownsampleShardIndexer {
                 }
             }
 
+            int resolvedTemporalityIndex = -1;
+            if (temporalityFieldName != null && temporalityFieldName.isEmpty() == false) {
+                for (int i = 0; i < dimensionDownsamplers.length; i++) {
+                    if (temporalityFieldName.equals(dimensionDownsamplers[i].name())) {
+                        resolvedTemporalityIndex = i;
+                        break;
+                    }
+                }
+            }
+            this.temporalityDimensionIndex = resolvedTemporalityIndex;
+
             this.downsampleBucketBuilder = new DownsampleBucketBuilder(
                 fieldDownsamplers,
                 aggregateCounterDownsamplers,
+                aggregateHistogramDownsamplers,
                 dimensionDownsamplers,
                 dimensions
             );
@@ -469,8 +531,12 @@ class DownsampleShardIndexer {
             for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
                 aggregateCounterValues[i] = aggregateCounterDownsamplers[i].getLeaf(ctx);
             }
-            // If there are no aggregate counters we can skip fetching the timestamps
-            var timestampValues = aggregateCounterDownsamplers.length == 0 ? null : timestampValueFetcher.getLeaf(ctx);
+            var aggregateHistogramValues = new ExponentialHistogramValuesReader[aggregateHistogramDownsamplers.length];
+            for (int i = 0; i < aggregateHistogramDownsamplers.length; i++) {
+                aggregateHistogramValues[i] = aggregateHistogramDownsamplers[i].getLeaf(ctx);
+            }
+            boolean needTimestamps = aggregateCounterDownsamplers.length > 0 || aggregateHistogramDownsamplers.length > 0;
+            var timestampValues = needTimestamps ? timestampValueFetcher.getLeaf(ctx) : null;
 
             return new LeafDownsampleCollector(
                 aggCtx,
@@ -481,6 +547,7 @@ class DownsampleShardIndexer {
                 exponentialHistogramValues,
                 tDigestHistogramValues,
                 aggregateCounterValues,
+                aggregateHistogramValues,
                 timestampValues
             );
         }
@@ -501,9 +568,11 @@ class DownsampleShardIndexer {
             final ExponentialHistogramValuesReader[] exponentialHistogramValues;
             final HistogramValues[] tDigestHistogramValues;
             private final SortedNumericDoubleValues[] aggregateCounterValues;
+            private final ExponentialHistogramValuesReader[] aggregateHistogramValues;
             final SortedNumericLongValues timestampValues;
 
             final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
+            final LongArrayList timestampBuffer = new LongArrayList(DOCID_BUFFER_SIZE);
             final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
 
             LeafDownsampleCollector(
@@ -515,6 +584,7 @@ class DownsampleShardIndexer {
                 ExponentialHistogramValuesReader[] exponentialHistogramValues,
                 HistogramValues[] tDigestHistogramValues,
                 SortedNumericDoubleValues[] aggregateCounterValues,
+                ExponentialHistogramValuesReader[] aggregateHistogramValues,
                 SortedNumericLongValues timestampValues
             ) {
                 this.aggCtx = aggCtx;
@@ -525,6 +595,7 @@ class DownsampleShardIndexer {
                 this.exponentialHistogramValues = exponentialHistogramValues;
                 this.tDigestHistogramValues = tDigestHistogramValues;
                 this.aggregateCounterValues = aggregateCounterValues;
+                this.aggregateHistogramValues = aggregateHistogramValues;
                 this.timestampValues = timestampValues;
             }
 
@@ -608,11 +679,18 @@ class DownsampleShardIndexer {
                     }
                     downsampleBucketBuilder.dimensionsCollected = true;
                 }
-                if (aggregateCounterDownsamplers.length > 0) {
+                Temporality temporality = Temporality.DEFAULT;
+                if (temporalityDimensionIndex != -1) {
+                    temporality = Temporality.fromDimensionValue(dimensionDownsamplers[temporalityDimensionIndex].dimensionValue());
+                }
+                if (aggregateCounterDownsamplers.length > 0 || aggregateHistogramDownsamplers.length > 0) {
                     assert timestampValues != null;
-                    long[] timestamps = TimestampValueFetcher.fetch(timestampValues, docIdBuffer);
+                    TimestampValueFetcher.fetch(timestampValues, docIdBuffer, timestampBuffer);
                     for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestamps, docIdBuffer);
+                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestampBuffer, docIdBuffer, temporality);
+                    }
+                    for (int i = 0; i < aggregateHistogramDownsamplers.length; i++) {
+                        aggregateHistogramDownsamplers[i].collect(aggregateHistogramValues[i], timestampBuffer, docIdBuffer, temporality);
                     }
                 }
 
@@ -621,6 +699,7 @@ class DownsampleShardIndexer {
 
                 // buffer.clean() also overwrites all slots with zeros
                 docIdBuffer.elementsCount = 0;
+                timestampBuffer.elementsCount = 0;
             }
 
             private <T> void collect(AbstractFieldDownsampler<T>[] downsamplers, T[] docValues) throws IOException {
@@ -666,6 +745,9 @@ class DownsampleShardIndexer {
 
         private void indexBucket(XContentBuilder doc) {
             IndexRequestBuilder request = client.prepareIndex(downsampleIndex);
+            // The _id is derived from _tsid and timestamp. Use CREATE so that a bucket already indexed by a previous,
+            // interrupted run of this task is rejected with a version conflict instead of being indexed a second time.
+            request.setOpType(DocWriteRequest.OpType.CREATE);
             request.setSource(doc);
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing downsample doc: [{}]", Strings.toString(doc));
@@ -709,20 +791,21 @@ class DownsampleShardIndexer {
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
-        private CounterResetDataPoints counterResetDataPoints;
+        private ResetDataPoints resetDataPoints;
         private boolean dimensionsCollected = false;
         // A list of all the downsamplers so we can reset them before moving on to the next bucket
         private final List<AbstractFieldDownsampler<?>> fieldDownsamplers;
         // An array of field serializers, each field has one serializer which can group one or more AbstractFieldDownsamplers
         private final DownsampleFieldSerializer[] fieldSerializers;
-        // We track the dimensions and aggregate counter downsamplers separately to serialise the extra counter reset documents
         private final DimensionFieldDownsampler[] dimensionDownsamplers;
         private final NumericMetricFieldDownsampler.AggregateCounter[] aggregateCounterDownsamplers;
+        private final ExponentialHistogramFieldDownsampler.AggregateHistogram[] aggregateHistogramDownsamplers;
         private final boolean legacyDimensions;
 
         DownsampleBucketBuilder(
             List<AbstractFieldDownsampler<?>> fieldDownsamplers,
             NumericMetricFieldDownsampler.AggregateCounter[] aggregateCounterDownsamplers,
+            ExponentialHistogramFieldDownsampler.AggregateHistogram[] aggregateHistogramDownsamplers,
             DimensionFieldDownsampler[] dimensionDownsamplers,
             String[] dimensions
         ) {
@@ -730,6 +813,7 @@ class DownsampleShardIndexer {
             this.legacyDimensions = dimensions.length == 0;
             this.dimensionDownsamplers = dimensionDownsamplers;
             this.aggregateCounterDownsamplers = aggregateCounterDownsamplers;
+            this.aggregateHistogramDownsamplers = aggregateHistogramDownsamplers;
             /*
              * The field downsamplers for aggregate_metric_double all share the same name (this is
              * the name they will be serialized in the target index). We group all field downsamplers by
@@ -756,6 +840,9 @@ class DownsampleShardIndexer {
             for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
                 aggregateCounterDownsamplers[i].tsidReset();
             }
+            for (int i = 0; i < aggregateHistogramDownsamplers.length; i++) {
+                aggregateHistogramDownsamplers[i].tsidReset();
+            }
             // Reset dimension downsamplers
             for (int i = 0; i < dimensionDownsamplers.length; i++) {
                 dimensionDownsamplers[i].tsidReset();
@@ -772,8 +859,8 @@ class DownsampleShardIndexer {
             for (AbstractFieldDownsampler<?> downsampler : fieldDownsamplers) {
                 downsampler.reset();
             }
-            // We need to clear the extra data points for this bucket
-            this.counterResetDataPoints = aggregateCounterDownsamplers.length > 0 ? new CounterResetDataPoints() : null;
+            boolean needResetTracking = aggregateCounterDownsamplers.length > 0 || aggregateHistogramDownsamplers.length > 0;
+            this.resetDataPoints = needResetTracking ? new ResetDataPoints() : null;
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",
@@ -795,9 +882,12 @@ class DownsampleShardIndexer {
         }
 
         public void updateResetDataPoints() {
-            if (counterResetDataPoints != null) {
+            if (resetDataPoints != null) {
                 for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                    aggregateCounterDownsamplers[i].updateResetDataPoints(counterResetDataPoints);
+                    aggregateCounterDownsamplers[i].updateResetDataPoints(resetDataPoints);
+                }
+                for (int i = 0; i < aggregateHistogramDownsamplers.length; i++) {
+                    aggregateHistogramDownsamplers[i].updateResetDataPoints(resetDataPoints);
                 }
             }
         }
@@ -812,7 +902,7 @@ class DownsampleShardIndexer {
             builder.field(timestampField.name(), timestampFormat.format(timestamp));
             // We remove the reset documents from the doc count otherwise in every downsample round
             // the doc count will re-count the reset documents.
-            int resetDocCount = counterResetDataPoints == null ? 0 : counterResetDataPoints.countResetDocuments();
+            int resetDocCount = resetDataPoints == null ? 0 : resetDataPoints.countResetDocuments();
             int downsampledDocumentDocCount = docCount - resetDocCount;
             assert downsampledDocumentDocCount > 0 : "Reset documents should already be included in the processed document count";
             builder.field(DocCountFieldMapper.NAME, downsampledDocumentDocCount);
@@ -828,17 +918,17 @@ class DownsampleShardIndexer {
             return builder;
         }
 
-        public XContentBuilder buildExtraCounterDocument(long timestamp, List<Tuple<String, Double>> counterValues) throws IOException {
+        public XContentBuilder buildExtraResetDocument(long timestamp, Map<String, ResetDataPoints.ResetValue> resetValues)
+            throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
             builder.field(timestampField.name(), timestampFormat.format(timestamp));
 
-            // Serialize fields
             for (DimensionFieldDownsampler dimensionFieldDownsampler : dimensionDownsamplers) {
                 dimensionFieldDownsampler.write(builder);
             }
-            for (Tuple<String, Double> counterValue : counterValues) {
-                builder.field(counterValue.v1(), counterValue.v2());
+            for (var resetValue : resetValues.entrySet()) {
+                resetValue.getValue().write(resetValue.getKey(), builder);
             }
 
             extractLegacyDimensionsIfNeeded(builder);
@@ -848,21 +938,20 @@ class DownsampleShardIndexer {
         }
 
         void flushResetDocumentsIfNeeded(Consumer<XContentBuilder> indexResetDoc) throws IOException {
-            if (counterResetDataPoints == null || counterResetDataPoints.isEmpty()) {
-                return;
-            }
-
-            AtomicReference<IOException> error = new AtomicReference<>();
-            counterResetDataPoints.processDataPoints((timestamp, counterValues) -> {
-                try {
-                    XContentBuilder resetDoc = buildExtraCounterDocument(timestamp, counterValues);
-                    indexResetDoc.accept(resetDoc);
-                } catch (IOException e) {
-                    error.set(e);
+            if (resetDataPoints != null && resetDataPoints.isEmpty() == false) {
+                AtomicReference<IOException> error = new AtomicReference<>();
+                resetDataPoints.processDataPoints((timestamp, resetValues) -> {
+                    try {
+                        XContentBuilder resetDoc = buildExtraResetDocument(timestamp, resetValues);
+                        indexResetDoc.accept(resetDoc);
+                    } catch (IOException e) {
+                        // buffer the error and continue with the remaining timestamps / documents
+                        error.set(e);
+                    }
+                });
+                if (error.get() != null) {
+                    throw error.get();
                 }
-            });
-            if (error.get() != null) {
-                throw error.get();
             }
         }
 

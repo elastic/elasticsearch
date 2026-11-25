@@ -1,3 +1,0 @@
-ExchangeSinkExec[[$$sum$sum{r}#0, $$sum$seen{r}#1],false]
-\_AggregateExec[[],[SUM(languages.long{f}#2,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS sum#3],INTERMEDIATE,[$$sum$sum{r}#4, $$sum$seen{r}#5],8]
-  \_ExchangeSourceExec[[$$sum$sum{r}#0, $$sum$seen{r}#1],false]

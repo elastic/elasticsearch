@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +36,7 @@ import java.util.Map;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 
-public class ToTDigest extends AbstractConvertFunction {
+public class ToTDigest extends AbstractConvertFunction implements UnitAware.PreservesUnit {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -62,6 +63,7 @@ public class ToTDigest extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "tdigest",
+        briefSummary = "Converts an untyped histogram to a TDigest.",
         description = "Converts an untyped histogram to a TDigest, assuming the values are centroids.",
         examples = { @Example(file = "histogram", tag = "to_tdigest") },
         appliesTo = {
@@ -151,7 +153,7 @@ public class ToTDigest extends AbstractConvertFunction {
             in.zeroBucket(),
             in.positiveBuckets()
         );
-        double sum = in.valueCount() > 0 ? in.sum() : Double.NaN;
+        double sum = in.isEmpty() == false ? in.sum() : Double.NaN;
         scratch.set(convertedCentroids, sum, in.min(), in.max());
         return scratch.accessor();
     }

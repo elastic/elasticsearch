@@ -1,0 +1,7 @@
+FROM (FROM
+        (ROW client_ip = "172.21.0.5"),
+        (ROW client_ip = "172.21.3.15")
+      | EVAL client_ip = client_ip::ip
+      | INLINE STATS cnt = COUNT(*) BY client_ip),
+     (ROW client_ip = TO_IP("172.21.2.162"), cnt = 1::long)
+| LIMIT 10

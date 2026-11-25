@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * probability on data nodes — the corrected value stays in floating point and
  * is only rounded to the target integer type on the coordinator.
  */
-public class CountApproximate extends AggregateFunction implements ToAggregator {
+public class CountApproximate extends UnaryAggregateFunction implements ToAggregator, UnitAware.Unitless {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountApproximate",
@@ -71,11 +72,6 @@ public class CountApproximate extends AggregateFunction implements ToAggregator 
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new CountApproximate(source(), field(), filter, window());
-    }
-
-    @Override
     public CountApproximate replaceChildren(List<Expression> newChildren) {
         return new CountApproximate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
@@ -100,12 +96,6 @@ public class CountApproximate extends AggregateFunction implements ToAggregator 
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM && dt != DataType.DATE_RANGE,
-            sourceText(),
-            DEFAULT,
-            "any type except counter types, histogram, or date_range"
-        );
+        return isType(field(), dt -> dt != DataType.HISTOGRAM, sourceText(), DEFAULT, "any type except histogram");
     }
 }

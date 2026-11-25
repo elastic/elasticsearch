@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -39,14 +40,26 @@ class ClientTransformIndexerBuilder {
     private TransformCheckpoint nextCheckpoint;
     private SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex;
     private boolean shouldStopAtCheckpoint;
+    private TimeValue initialDelay;
 
     ClientTransformIndexerBuilder() {
         this.initialStats = new TransformIndexerStats();
     }
 
     ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
+        // A restarting transform that has already processed data is past its catch-up phase; seed the flag so we do not
+        // re-apply initial_delay. During a run TransformIndexer keeps it up to date once the first document is processed.
+        if (initialStats.getNumDocuments() > 0) {
+            context.setHasProcessedData();
+        }
         CheckpointProvider checkpointProvider = transformServices.checkpointService()
-            .getCheckpointProvider(parentTaskClient, transformConfig);
+            .getCheckpointProvider(
+                parentTaskClient,
+                transformConfig,
+                () -> context.getPersistedCloudCredential(),
+                initialDelay,
+                context::hasProcessedData
+            );
 
         return new ClientTransformIndexer(
             threadPool,
@@ -143,6 +156,11 @@ class ClientTransformIndexerBuilder {
 
     ClientTransformIndexerBuilder setSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex) {
         this.seqNoPrimaryTermAndIndex = seqNoPrimaryTermAndIndex;
+        return this;
+    }
+
+    ClientTransformIndexerBuilder setInitialDelay(TimeValue initialDelay) {
+        this.initialDelay = initialDelay;
         return this;
     }
 

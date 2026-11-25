@@ -78,7 +78,12 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     }
 
     @Override
-    BooleanBlock filter(boolean mayContainDuplicates, int... positions);
+    BooleanBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
@@ -101,6 +106,12 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
 
     @Override
     BooleanBlock expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Byte.BYTES} since all boolean values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

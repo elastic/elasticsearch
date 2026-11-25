@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -20,9 +20,9 @@ import java.util.Objects;
 
 public record CohereAccount(URI baseUri, SecureString apiKey) {
 
-    public static CohereAccount of(CohereModel model) {
+    public static CohereAccount of(CohereModel<?> model) {
         try {
-            var uri = model.baseUri() != null ? model.baseUri() : new URIBuilder().setScheme("https").setHost(CohereUtils.HOST).build();
+            var uri = model.testUri() != null ? model.testUri() : new URIBuilder().setScheme("https").setHost(CohereUtils.HOST).build();
             return new CohereAccount(uri, model.apiKey());
         } catch (URISyntaxException e) {
             // using bad request here so that potentially sensitive URL information does not get logged

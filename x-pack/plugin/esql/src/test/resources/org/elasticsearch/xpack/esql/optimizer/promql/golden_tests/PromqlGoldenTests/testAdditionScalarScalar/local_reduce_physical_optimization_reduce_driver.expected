@@ -1,0 +1,3 @@
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1],false]
+\_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[step{r}#1],INTERMEDIATE,[_tsid{m}#0, step{r}#1],8,BUCKET(@timestamp{f}#2,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#2,PT1H[TIME_DURATION]),false]
+  \_ExchangeSourceExec[[_tsid{m}#0, step{r}#1],false]

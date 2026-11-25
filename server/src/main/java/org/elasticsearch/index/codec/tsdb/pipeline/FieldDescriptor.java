@@ -20,7 +20,7 @@ import java.io.IOException;
  * <p>Every {@link PipelineDescriptor} written to {@code .dvm} metadata is prefixed
  * with a format version VInt, enabling future format evolution without breaking
  * segment compatibility. Block offsets and value counts are managed by the
- * consumer/producer's {@code writeField}/{@code readNumeric} flow.
+ * consumer/producer's {@code writeFieldEntry}/{@code readNumeric} flow.
  */
 public final class FieldDescriptor {
 

@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 153921
+summary: Add opt-in actor attribution to config audit
+type: enhancement

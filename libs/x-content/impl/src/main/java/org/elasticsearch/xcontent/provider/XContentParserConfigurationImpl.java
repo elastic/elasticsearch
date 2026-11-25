@@ -9,14 +9,10 @@
 
 package org.elasticsearch.xcontent.provider;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
-
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.util.ArrayList;
@@ -176,24 +172,25 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         );
     }
 
-    public JsonParser filter(JsonParser parser) {
-        JsonParser filtered = parser;
-        if (excludes != null) {
-            filtered = new FilteringParserDelegate(
-                filtered,
-                new FilterPathBasedFilter(excludes, false, filtersMatchFieldNamesWithDots),
-                true,
-                true
-            );
-        }
-        if (includes != null) {
-            filtered = new FilteringParserDelegate(
-                filtered,
-                new FilterPathBasedFilter(includes, true, filtersMatchFieldNamesWithDots),
-                true,
-                true
-            );
-        }
-        return filtered;
+    /**
+     * The paths to include, or {@code null} if no include filtering is configured.
+     */
+    public FilterPath[] includes() {
+        return includes;
+    }
+
+    /**
+     * The paths to exclude, or {@code null} if no exclude filtering is configured.
+     */
+    public FilterPath[] excludes() {
+        return excludes;
+    }
+
+    /**
+     * Whether a dot in a filter path should be matched against a field name containing a dot, rather than
+     * only being treated as a separator between path segments.
+     */
+    public boolean filtersMatchFieldNamesWithDots() {
+        return filtersMatchFieldNamesWithDots;
     }
 }

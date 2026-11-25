@@ -199,4 +199,9 @@ public class RerankResponseParser extends BaseCustomResponseParser {
 
         return null;
     }
+
+    @Override
+    public CustomResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException) {
+        return fromMap(map, scope, validationException);
+    }
 }

@@ -17,9 +17,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
-import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -30,10 +29,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -176,6 +177,14 @@ public class SingleValueQuery extends Query {
 
         protected abstract AbstractBuilder rewrite(QueryBuilder next);
 
+        /**
+         * The same check of the same field, around another query. Used when the wrapped query is replaced by an equivalent
+         * one, which must go on matching only the documents with a single value.
+         */
+        public final AbstractBuilder withNext(QueryBuilder next) {
+            return rewrite(next);
+        }
+
         @Override
         protected final QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
             QueryBuilder rewritten = next.rewrite(queryRewriteContext);
@@ -199,9 +208,11 @@ public class SingleValueQuery extends Query {
         }
 
         protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
+            QueryWarnings w = ((EsqlSearchExecutionContext) context).queryWarnings();
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, source()),
+                w,
+                source(),
                 "single-value function encountered multi-value"
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
@@ -253,7 +264,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field());
+            MappedFieldType ft = ExistsQuery.mappedFieldType(context, field());
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
@@ -317,26 +328,28 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field());
+            MappedFieldType ft = ExistsQuery.mappedFieldType(context, field());
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
             ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
+
+            QueryWarnings w = ((EsqlSearchExecutionContext) context).queryWarnings();
 
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
 
             org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, source()),
+                w,
+                source(),
                 "single-value function encountered multi-value"
             );
             singleValueQuery = singleValueQuery.rewrite(context.searcher());
             if (singleValueQuery instanceof MatchAllDocsQuery == false) {
                 builder.add(singleValueQuery, BooleanClause.Occur.FILTER);
             }
-
-            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            org.apache.lucene.search.Query ignored = context.getFieldType(IgnoredFieldMapper.NAME).termQuery(ft.name(), context);
             ignored = ignored.rewrite(context.searcher());
             if (ignored instanceof MatchNoDocsQuery == false) {
                 builder.add(ignored, BooleanClause.Occur.MUST_NOT);
@@ -412,14 +425,14 @@ public class SingleValueQuery extends Query {
 
         @Override
         protected final org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) throws IOException {
-            MappedFieldType ft = context.getFieldType(field());
+            MappedFieldType ft = ExistsQuery.mappedFieldType(context, field());
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
             ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
             org.apache.lucene.search.Query svNext = simple(ft, context);
 
-            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            org.apache.lucene.search.Query ignored = context.getFieldType(IgnoredFieldMapper.NAME).termQuery(ft.name(), context);
             ignored = ignored.rewrite(context.searcher());
             if (ignored instanceof MatchNoDocsQuery) {
                 return svNext;

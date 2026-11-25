@@ -12,6 +12,7 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 
@@ -57,6 +58,11 @@ class TermOverridingStreamOutput extends StreamOutput {
     @Override
     public void writeGenericString(String value) throws IOException {
         delegate.writeGenericString(value);
+    }
+
+    @Override
+    public void writeText(Text text) throws IOException {
+        delegate.writeText(text);
     }
 
     @Override

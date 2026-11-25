@@ -13,11 +13,16 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
@@ -40,12 +45,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
  * An internal action to locally manage the load of the search requests that originate from the enrich processor.
  * This is because the enrich processor executes asynchronously and a bulk request could easily overload
- * the search tp.
+ * the search thread pool.
+ * <p>
+ * Identical lookups within a batch are sent as one search, whose response is handed to each of them.
  */
 public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
@@ -87,6 +95,22 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
     public static class Coordinator {
 
+        /** Breaker label for the lookup responses held until the slot listeners have run; same category as the shard-side charge. */
+        static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[enrich_coordinator]";
+
+        /**
+         * Response bytes above which a batch continues counting against {@link #maxNumberOfConcurrentRequests the concurrent request limit}
+         * until all of its slot listeners have run. This caps the number of large enrich lookup batch responses held on this node, whether
+         * they are still in flight, waiting for a search thread or being processed.
+         * <p>
+         * Without the cap, up to {@link #maxNumberOfConcurrentRequests} more batch responses may be waiting for a search thread without
+         * being visible to the circuit breaker yet, while earlier large responses are still being processed (and charged).
+         * Batches with smaller responses stop counting against the limit as soon as they arrive, so new lookups are sent without
+         * waiting for earlier responses to be processed. This keeps parallelism and throughput high for small lookups, while keeping
+         * heap use bounded for large ones.
+         */
+        static final long PERMIT_HOLD_THRESHOLD_BYTES = ByteSizeValue.ofMb(8).getBytes();
+
         final BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction;
         final int maxLookupsPerRequest;
         final int maxNumberOfConcurrentRequests;
@@ -96,9 +120,9 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         final LongAdder remoteRequestsTotal = new LongAdder();
         final LongAdder executedSearchesTotal = new LongAdder();
 
-        public Coordinator(Client client, Settings settings) {
+        public Coordinator(Client client, Settings settings, CircuitBreaker breaker) {
             this(
-                lookupFunction(client),
+                lookupFunction(client, breaker),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings),
                 EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.get(settings)
@@ -178,36 +202,81 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 }
                 assert slots.isEmpty() == false;
                 remoteRequestsTotal.increment();
-                final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-                slots.forEach(slot -> multiSearchRequest.add(slot.request));
-                lookupFunction.accept(multiSearchRequest, (response, e) -> handleResponse(slots, response, e));
+                final Batch batch = Batch.of(slots);
+                lookupFunction.accept(batch.request(), (response, e) -> handleResponse(batch, response, e));
             }
         }
 
-        void handleResponse(List<Slot> slots, MultiSearchResponse response, Exception e) {
-            remoteRequestPermits.release();
-            executedSearchesTotal.add(slots.size());
+        void handleResponse(Batch batch, MultiSearchResponse response, Exception e) {
+            final List<Slot> slots = batch.slots();
+            executedSearchesTotal.add(batch.searches());
 
             if (response != null) {
-                assert slots.size() == response.getResponses().length;
-                for (int i = 0; i < response.getResponses().length; i++) {
-                    MultiSearchResponse.Item responseItem = response.getResponses()[i];
-                    Slot slot = slots.get(i);
+                assert batch.searches() == response.getResponses().length;
+                // The same estimate as the breaker charge; a small response does not need the bound, see PERMIT_HOLD_THRESHOLD_BYTES
+                final boolean holdPermit = estimateResponseBytes(response) > PERMIT_HOLD_THRESHOLD_BYTES;
+                if (holdPermit == false) {
+                    remoteRequestPermits.release();
+                }
+                try {
+                    for (int i = 0; i < slots.size(); i++) {
+                        MultiSearchResponse.Item responseItem = batch.responseOfSlot(response, i);
+                        Slot slot = slots.get(i);
 
-                    if (responseItem.isFailure()) {
-                        slot.listener.onFailure(responseItem.getFailure());
-                    } else {
-                        slot.listener.onResponse(responseItem.getResponse());
+                        try {
+                            if (responseItem.isFailure()) {
+                                slot.listener.onFailure(responseItem.getFailure());
+                            } else {
+                                slot.listener.onResponse(responseItem.getResponse());
+                            }
+                        } finally {
+                            // release the slot reference to avoid holding onto the completed document's expanded map (via the listener)
+                            // longer than necessary
+                            slots.set(i, null);
+                        }
+                    }
+                } finally {
+                    // in a finally so that a throwing slot listener cannot leak the permit, as the early release prevents today
+                    if (holdPermit) {
+                        remoteRequestPermits.release();
                     }
                 }
             } else if (e != null) {
-                slots.forEach(slot -> slot.listener.onFailure(e));
+                // nothing is held for a failed batch
+                remoteRequestPermits.release();
+                for (int i = 0; i < slots.size(); i++) {
+                    try {
+                        slots.get(i).listener.onFailure(e);
+                    } finally {
+                        // release the slot reference to avoid holding onto the completed document's expanded map (via the listener) longer
+                        // than necessary
+                        slots.set(i, null);
+                    }
+                }
             } else {
                 throw new AssertionError("no response and no error");
             }
 
             // There may be room to for a new request now that numberOfOutstandingRequests has been decreased:
             coordinateLookups();
+        }
+
+        /**
+         * Estimates the heap held by the successful items of a lookup response, with the estimate that the msearch response of
+         * {@link TransportMultiSearchAction} uses. Items that are still charged on the shard side (local responses, see
+         * {@link EnrichShardMultiSearchAction.ChargedSearchResponse}) are skipped; their charge is released when the coordinator
+         * releases the item.
+         * Failures are not charged: {@link EnrichShardMultiSearchAction} fails a whole lookup rather than single items.
+         */
+        static long estimateResponseBytes(MultiSearchResponse response) {
+            long bytes = 0;
+            for (MultiSearchResponse.Item item : response.getResponses()) {
+                if (item.isFailure() == false
+                    && item.getResponse() instanceof EnrichShardMultiSearchAction.ChargedSearchResponse == false) {
+                    bytes += TransportMultiSearchAction.estimateActualBytes(item.getResponse());
+                }
+            }
+            return bytes;
         }
 
         record Slot(SearchRequest request, ActionListener<SearchResponse> listener) {
@@ -217,7 +286,73 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             }
         }
 
-        static BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction(ElasticsearchClient client) {
+        /**
+         * The slots of one remote request. Slots with equal search requests share one search of the multi-search request, so slot
+         * {@code i} is answered by {@link #responseOfSlot(MultiSearchResponse, int) responseOfSlot(response, i)}.
+         */
+        static final class Batch {
+            private final List<Slot> slots;
+            private final int[] searchOfSlot;
+            private final MultiSearchRequest request;
+
+            private Batch(List<Slot> slots, int[] searchOfSlot, MultiSearchRequest request) {
+                this.slots = slots;
+                this.searchOfSlot = searchOfSlot;
+                this.request = request;
+            }
+
+            static Batch of(List<Slot> slots) {
+                final MultiSearchRequest request = new MultiSearchRequest();
+                final int[] searchOfSlot = new int[slots.size()];
+                final Map<SearchRequest, Integer> searchPositions = new HashMap<>();
+                for (int i = 0; i < slots.size(); i++) {
+                    final SearchRequest searchRequest = slots.get(i).request();
+                    final int position = request.requests().size();
+                    Integer existing;
+                    try {
+                        existing = searchPositions.putIfAbsent(searchRequest, position);
+                    } catch (RuntimeException e) {
+                        // if hash or equals fails the request can't be deduplicated, send on its own to report the failure
+                        existing = null;
+                    }
+                    if (existing == null) {
+                        searchOfSlot[i] = position;
+                        request.add(searchRequest);
+                    } else {
+                        searchOfSlot[i] = existing;
+                    }
+                }
+                assert request.requests().size() >= searchPositions.size();
+                return new Batch(slots, searchOfSlot, request);
+            }
+
+            List<Slot> slots() {
+                return slots;
+            }
+
+            MultiSearchRequest request() {
+                return request;
+            }
+
+            MultiSearchResponse.Item responseOfSlot(MultiSearchResponse response, int slot) {
+                return response.getResponses()[searchOfSlot[slot]];
+            }
+
+            int searches() {
+                return request.requests().size();
+            }
+        }
+
+        /**
+         * Splits a batch into one shard lookup per enrich index and reduces their responses into one.
+         * Each per-index response is charged to {@code breaker} as soon as it arrives and released once the consumer has run.
+         * A breaker trip fails the slots of that index only and frees its response right away.
+         */
+        static BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction(
+            ElasticsearchClient client,
+            CircuitBreaker breaker
+        ) {
+            Objects.requireNonNull(breaker);
             return (request, consumer) -> {
                 int slot = 0;
                 final Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex = new HashMap<>();
@@ -231,31 +366,45 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 }
 
                 final AtomicInteger counter = new AtomicInteger(0);
+                // every charge is added before its counter increment, so the thread that completes the batch releases all of them
+                final AtomicLong chargedBytes = new AtomicLong();
                 final ConcurrentMap<String, Tuple<MultiSearchResponse, Exception>> shardResponses = new ConcurrentHashMap<>();
+                final Runnable maybeReduce = () -> {
+                    if (counter.incrementAndGet() == itemsPerIndex.size()) {
+                        var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
+                        try {
+                            consumer.accept(res, null);
+                        } finally {
+                            res.decRef();
+                            long bytes = chargedBytes.getAndSet(0);
+                            if (bytes > 0) {
+                                breaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
+                            }
+                        }
+                    }
+                };
                 for (Map.Entry<String, List<Tuple<Integer, SearchRequest>>> entry : itemsPerIndex.entrySet()) {
                     final String enrichIndexName = entry.getKey();
                     final List<Tuple<Integer, SearchRequest>> enrichIndexRequestsAndSlots = entry.getValue();
                     ActionListener<MultiSearchResponse> listener = ActionListener.wrap(response -> {
-                        shardResponses.put(enrichIndexName, new Tuple<>(response, null));
-                        response.incRef(); // will be released during reduce
-                        if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                            var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
-                            try {
-                                consumer.accept(res, null);
-                            } finally {
-                                res.decRef();
+                        final long bytes = estimateResponseBytes(response);
+                        Tuple<MultiSearchResponse, Exception> shardResponse;
+                        try {
+                            if (bytes > 0) {
+                                breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+                                chargedBytes.addAndGet(bytes);
                             }
+                            response.incRef(); // will be released during reduce
+                            shardResponse = new Tuple<>(response, null);
+                        } catch (CircuitBreakingException e) {
+                            // not retained, so the response is freed as soon as this listener returns
+                            shardResponse = new Tuple<>(null, e);
                         }
+                        shardResponses.put(enrichIndexName, shardResponse);
+                        maybeReduce.run();
                     }, e -> {
                         shardResponses.put(enrichIndexName, new Tuple<>(null, e));
-                        if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                            var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
-                            try {
-                                consumer.accept(res, null);
-                            } finally {
-                                res.decRef();
-                            }
-                        }
+                        maybeReduce.run();
                     });
 
                     MultiSearchRequest mrequest = new MultiSearchRequest();
@@ -279,6 +428,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                     MultiSearchResponse shardResponse = rspEntry.getValue().v1();
                     for (int i = 0; i < shardResponse.getResponses().length; i++) {
                         int slot = reqSlots.get(i).v1();
+                        // passed through as is, estimateResponseBytes relies on this to recognize items charged on the shard side
                         var res = shardResponse.getResponses()[i];
                         items[slot] = res;
                         var r = res.getResponse();

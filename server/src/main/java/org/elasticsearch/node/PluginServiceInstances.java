@@ -10,7 +10,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -26,6 +26,7 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -38,6 +39,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -60,7 +62,7 @@ public record PluginServiceInstances(
     IndicesService indicesService,
     FeatureService featureService,
     SystemIndices systemIndices,
-    DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
+    DataStreamLifecycleSettings dataStreamLifecycleSettings,
     DocumentParsingProvider documentParsingProvider,
     TaskManager taskManager,
     ProjectResolver projectResolver,
@@ -71,5 +73,7 @@ public record PluginServiceInstances(
     RemoteTransportClient remoteTransportClient,
     CrossProjectModeDecider crossProjectModeDecider,
     PersistentTaskLifecycleManager taskLifecycleManager,
-    DataStreamLifecycleErrorStore dlmErrorStore
+    DataStreamLifecycleErrorStore dlmErrorStore,
+    IpLocationService ipLocationService,
+    UsageService usageService
 ) implements Plugin.PluginServices {}

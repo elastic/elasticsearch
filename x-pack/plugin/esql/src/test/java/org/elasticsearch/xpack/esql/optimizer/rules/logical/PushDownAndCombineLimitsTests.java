@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -43,7 +46,6 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -54,6 +56,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerTests {
+
+    public PushDownAndCombineLimitsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static class PushDownLimitTestCase<PlanType extends LogicalPlan> {
         private final Class<PlanType> clazz;
@@ -229,7 +235,13 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
         }),
         new PushDownLimitTestCase<>(
             Join.class,
-            (plan, attr) -> new Join(EMPTY, plan, plan, new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr)),
+            (plan, attr) -> new Join(
+                Source.EMPTY,
+                plan,
+                plan,
+                new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr),
+                ExecuteLocation.ANY
+            ),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 var limit = as(optimizedPlan.left(), Limit.class);
@@ -239,6 +251,40 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
         )
 
     );
+
+    public void testPassLimitHintToTsInfo() {
+        int limitValue = randomIntBetween(1, 10_000);
+        Limit limit = new Limit(EMPTY, new Literal(EMPTY, limitValue, INTEGER), new TsInfo(EMPTY, relation()));
+
+        Limit optimized = as(optimizePlan(limit), Limit.class);
+
+        assertThat(as(optimized.child(), TsInfo.class).limit(), equalTo(limitValue));
+        assertThat(optimizePlan(optimized), equalTo(optimized));
+    }
+
+    public void testPassLimitHintToTsInfoThroughProject() {
+        int limitValue = randomIntBetween(1, 10_000);
+        TsInfo tsInfo = new TsInfo(EMPTY, relation());
+        Project project = new Project(EMPTY, tsInfo, List.of(tsInfo.output().get(0)));
+        Limit limit = new Limit(EMPTY, new Literal(EMPTY, limitValue, INTEGER), project);
+
+        LogicalPlan optimized = optimizePlan(limit);
+
+        Project optimizedProject = as(optimized, Project.class);
+        Limit pushedLimit = as(optimizedProject.child(), Limit.class);
+        assertThat(as(pushedLimit.child(), TsInfo.class).limit(), equalTo(limitValue));
+    }
+
+    public void testSmallerLimitWinsOnTsInfo() {
+        int existing = randomIntBetween(100, 10_000);
+        int smaller = randomIntBetween(1, existing - 1);
+        Limit smallerLimit = new Limit(EMPTY, new Literal(EMPTY, smaller, INTEGER), new TsInfo(EMPTY, relation(), existing));
+        assertThat(as(as(optimizePlan(smallerLimit), Limit.class).child(), TsInfo.class).limit(), equalTo(smaller));
+
+        int larger = randomIntBetween(existing + 1, 20_000);
+        Limit largerLimit = new Limit(EMPTY, new Literal(EMPTY, larger, INTEGER), new TsInfo(EMPTY, relation(), existing));
+        assertThat(as(as(optimizePlan(largerLimit), Limit.class).child(), TsInfo.class).limit(), equalTo(existing));
+    }
 
     public void testPushableLimitDuplicate() {
         FieldAttribute a = getFieldAttribute("a");
@@ -260,7 +306,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
     }
 
     private LogicalPlan optimizePlan(LogicalPlan plan) {
-        return new PushDownAndCombineLimits().apply(plan, unboundLogicalOptimizerContext());
+        return new PushDownAndCombineLimits().apply(plan, logicalOptimizerCtx);
     }
 
     /**

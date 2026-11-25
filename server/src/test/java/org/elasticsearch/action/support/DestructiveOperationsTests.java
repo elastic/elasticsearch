@@ -12,6 +12,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.Set;
 
@@ -21,9 +22,8 @@ public class DestructiveOperationsTests extends ESTestCase {
 
     private DestructiveOperations destructiveOperations;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initDestructiveOperations() throws Exception {
         Settings nodeSettings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "true").build();
         destructiveOperations = new DestructiveOperations(
             nodeSettings,

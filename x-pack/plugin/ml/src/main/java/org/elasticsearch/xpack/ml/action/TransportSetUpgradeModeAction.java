@@ -15,10 +15,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -40,6 +39,7 @@ import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
@@ -66,9 +66,10 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
         PersistentTasksClusterService persistentTasksClusterService,
         ActionFilters actionFilters,
         Client client,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        ProjectResolver projectResolver
     ) {
-        super(SetUpgradeModeAction.NAME, "ml", transportService, clusterService, threadPool, actionFilters);
+        super(SetUpgradeModeAction.NAME, "ml", transportService, clusterService, threadPool, actionFilters, projectResolver);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.persistentTasksService = persistentTasksService;
@@ -80,26 +81,24 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
     }
 
     @Override
-    protected boolean upgradeMode(ClusterState state) {
-        return MlMetadata.getMlMetadata(state).isUpgradeMode();
+    protected boolean isUpgradeMode(ProjectMetadata project) {
+        return MlMetadata.getMlMetadata(project).isUpgradeMode();
     }
 
     @Override
-    protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState currentState) {
+    protected Consumer<ProjectMetadata.Builder> createProjectUpdate(SetUpgradeModeActionRequest request, ProjectMetadata project) {
         logger.trace("Executing cluster state update");
-        final var project = currentState.metadata().getProject();
-        MlMetadata.Builder builder = new MlMetadata.Builder(project.custom(MlMetadata.TYPE));
-        builder.isUpgradeMode(request.enabled());
-        return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(MlMetadata.TYPE, builder.build()));
+        MlMetadata updatedMetadata = new MlMetadata.Builder(project.custom(MlMetadata.TYPE)).isUpgradeMode(request.enabled()).build();
+        return b -> b.putCustom(MlMetadata.TYPE, updatedMetadata);
     }
 
     protected void upgradeModeSuccessfullyChanged(
         Task task,
         SetUpgradeModeActionRequest request,
-        ClusterState state,
+        ProjectMetadata project,
         ActionListener<AcknowledgedResponse> wrappedListener
     ) {
-        final PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata tasksCustomMetadata = project.custom(PersistentTasksCustomMetadata.TYPE);
 
         // <4> We have unassigned the tasks, respond to the listener.
         ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(unassignedPersistentTasks -> {
@@ -132,7 +131,7 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
         // <3> After isolating the datafeeds, unassign the tasks
         ActionListener<List<IsolateDatafeedAction.Response>> isolateDatafeedListener = ActionListener.wrap(isolatedDatafeeds -> {
             logger.info("Isolated the datafeeds");
-            unassignPersistentTasks(tasksCustomMetadata, unassignPersistentTasksListener);
+            unassignPersistentTasks(project, tasksCustomMetadata, unassignPersistentTasksListener);
         }, wrappedListener::onFailure);
 
         /*
@@ -168,26 +167,19 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
             logger.info("Enabling upgrade mode, must isolate datafeeds");
             isolateDatafeeds(tasksCustomMetadata, isolateDatafeedListener);
         } else {
+            // Wait for jobs, datafeeds and analytics not to be "Awaiting upgrade"
             logger.info("Disabling upgrade mode, must wait for tasks to not have AWAITING_UPGRADE assignment");
-            @FixForMultiProject
-            final var projectId = Metadata.DEFAULT_PROJECT_ID;
-            persistentTasksService.waitForPersistentTasksCondition(
-                // Wait for jobs, datafeeds and analytics not to be "Awaiting upgrade"
-                projectId,
-                persistentTasksCustomMetadata -> {
-                    if (persistentTasksCustomMetadata == null) {
-                        return true;
-                    }
-                    return persistentTasksCustomMetadata.tasks()
-                        .stream()
-                        .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE));
-                },
-                request.ackTimeout(),
-                ActionListener.wrap(r -> {
-                    logger.info("Done waiting for tasks to be out of AWAITING_UPGRADE");
-                    wrappedListener.onResponse(AcknowledgedResponse.TRUE);
-                }, wrappedListener::onFailure)
-            );
+            persistentTasksService.waitForPersistentTasksCondition(project.id(), persistentTasksCustomMetadata -> {
+                if (persistentTasksCustomMetadata == null) {
+                    return true;
+                }
+                return persistentTasksCustomMetadata.tasks()
+                    .stream()
+                    .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE));
+            }, request.ackTimeout(), ActionListener.wrap(r -> {
+                logger.info("Done waiting for tasks to be out of AWAITING_UPGRADE");
+                wrappedListener.onResponse(AcknowledgedResponse.TRUE);
+            }, wrappedListener::onFailure));
         }
     }
 
@@ -205,6 +197,7 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
      * @param listener            Alerted when tasks are unassignd
      */
     private void unassignPersistentTasks(
+        ProjectMetadata project,
         PersistentTasksCustomMetadata tasksCustomMetadata,
         ActionListener<List<PersistentTask<?>>> listener
     ) {
@@ -231,11 +224,9 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
         );
 
         for (PersistentTask<?> task : mlTasks) {
-            @FixForMultiProject
-            final var projectId = Metadata.DEFAULT_PROJECT_ID;
             chainTaskExecutor.add(
                 chainedTask -> persistentTasksClusterService.unassignPersistentTask(
-                    projectId,
+                    project.id(),
                     task.getId(),
                     task.getAllocationId(),
                     AWAITING_UPGRADE.getExplanation(),

@@ -7,17 +7,18 @@
 
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 
 /**
  * Byte-array backed storage object for testing.
  */
-class ByteArrayStorageObject implements StorageObject {
+class ByteArrayStorageObject extends AbstractTestStorageObject {
     private final byte[] data;
     private final StoragePath path;
 
@@ -31,22 +32,22 @@ class ByteArrayStorageObject implements StorageObject {
     }
 
     @Override
-    public InputStream newStream() {
+    public InputStream newStream() throws IOException {
         return new ByteArrayInputStream(data);
     }
 
     @Override
-    public InputStream newStream(long position, long length) {
+    public InputStream newStream(long position, long length) throws IOException {
         return new ByteArrayInputStream(data, (int) position, (int) length);
     }
 
     @Override
-    public long length() {
+    public long length() throws IOException {
         return data.length;
     }
 
     @Override
-    public Instant lastModified() {
+    public Instant lastModified() throws IOException {
         return Instant.now();
     }
 

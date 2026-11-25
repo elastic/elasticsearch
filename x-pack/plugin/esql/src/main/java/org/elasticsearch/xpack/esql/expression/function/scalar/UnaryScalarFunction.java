@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -59,5 +60,12 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     @Override
     public DataType dataType() {
         return field.dataType().noText();
+    }
+
+    /**
+     * The input whose unit a unit-preserving function keeps, see {@link UnitAware.PreservesUnit}.
+     */
+    public Expression unitSource() {
+        return field();
     }
 }

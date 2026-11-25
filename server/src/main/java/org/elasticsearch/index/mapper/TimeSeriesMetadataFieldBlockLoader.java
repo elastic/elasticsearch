@@ -12,26 +12,71 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
- * Load {@code _timeseries} into blocks.
+ * Loads {@code _timeseries} metadata into blocks.
  */
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
+    @Nullable
+    private final SourceFilter sourceFilter;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
-        this.metadataFields = timeSeriesMetadata(context, loadMetrics);
+        this.metadataFields = lookupTimeSeriesMetadataFieldNames(context, loadMetrics);
+        this.sourceFilter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), null);
+    }
+
+    private static Set<String> lookupTimeSeriesMetadataFieldNames(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
+        assert context.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
+
+        if (context.indexSettings().getMode().isTsdb() == false) {
+            throw new IllegalStateException(
+                TimeSeriesMetadataFieldBlockLoader.class.getSimpleName() + " requires index mode: [ " + IndexMode.TIME_SERIES + " ]"
+            );
+        }
+
+        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) context.blockLoaderFunctionConfig();
+        MappingLookup mappingLookup = context.mappingLookup();
+
+        var dimensionMappers = mappingLookup.dimensionFieldMappers();
+        var result = new LinkedHashSet<String>(dimensionMappers.size());
+        for (var m : dimensionMappers.values()) {
+            result.add(m.fieldType().name());
+        }
+
+        for (var skip : config.skipFieldNames()) {
+            // Resolve field name (e.g. `cpu`) to canonical form (e.g. `attributes.cpu`)
+            var f = mappingLookup.getFieldType(skip);
+            result.remove(f != null ? f.name() : skip);
+        }
+
+        if (loadMetrics) {
+            // Metrics are disjoint from dimensions by TSDB mapping validation and are never excluded.
+            for (var m : mappingLookup.metricFieldMappers().values()) {
+                result.add(m.fieldType().name());
+            }
+        }
+
+        return result;
     }
 
     @Override
@@ -46,7 +91,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeries(breaker);
+        return new TimeSeriesReader(breaker, metadataFields, sourceFilter);
     }
 
     @Override
@@ -64,63 +109,86 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) {
-        throw new UnsupportedOperationException();
-    }
-
-    private static class TimeSeries extends BlockStoredFieldsReader {
-        protected TimeSeries(CircuitBreaker breaker) {
-            super(breaker);
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            // TODO support appending BytesReference
-            ((BytesRefBuilder) builder).appendBytesRef(storedFields.source().internalSourceRef().toBytesRef());
-        }
-
-        @Override
-        public String toString() {
-            return "BlockStoredFieldsReader.TimeSeries";
-        }
-    }
-
-    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadMetrics) {
-        if (ctx.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-            throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
-        }
-
-        assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
-        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig();
-
-        if (loadMetrics == false) {
-            IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
-            List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-            if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
-                result.removeAll(config.withoutFields());
-                return result;
-            }
-        }
-
-        Set<String> result = new LinkedHashSet<>();
-        MappingLookup mappingLookup = ctx.mappingLookup();
-        for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof FieldMapper fieldMapper) {
-                MappedFieldType fieldType = fieldMapper.fieldType();
-                if (fieldType.isDimension() && config.withoutFields().contains(fieldType.name()) == false) {
-                    result.add(fieldType.name());
-                }
-                if (loadMetrics && fieldType.getMetricType() != null) {
-                    result.add(fieldType.name());
-                }
-            }
-        }
-
-        return result;
+        throw new UnsupportedOperationException("_timeseries metadata does not support ordinals");
     }
 
     @Override
     public String toString() {
         return "TimeSeriesMetadata";
+    }
+
+    private static final class TimeSeriesReader extends BlockStoredFieldsReader {
+        /** Already JSON, so {@link #toJson} would pass it through unchanged. */
+        private static final BytesReference EMPTY_JSON_OBJECT = Source.empty(XContentType.JSON).internalSourceRef();
+
+        private final Set<String> metadataFields;
+        /** {@code null} when {@link #metadataFields} is empty, where the column is an empty object, see {@link #read}. */
+        @Nullable
+        private final SourceFilter sourceFilter;
+        /** The paths of the source last read from, and whether it has to be narrowed, see {@link #read}. */
+        @Nullable
+        private Set<String> cachedSourcePaths;
+        private boolean cachedNarrowSource = true;
+
+        private TimeSeriesReader(CircuitBreaker breaker, Set<String> metadataFields, @Nullable SourceFilter sourceFilter) {
+            super(breaker);
+            this.metadataFields = metadataFields;
+            this.sourceFilter = sourceFilter;
+        }
+
+        /**
+         * Returns source bytes normalized to JSON.
+         *
+         * The {@code _timeseries} keyword column is documented as a JSON-encoded object containing
+         * the dimension key/value pairs that identify a time series. Synthetic source already
+         * reconstructs as JSON, but stored source preserves the original content type. For example,
+         * documents written through the Prometheus remote-write endpoint may be stored as CBOR.
+         *
+         * If the source is already JSON, this method returns the original bytes to avoid an
+         * unnecessary parser/builder round trip.
+         */
+        private static BytesReference toJson(Source source) throws IOException {
+            BytesReference bytes = source.internalSourceRef();
+            XContentType contentType = source.sourceContentType();
+
+            if (contentType == XContentType.JSON) {
+                return bytes;
+            }
+
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, contentType);
+                XContentBuilder json = XContentFactory.jsonBuilder()
+            ) {
+                parser.nextToken();
+                json.copyCurrentStructure(parser);
+                return BytesReference.bytes(json);
+            }
+        }
+
+        @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            if (sourceFilter == null) {
+                // Every dimension is excluded, so there is nothing left to identify the series by.
+                ((BytesRefBuilder) builder).appendBytesReference(EMPTY_JSON_OBJECT);
+                return;
+            }
+            Source source = storedFields.source();
+            // We expect that read() is called many times with the same sourcePaths() Set and we assume it is immutable
+            // So we cache it to avoid an expensive Set equality check on every read
+            // In general we check that we only apply the source filter if the paths don't match, as SourceFilter is expensive
+            if (storedFields.sourcePaths() != cachedSourcePaths) {
+                cachedSourcePaths = storedFields.sourcePaths();
+                cachedNarrowSource = metadataFields.equals(cachedSourcePaths) == false;
+            }
+            if (cachedNarrowSource) {
+                source = sourceFilter.filterBytes(source);
+            }
+            ((BytesRefBuilder) builder).appendBytesReference(toJson(source));
+        }
+
+        @Override
+        public String toString() {
+            return BlockStoredFieldsReader.class.getSimpleName() + ".TimeSeries";
+        }
     }
 }

@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DesiredBalanceShutdownIT extends ESIntegTestCase {
 
     private static final String INDEX = "test-index";
@@ -46,6 +47,16 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
         internalCluster().restartNode(internalCluster().startNode(), new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String newNodeName) {
+
+                logger.info("--> waiting for master to fully process removal of [{}] before continuing", newNodeName);
+
+                // [newNodeName] just stopped, but it's still a cluster member until the master processes its
+                // removal. Waiting here avoids a race where the settings/shutdown updates below are published
+                // while [newNodeName] is still a live publication target, which can fail those updates with an
+                // unrelated "faulty node" exception (see https://github.com/elastic/elasticsearch/issues/160708).
+                // The cluster is pinned to exactly [oldNodeName, newNodeName] via @ClusterScope(numDataNodes = 0),
+                // so once [newNodeName] is gone, [oldNodeName] is the only node left.
+                ensureStableCluster(1, oldNodeName);
 
                 logger.info("--> excluding index from [{}] and concurrently starting replacement with [{}]", oldNodeName, newNodeName);
 
@@ -88,7 +99,7 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                 new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT)
             ).actionGet(10, TimeUnit.SECONDS);
             assertTrue(
-                Strings.toString(getShutdownResponse, true, true),
+                Strings.toTruncatedString(getShutdownResponse, true, true),
                 getShutdownResponse.getShutdownStatuses()
                     .stream()
                     .allMatch(s -> s.overallStatus() == SingleNodeShutdownMetadata.Status.COMPLETE)

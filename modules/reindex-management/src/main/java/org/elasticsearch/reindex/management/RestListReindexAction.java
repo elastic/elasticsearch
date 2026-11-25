@@ -11,7 +11,6 @@ package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.ServerlessScope;
@@ -31,6 +30,8 @@ import static org.elasticsearch.rest.Scope.PUBLIC;
  */
 @ServerlessScope(PUBLIC)
 public class RestListReindexAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("detailed");
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
@@ -53,9 +54,7 @@ public class RestListReindexAction extends BaseRestHandler {
         if (clusterSupportsFeature.test(ReindexManagementFeatures.NEW_ENDPOINTS) == false) {
             throw new IllegalArgumentException("endpoint not supported on all nodes in the cluster");
         }
-
-        boolean detailed = request.paramAsBoolean("detailed", false);
-        ListReindexRequest listReindexRequest = new ListReindexRequest().setActions(ReindexAction.NAME).setDetailed(detailed);
+        ListReindexRequest listReindexRequest = new ListReindexRequest(request.paramAsBoolean("detailed", false));
         return channel -> client.execute(TransportListReindexAction.TYPE, listReindexRequest, new RestChunkedToXContentListener<>(channel));
     }
 
@@ -63,4 +62,10 @@ public class RestListReindexAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return Set.of(CAPABILITY_REINDEX_MANAGEMENT_API);
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
 }

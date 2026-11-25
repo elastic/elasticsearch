@@ -210,6 +210,13 @@ setup:
 
   - length: { indices: 0 }
 
+  # Explicit cleanup: the broken shard would otherwise be stuck in
+  # INITIALIZING state and ESClientYamlSuiteTestCase would get stuck
+  # in cleanUpCluster's ensureNoInitializingShards.
+  - do:
+      indices.delete:
+        index: test_index
+
 ---
 "Reload index with an invalid synonym rule with lenient set to false":
   - do:
@@ -307,6 +314,13 @@ setup:
       indices.stats: { index: test_index }
 
   - length: { indices: 0 }
+
+  # Explicit cleanup: the broken shard would otherwise be stuck in
+  # INITIALIZING state and ESClientYamlSuiteTestCase would get stuck
+  # in cleanUpCluster's ensureNoInitializingShards.
+  - do:
+      indices.delete:
+        index: test_index
 
 ---
 "Load index with non existent synonyms set":

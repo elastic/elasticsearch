@@ -43,6 +43,9 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 
 public class DataTypeConversionTests extends ESTestCase {
 
+    private static final double DOUBLE_TO_LONG_UPPER_BOUND = (double) Long.MAX_VALUE;
+    private static final double MAX_DOUBLE_CONVERTIBLE_TO_LONG = Math.nextDown(DOUBLE_TO_LONG_UPPER_BOUND);
+
     public void testConversionToString() {
         DataType to = KEYWORD;
         {
@@ -73,9 +76,18 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
+            assertEquals(Long.MIN_VALUE, conversion.convert((double) Long.MIN_VALUE));
+            Exception belowLowerBound = expectThrows(
+                InvalidArgumentException.class,
+                () -> conversion.convert(Math.nextDown((double) Long.MIN_VALUE))
+            );
+            assertEquals("[" + Math.nextDown((double) Long.MIN_VALUE) + "] out of [long] range", belowLowerBound.getMessage());
             assertEquals(10L, conversion.convert(10.0));
             assertEquals(10L, conversion.convert(10.1));
             assertEquals(11L, conversion.convert(10.6));
+            assertEquals(Math.round(MAX_DOUBLE_CONVERTIBLE_TO_LONG), conversion.convert(MAX_DOUBLE_CONVERTIBLE_TO_LONG));
+            Exception boundary = expectThrows(InvalidArgumentException.class, () -> conversion.convert(DOUBLE_TO_LONG_UPPER_BOUND));
+            assertEquals("[" + DOUBLE_TO_LONG_UPPER_BOUND + "] out of [long] range", boundary.getMessage());
             Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
@@ -182,6 +194,19 @@ public class DataTypeConversionTests extends ESTestCase {
             Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0", e.getMessage());
         }
+    }
+
+    public void testConversionToDateTimeRejectsImpossibleDay() {
+        Converter conversion = converterFor(KEYWORD, DATETIME);
+        for (String value : new String[] { "2024-02-30", "2024-02-30T10:00:00Z", "2024-02-30T24:00:00Z" }) {
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(value));
+            assertTrue(e.getMessage(), e.getMessage().startsWith("cannot cast [" + value + "] to [datetime]"));
+        }
+        assertEquals(asDateTime("2024-02-29T00:00:00Z"), conversion.convert("2024-02-29"));
+        assertEquals(asDateTime("2024-02-29T10:00:00Z"), conversion.convert("2024-02-29 10:00:00"));
+        assertEquals(asDateTime("2024-06-02T00:00:00Z"), conversion.convert("2024-06-01T24:00:00Z"));
+        assertEquals(asDateTime("2024-06-02T00:00:00Z"), conversion.convert("2024-06-01 24:00:00"));
+        expectThrows(InvalidArgumentException.class, () -> conversion.convert("2024-06-01T24:30:00Z"));
     }
 
     public void testConversionToFloat() {
@@ -414,8 +439,9 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(10, conversion.convert(10.0));
             assertEquals(10, conversion.convert(10.1));
             assertEquals(11, conversion.convert(10.6));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Long.MAX_VALUE));
-            assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
+            long outOfRange = (long) Integer.MAX_VALUE + 1;
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert((double) outOfRange));
+            assertEquals("[" + outOfRange + "] out of [integer] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);

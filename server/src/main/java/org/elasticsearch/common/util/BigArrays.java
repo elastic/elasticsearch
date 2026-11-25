@@ -599,7 +599,7 @@ public class BigArrays {
         return array;
     }
 
-    public BytesRefRecycler bytesRefRecycler() {
+    public Recycler<BytesRef> bytesRefRecycler() {
         return bytesRefRecycler;
     }
 

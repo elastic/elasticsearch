@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -33,7 +33,7 @@ import java.util.Map;
 public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -43,12 +43,12 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.DATA_STREAMS.name(), transportService, clusterService, threadPool, actionFilters);
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.projectResolver = projectResolver;
     }
 
@@ -70,7 +70,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
         long affectedByMaxRetentionCounter = 0;
         long affectedByDefaultRetentionCounter = 0;
-        DataStreamGlobalRetention globalRetention = globalRetentionSettings.get();
+        DataStreamGlobalRetention globalRetention = dataStreamLifecycleSettings.getGlobalRetention();
         for (DataStream ds : dataStreams.values()) {
             backingIndicesCounter += ds.getIndices().size();
             if (ds.isFailureStoreExplicitlyEnabled()) {
@@ -125,8 +125,8 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
             failureIndicesCounter,
             failuresLifecycleExplicitlyEnabledCounter,
             failuresLifecycleEffectivelyEnabledCounter,
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(dataRetentionStats),
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(effectiveRetentionStats),
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(dataRetentionStats),
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(effectiveRetentionStats),
             DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.getGlobalRetentionStats(
                 globalRetention,
                 affectedByDefaultRetentionCounter,

@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate;
 
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
@@ -36,9 +38,15 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
 
     @Override
     public int hashCode() {
-        return Objects.hash(left(), right(), function.symbol());
+        return this instanceof NonFiniteSupport nonFinite
+            ? Objects.hash(left(), right(), function.symbol(), nonFinite.allowNonFinite())
+            : Objects.hash(left(), right(), function.symbol());
     }
 
+    /**
+     * A {@link NonFiniteSupport} operator additionally distinguishes its non-finite-preserving form from its strict
+     * one; see {@code Function#equals} for why the two must not compare equal.
+     */
     @Override
     public boolean equals(Object obj) {
         // NB: the id and name are being ignored for binary expressions as most of them
@@ -53,6 +61,10 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
 
         BinaryPredicate<?, ?, ?, ?> other = (BinaryPredicate<?, ?, ?, ?>) obj;
 
+        // The class check above guarantees that either both sides support non-finite results, or neither does.
+        if (this instanceof NonFiniteSupport nonFinite && nonFinite.allowNonFinite() != ((NonFiniteSupport) other).allowNonFinite()) {
+            return false;
+        }
         return Objects.equals(symbol(), other.symbol()) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 
@@ -65,9 +77,9 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        left().nodeString(sb, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        left().nodeString(sb, format, mapper);
         sb.append(" ").append(symbol()).append(" ");
-        right().nodeString(sb, format);
+        right().nodeString(sb, format, mapper);
     }
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
+public class ReindexRequestBuilder extends AbstractBulkIndexByPaginatedSearchRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
     private final IndexRequestBuilder destinationBuilder;
     private RemoteInfo remoteInfo;
 

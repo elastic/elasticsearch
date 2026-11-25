@@ -26,7 +26,18 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
-public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware {
+/**
+ * Unresolved index-side relation produced by the parser for {@code FROM <index>} (and other
+ * index-pattern source commands). Pre-analysis machinery and optimizer rules typically pattern-match
+ * on this class.
+ *
+ * @see UnresolvedExternalRelation external-side counterpart for {@code FROM <dataset>} and inline
+ * {@code EXTERNAL}; if you traverse one and care about FROM-style leaves, consider whether you need
+ * the other too.
+ * @see UnresolvedSourceRelation marker implemented by both shapes; match on it to traverse any
+ * FROM-style leaf.
+ */
+public final class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware, UnresolvedSourceRelation {
 
     private final IndexPattern indexPattern;
     private final boolean frozen;
@@ -103,6 +114,12 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         return indexPattern;
     }
 
+    public UnresolvedRelation withIndexPattern(IndexPattern newIndexPattern) {
+        return newIndexPattern.equals(indexPattern)
+            ? this
+            : new UnresolvedRelation(source(), newIndexPattern, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
+    }
+
     public boolean frozen() {
         return frozen;
     }
@@ -124,6 +141,15 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
     @Override
     public String telemetryLabel() {
         return commandName;
+    }
+
+    /**
+     * The source command that reads this relation, or {@code null} for a relation that no source command reads, such as the index
+     * of a {@code LOOKUP JOIN}.
+     */
+    @Nullable
+    public SourceCommand sourceCommand() {
+        return SourceCommand.fromName(commandName);
     }
 
     @Override
@@ -193,6 +219,6 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
      *         which changes a number of behaviors in the planner.
      */
     public boolean isTimeSeriesMode() {
-        return indexMode == IndexMode.TIME_SERIES;
+        return indexMode.isTsdb();
     }
 }

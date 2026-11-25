@@ -53,37 +53,40 @@ public class PromqlFoldingUtilsTests extends ESTestCase {
 
     // Number op Number tests
     public void testNumberAddition() {
-        evaluate(5, ADD, 3, 8);
-        evaluate(5L, ADD, 3L, 8L);
+        evaluate(5, ADD, 3, 8.0);
+        evaluate(5L, ADD, 3L, 8.0);
         evaluate(5.5, ADD, 3.5, 9.0);
     }
 
     public void testNumberSubtraction() {
-        evaluate(5, SUB, 3, 2);
-        evaluate(5L, SUB, 3L, 2L);
+        evaluate(5, SUB, 3, 2.0);
+        evaluate(5L, SUB, 3L, 2.0);
         evaluate(5.5, SUB, 3.5, 2.0);
     }
 
     public void testNumberMultiplication() {
-        evaluate(5, MUL, 3, 15);
-        evaluate(5L, MUL, 3L, 15L);
+        evaluate(5, MUL, 3, 15.0);
+        evaluate(5L, MUL, 3L, 15.0);
         evaluate(5.5, MUL, 2.0, 11.0);
     }
 
     public void testNumberDivision() {
-        evaluate(10, DIV, 2, 5);
-        evaluate(10L, DIV, 2L, 5L);
+        evaluate(10, DIV, 2, 5.0);
+        evaluate(10L, DIV, 2L, 5.0);
         evaluate(10.0, DIV, 2.0, 5.0);
+        // Fractional results must be preserved (regression: integer division produced 0)
+        evaluate(4, DIV, 6, 4.0 / 6.0);
+        evaluate(1, DIV, 3, 1.0 / 3.0);
     }
 
     public void testNumberModulo() {
-        evaluate(10, MOD, 3, 1);
-        evaluate(10L, MOD, 3L, 1L);
+        evaluate(10, MOD, 3, 1.0);
+        evaluate(10L, MOD, 3L, 1.0);
     }
 
     public void testNumberPower() {
-        evaluate(2, POW, 3, 8);  // integer result
-        evaluate(2.5, POW, 2.0, 6.25);  // double result
+        evaluate(2, POW, 3, 8.0);
+        evaluate(2.5, POW, 2.0, 6.25);
     }
 
     // Duration op Duration tests
@@ -96,8 +99,8 @@ public class PromqlFoldingUtilsTests extends ESTestCase {
     }
 
     public void testDurationInvalidOperations() {
-        error(sec(60), MUL, sec(30), "not supported between two durations");
-        error(sec(60), DIV, sec(30), "not supported between two durations");
+        error(sec(60), MUL, sec(30), "operator [*] is not defined for duration and duration");
+        error(sec(60), DIV, sec(30), "operator [/] is not defined for duration and duration");
     }
 
     // Duration op Number tests (Number interpreted as seconds for ADD/SUB, dimensionless for MUL/DIV/MOD/POW)
@@ -130,11 +133,11 @@ public class PromqlFoldingUtilsTests extends ESTestCase {
     }
 
     public void testDurationDivByZero() {
-        error(sec(60), DIV, 0, "Cannot divide duration by zero");
+        error(sec(60), DIV, 0, "division of a duration by zero is not allowed");
     }
 
     public void testDurationModByZero() {
-        error(sec(60), MOD, 0, "Cannot compute modulo with zero");
+        error(sec(60), MOD, 0, "modulo of a duration by zero is not allowed");
     }
 
     public void testNumberMulDuration() {
@@ -145,7 +148,7 @@ public class PromqlFoldingUtilsTests extends ESTestCase {
     }
 
     public void testNumberInvalidDurationOperations() {
-        error(2, DIV, sec(60), "not supported with scalar on left");
+        error(2, DIV, sec(60), "operator [/] is not defined for scalar and duration");
     }
 
     // Validation tests

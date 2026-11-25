@@ -21,12 +21,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -72,6 +75,7 @@ public class IndicesServiceBuilder {
     BigArrays bigArrays;
     ScriptService scriptService;
     ClusterService clusterService;
+    FeatureService featureService;
     ProjectResolver projectResolver;
     Client client;
     MetaStateService metaStateService;
@@ -86,11 +90,13 @@ public class IndicesServiceBuilder {
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
     MergeMetrics mergeMetrics;
+    FlushMetrics flushMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
     ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {};
     Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
+    ThrottlingRecoveryService throttlingRecoveryService;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -162,6 +168,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder featureService(FeatureService featureService) {
+        this.featureService = featureService;
+        return this;
+    }
+
     public IndicesServiceBuilder projectResolver(ProjectResolver projectResolver) {
         this.projectResolver = projectResolver;
         return this;
@@ -199,6 +210,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder flushMetrics(FlushMetrics flushMetrics) {
+        this.flushMetrics = flushMetrics;
+        return this;
+    }
+
     public List<SearchOperationListener> searchOperationListeners() {
         return searchOperationListener;
     }
@@ -210,6 +226,11 @@ public class IndicesServiceBuilder {
 
     public IndicesServiceBuilder loggingFieldsProvider(ActionLoggingFieldsProvider loggingFieldsProvider) {
         this.loggingFieldsProvider = loggingFieldsProvider;
+        return this;
+    }
+
+    public IndicesServiceBuilder throttlingRecoveryService(ThrottlingRecoveryService throttlingRecoveryService) {
+        this.throttlingRecoveryService = throttlingRecoveryService;
         return this;
     }
 
@@ -228,6 +249,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(scriptService);
         Objects.requireNonNull(clusterService);
+        Objects.requireNonNull(featureService);
         Objects.requireNonNull(projectResolver);
         Objects.requireNonNull(client);
         Objects.requireNonNull(metaStateService);
@@ -238,8 +260,10 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(snapshotCommitSuppliers);
         Objects.requireNonNull(mapperMetrics);
         Objects.requireNonNull(mergeMetrics);
+        Objects.requireNonNull(flushMetrics);
         Objects.requireNonNull(searchOperationListener);
         Objects.requireNonNull(loggingFieldsProvider);
+        Objects.requireNonNull(throttlingRecoveryService);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

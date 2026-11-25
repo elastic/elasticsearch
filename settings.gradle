@@ -7,6 +7,19 @@ pluginManagement {
   repositories {
     mavenCentral()
     gradlePluginPortal()
+    // JitPack is used to resolve the protobuf gradle plugin from a custom
+    // build tied to a specific upstream commit (see resolutionStrategy below).
+    maven { url = uri("https://jitpack.io") }
+  }
+
+  resolutionStrategy {
+    eachPlugin {
+      // Resolve the protobuf gradle plugin via JitPack from the google/protobuf-gradle-plugin
+      // repository, pinned to a specific commit instead of a released version on the plugin portal.
+      if (requested.id.id == 'com.google.protobuf') {
+        useModule("com.github.google:protobuf-gradle-plugin:${requested.version}")
+      }
+    }
   }
 
   includeBuild "build-conventions"
@@ -60,6 +73,7 @@ List projects = [
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
+  'benchmarks:common',
   'benchmarks:processor',
   'distribution:archives:integ-test-zip',
   'distribution:archives:windows-zip',
@@ -102,6 +116,7 @@ List projects = [
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
   'server',
+  'test:vintage-randomized-runner',
   'test:framework',
   'test:fixtures:aws-ec2-fixture',
   'test:fixtures:aws-fixture-utils',
@@ -115,6 +130,7 @@ List projects = [
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
   'test:fixtures:testcontainer-utils',
+  'test:fixtures:tls-utils',
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
   'test:logger-usage',
@@ -168,8 +184,6 @@ addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
 
-project(":libs:native:libraries").name = "native-libraries"
-
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"
 }
@@ -183,3 +197,14 @@ if (extraProjects.exists()) {
 }
 
 include 'qa:vector'
+
+gradle.lifecycle.beforeProject { Project project ->
+  if (project == project.rootProject) {
+    // Subprojects must not apply plugins to the root project (Isolated Projects). Apply it here as
+    // plugins like develocity can trigger subproject configuration before the root build script runs.
+    project.pluginManager.apply('elasticsearch.global-build-info')
+    return
+  }
+  project.pluginManager.apply('elasticsearch.base')
+  project.pluginManager.apply('elasticsearch.formatting')
+}

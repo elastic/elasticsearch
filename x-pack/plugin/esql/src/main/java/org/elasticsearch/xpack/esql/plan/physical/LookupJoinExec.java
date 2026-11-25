@@ -41,7 +41,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
      */
     private final List<Attribute> addedFields;
     private final Expression joinOnConditions;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public LookupJoinExec(
         Source source,
@@ -107,18 +107,21 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public List<Attribute> output() {
-        if (lazyOutput == null) {
-            lazyOutput = new ArrayList<>(left().output());
+        List<Attribute> output = lazyOutput;
+        if (output == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
+            output = new ArrayList<>(left().output());
             var addedFieldsNames = addedFields.stream().map(Attribute::name).toList();
-            lazyOutput.removeIf(a -> addedFieldsNames.contains(a.name()));
-            lazyOutput.addAll(addedFields);
+            output.removeIf(a -> addedFieldsNames.contains(a.name()));
+            output.addAll(addedFields);
+            lazyOutput = output;
         }
-        return lazyOutput;
+        return output;
     }
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
-        state.add(false, addedFields);
+        state.add(false, addedFields, true);
         return this;
     }
 

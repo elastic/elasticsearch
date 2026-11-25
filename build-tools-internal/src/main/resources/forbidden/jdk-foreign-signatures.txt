@@ -1,0 +1,24 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the "Elastic License
+# 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+# Public License v 1"; you may not use this file except in compliance with, at
+# your election, the "Elastic License 2.0", the "GNU Affero General Public
+# License v3.0 only", or the "Server Side Public License, v 1".
+
+# java.lang.foreign APIs that changed between JDK 21 and 22.
+# Use the adapters in org.elasticsearch.foreign.adapter instead.
+
+@defaultMessage Use MemorySegmentAdapter.getString() instead (getUtf8String was renamed in JDK 22)
+java.lang.foreign.MemorySegment#getUtf8String(long)
+
+@defaultMessage Use MemorySegmentAdapter.setString() instead (setUtf8String was renamed in JDK 22)
+java.lang.foreign.MemorySegment#setUtf8String(long, java.lang.String)
+
+@defaultMessage Use MemorySegmentAdapter.allocateString() instead (allocateUtf8String was renamed in JDK 22)
+java.lang.foreign.SegmentAllocator#allocateUtf8String(java.lang.String)
+
+@defaultMessage Use ArenaAdapter.allocate() instead (allocateArray was renamed in JDK 22)
+java.lang.foreign.SegmentAllocator#allocateArray(java.lang.foreign.MemoryLayout, long)
+
+@defaultMessage Use ArenaAdapter.allocateFrom() instead (allocateArray was renamed in JDK 22)
+java.lang.foreign.SegmentAllocator#allocateArray(java.lang.foreign.ValueLayout$OfByte, byte[])

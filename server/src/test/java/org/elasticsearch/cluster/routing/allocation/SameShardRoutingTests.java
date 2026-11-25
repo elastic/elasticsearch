@@ -38,6 +38,8 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShard
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -188,23 +190,29 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
                 .allocationDeciders(decider)
                 .build();
-            routingAllocation.debugDecision(true);
-
-            final Decision decision = decider.canAllocate(unassignedShard, emptyNode, routingAllocation);
             logger.info("Two nodes on the same host");
-            assertThat(decision.type(), equalTo(Decision.Type.NO));
             assertThat(
-                decision.getExplanation(),
-                equalTo(
-                    Strings.format(
-                        """
-                            cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
-                            address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard\
-                            """,
-                        emptyNode.nodeId(),
-                        otherNode.nodeId(),
-                        host1,
-                        SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey()
+                decider.canAllocate(unassignedShard, emptyNode, routingAllocation),
+                isNoDecisionWithNoExplanation(SameShardAllocationDecider.NAME)
+            );
+
+            routingAllocation.debugDecision(true);
+            assertThat(
+                decider.canAllocate(unassignedShard, emptyNode, routingAllocation),
+                isNoDecisionWithExplanationMatching(
+                    SameShardAllocationDecider.NAME,
+                    equalTo(
+                        Strings.format(
+                            """
+                                cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same \
+                                host address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of \
+                                this shard\
+                                """,
+                            emptyNode.nodeId(),
+                            otherNode.nodeId(),
+                            host1,
+                            SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey()
+                        )
                     )
                 )
             );
@@ -263,8 +271,19 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
 
         // can't force allocate same shard copy to the same node
         ShardRouting newPrimary = TestShardRouting.newShardRouting(primaryShard.shardId(), null, true, ShardRoutingState.UNASSIGNED);
-        Decision decision = decider.canForceAllocatePrimary(newPrimary, routingNode, routingAllocation);
-        assertEquals(Decision.Type.NO, decision.type());
+        assertThat(
+            decider.canForceAllocatePrimary(newPrimary, routingNode, routingAllocation),
+            isNoDecisionWithNoExplanation(SameShardAllocationDecider.NAME)
+        );
+        routingAllocation.debugDecision(true);
+        assertThat(
+            decider.canForceAllocatePrimary(newPrimary, routingNode, routingAllocation),
+            isNoDecisionWithExplanationMatching(
+                SameShardAllocationDecider.NAME,
+                equalTo("a copy of this shard is already allocated to this node [" + primaryShard + "]")
+            )
+        );
+        routingAllocation.debugDecision(false);
 
         // can force allocate to a different node
         RoutingNode unassignedNode = null;
@@ -274,7 +293,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                 break;
             }
         }
-        decision = decider.canForceAllocatePrimary(newPrimary, unassignedNode, routingAllocation);
+        Decision decision = decider.canForceAllocatePrimary(newPrimary, unassignedNode, routingAllocation);
         assertEquals(Decision.Type.YES, decision.type());
     }
 }

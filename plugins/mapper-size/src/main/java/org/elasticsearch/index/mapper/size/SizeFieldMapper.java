@@ -10,9 +10,9 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -22,17 +22,14 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.Set;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
 
-    private static SizeFieldMapper toType(FieldMapper in) {
-        return (SizeFieldMapper) in;
-    }
-
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", m -> toType(m).enabled, false);
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", false);
 
         private Builder() {
             super(NAME);
@@ -68,6 +65,9 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 false,
                 null,
                 null,
+                false,
+                false,
+                false,
                 false
             );
         }
@@ -105,12 +105,16 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         if (enabled.value() == false) {
             return;
         }
-        final int value = context.sourceToParse().source().length();
+        // TODO: Similar to source mapper optimize in case of not materialized.
+        final int value = context.sourceToParse().source().originalBytes().length();
         NumberType.INTEGER.addFields(context.doc(), fullPath(), value, IndexType.points(true, true), true);
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
+        // postParse is a no-op when disabled (the common case). The enabled case needs the raw
+        // request source size as a column; revisit alongside SourceFieldMapper when we add stored source
+        // support.
+        return enabled.value() == false;
     }
 }

@@ -80,12 +80,13 @@ public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEva
 
   public IntBlock eval(int positionCount, LongBlock startTimestampMillisBlock,
       LongBlock endTimestampNanosBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (startTimestampMillisBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (startTimestampMillisBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -93,10 +94,11 @@ public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEva
               result.appendNull();
               continue position;
         }
+        if (endTimestampNanosBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (endTimestampNanosBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -119,7 +121,7 @@ public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEva
 
   public IntBlock eval(int positionCount, LongVector startTimestampMillisVector,
       LongVector endTimestampNanosVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long startTimestampMillis = startTimestampMillisVector.getLong(p);
         long endTimestampNanos = endTimestampNanosVector.getLong(p);
@@ -146,7 +148,7 @@ public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEva
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

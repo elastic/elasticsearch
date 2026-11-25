@@ -1,0 +1,4 @@
+TS k8s
+| STATS mx = MAX(network.bytes_in)
+  WHERE cluster IN (FROM employees | EVAL env = "qa" | KEEP env | LIMIT 1)
+  BY cluster

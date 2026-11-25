@@ -1,0 +1,6 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[salary{r}#0]]
+  \_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
+    |_Eval[[TOLONG(salary{r}#1) AS salary#2]]
+    | \_ExternalRelation[salaries_int.parquet][parquet][emp_no{r}#3, name{r}#4, salary{r}#1]
+    \_ExternalRelation[salaries_long.parquet][parquet][emp_no{r}#5, name{r}#6, salary{r}#7]

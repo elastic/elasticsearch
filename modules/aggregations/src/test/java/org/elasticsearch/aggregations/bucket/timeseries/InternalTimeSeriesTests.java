@@ -32,10 +32,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTestCase<InternalTimeSeries> {
+
+    /** {@link #testReduceSimple} builds a {@link TimeSeriesAggregationBuilder}, which emits the deprecation warning. */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
 
     private List<InternalBucket> randomBuckets(boolean keyed, InternalAggregations aggregations) {
         int numberOfBuckets = randomNumberOfBuckets();

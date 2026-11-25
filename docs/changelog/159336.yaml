@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 158809
+pr: 159336
+summary: "Uncharge Parquet GET before circuit breaker exception"
+type: bug

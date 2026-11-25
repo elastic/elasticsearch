@@ -25,7 +25,7 @@
   - is_false: task
   - is_false: deleted
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -64,7 +64,7 @@
   - is_false: task
   - is_false: deleted
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -120,7 +120,7 @@
   - is_false: response.task
   - is_false: response.deleted
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -165,7 +165,7 @@
   - match: {failures.0.cause.index:  dest}
   - gte: { took: 0 }
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -204,7 +204,7 @@
   - match: {throttled_millis: 0}
   - gte: { took: 0 }
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -236,7 +236,7 @@
         id:      "1"
   - match: { _source: {} }
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -280,7 +280,7 @@
   - match: { _source.text: "test" }
   - is_false: _source.filtered
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source

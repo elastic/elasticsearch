@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -68,6 +69,11 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
     @Override
     protected Settings nodeSettings() {
         return Settings.builder().put(super.nodeSettings()).put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING.getKey(), "0ms").build();
+    }
+
+    @After
+    public void expectDeprecationWarning() {
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
     }
 
     /**

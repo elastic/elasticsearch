@@ -53,10 +53,8 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     protected String type;
     protected String id;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMonitoringDocFields() throws Exception {
         cluster = UUIDs.randomBase64UUID();
         timestamp = frequently() ? randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999) : 0L;
         interval = randomNonNegativeLong();

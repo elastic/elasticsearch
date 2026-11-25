@@ -199,7 +199,7 @@ public class JoinHelper {
 
     /**
      * Saves information about a join failure. The failure information may be logged later via either {@link FailedJoinAttempt#logNow}
-     * or {@link FailedJoinAttempt#lastFailedJoinAttempt}.
+     * or {@link JoinHelper#lastFailedJoinAttempt}.
      * <p>
      * Package-private for testing.
      */

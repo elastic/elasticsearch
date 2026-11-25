@@ -7,31 +7,58 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.inference.InputType;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.DataType.IMAGE;
-import static org.elasticsearch.inference.DataType.TEXT;
-import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.is;
 
-public class EmbeddingsInputTests extends ESTestCase {
+public class EmbeddingsInputTests extends InferenceObjectRamBytesUsedTest<EmbeddingsInput> {
+
+    private static final InferenceStringGroup INFERENCE_STRING_GROUP = new InferenceStringGroup("input");
+    private static final InputType INPUT_TYPE = InputType.INGEST;
+
+    @Override
+    public boolean checkDoNotUnderAccount() {
+        // EmbeddingsInput pre-computes estimatedSizeInBytes at construction time;
+        // RamUsageTester's live traversal finds a small residual that can't be
+        // captured in a pre-computed estimate without over-engineering the constructor.
+        return false;
+    }
+
+    @Override
+    public EmbeddingsInput objectToEstimate() {
+        return new EmbeddingsInput(List.of(INFERENCE_STRING_GROUP), INPUT_TYPE, true);
+    }
+
+    @Override
+    public List<EmbeddingsInput> objectsToEstimateWithLargerInput() {
+        return List.of(
+            // More InferenceStringGroups
+            new EmbeddingsInput(List.of(INFERENCE_STRING_GROUP, INFERENCE_STRING_GROUP), INPUT_TYPE, true),
+            // Larger eager calculated size
+            new EmbeddingsInput(() -> List.of(INFERENCE_STRING_GROUP), 10_000L, INPUT_TYPE)
+        );
+    }
+
     public void testCallingGetInputs_invokesSupplier() {
         AtomicBoolean invoked = new AtomicBoolean();
         final List<InferenceStringGroup> list = List.of(
-            new InferenceStringGroup(new InferenceString(TEXT, "input1")),
-            new InferenceStringGroup(new InferenceString(IMAGE, TEST_IMAGE_DATA_URI))
+            new InferenceStringGroup("input1"),
+            new InferenceStringGroup(new InferenceString(IMAGE, TEST_DATA_URI))
         );
         Supplier<List<InferenceStringGroup>> supplier = () -> {
             invoked.set(true);
             return list;
         };
-        EmbeddingsInput input = new EmbeddingsInput(supplier, null);
+        EmbeddingsInput input = new EmbeddingsInput(supplier, 0L, null);
         // Ensure we don't invoke the supplier until we call getInputs()
         assertThat(invoked.get(), is(false));
 
@@ -47,7 +74,7 @@ public class EmbeddingsInputTests extends ESTestCase {
             invoked.set(true);
             return list;
         };
-        EmbeddingsInput input = new EmbeddingsInput(supplier, null);
+        EmbeddingsInput input = new EmbeddingsInput(supplier, 0L, null);
         // Ensure we don't invoke the supplier until we call getTextInputs()
         assertThat(invoked.get(), is(false));
 
@@ -57,17 +84,17 @@ public class EmbeddingsInputTests extends ESTestCase {
 
     public void testCallingGetTextInputs_withNonTextInput_throws() {
         Supplier<List<InferenceStringGroup>> supplier = () -> List.of(
-            new InferenceStringGroup(new InferenceString(TEXT, "input1")),
-            new InferenceStringGroup(new InferenceString(IMAGE, TEST_IMAGE_DATA_URI))
+            new InferenceStringGroup("input1"),
+            new InferenceStringGroup(new InferenceString(IMAGE, TEST_DATA_URI))
         );
-        EmbeddingsInput input = new EmbeddingsInput(supplier, null);
+        EmbeddingsInput input = new EmbeddingsInput(supplier, 0L, null);
         var exception = expectThrows(AssertionError.class, input::getTextInputs);
         assertThat(exception.getMessage(), is("Non-text input returned from InferenceString.textValue"));
     }
 
     public void testCallingGetInputsTwice_throws() {
         Supplier<List<InferenceStringGroup>> supplier = () -> List.of(new InferenceStringGroup("input1"));
-        EmbeddingsInput input = new EmbeddingsInput(supplier, null);
+        EmbeddingsInput input = new EmbeddingsInput(supplier, 0L, null);
         input.getInputs();
         var exception = expectThrows(AssertionError.class, input::getInputs);
         assertThat(exception.getMessage(), is("EmbeddingsInput supplier invoked twice"));
@@ -75,7 +102,7 @@ public class EmbeddingsInputTests extends ESTestCase {
 
     public void testCallingGetTextInputsTwice_throws() {
         Supplier<List<InferenceStringGroup>> supplier = () -> List.of(new InferenceStringGroup("input1"));
-        EmbeddingsInput input = new EmbeddingsInput(supplier, null);
+        EmbeddingsInput input = new EmbeddingsInput(supplier, 0L, null);
         input.getTextInputs();
         var exception = expectThrows(AssertionError.class, input::getTextInputs);
         assertThat(exception.getMessage(), is("EmbeddingsInput supplier invoked twice"));
@@ -83,7 +110,7 @@ public class EmbeddingsInputTests extends ESTestCase {
 
     public void testCallingEitherGetInputsMethodTwice_throws() {
         Supplier<List<InferenceStringGroup>> supplier = () -> List.of(new InferenceStringGroup("input1"));
-        EmbeddingsInput input = new EmbeddingsInput(supplier, null);
+        EmbeddingsInput input = new EmbeddingsInput(supplier, 0L, null);
         input.getInputs();
         var exception = expectThrows(AssertionError.class, input::getTextInputs);
         assertThat(exception.getMessage(), is("EmbeddingsInput supplier invoked twice"));

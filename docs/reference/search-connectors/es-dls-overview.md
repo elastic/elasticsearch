@@ -44,7 +44,7 @@ Note the following details about content documents and syncs:
 
 1. Remember that for DLS to work, your **content documents** must have access control fields that match the criteria defined in your access control documents. [Content documents](#es-dls-overview-content-documents) contain the actual content your users will search for. If a content document does not have access control fields, there will be no restrictions on who can view it.
 2. When a user searches for content, the access control documents determine which content the user is allowed to view.
-3. At *search* time documents without the `_allow_access_control` field or with allowed values in `_allow_access_control.enum` will be returned in the search results. The logic for determining whether a document has access control enabled is based on the presence or values of the `_allow_access_control*` fields.
+3. At *search* time documents without the `_allow_access_control` field or with allowed values in `_allow_access_control.keyword` will be returned in the search results. The logic for determining whether a document has access control enabled is based on the presence or values of the `_allow_access_control` field.
 4. Run **Content** syncs to sync your third party data source to Elasticsearch. A specific field (or fields) within these documents correlates with the query parameters in the access control documents enabling document-level security (DLS).
 
 ::::{note}

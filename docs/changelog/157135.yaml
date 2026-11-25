@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 156641
+pr: 157135
+summary: "PromQL: Support `histogram_fraction` on classic histograms"
+type: enhancement

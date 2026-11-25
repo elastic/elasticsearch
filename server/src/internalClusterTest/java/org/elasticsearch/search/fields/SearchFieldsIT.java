@@ -69,6 +69,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -183,7 +184,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         prepareIndex("test").setId("1")
             .setSource(
@@ -268,7 +269,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         prepareIndex("test").setId("1")
             .setSource(
@@ -370,7 +371,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
         String date = "2019-01-31T10:00:00.123456789Z";
         indexRandom(
             true,
@@ -409,6 +410,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testIdBasedScriptFields() throws Exception {
         prepareCreate("test").setMapping("num1", "type=long").get();
+        assumeNoColumnarId("test relies on reading _id from stored fields", "test");
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
@@ -475,7 +477,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addScriptField("s_arr3", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.arr3", Collections.emptyMap())),
             response -> {
 
-                assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
+                assertThat("Failures " + response.getShardFailures(), response.getShardFailures(), empty());
 
                 assertThat(response.getHits().getAt(0).field("s_obj1_test").getValue().toString(), equalTo("something"));
 
@@ -600,7 +602,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         prepareIndex("test").setId("1")
@@ -823,7 +825,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         prepareIndex("test").setId("1")

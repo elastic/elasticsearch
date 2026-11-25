@@ -39,9 +39,15 @@ public class EnsureDocsSearchableAction {
         implements
             SplitAwareRequest {
         private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("eds_split_shard_count_summary");
+        private static final TransportVersion ROUTING = TransportVersion.fromName("eds_routing");
 
         private int shardId; // this is not serialized over the wire, and will be 0 on the other end of the wire.
         private String[] docIds;
+        /// Per-document routing, parallel to {@link #docIds} (entry {@code i} is the routing of {@code docIds[i]}).
+        /// {@code null} when the request comes from a node older than {@link #ROUTING}, or when no routing is involved.
+        /// It is needed so the indexing node can build the correct identity term for the live-version-map lookup on
+        /// indices whose {@code _id} is scoped by routing (e.g. slice-enabled indices).
+        private String[] routings;
         /// Note that this request doesn't implement [RetryableSplitAwareRequest].
         /// This is because this request is sent from the search shard to the index shard (it's a "second leg").
         /// Coordinator -> search shard -> index shard.
@@ -61,6 +67,10 @@ public class EnsureDocsSearchableAction {
             if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
                 splitShardCountSummary = new SplitShardCountSummary(in);
             }
+            if (in.getTransportVersion().supports(ROUTING) && in.readBoolean()) {
+                // elements may be null (a doc with no routing), so each is read as an optional string
+                routings = in.readArray(StreamInput::readOptionalString, String[]::new);
+            }
         }
 
         @Override
@@ -68,10 +78,17 @@ public class EnsureDocsSearchableAction {
             return super.validateNonNullIndex();
         }
 
-        public EnsureDocsSearchableRequest(String index, int shardId, String[] docIds, SplitShardCountSummary splitShardCountSummary) {
+        public EnsureDocsSearchableRequest(
+            String index,
+            int shardId,
+            String[] docIds,
+            String[] routings,
+            SplitShardCountSummary splitShardCountSummary
+        ) {
             super(index);
             this.shardId = shardId;
             this.docIds = docIds;
+            this.routings = routings;
             this.splitShardCountSummary = splitShardCountSummary;
         }
 
@@ -81,6 +98,14 @@ public class EnsureDocsSearchableAction {
 
         public String[] docIds() {
             return docIds;
+        }
+
+        /**
+         * Per-document routing parallel to {@link #docIds()}, or {@code null} if unavailable (a request from an older
+         * node). When non-null, {@code routings()[i]} is the routing of {@code docIds()[i]}.
+         */
+        public String[] routings() {
+            return routings;
         }
 
         public SplitShardCountSummary getSplitShardCountSummary() {
@@ -93,6 +118,13 @@ public class EnsureDocsSearchableAction {
             out.writeStringArray(docIds);
             if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
                 splitShardCountSummary.writeTo(out);
+            }
+            if (out.getTransportVersion().supports(ROUTING)) {
+                out.writeBoolean(routings != null);
+                if (routings != null) {
+                    // elements may be null (a doc with no routing), so each is written as an optional string
+                    out.writeArray(StreamOutput::writeOptionalString, routings);
+                }
             }
         }
 

@@ -20,7 +20,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,13 +32,14 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
-import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Arrays;
@@ -84,14 +88,12 @@ public class ReindexValidator {
             );
             throw e;
         }
-        validateAgainstAliases(
-            source,
-            request.getDestination(),
-            request.getRemoteInfo(),
-            indexResolver,
-            autoCreateIndex,
-            projectResolver.getProjectMetadata(state)
-        );
+
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        validateAgainstAliases(source, request.getDestination(), request.getRemoteInfo(), indexResolver, autoCreateIndex, projectMetadata);
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            validateSliceRouting(request, projectMetadata);
+        }
         SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
             deprecationLogger.warn(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
@@ -99,18 +101,206 @@ public class ReindexValidator {
     }
 
     /**
-     * Applies reindex-specific defaults to the request before task initialization. When manual slicing is used without a
-     * {@link SliceBuilder#getField() field}, defaults the slice to {@link IdFieldMapper#NAME} for consistent behavior with PIT
-     * (see paginate-search-results documentation).
+     * Validates the interaction between the source {@code slice} (which slice of a slice-enabled source to read) and the destination
+     * {@code slice} (which slice every reindexed document is written to). A destination {@code slice} may be omitted for a slice-enabled
+     * destination when either every document of the source has a slice to preserve, because the source names a slice or targets only
+     * slice-enabled indices, or a script is present (the script may assign {@code ctx._slice} per document). If neither holds, a static
+     * destination {@code slice} is required. In particular a source that also targets an index without slices cannot supply one for the
+     * documents of that index.
      */
-    public void normalize(ReindexRequest request) {
-        SearchSourceBuilder source = request.getSearchRequest().source();
-        assert source != null : "The search request source field was null";
-        SliceBuilder sliceBuilder = source.slice();
-        // When manual slicing is used without a field, default to _id for consistent behavior with PIT (see paginate-search-results docs)
-        if (sliceBuilder != null && sliceBuilder.getField() == null) {
-            source.slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));
+    private void validateSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
+        final IndexRequest destination = request.getDestination();
+        final String destinationIndex = destination.index();
+        final boolean destinationSliceEnabled = isDestinationSliceEnabled(destination, destinationIndex, projectMetadata);
+        final boolean destSliceProvided = destination.isRoutingFromSlice();
+        final boolean sourceSliceMode = request.getSearchRequest().isRoutingFromSlice();
+
+        final SourceSlices sourceSlices = validateNoRequiredRoutingMixedWithSlices(
+            request,
+            projectMetadata,
+            destination,
+            destinationIndex,
+            destinationSliceEnabled,
+            destSliceProvided,
+            sourceSliceMode
+        );
+
+        if (destSliceProvided && destinationSliceEnabled == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + SliceIndexing.FIELD_NAME
+                    + "] is not allowed in [dest] when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is false for destination ["
+                    + destinationIndex
+                    + "]"
+            );
         }
+        if (destinationSliceEnabled) {
+            if (destSliceProvided == false && destination.routing() != null) {
+                throw new IllegalArgumentException(
+                    "[routing] is not allowed in [dest] when ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "] is true for destination ["
+                        + destinationIndex
+                        + "], use ["
+                        + SliceIndexing.FIELD_NAME
+                        + "] instead"
+                );
+            }
+            // Omitting [_slice] in [dest] works when every document of the source has a slice (a named source slice, or only slice-enabled
+            // source indices, so each document keeps its source slice) or a script is present (it may assign [_slice] per document).
+            // Documents that are left without a slice are rejected by the slice-enabled destination, and that rejects the whole bulk
+            // they are in, so we reject up-front when neither mechanism can supply one for every document.
+            final boolean sourceHasSlices = sourceSliceMode || sourceSlices.allSliceEnabled();
+            final boolean scriptMayProvideSlice = request.getScript() != null;
+            if (destSliceProvided == false && sourceHasSlices == false && scriptMayProvideSlice == false) {
+                final String required = "["
+                    + SliceIndexing.FIELD_NAME
+                    + "] is required in [dest] when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true for destination ["
+                    + destinationIndex
+                    + "]";
+                if (sourceSlices.anySliceEnabled()) {
+                    throw new IllegalArgumentException(
+                        required
+                            + " because the source also targets indices without slices, whose documents have no slice to keep; set ["
+                            + SliceIndexing.FIELD_NAME
+                            + "] in [dest], read the source with ["
+                            + SliceIndexing.FIELD_NAME
+                            + "] or assign ["
+                            + SliceIndexing.FIELD_NAME
+                            + "] with a script"
+                    );
+                }
+                throw new IllegalArgumentException(
+                    required
+                        + " unless the source is read with ["
+                        + SliceIndexing.FIELD_NAME
+                        + "] or a script assigns ["
+                        + SliceIndexing.FIELD_NAME
+                        + "]"
+                );
+            }
+        }
+    }
+
+    /**
+     * Slice-enabled indices and indices that require {@code routing} via an explicit {@code _routing: {required: true}} mapping are two
+     * distinct routing models that cannot be reconciled during reindex: the former routes documents by their {@code slice}, the latter by
+     * an arbitrary user-supplied {@code routing} value. When slices are involved on either side of the reindex, reject any participating
+     * non-slice index that requires routing rather than silently producing an unusable destination.
+     *
+     * @return the local source indices by whether they have slices
+     */
+    private SourceSlices validateNoRequiredRoutingMixedWithSlices(
+        ReindexRequest request,
+        ProjectMetadata projectMetadata,
+        IndexRequest destination,
+        String destinationIndex,
+        boolean destinationSliceEnabled,
+        boolean destSliceProvided,
+        boolean sourceSliceMode
+    ) {
+        boolean anySourceSliceEnabled = false;
+        boolean anySourceWithoutSlices = false;
+        boolean sourceRequiresRouting = false;
+        // Remote sources (reindex-from-remote and cross-cluster/cross-project index expressions) cannot be resolved against the local
+        // cluster state, and doing so throws "Cross-cluster calls are not supported in this context". Skip remote index names, mirroring
+        // validateAgainstAliases, and only inspect the local source indices for slice/required-routing settings.
+        if (request.getRemoteInfo() == null) {
+            final SearchRequest localSource = skipRemoteIndexNames(request.getSearchRequest());
+            if (localSource.indices().length > 0) {
+                for (Index index : indexResolver.concreteIndices(projectMetadata, localSource)) {
+                    final IndexMetadata indexMetadata = projectMetadata.index(index);
+                    if (indexMetadata == null) {
+                        continue;
+                    }
+                    if (IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings())) {
+                        anySourceSliceEnabled = true;
+                    } else {
+                        anySourceWithoutSlices = true;
+                        if (routingRequired(indexMetadata)) {
+                            sourceRequiresRouting = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        final boolean slicesInvolved = sourceSliceMode || destSliceProvided || destinationSliceEnabled || anySourceSliceEnabled;
+        final SourceSlices sourceSlices = new SourceSlices(anySourceSliceEnabled, anySourceWithoutSlices);
+        if (slicesInvolved == false) {
+            return sourceSlices;
+        }
+
+        if (sourceRequiresRouting) {
+            throw new IllegalArgumentException(
+                "reindex from an index that requires [routing] is not supported when a [_slice] is involved; slice-enabled indices and "
+                    + "indices with required [routing] must not be mixed"
+            );
+        }
+
+        if (destinationSliceEnabled == false) {
+            final IndexMetadata destinationMetadata = existingDestinationMetadata(destination, destinationIndex, projectMetadata);
+            if (destinationMetadata != null && routingRequired(destinationMetadata)) {
+                throw new IllegalArgumentException(
+                    "reindex into destination ["
+                        + destinationIndex
+                        + "] that requires [routing] is not supported when a [_slice] is involved; slice-enabled indices and indices with "
+                        + "required [routing] must not be mixed"
+                );
+            }
+        }
+        return sourceSlices;
+    }
+
+    /**
+     * The local source indices of a reindex by whether their documents have a slice.
+     *
+     * @param anySliceEnabled     whether any of them is slice-enabled
+     * @param anyWithoutSlices    whether any of them is not
+     */
+    private record SourceSlices(boolean anySliceEnabled, boolean anyWithoutSlices) {
+        /**
+         * Whether every document of the source has a slice. Without a local source index there is none.
+         */
+        boolean allSliceEnabled() {
+            return anySliceEnabled && anyWithoutSlices == false;
+        }
+    }
+
+    private static boolean routingRequired(IndexMetadata indexMetadata) {
+        return indexMetadata.mapping() != null && indexMetadata.mapping().routingRequired();
+    }
+
+    private IndexMetadata existingDestinationMetadata(IndexRequest destination, String destinationIndex, ProjectMetadata projectMetadata) {
+        if (autoCreateIndex.shouldAutoCreate(destinationIndex, projectMetadata)) {
+            return null;
+        }
+        final Index writeIndex = indexResolver.concreteWriteIndex(projectMetadata, destination);
+        return projectMetadata.index(writeIndex);
+    }
+
+    private boolean isDestinationSliceEnabled(IndexRequest destination, String destinationIndex, ProjectMetadata projectMetadata) {
+        if (autoCreateIndex.shouldAutoCreate(destinationIndex, projectMetadata) == false) {
+            final Index writeIndex = indexResolver.concreteWriteIndex(projectMetadata, destination);
+            final IndexMetadata indexMetadata = projectMetadata.index(writeIndex);
+            return indexMetadata != null && IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings());
+        }
+
+        final String templateName = MetadataIndexTemplateService.findV2Template(projectMetadata, destinationIndex, false);
+        if (templateName != null) {
+            final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(projectMetadata, templateName);
+            return IndexSettings.SLICE_ENABLED.get(resolvedSettings);
+        }
+        final List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(projectMetadata, destinationIndex, null);
+        if (templates.isEmpty()) {
+            return false;
+        }
+        final Settings resolvedSettings = MetadataIndexTemplateService.resolveSettings(templates);
+        return IndexSettings.SLICE_ENABLED.get(resolvedSettings);
     }
 
     static void checkAllowedRemote(CharacterRunAutomaton allowedRemotes, boolean remoteBlocklistSettingInUse, RemoteInfo remoteInfo) {

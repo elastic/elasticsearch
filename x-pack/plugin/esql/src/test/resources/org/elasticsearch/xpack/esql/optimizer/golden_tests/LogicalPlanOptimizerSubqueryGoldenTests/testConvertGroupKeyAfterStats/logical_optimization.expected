@@ -1,0 +1,8 @@
+Eval[[TO_STRING(gender{r}#0) AS g#1]]
+\_Limit[1000[INTEGER],false,false]
+  \_Aggregate[[gender{r$}#2],[MAX($$partial$$max_salary{r$}#3,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_salary#4, gender{r$}#2 AS gender#0]]
+    \_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
+      |_Aggregate[[gender{f}#5],[MAX(salary{f}#6,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$max_salary#3, gender{f}#5 AS gender#2]]
+      | \_EsRelation[employees][avg_worked_seconds{f}#7, birth_date{f}#8, emp_no{f}#9, first_name{f}#10, gender{f}#5, height{f}#11, height.float{f}#12, height.half_float{f}#13, height.scaled_float{f}#14, hire_date{f}#15, is_rehired{f}#16, job_positions{f}#17, languages{f}#18, languages.byte{f}#19, languages.long{f}#20, languages.short{f}#21, last_name{f}#22, salary{f}#6, salary_change{f}#23, salary_change.int{f}#24, salary_change.keyword{f}#25, salary_change.long{f}#26, still_hired{f}#27]
+      \_Aggregate[[gender{f}#28],[MAX(salary{f}#29,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$max_salary#3, gender{f}#28 AS gender#2]]
+        \_EsRelation[employees][avg_worked_seconds{f}#30, birth_date{f}#31, emp_no{f}#32, first_name{f}#33, gender{f}#28, height{f}#34, height.float{f}#35, height.half_float{f}#36, height.scaled_float{f}#37, hire_date{f}#38, is_rehired{f}#39, job_positions{f}#40, languages{f}#41, languages.byte{f}#42, languages.long{f}#43, languages.short{f}#44, last_name{f}#45, salary{f}#29, salary_change{f}#46, salary_change.int{f}#47, salary_change.keyword{f}#48, salary_change.long{f}#49, still_hired{f}#50]

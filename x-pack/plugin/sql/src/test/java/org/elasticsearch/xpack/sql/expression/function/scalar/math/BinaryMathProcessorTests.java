@@ -117,6 +117,34 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         );
     }
 
+    public void testRoundRejectsShortOverflow() {
+        ArithmeticException positive = expectThrows(
+            ArithmeticException.class,
+            () -> new Round(EMPTY, l(Short.MAX_VALUE), l(-1)).makePipe().asProcessor().process(null)
+        );
+        assertEquals("short overflow", positive.getMessage());
+
+        ArithmeticException negative = expectThrows(
+            ArithmeticException.class,
+            () -> new Round(EMPTY, l(Short.MIN_VALUE), l(-1)).makePipe().asProcessor().process(null)
+        );
+        assertEquals("short overflow", negative.getMessage());
+    }
+
+    public void testRoundRejectsByteOverflow() {
+        ArithmeticException positive = expectThrows(
+            ArithmeticException.class,
+            () -> new Round(EMPTY, l(Byte.MAX_VALUE), l(-1)).makePipe().asProcessor().process(null)
+        );
+        assertEquals("byte overflow", positive.getMessage());
+
+        ArithmeticException negative = expectThrows(
+            ArithmeticException.class,
+            () -> new Round(EMPTY, l(Byte.MIN_VALUE), l(-1)).makePipe().asProcessor().process(null)
+        );
+        assertEquals("byte overflow", negative.getMessage());
+    }
+
     public void testRoundInputValidation() {
         SqlIllegalArgumentException siae = expectThrows(
             SqlIllegalArgumentException.class,

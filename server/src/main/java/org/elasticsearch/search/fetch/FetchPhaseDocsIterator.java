@@ -15,6 +15,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -22,8 +23,12 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Iterates through a set of document IDs, fetching each document and collecting
@@ -43,12 +48,28 @@ abstract class FetchPhaseDocsIterator {
      */
     private long requestBreakerBytes;
 
+    private final AtomicReference<DirectoryMetrics> fetchMetricsDelta = new AtomicReference<>(DirectoryMetrics.EMPTY);
+
+    private final DirectoryMetrics.Capture metricsCapture;
+
+    protected FetchPhaseDocsIterator(DirectoryMetrics.Capture metricsCapture) {
+        this.metricsCapture = metricsCapture;
+    }
+
     public void addRequestBreakerBytes(long delta) {
         requestBreakerBytes += delta;
     }
 
     public long getRequestBreakerBytes() {
         return requestBreakerBytes;
+    }
+
+    protected DirectoryMetrics getFetchMetricsDelta() {
+        return fetchMetricsDelta.get();
+    }
+
+    protected final <T> T measure(Supplier<T> readOperation) {
+        return metricsCapture.measure(readOperation, fetchMetricsDelta);
     }
 
     /**
@@ -59,6 +80,31 @@ abstract class FetchPhaseDocsIterator {
      */
     protected abstract void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException;
 
+    /** Whether to {@link #announce} the documents; grouping them by segment is wasted work for an iterator that ignores them. */
+    protected boolean announces() {
+        return false;
+    }
+
+    /** Called once before the first {@link #setNextReader} with the segments, in reading order, and their documents. */
+    protected void announce(List<LeafReaderContext> leaves, List<int[]> docsInLeaves) throws IOException {}
+
+    /** Groups {@code docs}, sorted by doc id, by segment and {@link #announce}s them, if {@link #announces}. */
+    final void announceAll(IndexReader indexReader, DocIdToIndex[] docs) throws IOException {
+        if (announces() == false) {
+            return;
+        }
+        List<LeafReaderContext> leaves = new ArrayList<>();
+        List<int[]> docsInLeaves = new ArrayList<>();
+        for (int i = 0; i < docs.length;) {
+            LeafReaderContext leaf = indexReader.leaves().get(ReaderUtil.subIndex(docs[i].docId, indexReader.leaves()));
+            int end = endReaderIdx(leaf, i, docs);
+            leaves.add(leaf);
+            docsInLeaves.add(docIdsInLeaf(i, end, docs, leaf.docBase));
+            i = end;
+        }
+        announce(leaves, docsInLeaves);
+    }
+
     /**
      * Called for each document within a leaf reader.
      *
@@ -66,6 +112,14 @@ abstract class FetchPhaseDocsIterator {
      * @return a {@link SearchHit} for the document
      */
     protected abstract SearchHit nextDoc(int doc) throws IOException;
+
+    /**
+     * Called after all documents have been successfully iterated in non-streaming mode.
+     * Subclasses can override this to flush any tail-buffered bytes to the circuit breaker.
+     * May throw {@link org.elasticsearch.common.breaker.CircuitBreakingException} — the caller
+     * ensures that already-fetched hits are released before propagating the exception.
+     */
+    protected void onAllHitsIterated() {}
 
     /**
      * Synchronous iteration for non-streaming mode.
@@ -83,6 +137,16 @@ abstract class FetchPhaseDocsIterator {
      * @throws FetchPhaseExecutionException if fetch fails for a document
      */
     public final IterateResult iterate(
+        SearchShardTarget shardTarget,
+        IndexReader indexReader,
+        int[] docIds,
+        boolean allowPartialResults,
+        QuerySearchResult querySearchResult
+    ) {
+        return measure(() -> doIterate(shardTarget, indexReader, docIds, allowPartialResults, querySearchResult));
+    }
+
+    private IterateResult doIterate(
         SearchShardTarget shardTarget,
         IndexReader indexReader,
         int[] docIds,
@@ -109,6 +173,7 @@ abstract class FetchPhaseDocsIterator {
             int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
 
             try {
+                announceAll(indexReader, docs);
                 setNextReader(ctx, docsInLeaf);
             } catch (ContextIndexSearcher.TimeExceededException e) {
                 SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
@@ -134,9 +199,11 @@ abstract class FetchPhaseDocsIterator {
                     }
                     SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                     assert allowPartialResults;
+                    onAllHitsIterated();
                     return new IterateResult(stripNulls(searchHits));
                 }
             }
+            onAllHitsIterated();
         } catch (SearchTimeoutException e) {
             throw e;
         } catch (CircuitBreakingException e) {

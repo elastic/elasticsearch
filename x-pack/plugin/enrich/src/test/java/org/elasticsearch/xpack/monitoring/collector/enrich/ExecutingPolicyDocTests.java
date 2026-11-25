@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,9 +36,8 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
 
     private ExecutingPolicy executingPolicy;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initExecutingPolicy() {
         executingPolicy = new ExecutingPolicy(randomAlphaOfLength(4), randomTaskInfo());
     }
 

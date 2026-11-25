@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM text_state_mapped, text_state_unmapped
+| KEEP txt

@@ -1,0 +1,164 @@
+version: 9.3.6
+released: true
+generated: 2026-06-23T14:35:50.133177658Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 128429
+    summary: "[ESQL] Refactor Greatest and Least functions to use evaluator map"
+    area: ES|QL
+    type: bug
+    issues:
+      - 114036
+  - pr: 144381
+    summary: Move SAML metadata resolution to background thread
+    area: Authentication
+    type: bug
+    issues:
+      - 138031
+  - pr: 145968
+    summary: Fix wrong warning in expressions with unrolled multivalues
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 148663
+    summary: Don't apply time zones to epoch-based timestamps
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 149462
+    summary: Honor `ClusterHealth` timeout when waiting for transform internal index shards
+    area: Transform
+    type: bug
+    issues:
+      - 149400
+  - pr: 149631
+    summary: "[otel-data] Explicitly map `http.response.status_code` as long"
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 149667
+    summary: Add IT covering search during rolling restart
+    area: Search
+    type: bug
+    issues:
+      - 86927
+  - pr: 149797
+    summary: "Update the built-in `kibana_system` role to grant `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges on the `axonius.alert_finding` and `axonius.incident` indices, replacing the previous `axonius.alert_and_incident` index"
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 149971
+    summary: Enforce limit for max nested functions
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 149987
+    summary: "When a streaming inference request is canceled, immediately release apache client networking resources"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 150003
+    summary: "EQL/SQL: Enforce max expression depth checks"
+    area: Query Languages
+    type: bug
+    issues: []
+  - pr: 150150
+    summary: Validate inference embedding model before checking for existing uses
+    area: Inference
+    type: bug
+    issues:
+      - 147062
+      - 150084
+  - pr: 150227
+    summary: Add extra validation in `trained_model` creation
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 150238
+    summary: Catch `StackOverflowError` in deeply nested RLIKE patterns
+    area: ES|QL
+    type: bug
+    issues:
+      - 149838
+  - pr: 150242
+    summary: Upgrade commons-lang3 version for the inference plugin
+    area: Inference
+    type: upgrade
+    issues: []
+  - pr: 150345
+    summary: Fix Nynorsk stemmer `UnsupportedOperationException`. The `light_nynorsk` and `minimal_nynorsk` stemmers no longer fail with an HTTP 500 error during index creation due to passing an immutable map to Lucene's analysis factory.
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 150413
+    summary: Truncate error for ILM's `step_info` instead of string
+    area: ILM
+    type: bug
+    issues: []
+  - pr: 150789
+    summary: "[Inference API] Fix Streaming publisher shutdown race condition"
+    area: Inference
+    type: bug
+    issues:
+      - 150742
+  - pr: 151093
+    summary: Optimize literal action automaton builds
+    area: Security
+    type: enhancement
+    issues:
+      - 123872
+      - 105723
+  - pr: 151095
+    summary: Fix OS stats for cgroup paths containing colons
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 151099
+    summary: Upgrade netty to 4.1.135.Final
+    area: Network
+    type: upgrade
+    issues: []
+  - pr: 151143
+    summary: Make Automatons wildcard code-point aware
+    area: Security
+    type: bug
+    issues: []
+  - pr: 151146
+    summary: Filter `_source` field names by code point
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 151411
+    summary: Fix OTLP histogram handling for single-count histograms without bucket boundaries
+    area: TSDB
+    type: bug
+    issues: []

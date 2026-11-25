@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
@@ -16,6 +19,16 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 public class ReorderLimitProjectAndOrderByGoldenTests extends GoldenTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public ReorderLimitProjectAndOrderByGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
     /**
@@ -43,6 +56,23 @@ public class ReorderLimitProjectAndOrderByGoldenTests extends GoldenTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             | SORT salary
             | LIMIT 5 BY language_code
+            """, STAGES);
+    }
+
+    /**
+     * Project -> OrderBy swap when the Project renames the sort key. After the swap, the lifted OrderBy must
+     * reference the renamed attribute (here {@code pay}) rather than the dropped input {@code salary}.
+     * <p>
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+     */
+    public void testProjectAndOrderBySwappedRenamesSortKey() {
+        runGoldenTest("""
+            FROM employees
+            | RENAME salary AS pay, languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT pay
+            | LIMIT 5 BY language_code
+            | KEEP pay
             """, STAGES);
     }
 

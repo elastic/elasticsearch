@@ -11,7 +11,7 @@ Truncates tokens that exceed a specified character limit. This limit defaults to
 
 For example, you can use the `truncate` filter to shorten all tokens to `3` characters or fewer, changing `jumping fox` to `jum fox`.
 
-This filter uses Lucene’s [TruncateTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/TruncateTokenFilter.md).
+This filter uses Lucene’s [TruncateTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/TruncateTokenFilter.html).
 
 ## Example [analysis-truncate-tokenfilter-analyze-ex]
 

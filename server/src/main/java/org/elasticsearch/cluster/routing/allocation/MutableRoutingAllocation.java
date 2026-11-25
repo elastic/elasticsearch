@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,6 +44,9 @@ final class MutableRoutingAllocation extends RoutingAllocation {
      * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
+     * @param changesObserver additionally notified of every change to the routing nodes, after the built-in observers: the metrics and
+     *                        logging observer for a real reroute, or whatever the caller of a simulation wants to observe
+     * @param preserveDecisionLabels whether decisions retain their decider label when not in debug mode
      */
     MutableRoutingAllocation(
         AllocationDeciders deciders,
@@ -52,27 +56,22 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
         boolean isSimulating,
-        RoutingChangesObserver shardChangesObserver
+        RoutingChangesObserver changesObserver,
+        boolean preserveDecisionLabels
     ) {
-        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, preserveDecisionLabels);
         if (routingNodes == null || routingNodes.isReadOnly()) {
             throw new IllegalArgumentException("Must provide a mutable routing nodes instance");
         }
         this.routingNodes = routingNodes;
         this.isSimulating = isSimulating;
         this.routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-            isSimulating
-                ? new RoutingChangesObserver[] {
-                    nodesChangedObserver,
-                    indexMetadataUpdater,
-                    restoreInProgressUpdater,
-                    resizeSourceIndexUpdater }
-                : new RoutingChangesObserver[] {
-                    nodesChangedObserver,
-                    indexMetadataUpdater,
-                    restoreInProgressUpdater,
-                    resizeSourceIndexUpdater,
-                    shardChangesObserver }
+            nodesChangedObserver,
+            indexMetadataUpdater,
+            restoreInProgressUpdater,
+            resizeSourceIndexUpdater,
+            new MaxWriteLoadProportionCacheInvalidator(),
+            changesObserver
         );
     }
 
@@ -113,7 +112,8 @@ final class MutableRoutingAllocation extends RoutingAllocation {
                 : clusterState,
             clusterInfo,
             shardSizeInfo,
-            currentNanoTime
+            currentNanoTime,
+            preserveDecisionLabels
         );
     }
 
@@ -121,6 +121,9 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;
+        // The proportions are derived from the RoutingNodes and the ClusterInfo,
+        // so they must be recomputed for the new ClusterInfo.
+        invalidateNodeMaxShardWriteLoadProportion();
     }
 
     /**
@@ -178,5 +181,26 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         assert isReconciling == false : "already reconciling";
         isReconciling = true;
         return () -> isReconciling = false;
+    }
+
+    /**
+     * Whenever a shard moves in or out of {@link org.elasticsearch.cluster.routing.ShardRoutingState#STARTED}, we invalidate any
+     * cached max write-load proportion values for the affected node(s)
+     * <p>
+     * Note that there are other transitions which would affect this number
+     * (e.g., shard failures, relocation failures), but they don't occur in
+     * desired balance computation or reconciliation, so we don't handle them.
+     */
+    private class MaxWriteLoadProportionCacheInvalidator implements RoutingChangesObserver {
+
+        @Override
+        public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
+            invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+        }
+
+        @Override
+        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {
+            invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+        }
     }
 }

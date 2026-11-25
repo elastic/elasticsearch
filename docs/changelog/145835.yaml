@@ -1,7 +1,0 @@
-pr: 145835
-summary: Use `VectorScorer` to consume `AcceptDocs` iterator for lazy bulk scoring
-  in `VectorScoringUtils`
-area: Ranking
-type: enhancement
-issues:
-- 145834

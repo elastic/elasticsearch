@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.SumDenseVectorAggregatorFunctionSup
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumLongAsDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumOverflowingLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
@@ -29,15 +30,19 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -55,13 +60,23 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression, TransportVersionAware, AggregateMetricDoubleNativeSupport {
+public class Sum extends NumericAggregate
+    implements
+        SurrogateExpression,
+        TransportVersionAware,
+        AggregateMetricDoubleNativeSupport,
+        UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sum.class).unary(Sum::new).name("sum");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(Sum::new)
+        .acrossSeries(
+            (source, field) -> field.resolved() && field.dataType().isHistogram()
+                ? new HistogramMerge(source, field)
+                : new Sum(source, field)
+        )
         .description("Calculates the sum of the values across the input vector.")
         .example("sum(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("sum");
 
     public static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
@@ -84,15 +99,38 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
      */
     public static final Literal LONG_OVERFLOW_WARN = Literal.keyword(Source.EMPTY, "long_overflow_warn");
 
+    /**
+     * The first version whose nodes can sum {@code long}s as {@code double}s, see {@link #LONG_OVERFLOW_DOUBLE}.
+     */
+    public static final TransportVersion ESQL_SUM_LONG_AS_DOUBLE = TransportVersion.fromName("esql_sum_long_as_double");
+
+    /**
+     * Mode for {@link #longOverflowMode}, summing the {@code long}s as {@code double}s, so there is no overflow. The result is
+     * a {@code double}.
+     * <p>
+     *     Without grouping, the {@code long}s of a page are summed exactly and converted to a {@code double} once, instead of
+     *     converting each of them first, which is what {@code SUM(TO_DOUBLE(long))} does. With grouping that only holds for a
+     *     page whose rows all belong to one group; otherwise every {@code long} is converted and added to the compensated sum
+     *     of its group, so the result is not exact and can differ in the last digits. Merging partial results is never exact.
+     * </p>
+     * <p>
+     *     Only {@link Avg#surrogate(TransportVersion)} sets it, and only if all the nodes support it, see
+     *     {@link #ESQL_SUM_LONG_AS_DOUBLE}.
+     * </p>
+     */
+    public static final Literal LONG_OVERFLOW_DOUBLE = Literal.keyword(Source.EMPTY, "long_overflow_double");
+
     private final Expression summationMode;
     /**
-     * Either {@link #LONG_OVERFLOW_THROW} or {@link #LONG_OVERFLOW_WARN}.
+     * One of {@link #LONG_OVERFLOW_THROW}, {@link #LONG_OVERFLOW_WARN} or {@link #LONG_OVERFLOW_DOUBLE}.
      * Set internally only, used for BWC.
      */
     private final Expression longOverflowMode;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "long", "double", "dense_vector" },
+        briefSummary = "Returns the sum of a numeric expression.",
         description = "The sum of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -182,9 +220,22 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
         return new Sum(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
     }
 
-    @Override
-    public Sum withFilter(Expression filter) {
-        return new Sum(source(), field(), filter, window(), summationMode, longOverflowMode);
+    /** Returns a new {@code Sum} with the field replaced, preserving all other properties. */
+    public Sum withField(Expression field) {
+        return new Sum(source(), field, filter(), window(), summationMode, longOverflowMode);
+    }
+
+    /**
+     * Returns true when this {@code Sum} has no filter and uses the default (no) window.
+     * Used by optimizations that can only rewrite bare {@code SUM(expr)} aggregations.
+     *
+     * <p>The assertion below guards against {@code Sum} gaining new properties without
+     * this method being updated: if {@link #info()} ever returns more or fewer than 5
+     * properties, this method must be reviewed.
+     */
+    public boolean isSimpleSum() {
+        assert info().properties().size() == 5 : "Sum has changed; update isSimpleSum";
+        return hasFilter() == false && NO_WINDOW.equals(window());
     }
 
     @Override
@@ -196,11 +247,17 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
         if (dt == DataType.DENSE_VECTOR) {
             return DataType.DENSE_VECTOR;
         }
+        if (sumsLongAsDouble()) {
+            return DOUBLE;
+        }
         return dt.isWholeNumber() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
+        if (sumsLongAsDouble()) {
+            return new SumLongAsDoubleAggregatorFunctionSupplier();
+        }
         if (longOverflowMode().equals(LONG_OVERFLOW_THROW)) {
             return new SumOverflowingLongAggregatorFunctionSupplier();
         }
@@ -232,6 +289,13 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     public Expression longOverflowMode() {
         return longOverflowMode;
+    }
+
+    /**
+     * Whether this sums {@code long}s as {@code double}s, see {@link #LONG_OVERFLOW_DOUBLE}.
+     */
+    public boolean sumsLongAsDouble() {
+        return field().dataType() == DataType.LONG && longOverflowMode.equals(LONG_OVERFLOW_DOUBLE);
     }
 
     @Override
@@ -297,7 +361,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
                 return new Literal(s, null, NULL);
             }
             // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-            return new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window()));
+            Expression summed = sumsLongAsDouble() ? new ToDouble(s, field) : field;
+            return new Mul(s, new MvSum(s, summed), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window()));
         } else {
             return null;
         }

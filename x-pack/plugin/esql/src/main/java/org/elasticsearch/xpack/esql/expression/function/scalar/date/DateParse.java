@@ -18,20 +18,26 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -55,7 +61,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
-public class DateParse extends EsqlConfigurationFunction implements TwoOptionalArguments {
+public class DateParse extends EsqlConfigurationFunction implements TwoOptionalArguments, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateParse",
@@ -73,7 +79,14 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
     private final Expression third;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "date",
+        signatures = {
+            @Signature(params = { "STRING" }, returnType = "date"),
+            @Signature(params = { "STRING", "STRING" }, returnType = "date"),
+            @Signature(params = { "STRING", "named_parameters" }, returnType = "date"),
+            @Signature(params = { "STRING", "STRING", "named_parameters" }, returnType = "date") },
+        briefSummary = "Parses a string into a date using the specified format.",
         description = "Returns a date by parsing the second argument using the format specified in the first argument.",
         examples = @Example(file = "docs", tag = "dateParse")
     )
@@ -225,6 +238,32 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         return field.foldable() && (format == null || format.foldable());
     }
 
+    /**
+     * Fold {@code DATE_PARSE(date)} and {@code DATE_PARSE(pattern, date)} of string literals before the analysis, see
+     * {@link DateFunctionComparisonRewriter#foldConstants}. A call with options, which change the locale and the time
+     * zone of the pattern, is left alone. Returns {@code null} when the call does not fold.
+     */
+    static Literal tryFoldLiterals(Source source, List<Expression> args, Configuration configuration) {
+        if (args.isEmpty() || args.size() > 2) {
+            return null;
+        }
+        Literal[] literals = DateFunctionLiterals.literalArgs(args, args.size());
+        if (literals == null) {
+            return null;
+        }
+        for (Literal literal : literals) {
+            if (literal.dataType() != DataType.KEYWORD || literal.value() instanceof BytesRef == false) {
+                return null;
+            }
+        }
+        BytesRef date = (BytesRef) literals[literals.length - 1].value();
+        DateFormatter formatter = literals.length == 2
+            ? DateFormatter.forPattern(((BytesRef) literals[0].value()).utf8ToString())
+            : DEFAULT_DATE_TIME_FORMATTER;
+        long millis = process(date, formatter.withLocale(Locale.ROOT), DateFunctionLiterals.zoneId(configuration), Locale.ROOT);
+        return new Literal(source, millis, DataType.DATETIME);
+    }
+
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
     public static long process(BytesRef val, @Fixed DateFormatter formatter, @Fixed ZoneId zoneId, @Fixed Locale locale)
         throws IllegalArgumentException {
@@ -271,7 +310,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         Locale locale = localeAsString == null ? Locale.ROOT : LocaleUtils.parse(localeAsString);
 
         String timezoneAsString = (String) parsedOptions.get(TIME_ZONE_PARAM_NAME);
-        ZoneId timezone = configuration().zoneId();
+        ZoneId timezone = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
         try {
             if (timezoneAsString != null) {
                 timezone = ZoneId.of(timezoneAsString);

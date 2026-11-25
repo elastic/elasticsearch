@@ -8,18 +8,28 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.gradle.internal.docker.DockerSupportService.deriveId;
+import static org.elasticsearch.gradle.internal.docker.DockerSupportService.getLinuxExclusionList;
 import static org.elasticsearch.gradle.internal.docker.DockerSupportService.parseOsRelease;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class DockerSupportServiceTests {
+
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void testParseOsReleaseOnOracle() {
@@ -95,5 +105,32 @@ public class DockerSupportServiceTests {
         osRelease.put("VERSION_ID", "6.10");
 
         assertThat("ol-6.10", equalTo(deriveId(osRelease)));
+    }
+
+    @Test
+    public void testGetLinuxExclusionListMissingFileReturnsEmpty() {
+        File missing = new File(temporaryFolder.getRoot(), "does-not-exist");
+        assertThat(getLinuxExclusionList(missing), equalTo(Collections.emptyList()));
+    }
+
+    @Test
+    public void testGetLinuxExclusionListParsing() throws IOException {
+        File exclusionsFile = temporaryFolder.newFile();
+        Files.writeString(exclusionsFile.toPath(), """
+            # This file header comment is ignored
+
+            debian-8
+            ol-7.7
+
+            sles-12.3 # older version used in Vagrant image
+            sles-12.5
+            # Another full-line comment
+            sles-15.6
+            """);
+
+        assertThat(
+            getLinuxExclusionList(exclusionsFile),
+            equalTo(List.of("debian-8", "ol-7.7", "sles-12.3", "sles-12.5", "sles-15.6"))
+        );
     }
 }

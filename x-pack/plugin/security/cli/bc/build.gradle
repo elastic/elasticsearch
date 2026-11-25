@@ -1,0 +1,47 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.gradleup.shadow'
+
+base {
+  archivesName = 'elasticsearch-security-cli-bc'
+}
+
+dependencies {
+  compileOnly project(":server")
+  implementation "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
+  implementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  implementation "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
+}
+
+tasks.named("shadowJar").configure {
+  relocate 'org.bouncycastle', 'shadow.org.bouncycastle'
+}
+
+// Ban the shaded provider and BC's lightweight crypto API, which bypasses JCA entirely.
+// Cryptographic primitives must come from the JVM's configured providers. BC stays for encoding.
+tasks.named("forbiddenApisMain").configure {
+  signatures += [
+    "org.bouncycastle.crypto.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.pqc.crypto.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.operator.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.openssl.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.cert.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.pkcs.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.cms.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.jcajce.provider.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.pqc.jcajce.provider.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.jce.provider.** @ use the JVM's configured JCA/JCE providers",
+    "java.security.Security#addProvider(java.security.Provider) @ use the JVM's configured JCA/JCE providers",
+    "java.security.Security#insertProviderAt(java.security.Provider,int) @ use the JVM's configured JCA/JCE providers"
+  ]
+}

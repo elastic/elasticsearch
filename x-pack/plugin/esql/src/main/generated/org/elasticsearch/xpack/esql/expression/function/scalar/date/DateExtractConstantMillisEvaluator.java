@@ -67,12 +67,13 @@ public final class DateExtractConstantMillisEvaluator implements ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -88,7 +89,7 @@ public final class DateExtractConstantMillisEvaluator implements ExpressionEvalu
   }
 
   public LongVector eval(int positionCount, LongVector valueVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);
         result.appendLong(p, DateExtract.processMillis(value, this.chronoField, this.zone));
@@ -109,7 +110,7 @@ public final class DateExtractConstantMillisEvaluator implements ExpressionEvalu
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

@@ -12,16 +12,14 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.Meter;
 
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
-
 import java.util.Map;
 import java.util.Objects;
 
 /**
  * LongCounterAdapter wraps an otel LongCounter
  */
-public class LongCounterAdapter extends AbstractInstrument<LongCounter> implements org.elasticsearch.telemetry.metric.LongCounter {
-    public LongCounterAdapter(Meter meter, String name, String description, String unit) {
+class LongCounterAdapter extends AbstractInstrument<LongCounter> implements org.elasticsearch.telemetry.metric.LongCounter {
+    LongCounterAdapter(Meter meter, String name, String description, String unit) {
         super(meter, new Builder(name, description, unit));
     }
 

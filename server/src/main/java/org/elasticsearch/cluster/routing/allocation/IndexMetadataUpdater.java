@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.util.Maps;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -125,6 +127,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 var indexChanges = changesGroupedByIndex.get(index);
                 final IndexMetadata oldIndexMetadata = projectMetadata.getIndexSafe(index);
                 IndexMetadata updatedIndexMetadata = oldIndexMetadata;
+                List<ShardId> splitTargets = new ArrayList<>();
                 for (Map.Entry<ShardId, Updates> shardEntry : indexChanges) {
                     ShardId shardId = shardEntry.getKey();
                     Updates updates = shardEntry.getValue();
@@ -135,18 +138,21 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                         shardId,
                         updates
                     );
-                    IndexReshardingMetadata reshardingMetadata = updatedIndexMetadata.getReshardingMetadata();
-                    boolean splitTarget = reshardingMetadata != null
-                        && reshardingMetadata.isSplit()
-                        && reshardingMetadata.getSplit().isTargetShard(shardId.id());
-                    updatedIndexMetadata = updates.increaseTerm
-                        ? splitTarget
-                            ? updatedIndexMetadata.withSetPrimaryTerm(
-                                shardId.id(),
-                                splitPrimaryTerm(updatedIndexMetadata, reshardingMetadata, shardId)
-                            )
-                            : updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
-                        : updatedIndexMetadata;
+                    if (updates.increaseTerm) {
+                        if (IndexReshardingMetadata.isSplitTarget(shardId, updatedIndexMetadata.getReshardingMetadata())) {
+                            // Defer split-target term bumps until after all other increments so
+                            // splitPrimaryTerm sees the final source term and target stays >= source.
+                            splitTargets.add(shardId);
+                        } else {
+                            updatedIndexMetadata = updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id());
+                        }
+                    }
+                }
+                for (ShardId shardId : splitTargets) {
+                    updatedIndexMetadata = updatedIndexMetadata.withSetPrimaryTerm(
+                        shardId.id(),
+                        splitPrimaryTerm(updatedIndexMetadata, updatedIndexMetadata.getReshardingMetadata(), shardId)
+                    );
                 }
                 if (updatedIndexMetadata != oldIndexMetadata) {
                     updatedIndices.put(updatedIndexMetadata.getIndex().getName(), updatedIndexMetadata.withIncrementedVersion());
@@ -281,7 +287,11 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
      * Removes allocation ids from the in-sync set for shard copies for which there is no routing entries in the routing table.
      * This method is called in AllocationService before any changes to the routing table are made.
      */
-    public static ClusterState removeStaleIdsWithoutRoutings(ClusterState clusterState, List<StaleShard> staleShards, Logger logger) {
+    public static ClusterState removeStaleIdsWithoutRoutings(
+        ClusterState clusterState,
+        List<ShardAllocationId> staleShards,
+        Logger logger
+    ) {
         final Metadata oldMetadata = clusterState.metadata();
         Metadata.Builder metadataBuilder = null;
         // group staleShards entries by index
@@ -296,13 +306,16 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 final IndexMetadata oldIndexMetadata = oldProject.getIndexSafe(index);
                 IndexMetadata.Builder indexMetadataBuilder = null;
                 // group staleShards entries by shard id
-                for (Map.Entry<ShardId, List<StaleShard>> shardEntry : staleShardsByIndex.get(index)
+                for (Map.Entry<ShardId, List<ShardAllocationId>> shardEntry : staleShardsByIndex.get(index)
                     .stream()
-                    .collect(Collectors.groupingBy(StaleShard::shardId))
+                    .collect(Collectors.groupingBy(ShardAllocationId::shardId))
                     .entrySet()) {
                     int shardNumber = shardEntry.getKey().getId();
                     Set<String> oldInSyncAllocations = oldIndexMetadata.inSyncAllocationIds(shardNumber);
-                    Set<String> idsToRemove = shardEntry.getValue().stream().map(StaleShard::allocationId).collect(Collectors.toSet());
+                    Set<String> idsToRemove = shardEntry.getValue()
+                        .stream()
+                        .map(ShardAllocationId::allocationId)
+                        .collect(Collectors.toSet());
                     assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null)
                         : "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable;
                     Set<String> remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);

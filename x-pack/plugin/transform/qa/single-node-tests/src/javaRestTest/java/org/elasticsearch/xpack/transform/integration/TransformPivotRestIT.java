@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -1023,7 +1025,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     // test that docs in same date bucket with a later date than the updated doc are not ignored by the transform.
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98377")
     public void testContinuousDateHistogramPivot() throws Exception {
         String indexName = "continuous_reviews_date_histogram";
 
@@ -1067,6 +1068,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 "timestamp": "2023-07-24T17:55:00.000Z",
                 "stars": 5
             }""");
+        putRequest.addParameter("refresh", "true");
         client().performRequest(putRequest);
 
         String transformId = "continuous_date_histogram_pivot";
@@ -1120,6 +1122,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         startAndWaitForContinuousTransform(transformId, transformIndex, null);
         assertTrue(indexExists(transformIndex));
 
+        // The sync delay means the initial data may take multiple checkpoints to be fully processed.
+        // Wait until the destination reflects the correct initial aggregate before proceeding.
+        assertBusy(() -> {
+            refreshIndex(transformIndex);
+            var response = getAsMap(transformIndex + "/_search");
+            var hitList = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", response);
+            assertFalse("Expected at least one hit in destination index", hitList.isEmpty());
+            var stars = (double) XContentMapValues.extractValue("_source.total_rating", hitList.get(0));
+            assertEquals(10.0, stars, 0);
+        }, 30, TimeUnit.SECONDS);
+
         // update stars field in first doc
         Request updateDoc = new Request("PUT", indexName + "/_doc/1");
         updateDoc.setJsonEntity("""
@@ -1131,14 +1144,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         updateDoc.addParameter("refresh", "true");
         client().performRequest(updateDoc);
 
-        waitForTransformCheckpoint(transformId, 2);
-        stopTransform(transformId, false);
-        refreshIndex(transformIndex);
+        // Wait for the transform to pick up the change and recompute the bucket correctly
+        assertBusy(() -> {
+            refreshIndex(transformIndex);
+            var response = getAsMap(transformIndex + "/_search");
+            var hitList = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", response);
+            assertFalse("Expected at least one hit in destination index", hitList.isEmpty());
+            var stars = (double) XContentMapValues.extractValue("_source.total_rating", hitList.get(0));
+            assertEquals(11.0, stars, 0);
+        }, 30, TimeUnit.SECONDS);
 
-        var searchResponse = getAsMap(transformIndex + "/_search");
-        var hits = ((List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResponse)).get(0);
-        var totalStars = (double) XContentMapValues.extractValue("_source.total_rating", hits);
-        assertEquals(11, totalStars, 0);
+        stopTransform(transformId, false);
     }
 
     public void testPreviewTransform() throws Exception {
@@ -1351,6 +1367,84 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             createPreviewResponse.getWarnings().get(0),
             allOf(containsString("Pipeline returned 100 errors, first error:"), containsString("type=script_exception"))
         );
+    }
+
+    /**
+     * Verifies that deprecation warnings originating from the internal _search are forwarded
+     * through _preview and PUT _transform responses. See https://github.com/elastic/elasticsearch/issues/82935
+     */
+    public void testPreviewAndPutTransformForwardSearchDeprecationWarnings() throws Exception {
+        String expectedWarning = "terms query on the _field_names field is deprecated and will be removed, use exists query instead";
+        String transformId = "test_deprecation_warning_forwarding";
+
+        {
+            Request searchRequest = new Request("GET", REVIEWS_INDEX_NAME + "/_search");
+            searchRequest.setJsonEntity("""
+                { "query": { "term": { "_field_names": "stars" } }, "size": 0 }""");
+            searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            Response searchResponse = client().performRequest(searchRequest);
+            assumeTrue(
+                "Direct _search did not return the expected deprecation warning; skipping test",
+                searchResponse.getWarnings().stream().anyMatch(w -> w.contains(expectedWarning))
+            );
+        }
+
+        // bool.should with match_all ensures docs still match; the _field_names term triggers the deprecation
+        String sourceQueryAndPivot = Strings.format("""
+            "source": {
+              "index": "%s",
+              "query": {
+                "bool": {
+                  "should": [
+                    { "match_all": {} },
+                    { "term": { "_field_names": "stars" } }
+                  ]
+                }
+              }
+            },
+            "pivot": {
+              "group_by": {
+                "reviewer": { "terms": { "field": "user_id" } }
+              },
+              "aggregations": {
+                "avg_rating": { "avg": { "field": "stars" } }
+              }
+            }""", REVIEWS_INDEX_NAME);
+
+        // --- Test _preview ---
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request previewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        previewRequest.setJsonEntity("{" + sourceQueryAndPivot + "}");
+        previewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+        Response previewResponse = client().performRequest(previewRequest);
+        assertThat(
+            "Expected deprecation warning in _preview response, but got: " + previewResponse.getWarnings(),
+            previewResponse.getWarnings(),
+            hasItem(containsString(expectedWarning))
+        );
+
+        // --- Test PUT ---
+        try {
+            String putConfig = Strings.format("""
+                {
+                  %s,
+                  "dest": { "index": "%s" }
+                }""", sourceQueryAndPivot, transformId + "_dest");
+
+            final Request putRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
+            putRequest.setJsonEntity(putConfig);
+            putRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+            Response putResponse = client().performRequest(putRequest);
+            assertThat(
+                "Expected deprecation warning in PUT response, but got: " + putResponse.getWarnings(),
+                putResponse.getWarnings(),
+                hasItem(containsString(expectedWarning))
+            );
+        } finally {
+            deleteTransform(transformId, true, true);
+        }
     }
 
     public void testPreviewTransformWithDateHistogramOffset() throws Exception {
@@ -2155,6 +2249,233 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_business.business_id", searchResult)).get(0);
         assertEquals("business_3", actual);
+    }
+
+    public void testPivotWithTopMetricsSizeGreaterThanOne() throws Exception {
+        String sourceIndex = "top_metrics_size_source";
+        String transformId = "top_metrics_size_transform";
+        String transformIndex = "top_metrics_size_dest";
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+        createSessionSourceIndex(sourceIndex);
+        indexSessionDocs(sourceIndex, "s1", List.of("/home", "/shop", "/checkout", "/confirm", "/thanks"), "2026-08-16T10:00:00Z");
+        indexSessionDocs(sourceIndex, "s2", List.of("/a", "/b"), "2026-08-16T11:00:00Z");
+
+        putSessionTopMetricsTransform(transformId, sourceIndex, transformIndex, 3, null);
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?size=10");
+        assertEquals(2, XContentMapValues.extractValue("hits.total.value", searchResult));
+
+        Map<String, Object> s1 = sessionDestHit(transformIndex, "s1");
+        assertThat(XContentMapValues.extractValue("token.path", s1), equalTo("/home"));
+        List<?> top = (List<?>) XContentMapValues.extractValue("token.top", s1);
+        assertThat(top, hasSize(3));
+        assertThat((List<?>) XContentMapValues.extractValue("token.top.metrics.path", s1), equalTo(List.of("/home", "/shop", "/checkout")));
+        // extractValue flattens nested sort arrays; read each hit so we keep the per-hit [timestamp] shape
+        assertThat(sessionTopHitSort(top, 0), equalTo(List.of("2026-08-16T10:00:00.000Z")));
+        assertThat(sessionTopHitSort(top, 1), equalTo(List.of("2026-08-16T10:01:00.000Z")));
+        assertThat(sessionTopHitSort(top, 2), equalTo(List.of("2026-08-16T10:02:00.000Z")));
+
+        Map<String, Object> s2 = sessionDestHit(transformIndex, "s2");
+        assertThat(XContentMapValues.extractValue("token.path", s2), equalTo("/a"));
+        assertThat((List<?>) XContentMapValues.extractValue("token.top", s2), hasSize(2));
+        assertThat((List<?>) XContentMapValues.extractValue("token.top.metrics.path", s2), equalTo(List.of("/a", "/b")));
+    }
+
+    public void testPivotWithTopMetricsSizeCardinality() throws Exception {
+        String sourceIndex = "top_metrics_card_source";
+        String transformId = "top_metrics_card_transform";
+        String transformIndex = "top_metrics_card_dest";
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+        createSessionSourceIndex(sourceIndex);
+        StringBuilder bulk = new StringBuilder();
+        for (int session = 0; session < 100; session++) {
+            for (int hit = 0; hit < 5; hit++) {
+                bulk.append(Strings.format("""
+                    {"index":{"_index":"%s"}}
+                    {"session.id":"s%s","path":"/p%s","@timestamp":"2026-08-16T10:%02d:00Z"}
+                    """, sourceIndex, session, hit, hit));
+            }
+        }
+        doBulk(bulk.toString(), true);
+
+        putSessionTopMetricsTransform(transformId, sourceIndex, transformIndex, 5, null);
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?size=0");
+        assertEquals(100, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Map<String, Object> s0 = sessionDestHit(transformIndex, "s0");
+        assertThat((List<?>) XContentMapValues.extractValue("token.top", s0), hasSize(5));
+    }
+
+    public void testPivotWithTopMetricsMultiMetricSizeOne() throws Exception {
+        String sourceIndex = "top_metrics_multi_source";
+        String transformId = "top_metrics_multi_transform";
+        String transformIndex = "top_metrics_multi_dest";
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+        createSessionSourceIndex(sourceIndex);
+        doBulk(Strings.format("""
+            {"index":{"_index":"%s"}}
+            {"session.id":"s1","path":"/home","user_agent":"chrome","country":"nl","@timestamp":"2026-08-16T10:00:00Z"}
+            {"index":{"_index":"%s"}}
+            {"session.id":"s1","path":"/shop","user_agent":"firefox","country":"de","@timestamp":"2026-08-16T10:01:00Z"}
+            """, sourceIndex, sourceIndex), true);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        createTransformRequest.setJsonEntity(Strings.format("""
+            {
+              "source": { "index": "%s" },
+              "dest": { "index": "%s" },
+              "pivot": {
+                "group_by": { "session": { "terms": { "field": "session.id" } } },
+                "aggregations": {
+                  "last_seen": {
+                    "top_metrics": {
+                      "metrics": [
+                        { "field": "path" },
+                        { "field": "user_agent" },
+                        { "field": "country" }
+                      ],
+                      "sort": { "@timestamp": "desc" },
+                      "size": 1
+                    }
+                  }
+                }
+              }
+            }""", sourceIndex, transformIndex));
+        assertThat(entityAsMap(client().performRequest(createTransformRequest)).get("acknowledged"), equalTo(Boolean.TRUE));
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        Map<String, Object> dest = sessionDestHit(transformIndex, "s1");
+        assertThat(XContentMapValues.extractValue("last_seen.path", dest), equalTo("/shop"));
+        assertThat(XContentMapValues.extractValue("last_seen.user_agent", dest), equalTo("firefox"));
+        assertThat(XContentMapValues.extractValue("last_seen.country", dest), equalTo("de"));
+        assertThat((List<?>) XContentMapValues.extractValue("last_seen.top", dest), hasSize(1));
+        assertThat(XContentMapValues.extractValue("last_seen.top.metrics.path", dest), equalTo(List.of("/shop")));
+        assertThat(XContentMapValues.extractValue("last_seen.top.metrics.user_agent", dest), equalTo(List.of("firefox")));
+        assertThat(XContentMapValues.extractValue("last_seen.top.metrics.country", dest), equalTo(List.of("de")));
+    }
+
+    public void testContinuousPivotWithTopMetricsSizeReplacesArray() throws Exception {
+        String sourceIndex = "top_metrics_cont_source";
+        String transformId = "top_metrics_cont_transform";
+        String transformIndex = "top_metrics_cont_dest";
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+        createSessionSourceIndex(sourceIndex);
+        indexSessionDocs(sourceIndex, "s1", List.of("/home", "/shop", "/checkout"), "2026-08-16T10:00:00Z");
+
+        putSessionTopMetricsTransform(transformId, sourceIndex, transformIndex, 3, """
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "@timestamp",
+                  "delay": "1s"
+                }
+              },
+            """);
+        startAndWaitForContinuousTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        Map<String, Object> firstHit = sessionDestHit(transformIndex, "s1");
+        Map<String, Object> firstSearch = getAsMap(transformIndex + "/_search?q=session:s1");
+        String destId = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._id", firstSearch)).get(0);
+        assertThat((List<?>) XContentMapValues.extractValue("token.top", firstHit), hasSize(3));
+
+        // Time-sync only sees docs after the last checkpoint watermark. Stamp them in the past
+        // so they clear delay: 1s without waiting on wall clock.
+        long now = Instant.now().toEpochMilli() - 1_000;
+        doBulk(Strings.format("""
+            {"index":{"_index":"%s"}}
+            {"session.id":"s1","path":"/new-a","@timestamp":%s}
+            {"index":{"_index":"%s"}}
+            {"session.id":"s1","path":"/new-b","@timestamp":%s}
+            """, sourceIndex, now, sourceIndex, now + 500), true);
+
+        waitForTransformCheckpoint(transformId, 2);
+        refreshIndex(transformIndex);
+
+        Map<String, Object> secondSearch = getAsMap(transformIndex + "/_search?q=session:s1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", secondSearch));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._id", secondSearch)).get(0), equalTo(destId));
+        Map<String, Object> secondHit = sessionDestHit(transformIndex, "s1");
+        // Continuous re-aggregates the group (not append). size: 3 → still 3 hits, never 5.
+        assertThat((List<?>) XContentMapValues.extractValue("token.top", secondHit), hasSize(3));
+        assertThat(
+            (List<?>) XContentMapValues.extractValue("token.top.metrics.path", secondHit),
+            equalTo(List.of("/home", "/shop", "/checkout"))
+        );
+    }
+
+    private void createSessionSourceIndex(String sourceIndex) throws IOException {
+        Request createIndex = new Request("PUT", sourceIndex);
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "session.id": { "type": "keyword" },
+                  "path": { "type": "keyword" },
+                  "user_agent": { "type": "keyword" },
+                  "country": { "type": "keyword" },
+                  "@timestamp": { "type": "date" }
+                }
+              }
+            }""");
+        client().performRequest(createIndex);
+    }
+
+    private void indexSessionDocs(String sourceIndex, String sessionId, List<String> paths, String startTimestamp) throws IOException {
+        Instant start = Instant.parse(startTimestamp);
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < paths.size(); i++) {
+            bulk.append(Strings.format("""
+                {"index":{"_index":"%s"}}
+                {"session.id":"%s","path":"%s","@timestamp":"%s"}
+                """, sourceIndex, sessionId, paths.get(i), start.plusSeconds(i * 60L)));
+        }
+        doBulk(bulk.toString(), true);
+    }
+
+    private void putSessionTopMetricsTransform(String transformId, String sourceIndex, String transformIndex, int size, String extraConfig)
+        throws IOException {
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        createTransformRequest.setJsonEntity(Strings.format("""
+            {
+              "source": { "index": "%s" },
+              "dest": { "index": "%s" },
+            %s
+              "pivot": {
+                "group_by": { "session": { "terms": { "field": "session.id" } } },
+                "aggregations": {
+                  "token": {
+                    "top_metrics": {
+                      "metrics": { "field": "path" },
+                      "sort": { "@timestamp": "asc" },
+                      "size": %s
+                    }
+                  }
+                }
+              }
+            }""", sourceIndex, transformIndex, extraConfig == null ? "" : extraConfig, size));
+        assertThat(entityAsMap(client().performRequest(createTransformRequest)).get("acknowledged"), equalTo(Boolean.TRUE));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> sessionDestHit(String transformIndex, String sessionId) throws IOException {
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=session:" + sessionId);
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        return (Map<String, Object>) ((List<?>) XContentMapValues.extractValue("hits.hits._source", searchResult)).get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> sessionTopHitSort(List<?> top, int index) {
+        return (List<Object>) ((Map<String, Object>) top.get(index)).get("sort");
     }
 
     @SuppressWarnings(value = "unchecked")

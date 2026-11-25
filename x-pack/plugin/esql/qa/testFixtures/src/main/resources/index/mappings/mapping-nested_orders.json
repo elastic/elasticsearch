@@ -1,0 +1,18 @@
+{
+    "properties": {
+        "id": { "type": "keyword" },
+        "items": {
+            "type": "nested",
+            "properties": {
+                "sku": { "type": "keyword" },
+                "qty": { "type": "long" }
+            }
+        },
+        "events": {
+            "type": "nested",
+            "properties": {
+                "start": { "type": "integer" }
+            }
+        }
+    }
+}

@@ -1,0 +1,14 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "event_type": {
+            "type": "constant_keyword",
+            "value": "login"
+        },
+        "username": {
+            "type": "keyword"
+        }
+    }
+}

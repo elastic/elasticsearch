@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159937
+summary: Support partitioning in `LongBytesRefBlockHash`
+type: enhancement

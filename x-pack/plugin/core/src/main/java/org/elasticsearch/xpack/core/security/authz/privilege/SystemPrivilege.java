@@ -37,7 +37,7 @@ public final class SystemPrivilege extends Privilege {
         "indices:admin/template/put", // needed for the TemplateUpgradeService
         "indices:admin/template/delete", // needed for the TemplateUpgradeService
         "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
-        "indices:admin/reshard/split*", // needed for reshard operations
+        "indices:admin/reshard*", // needed for the resharding operations
         RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
         RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs
         RetentionLeaseActions.ADD.name() + "*", // needed for CCR to add retention leases
@@ -48,6 +48,7 @@ public final class SystemPrivilege extends Privilege {
         "indices:data/write/*", // needed for SystemIndexMigrator
         "indices:data/read/*", // needed for SystemIndexMigrator
         "indices:admin/refresh*", // needed for SystemIndexMigrator and resharding
+        "indices:admin/flush*", // needed for flushing a project's indices before it is soft-deleted
         "indices:admin/aliases", // needed for SystemIndexMigrator
         TransportCreateIndexAction.TYPE.name() + "*", // needed for SystemIndexMigrator
         TransportAddIndexBlockAction.TYPE.name() + "*", // needed for SystemIndexMigrator

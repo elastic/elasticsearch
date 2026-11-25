@@ -19,7 +19,7 @@ If possible, avoid using the `flatten_graph` filter. Instead, use graph token fi
 ::::
 
 
-The `flatten_graph` filter uses Lucene’s [FlattenGraphFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/FlattenGraphFilter.md).
+The `flatten_graph` filter uses Lucene’s [FlattenGraphFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/FlattenGraphFilter.html).
 
 ## Example [analysis-flatten-graph-tokenfilter-analyze-ex]
 

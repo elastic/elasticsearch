@@ -7,8 +7,11 @@
 
 package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
+import io.netty.handler.codec.http.HttpMethod;
+
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.Settings;
@@ -25,13 +28,27 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         return true;
     }
 
+    protected boolean checkDeprecations(Settings repositorySettings) {
+        return true;
+    }
+
     public void testRepositoryAnalysis() throws Exception {
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();
 
         final String repository = "repository";
         logger.info("creating repository [{}] of type [{}]", repository, repositoryType);
-        registerRepository(repository, repositoryType, true, repositorySettings);
+        final Request putRepositoryRequest = newXContentRequest(
+            HttpMethod.PUT,
+            "/_snapshot/" + repository,
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repository).type(repositoryType)
+                .settings(repositorySettings)
+        );
+        putRepositoryRequest.addParameter("verify", Boolean.TRUE.toString());
+        putRepositoryRequest.setOptions(repositoryRegistrationRequestOptions(repositorySettings));
+        final var putRepositoryResponse = client().performRequest(putRepositoryRequest);
+        assertOK(putRepositoryResponse);
+        assertEquals(Boolean.TRUE, entityAsMap(putRepositoryResponse).get("acknowledged"));
 
         final TimeValue timeout = TimeValue.timeValueSeconds(120);
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_analyze");
@@ -43,12 +60,19 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         if (checkOverwriteProtection() == false) {
             request.addParameter("check_overwrite_protection", "false");
         }
+        if (checkDeprecations(repositorySettings) == false) {
+            request.addParameter("check_deprecations", "false");
+        }
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(timeout.millis() + 10_000)).build())
         );
 
         assertOK(client().performRequest(request));
+    }
+
+    protected RequestOptions repositoryRegistrationRequestOptions(Settings repositorySettings) {
+        return RequestOptions.DEFAULT;
     }
 
 }

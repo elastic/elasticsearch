@@ -76,17 +76,19 @@ teardown:
 ---
 "Monitoring Bulk API":
   - skip:
-      features: ["catch_unauthorized", "allowed_warnings"]
+      features: ["catch_unauthorized", "allowed_warnings_regex", "warnings"]
 
   - do:
-      allowed_warnings:
-        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
+      allowed_warnings_regex:
+        - '\[xpack\.monitoring\.collection\.enabled\] setting was deprecated in Elasticsearch and will be removed in a future release\. See the (deprecation|breaking changes) documentation for the next major version\.'
       cluster.put_settings:
         body:
           persistent:
             xpack.monitoring.collection.enabled: true
 
   - do:
+      warnings:
+        - "Legacy monitoring API _monitoring/bulk is deprecated for removal in Elasticsearch 10.0."
       headers:
         # Authorization: logstash_agent
         Authorization: "Basic bG9nc3Rhc2hfYWdlbnQ6czNrcml0LXBhc3N3b3Jk"
@@ -125,6 +127,8 @@ teardown:
 
   - do:
       catch: forbidden
+      warnings:
+        - "Legacy monitoring API _monitoring/bulk is deprecated for removal in Elasticsearch 10.0."
       headers:
         # Authorization: unknown_agent
         Authorization: "Basic dW5rbm93bl9hZ2VudDpzM2tyaXQtcGFzc3dvcmQ="

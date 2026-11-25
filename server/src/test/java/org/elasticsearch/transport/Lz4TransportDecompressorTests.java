@@ -10,6 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -25,9 +26,13 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class Lz4TransportDecompressorTests extends ESTestCase {
@@ -182,5 +187,82 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
             Releasables.close(polledReferences);
 
         }
+    }
+
+    /**
+     * A block whose literal run declares more bytes than its {@code compressedLength} covers must be rejected by the
+     * decoder rather than completed from whatever follows the block in the inbound buffer.
+     */
+    public void testCompressedBlockDecodingStopsAtDeclaredBoundary() throws IOException {
+        final byte[] literals = "Lorem ipsum".getBytes(StandardCharsets.US_ASCII);
+        final byte[] trailingBytes = "dolor sit amet consectetur adipiscing elit sed do eiusmod tempor".getBytes(StandardCharsets.US_ASCII);
+        final int declaredLength = literals.length + randomIntBetween(1, trailingBytes.length);
+        final byte[] block = literalRun(literals, declaredLength);
+        final BytesReference bytes = compressedBlockMessage(block.length, declaredLength, block, trailingBytes);
+
+        final Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(recycler);
+        expectThrows(IllegalStateException.class, containsString("Malformed input at"), () -> decompressor.decompress(bytes));
+        assertNull(decompressor.pollDecompressedPage(true));
+    }
+
+    /**
+     * A block that decodes to its full {@code decompressedLength} before its {@code compressedLength} is used up must
+     * be rejected rather than have the unconsumed remainder silently skipped.
+     */
+    public void testCompressedBlockRejectsUnconsumedTrailingBytes() throws IOException {
+        final byte[] literals = "consectetur adipiscing".getBytes(StandardCharsets.US_ASCII);
+        final byte[] block = literalRun(literals, literals.length);
+        final byte[] unconsumedBytes = "do eiusmod tempor".getBytes(StandardCharsets.US_ASCII);
+        final int compressedLength = block.length + unconsumedBytes.length;
+        final BytesReference bytes = compressedBlockMessage(compressedLength, literals.length, block, unconsumedBytes);
+
+        final Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(recycler);
+        expectThrows(
+            IllegalStateException.class,
+            equalTo("stream corrupted: read " + block.length + " bytes, expected compressedLength(" + compressedLength + ")"),
+            () -> decompressor.decompress(bytes)
+        );
+        assertNull(decompressor.pollDecompressedPage(true));
+    }
+
+    /**
+     * A single LZ4 sequence declaring a literal run of {@code declaredLength} bytes, followed by {@code literals}.
+     */
+    private static byte[] literalRun(byte[] literals, int declaredLength) {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        if (declaredLength < 15) {
+            out.write(declaredLength << 4);
+        } else {
+            out.write(0xF0);
+            int remaining = declaredLength - 15;
+            while (remaining >= 255) {
+                out.write(255);
+                remaining -= 255;
+            }
+            out.write(remaining);
+        }
+        out.writeBytes(literals);
+        return out.toByteArray();
+    }
+
+    /**
+     * A transport message carrying one compressed LZ4 block with the given header lengths and payload chunks.
+     */
+    private static BytesReference compressedBlockMessage(int compressedLength, int decompressedLength, byte[]... payload) {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.writeBytes(new byte[] { 'L', 'Z', '4', 0 }); // Compression.Scheme.LZ4_HEADER
+        out.writeBytes("LZ4Block".getBytes(StandardCharsets.US_ASCII)); // Lz4TransportDecompressor.MAGIC_NUMBER
+        out.write(Lz4TransportDecompressor.BLOCK_TYPE_COMPRESSED);
+        out.writeBytes(le32(compressedLength));
+        out.writeBytes(le32(decompressedLength));
+        out.writeBytes(le32(0)); // checksum, not verified
+        for (byte[] chunk : payload) {
+            out.writeBytes(chunk);
+        }
+        return new BytesArray(out.toByteArray());
+    }
+
+    private static byte[] le32(int value) {
+        return new byte[] { (byte) value, (byte) (value >>> 8), (byte) (value >>> 16), (byte) (value >>> 24) };
     }
 }

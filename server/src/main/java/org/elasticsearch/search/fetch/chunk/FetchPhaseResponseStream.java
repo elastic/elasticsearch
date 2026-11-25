@@ -10,7 +10,9 @@
 package org.elasticsearch.search.fetch.chunk;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -30,6 +32,8 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /**
  * Accumulates {@link SearchHit} chunks sent from a data node during a chunked fetch operation.
@@ -43,16 +47,26 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
     private static final Logger logger = LogManager.getLogger(FetchPhaseResponseStream.class);
 
+    /**
+     * Keeps all chunked-fetch coordination memory under a single {@code fetch} sub-category.
+     */
+    private static final String FETCH_CHUNK_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[chunk]";
+
     private final int shardIndex;
     private final int expectedTotalDocs;
 
     // Accumulate hits with sequence numbers for ordering
     private final Queue<SequencedHit> queue = new ConcurrentLinkedQueue<>();
-    private volatile boolean ownershipTransferred = false;
 
     // Circuit breaker accounting
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong totalBreakerBytes = new AtomicLong(0);
+
+    // Counts raw bytes of intermediate chunks arriving from the data node via BytesTransportRequest.
+    // Set to a no-op for local (same-node) requests where no bytes cross the wire.
+    private volatile LongConsumer chunkBytesConsumer = l -> {};
+
+    private volatile Consumer<Exception> coordinatorTripListener = e -> {};
 
     /**
      * Creates a new response stream for accumulating hits from a single shard.
@@ -69,36 +83,61 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
-     * Adds a chunk of hits to the accumulated result.
+     * Registers the consumer that will be notified of raw byte lengths for each intermediate
+     * chunk message ({@link org.elasticsearch.transport.BytesTransportRequest}) that arrives
+     * from the data node. Must be called before any chunks arrive.
+     */
+    void setChunkBytesConsumer(LongConsumer consumer) {
+        this.chunkBytesConsumer = consumer;
+    }
+
+    /**
+     * Notifies the registered consumer of the raw bytes transferred for one intermediate chunk.
+     */
+    void consumeChunkBytes(long bytes) {
+        chunkBytesConsumer.accept(bytes);
+    }
+
+    /**
+     * Registers how a trip is reported to the search. Must be called before any chunks arrive.
+     */
+    void setCoordinatorTripListener(Consumer<Exception> listener) {
+        this.coordinatorTripListener = listener;
+    }
+
+    /**
+     * Charges the breaker for hits this node is about to hold on to. Charging happens on the coordinator, so this
+     * is the one place that knows the memory ran out here rather than on the shard that sent the hits.
      *
-     * This method increments the reference count of each {@link SearchHit}
-     * via {@link SearchHit#incRef()} to take ownership. The hits will be released in {@link #closeInternal()}.
+     * @throws CircuitBreakingException if this node cannot hold the hits
+     */
+    void chargeRetainedBytes(long bytes) {
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, FETCH_CHUNK_BREAKER_LABEL);
+        } catch (CircuitBreakingException e) {
+            coordinatorTripListener.accept(e);
+            throw e;
+        }
+        totalBreakerBytes.addAndGet(bytes);
+    }
+
+    /**
+     * Accumulates a chunk of hits into this stream.
      *
      * @param chunk the chunk containing hits to accumulate
-     * @param releasable a releasable to close after processing (typically releases the acquired stream reference)
+     * @param releasable closed after a successful write
      */
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
         boolean success = false;
         try {
-            // Track memory usage
-            long bytesSize = chunk.getBytesLength();
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
-            totalBreakerBytes.addAndGet(bytesSize);
+            chargeRetainedBytes(chunk.estimatedRetainedBytes());
 
-            SearchHit[] chunkHits = chunk.getHits();
-            int[] positions = chunk.getHitPositions();
-
-            for (int i = 0; i < chunkHits.length; i++) {
-                SearchHit hit = chunkHits[i];
-                hit.incRef();
-
-                queue.add(new SequencedHit(hit, positions[i]));
-            }
+            chunk.consumeHits((position, hit) -> queue.add(new SequencedHit(hit, position)));
 
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                    chunkHits.length,
+                    chunk.hitCount(),
                     shardIndex,
                     queue.size(),
                     expectedTotalDocs,
@@ -130,11 +169,11 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             logger.debug("Building final result for shard [{}] with [{}] hits", shardIndex, queue.size());
         }
 
-        // Convert queue to list and sort by sequence number to restore correct order
-        List<SequencedHit> sequencedHits = new ArrayList<>(queue);
+        // Drain the queue: ownership of every hit moves to the final result.
+        List<SequencedHit> sequencedHits = drainQueue();
+        // Restore correct order (chunks may have arrived out of order).
         sequencedHits.sort(Comparator.comparingLong(sh -> sh.sequence));
 
-        // Extract hits in correct order and calculate maxScore
         List<SearchHit> orderedHits = new ArrayList<>(sequencedHits.size());
         float maxScore = Float.NEGATIVE_INFINITY;
 
@@ -150,8 +189,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         if (maxScore == Float.NEGATIVE_INFINITY) {
             maxScore = Float.NaN;
         }
-
-        ownershipTransferred = true;
 
         SearchHits searchHits = new SearchHits(
             orderedHits.toArray(SearchHit[]::new),
@@ -176,10 +213,21 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
-     * Tracks circuit breaker bytes without checking. Used when coordinator processes the embedded last chunk.
+     * Whether no streamed hits are queued for this shard, which is the case before any chunk arrives and again after the hits
+     * are handed to a result.
      */
-    void trackBreakerBytes(int bytes) {
-        totalBreakerBytes.addAndGet(bytes);
+    boolean isEmpty() {
+        return queue.isEmpty();
+    }
+
+    /**
+     * Hands the charge accumulated here to the result that now owns the hits.
+     */
+    void transferBreakerBytesTo(FetchSearchResult result) {
+        long bytes = totalBreakerBytes.getAndSet(0);
+        if (bytes > 0L) {
+            result.setCoordinatorSearchHitsSizeBytes(bytes, circuitBreaker);
+        }
     }
 
     /**
@@ -196,16 +244,14 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             );
         }
 
-        if (ownershipTransferred == false) {
-            for (SequencedHit sequencedHit : queue) {
-                sequencedHit.hit.decRef();
-            }
+        // Release any hits still queued
+        for (SequencedHit pending : drainQueue()) {
+            pending.hit.decRef();
         }
-        queue.clear();
 
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes.get() > 0) {
-            circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
+            circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get(), FETCH_CHUNK_BREAKER_LABEL);
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
@@ -216,6 +262,18 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             }
             totalBreakerBytes.set(0);
         }
+    }
+
+    /**
+     * Polls and returns every hit currently in the queue.
+     */
+    private List<SequencedHit> drainQueue() {
+        List<SequencedHit> drained = new ArrayList<>();
+        SequencedHit polled;
+        while ((polled = queue.poll()) != null) {
+            drained.add(polled);
+        }
+        return drained;
     }
 
     /**

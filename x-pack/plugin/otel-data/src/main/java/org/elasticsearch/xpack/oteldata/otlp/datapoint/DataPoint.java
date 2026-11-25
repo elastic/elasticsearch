@@ -9,20 +9,30 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricDoubleEscfSchema;
+import org.elasticsearch.xpack.core.analytics.mapper.HistogramEscfSchema;
+import org.elasticsearch.xpack.core.exponentialhistogram.ExponentialHistogramEscfSchema;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.HistogramMapping;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTLPMetricBatchBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
+import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
 
 /**
  * Represents a metrics data point in the OpenTelemetry metrics data model.
@@ -60,6 +70,13 @@ public interface DataPoint {
     List<KeyValue> getAttributes();
 
     /**
+     * Returns the exemplars associated with the data point.
+     */
+    default List<Exemplar> getExemplars() {
+        return List.of();
+    }
+
+    /**
      * Returns the unit of measurement for the data point.
      *
      * @return the unit as a string
@@ -78,11 +95,10 @@ public interface DataPoint {
      *
      * @param mappingHints hints for building the metric value
      * @param builder the XContentBuilder to write the metric value to
-     * @param scratch a reusable, temporary buffer for building exponential histograms
+     * @param scratch reusable temporary memory for serialization
      * @throws IOException if an I/O error occurs while writing to the builder
      */
-    void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
-        throws IOException;
+    void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, SerializationScratch scratch) throws IOException;
 
     /**
      * Returns the dynamic template name for the data point based on its type and value.
@@ -94,12 +110,23 @@ public interface DataPoint {
     String getDynamicTemplate(MappingHints mappingHints);
 
     /**
+     * Returns the aggregation temporality of this data point.
+     * Returns the OTLP {@link AggregationTemporality} for metric types that have one (sums, histograms),
+     * or {@code null} for metric types without temporality (e.g. gauges, summaries).
+     *
+     * @return the aggregation temporality, or null
+     */
+    @Nullable
+    AggregationTemporality getTemporality();
+
+    /**
      * Validates whether the data point can be indexed into Elasticsearch.
      *
      * @param errors a set to collect validation error messages
+     * @param mappingHints the effective mapping hints for this data point
      * @return true if the data point is valid, false otherwise
      */
-    boolean isValid(Set<String> errors);
+    boolean isValid(Set<String> errors, MappingHints mappingHints);
 
     /**
      * Returns the {@code _doc_count} for the data point.
@@ -108,6 +135,25 @@ public interface DataPoint {
      * @return the {@code _doc_count}
      */
     long getDocCount();
+
+    /**
+     * Temporary memory that is required for serializing data points. It can and should be reused across data points to
+     * minimize the allocation rate.
+     */
+    class SerializationScratch {
+        private final ExponentialHistogramConverter.BucketBuffer expHistoScratch = new ExponentialHistogramConverter.BucketBuffer();
+    }
+
+    /**
+     * Columnar counterpart to {@link #buildMetricValue}: writes the metric value of this data point into the current row
+     * of {@code batchBuilder}. Must produce the same field layout as {@link #buildMetricValue} for the same mapping hints,
+     * so that both indexing paths yield identical documents.
+     *
+     * @param mappingHints hints for building the metric value
+     * @param batchBuilder the batch builder to write into
+     * @param scratch reusable temporary memory for serialization
+     */
+    void writeColumnarValue(MappingHints mappingHints, OTLPMetricBatchBuilder batchBuilder, SerializationScratch scratch);
 
     record Number(NumberDataPoint dataPoint, Metric metric) implements DataPoint {
 
@@ -119,6 +165,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -137,11 +188,15 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
-            throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, SerializationScratch scratch) throws IOException {
             switch (dataPoint.getValueCase()) {
                 case AS_DOUBLE -> builder.value(dataPoint.getAsDouble());
                 case AS_INT -> builder.value(dataPoint.getAsInt());
+                // Value-less data points are rejected by isValid before reaching this point. Fail loudly rather than
+                // writing a field name with no value, which would corrupt the document.
+                case VALUE_NOT_SET -> throw new IllegalStateException(
+                    "number data point without a value should have been filtered out: " + metric.getName()
+                );
             }
         }
 
@@ -153,13 +208,10 @@ public interface DataPoint {
         @Override
         public String getDynamicTemplate(MappingHints mappingHints) {
             String type;
-            if (metric.hasSum()
-                // TODO add support for delta counters - for now we represent them as gauges
-                && metric.getSum().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE
-                // TODO add support for up/down counters - for now we represent them as gauges
-                && metric.getSum().getIsMonotonic()) {
+            if (metric.hasSum() && metric.getSum().getIsMonotonic()) {
                 type = "counter_";
             } else {
+                // TODO add support for up/down counters - for now we represent them as gauges
                 type = "gauge_";
             }
             if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.AS_INT) {
@@ -172,8 +224,36 @@ public interface DataPoint {
         }
 
         @Override
-        public boolean isValid(Set<String> errors) {
+        public @Nullable AggregationTemporality getTemporality() {
+            if (metric.hasSum()) {
+                return switch (metric.getSum().getAggregationTemporality()) {
+                    case AGGREGATION_TEMPORALITY_CUMULATIVE -> AGGREGATION_TEMPORALITY_CUMULATIVE;
+                    case AGGREGATION_TEMPORALITY_DELTA -> AGGREGATION_TEMPORALITY_DELTA;
+                    default -> null;
+                };
+            }
+            return null;
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors, MappingHints mappingHints) {
+            if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.VALUE_NOT_SET) {
+                errors.add("number data point without a value, ignoring " + metric.getName());
+                return false;
+            }
             return true;
+        }
+
+        @Override
+        public void writeColumnarValue(MappingHints mappingHints, OTLPMetricBatchBuilder batchBuilder, SerializationScratch scratch) {
+            int columnIndex = batchBuilder.getMetricLeafField(metric.getName());
+            switch (dataPoint.getValueCase()) {
+                case AS_DOUBLE -> batchBuilder.doubleField(columnIndex, dataPoint.getAsDouble());
+                case AS_INT -> batchBuilder.longField(columnIndex, dataPoint.getAsInt());
+                case VALUE_NOT_SET -> throw new IllegalStateException(
+                    "number data point without a value should have been filtered out: " + metric.getName()
+                );
+            }
         }
     }
 
@@ -190,6 +270,11 @@ public interface DataPoint {
         }
 
         @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
+        }
+
+        @Override
         public long getStartTimestampUnixNano() {
             return dataPoint.getStartTimeUnixNano();
         }
@@ -205,13 +290,44 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
-            throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, SerializationScratch scratch) throws IOException {
             switch (mappingHints.histogramMapping()) {
                 case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
                 case TDIGEST -> buildTDigest(builder);
+                case HISTOGRAM_RAW -> buildRawHistogram(builder);
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder);
             }
+        }
+
+        @Override
+        public void writeColumnarValue(MappingHints mappingHints, OTLPMetricBatchBuilder batchBuilder, SerializationScratch scratch) {
+            switch (mappingHints.histogramMapping()) {
+                case AGGREGATE_METRIC_DOUBLE -> writeAggregateMetricDouble(batchBuilder, metric, dataPoint.getSum(), dataPoint.getCount());
+                case TDIGEST -> writeHistogram(batchBuilder, metric, (counts, values) -> {
+                    TDigestConverter.counts(dataPoint, counts::appendLong);
+                    TDigestConverter.centroidValues(dataPoint, values::appendDouble);
+                });
+                case HISTOGRAM_RAW -> writeHistogram(batchBuilder, metric, (counts, values) -> {
+                    RawHistogramConverter.counts(dataPoint, counts::appendLong);
+                    RawHistogramConverter.values(dataPoint, values::appendDouble);
+                });
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.writeExponentialHistogram(
+                    dataPoint,
+                    batchBuilder,
+                    batchBuilder.getMetricSubSchema(metric.getName(), ExponentialHistogramEscfSchema.FACTORY)
+                );
+            }
+        }
+
+        private void buildRawHistogram(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            RawHistogramConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            RawHistogramConverter.values(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         private void buildTDigest(XContentBuilder builder) throws IOException {
@@ -236,9 +352,22 @@ public interface DataPoint {
         }
 
         @Override
-        public boolean isValid(Set<String> errors) {
-            if (metric.getExponentialHistogram().getAggregationTemporality() != AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA) {
-                errors.add("cumulative exponential histogram metrics are not supported, ignoring " + metric.getName());
+        public @Nullable AggregationTemporality getTemporality() {
+            return switch (metric.getExponentialHistogram().getAggregationTemporality()) {
+                case AGGREGATION_TEMPORALITY_CUMULATIVE -> AGGREGATION_TEMPORALITY_CUMULATIVE;
+                case AGGREGATION_TEMPORALITY_DELTA -> AGGREGATION_TEMPORALITY_DELTA;
+                default -> null;
+            };
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors, MappingHints mappingHints) {
+            if (metric.getExponentialHistogram().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE
+                && mappingHints.histogramMapping() != HistogramMapping.EXPONENTIAL_HISTOGRAM) {
+                errors.add(
+                    "cumulative exponential histogram metrics are only supported when stored as exponential_histogram, ignoring "
+                        + metric.getName()
+                );
                 return false;
             }
             return true;
@@ -257,6 +386,11 @@ public interface DataPoint {
         }
 
         @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
+        }
+
+        @Override
         public long getStartTimestampUnixNano() {
             return dataPoint.getStartTimeUnixNano();
         }
@@ -272,13 +406,51 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
-            throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, SerializationScratch scratch) throws IOException {
             switch (mappingHints.histogramMapping()) {
-                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder, scratch);
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(
+                    dataPoint,
+                    metric.getHistogram().getAggregationTemporality(),
+                    builder,
+                    scratch.expHistoScratch
+                );
                 case TDIGEST -> buildTDigest(builder);
+                case HISTOGRAM_RAW -> buildRawHistogram(builder);
                 case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
             }
+        }
+
+        @Override
+        public void writeColumnarValue(MappingHints mappingHints, OTLPMetricBatchBuilder batchBuilder, SerializationScratch scratch) {
+            switch (mappingHints.histogramMapping()) {
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.writeExponentialHistogram(
+                    dataPoint,
+                    metric.getHistogram().getAggregationTemporality(),
+                    batchBuilder,
+                    batchBuilder.getMetricSubSchema(metric.getName(), ExponentialHistogramEscfSchema.FACTORY),
+                    scratch.expHistoScratch
+                );
+                case TDIGEST -> writeHistogram(batchBuilder, metric, (counts, values) -> {
+                    TDigestConverter.counts(dataPoint, counts::appendLong);
+                    TDigestConverter.centroidValues(dataPoint, values::appendDouble);
+                });
+                case HISTOGRAM_RAW -> writeHistogram(batchBuilder, metric, (counts, values) -> {
+                    RawHistogramConverter.counts(dataPoint, counts::appendLong);
+                    RawHistogramConverter.values(dataPoint, values::appendDouble);
+                });
+                case AGGREGATE_METRIC_DOUBLE -> writeAggregateMetricDouble(batchBuilder, metric, dataPoint.getSum(), dataPoint.getCount());
+            }
+        }
+
+        private void buildRawHistogram(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            RawHistogramConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            RawHistogramConverter.values(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         private void buildTDigest(XContentBuilder builder) throws IOException {
@@ -303,16 +475,30 @@ public interface DataPoint {
         }
 
         @Override
-        public boolean isValid(Set<String> errors) {
-            if (metric.getHistogram().getAggregationTemporality() != AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA) {
-                errors.add("cumulative histogram metrics are not supported, ignoring " + metric.getName());
+        public @Nullable AggregationTemporality getTemporality() {
+            return switch (metric.getHistogram().getAggregationTemporality()) {
+                case AGGREGATION_TEMPORALITY_CUMULATIVE -> AGGREGATION_TEMPORALITY_CUMULATIVE;
+                case AGGREGATION_TEMPORALITY_DELTA -> AGGREGATION_TEMPORALITY_DELTA;
+                default -> null;
+            };
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors, MappingHints mappingHints) {
+            if (metric.getHistogram().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE
+                && mappingHints.histogramMapping() != HistogramMapping.EXPONENTIAL_HISTOGRAM) {
+                errors.add(
+                    "cumulative histogram metrics are only supported when stored as exponential_histogram, ignoring " + metric.getName()
+                );
                 return false;
             }
-            if (dataPoint.getBucketCountsCount() == 1 && dataPoint.getExplicitBoundsCount() == 0) {
-                errors.add("histogram with a single bucket and no explicit bounds is not supported, ignoring " + metric.getName());
+            int bucketCountsCount = dataPoint.getBucketCountsCount();
+            int explicitBoundsCount = dataPoint.getExplicitBoundsCount();
+            if (bucketCountsCount > 0 && bucketCountsCount != explicitBoundsCount + 1) {
+                errors.add("histogram bucket count must be one greater than explicit bounds count, ignoring " + metric.getName());
                 return false;
             }
-            for (int i = 1; i < dataPoint.getExplicitBoundsCount(); i++) {
+            for (int i = 1; i < explicitBoundsCount; i++) {
                 if (dataPoint.getExplicitBounds(i - 1) >= dataPoint.getExplicitBounds(i)) {
                     errors.add("histogram bounds are not sorted or not unique, ignoring " + metric.getName());
                     return false;
@@ -325,7 +511,7 @@ public interface DataPoint {
     private static String getHistogramDynamicTemplate(MappingHints mappingHints) {
         return switch (mappingHints.histogramMapping()) {
             case AGGREGATE_METRIC_DOUBLE -> "summary";
-            case TDIGEST -> "histogram";
+            case TDIGEST, HISTOGRAM_RAW -> "histogram";
             case EXPONENTIAL_HISTOGRAM -> "exponential_histogram";
         };
     }
@@ -358,10 +544,14 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
-            throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, SerializationScratch scratch) throws IOException {
             // TODO: Add support for quantiles
             buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+        }
+
+        @Override
+        public void writeColumnarValue(MappingHints mappingHints, OTLPMetricBatchBuilder batchBuilder, SerializationScratch scratch) {
+            writeAggregateMetricDouble(batchBuilder, metric, dataPoint.getSum(), dataPoint.getCount());
         }
 
         @Override
@@ -375,9 +565,27 @@ public interface DataPoint {
         }
 
         @Override
-        public boolean isValid(Set<String> errors) {
+        public @Nullable AggregationTemporality getTemporality() {
+            return null;
+        }
+
+        @Override
+        public boolean isValid(Set<String> errors, MappingHints mappingHints) {
             return true;
         }
+    }
+
+    private static void writeHistogram(
+        OTLPMetricBatchBuilder batchBuilder,
+        Metric metric,
+        BiConsumer<EscfColumnBuilder, EscfColumnBuilder> countsAndValuesBuilder
+    ) {
+        var schema = batchBuilder.getMetricSubSchema(metric.getName(), HistogramEscfSchema.FACTORY);
+        EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+        EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
+        countsAndValuesBuilder.accept(counts, values);
+        counts.endArray();
+        values.endArray();
     }
 
     private static void buildAggregateMetricDouble(XContentBuilder builder, double sum, long valueCount) throws IOException {
@@ -385,5 +593,11 @@ public interface DataPoint {
         builder.field("sum", sum);
         builder.field("value_count", valueCount);
         builder.endObject();
+    }
+
+    private static void writeAggregateMetricDouble(OTLPMetricBatchBuilder batchBuilder, Metric metric, double sum, long valueCount) {
+        var schema = batchBuilder.getMetricSubSchema(metric.getName(), AggregateMetricDoubleEscfSchema.FACTORY);
+        batchBuilder.doubleField(schema.sumColIdx(), sum);
+        batchBuilder.longField(schema.valueCountColIdx(), valueCount);
     }
 }

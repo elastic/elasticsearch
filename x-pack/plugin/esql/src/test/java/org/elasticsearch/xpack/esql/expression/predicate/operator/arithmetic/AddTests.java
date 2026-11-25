@@ -69,16 +69,26 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
                         (l, r) -> l.longValue() + r.longValue(),
                         "AddLongsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig<>(
-                        Double.NEGATIVE_INFINITY,
-                        Double.POSITIVE_INFINITY,
-                        (l, r) -> l.doubleValue() + r.doubleValue(),
-                        "AddDoublesEvaluator"
-                    )
+                    new TestCaseSupplier.NumericTypeTestConfig<>(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, (l, r) -> {
+                        double v = l.doubleValue() + r.doubleValue();
+                        return Double.isFinite(v) ? v : null;
+                    }, "AddDoublesEvaluator")
                 ),
                 "lhs",
                 "rhs",
-                (lhs, rhs) -> List.of(),
+                (lhs, rhs) -> {
+                    if (lhs.type() != DataType.DOUBLE || rhs.type() != DataType.DOUBLE) {
+                        return List.of();
+                    }
+                    double v = ((Double) lhs.getValue()) + ((Double) rhs.getValue());
+                    if (Double.isFinite(v)) {
+                        return List.of();
+                    }
+                    return List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + v
+                    );
+                },
                 true
             )
         );
@@ -350,7 +360,8 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
             denseVectorScalarCases(
                 "Add",
                 (v, s) -> v.stream().map(f -> f + (Float) DataTypeConverter.convert(s, FLOAT)).toList(),
-                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) + f).toList()
+                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) + f).toList(),
+                List.of()
             )
         );
 

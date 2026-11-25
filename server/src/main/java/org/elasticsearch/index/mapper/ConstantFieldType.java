@@ -140,7 +140,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         return wildcardQuery(value, caseInsensitive, context);
     }
 
-    public final Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+    public Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
         if (matches(value, caseInsensitive, context)) {
             return Queries.ALL_DOCS_INSTANCE;
         } else {
@@ -187,8 +187,13 @@ public abstract class ConstantFieldType extends MappedFieldType {
         SearchExecutionContext context,
         String description
     ) {
+        var value = getConstantFieldValue(context);
+        if (value == null) {
+            return Queries.NO_DOCS_INSTANCE;
+        }
+
         CharacterRunAutomaton compiled = characterRunAutomatonSupplier.get();
-        boolean matches = compiled.run(getConstantFieldValue(context));
+        boolean matches = compiled.run(value);
         if (matches) {
             return Queries.ALL_DOCS_INSTANCE;
         } else {
@@ -196,5 +201,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
                 "The \"" + context.getFullyQualifiedIndex().getName() + "\" query was rewritten to a \"match_none\" query."
             );
         }
+    }
+
+    public ConstantFieldType applyFieldVisibility(boolean visible) {
+        return this;
     }
 }

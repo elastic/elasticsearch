@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -33,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
-public class Neg extends UnaryScalarFunction {
+public class Neg extends UnaryScalarFunction implements AnyNullIsNull, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Neg", Neg::new);
 
     @FunctionInfo(
@@ -89,7 +91,7 @@ public class Neg extends UnaryScalarFunction {
     }
 
     @Override
-    public final Object fold(FoldContext ctx) {
+    public final Object doFold(Source source, FoldContext ctx) {
         DataType dataType = field().dataType();
         // For date periods and time durations, we need to treat folding differently. These types are unrepresentable, so there is no
         // evaluator for them - but the default folding requires an evaluator.
@@ -113,7 +115,7 @@ public class Neg extends UnaryScalarFunction {
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        return super.fold(ctx);
+        return super.doFold(source, ctx);
     }
 
     @Override

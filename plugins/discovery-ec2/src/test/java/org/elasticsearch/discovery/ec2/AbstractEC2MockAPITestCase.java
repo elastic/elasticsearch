@@ -52,12 +52,11 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
     protected NetworkService networkService = new NetworkService(Collections.emptyList());
 
     @Before
-    public void setUp() throws Exception {
+    public void startHttpServerAndThreadPool() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         threadPool = new TestThreadPool(EC2RetriesTests.class.getName());
         transportService = createTransportService();
-        super.setUp();
     }
 
     protected abstract MockTransportService createTransportService();
@@ -72,12 +71,8 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        try {
-            IOUtils.close(transportService, () -> terminate(threadPool), () -> httpServer.stop(0));
-        } finally {
-            super.tearDown();
-        }
+    public void stopHttpServerAndThreadPool() throws Exception {
+        IOUtils.close(transportService, () -> terminate(threadPool), () -> httpServer.stop(0));
     }
 
     /**

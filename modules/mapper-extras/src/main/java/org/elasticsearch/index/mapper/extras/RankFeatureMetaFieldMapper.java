@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * This meta field only exists because rank feature fields index everything into a
@@ -74,5 +76,11 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
+        // No preParse/postParse override — nothing to port for the columnar path.
+        return true;
     }
 }

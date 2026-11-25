@@ -53,7 +53,7 @@ public class RestResetJobAction extends BaseRestHandler {
             return channel -> client.execute(ResetJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
         } else {
             request.setShouldStoreResult(true);
-            Task task = client.executeLocally(
+            Task task = client.executeAndReturnTask(
                 ResetJobAction.INSTANCE,
                 request,
                 /*

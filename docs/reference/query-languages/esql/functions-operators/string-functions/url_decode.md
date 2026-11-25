@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `URL_DECODE` function [esql-url_decode]
 
-:::{include} ../../_snippets/functions/layout/url_decode.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/url_decode.md
 :::

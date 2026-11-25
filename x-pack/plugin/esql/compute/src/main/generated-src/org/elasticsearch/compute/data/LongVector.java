@@ -39,7 +39,12 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     LongBlock asBlock();
 
     @Override
-    LongVector filter(boolean mayContainDuplicates, int... positions);
+    LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default LongVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     LongBlock keepMask(BooleanVector mask);
@@ -68,6 +73,12 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
      */
     @Override
     LongVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Long.BYTES} since all long values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

@@ -21,6 +21,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.search.MultiMatchQueryParser.FieldAndBoost;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
@@ -148,7 +150,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                 .tieBreaker(tieBreaker)
                 .toQuery(searchExecutionContext);
-            try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            try (Engine.Searcher searcher = indexService.getShard(0).acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Query rewrittenQuery = searcher.rewrite(parsedQuery);
                 Query tq1 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
                 Query tq2 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);
@@ -393,5 +395,21 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             0.0f
         );
         assertThat(query, equalTo(expected));
+    }
+
+    public void testCrossFieldsZeroTokensDoesNotThrow() throws IOException {
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
+            throw new UnsupportedOperationException();
+        }, null, emptyMap(), null, null);
+
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("name.first", 1.0f);
+        fieldNames.put("name.last", 1.0f);
+
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
+        parser.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
+
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, ".", null);
+        assertNull(query);
     }
 }

@@ -33,7 +33,7 @@ import java.util.Objects;
 
 public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     public GeoShapeFieldBlockLoaderTests(Params params) {
-        super("geo_shape", List.of(new GeoShapeDataSourceHandler()), params);
+        super("geo_shape", List.of(new GeoShapeDataSourceHandler(params.indexMode())), params);
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 // TODO rename package
@@ -152,6 +154,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
      * Total number of rows emitted by this {@link Operator}.
      */
     private long emittedRows = 0L;
+    private final AtomicLong totalBytesRead = new AtomicLong();
     /**
      * The ongoing join or {@code null} none is ongoing at the moment.
      */
@@ -227,6 +230,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             null // configuration - non-streaming lookup doesn't use planning pipeline
         );
         lookupService.lookupAsync(request, parentTask, listener.map(response -> {
+            totalBytesRead.addAndGet(response.bytesRead());
+            // Replay warnings accumulated by the (possibly remote) lookup driver.
+            for (String warning : response.warnings()) {
+                driverContext().addWarning(warning);
+            }
             List<Page> pages = response.takePages();
             return new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator());
         }));
@@ -334,7 +342,15 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalRows, emittedPages, emittedRows);
+        return new LookupFromIndexOperator.Status(
+            receivedPages,
+            completedPages,
+            processNanos,
+            totalRows,
+            emittedPages,
+            emittedRows,
+            totalBytesRead.get()
+        );
     }
 
     public static class Status extends AsyncOperator.Status {
@@ -344,9 +360,21 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, Status::toXContent)
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_completed", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("total_rows", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .build();
+
         private static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = TransportVersion.fromName(
             "esql_lookup_operator_emitted_rows"
         );
+        private static final TransportVersion ESQL_LOOKUP_BYTES_READ = TransportVersion.fromName("esql_lookup_bytes_read");
 
         private final long totalRows;
         /**
@@ -357,12 +385,22 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
          * Total number of rows emitted by this {@link Operator}.
          */
         private final long emittedRows;
+        private final long bytesRead;
 
-        Status(long receivedPages, long completedPages, long processNanos, long totalRows, long emittedPages, long emittedRows) {
+        Status(
+            long receivedPages,
+            long completedPages,
+            long processNanos,
+            long totalRows,
+            long emittedPages,
+            long emittedRows,
+            long bytesRead
+        ) {
             super(receivedPages, completedPages, processNanos);
             this.totalRows = totalRows;
             this.emittedPages = emittedPages;
             this.emittedRows = emittedRows;
+            this.bytesRead = bytesRead;
         }
 
         Status(StreamInput in) throws IOException {
@@ -374,6 +412,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             } else {
                 this.emittedRows = 0L;
             }
+            this.bytesRead = in.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ) ? in.readVLong() : 0L;
         }
 
         @Override
@@ -384,7 +423,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             if (out.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
                 out.writeVLong(emittedRows);
             }
-
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
         }
 
         @Override
@@ -405,12 +446,22 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         }
 
         @Override
+        public long bytesRead() {
+            return bytesRead;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private static XContentBuilder toXContent(XContentBuilder builder, Status status, Params params) throws IOException {
             builder.startObject();
-            super.innerToXContent(builder);
-            builder.field("pages_emitted", emittedPages);
-            builder.field("rows_emitted", emittedRows);
-            builder.field("total_rows", totalRows);
+            status.innerToXContent(builder);
+            builder.field("pages_emitted", status.emittedPages);
+            builder.field("rows_emitted", status.emittedRows);
+            builder.field("total_rows", status.totalRows);
+            builder.field("bytes_read", status.bytesRead);
             return builder.endObject();
         }
 
@@ -423,12 +474,15 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 return false;
             }
             Status status = (Status) o;
-            return totalRows == status.totalRows && emittedPages == status.emittedPages && emittedRows == status.emittedRows;
+            return totalRows == status.totalRows
+                && emittedPages == status.emittedPages
+                && emittedRows == status.emittedRows
+                && bytesRead == status.bytesRead;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), totalRows, emittedPages, emittedRows);
+            return Objects.hash(super.hashCode(), totalRows, emittedPages, emittedRows, bytesRead);
         }
     }
 

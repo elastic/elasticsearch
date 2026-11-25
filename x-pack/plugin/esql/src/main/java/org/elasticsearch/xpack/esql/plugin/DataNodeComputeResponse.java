@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -36,18 +39,34 @@ final class DataNodeComputeResponse extends TransportResponse {
         this.shardLevelFailures = shardLevelFailures;
     }
 
-    DataNodeComputeResponse(StreamInput in) throws IOException {
+    DataNodeComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
         if (supportsCompletionInfo(in.getTransportVersion())) {
-            this.completionInfo = DriverCompletionInfo.readFrom(in);
+            this.completionInfo = DriverCompletionInfo.readFrom(in, threadContext);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
         }
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
-            this.completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
+            this.completionInfo = new DriverCompletionInfo(
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                SearchLoadMetrics.EMPTY,
+                in.readCollectionAsImmutableList(DriverProfile::readFrom),
+                List.of(),
+                java.util.Map.of(),
+                false,
+                false,
+                HeaderWarning.readWarningsFromThreadContext(threadContext)
+            );
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
         }
-        this.completionInfo = new ComputeResponse(in).getCompletionInfo();
+        this.completionInfo = new ComputeResponse(in, threadContext).getCompletionInfo();
         this.shardLevelFailures = Map.of();
     }
 

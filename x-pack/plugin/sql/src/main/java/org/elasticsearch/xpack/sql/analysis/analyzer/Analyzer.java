@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionResolution;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.SingleValueIdentityAgg;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -1003,8 +1005,12 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
 
         private static Set<NamedExpression> findMissingAggregate(Aggregate target, Expression from) {
             Set<NamedExpression> missing = new LinkedHashSet<>();
+            AttributeMap<Expression> aliases = aggregateAliases(target);
 
             for (Expression filterAgg : from.collect(Functions::isAggregate)) {
+                if (isRedundantAggregateOverAggregateAlias(aliases, filterAgg)) {
+                    continue;
+                }
                 if (Expressions.anyMatch(target.aggregates(), a -> Alias.unwrap(a).equals(filterAgg)) == false) {
                     missing.add(Expressions.wrapAsNamed(filterAgg));
                 }
@@ -1012,6 +1018,33 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
 
             return missing;
         }
+    }
+
+    private static AttributeMap<Expression> aggregateAliases(Aggregate target) {
+        AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
+        target.aggregates().forEach(ne -> {
+            if (ne instanceof Alias a) {
+                aliases.put(a.toAttribute(), a.child());
+            }
+        });
+        return aliases.build();
+    }
+
+    // `F(a)` where `F` is a single-value identity aggregate and `a` an alias for another aggregate - e.g.
+    // `SELECT SUM(x) AS a ... HAVING AVG(a)` - must not be pushed as a "missing" aggregate into the Aggregate's own
+    // aggregates(): that would embed a raw ReferenceAttribute there, and the optimizer's alias inlining deliberately
+    // never rewrites Aggregate.aggregates() (see Optimizer.ReplaceReferenceAttributeWithSource), leaving behind a
+    // reference nothing ever resolves. Left alone, the HAVING/ORDER BY expression's own `F(a)` does get inlined to
+    // `F(<aliased aggregate>)`, and Optimizer.CollapseAggregateOverAggregate then drops the redundant `F`.
+    //
+    // Only `F` needs to be an identity: whatever `a` aliases is what produces the single value `F` is applied to.
+    // This predicate has to stay in step with the shape Verifier.checkNestedAggregateFunctions admits and
+    // Optimizer.CollapseAggregateOverAggregate collapses.
+    private static boolean isRedundantAggregateOverAggregateAlias(AttributeMap<Expression> aggregateAliases, Expression agg) {
+        return agg instanceof AggregateFunction outer
+            && outer instanceof SingleValueIdentityAgg
+            && outer.field() instanceof ReferenceAttribute ref
+            && aggregateAliases.resolve(ref, ref) instanceof AggregateFunction;
     }
 
     //
@@ -1050,8 +1083,12 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
                     found.set(Boolean.TRUE);
 
                     List<NamedExpression> missing = new ArrayList<>();
+                    AttributeMap<Expression> aliases = aggregateAliases(a);
 
                     for (Expression orderedAgg : aggs) {
+                        if (isRedundantAggregateOverAggregateAlias(aliases, orderedAgg)) {
+                            continue;
+                        }
                         if (Expressions.anyMatch(a.aggregates(), e -> Alias.unwrap(e).equals(orderedAgg)) == false) {
                             missing.add(Expressions.wrapAsNamed(orderedAgg));
                         }

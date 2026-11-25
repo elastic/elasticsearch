@@ -21,6 +21,10 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
+/**
+ * Creates a token for a built-in service account. Tokens for user-managed accounts are created by
+ * {@link TransportCreateUserManagedServiceAccountTokenAction}, so that the two can be authorized separately.
+ */
 public class TransportCreateServiceAccountTokenAction extends HandledTransportAction<
     CreateServiceAccountTokenRequest,
     CreateServiceAccountTokenResponse> {
@@ -56,7 +60,7 @@ public class TransportCreateServiceAccountTokenAction extends HandledTransportAc
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
         } else {
-            serviceAccountService.createIndexToken(authentication, request, listener);
+            serviceAccountService.createBuiltInToken(authentication, request, listener);
         }
     }
 }

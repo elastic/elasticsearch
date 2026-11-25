@@ -1,0 +1,2 @@
+TS k8s
+| STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster

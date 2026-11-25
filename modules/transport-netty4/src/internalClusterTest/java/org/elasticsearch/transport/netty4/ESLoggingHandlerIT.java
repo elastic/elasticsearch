@@ -19,6 +19,8 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 
@@ -27,14 +29,14 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLog mockLog;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void captureMockLog() throws Exception {
         mockLog = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
-    public void tearDown() throws Exception {
+    @After
+    public void closeMockLog() throws Exception {
         mockLog.close();
-        super.tearDown();
     }
 
     @TestLogging(

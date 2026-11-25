@@ -10,6 +10,8 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -276,6 +278,13 @@ public abstract class AggregationContext implements Releasable {
     public abstract CircuitBreaker breaker();
 
     /**
+     * Charges heap an aggregator keeps until the request ends, such as a compiled include/exclude pattern. Released with
+     * the search context, as the query path releases its compiled automata; {@link #breaker()} charges must be released
+     * by whoever made them.
+     */
+    public abstract void addCircuitBreakerMemory(long bytes, String label);
+
+    /**
      * Return the index-time analyzer for the current index
      * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
      */
@@ -321,6 +330,10 @@ public abstract class AggregationContext implements Releasable {
         Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
         for (LeafReaderContext c : searcher().getLeafContexts()) {
             if (c.reader().docFreq(term) > 0) {
+                return true;
+            }
+            FieldInfo fi = c.reader().getFieldInfos().fieldInfo(DocCountFieldMapper.NAME);
+            if (fi != null && fi.getDocValuesType() != DocValuesType.NONE) {
                 return true;
             }
         }
@@ -585,6 +598,11 @@ public abstract class AggregationContext implements Releasable {
         public CircuitBreaker breaker() {
             // preallocatedBreakerService may be null if we haven't preallocated so use the one in bigArrays.
             return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        }
+
+        @Override
+        public void addCircuitBreakerMemory(long bytes, String label) {
+            context.addCircuitBreakerMemory(bytes, label);
         }
 
         @Override

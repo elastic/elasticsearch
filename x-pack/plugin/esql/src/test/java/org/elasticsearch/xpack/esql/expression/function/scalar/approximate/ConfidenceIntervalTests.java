@@ -43,6 +43,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
             nanBuckets_ignoreNan(),
             nanBuckets_zeroNan(),
             inconsistentData(),
+            inconsistentDataThatAccidentallyGivesGoodLookingInterval(),
             manyNans()
         );
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
@@ -173,6 +174,62 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                     ),
                     new TestCaseSupplier.TypedData(3, DataType.INTEGER, "trialCount"),
                     new TestCaseSupplier.TypedData(5, DataType.INTEGER, "bucketCount"),
+                    new TestCaseSupplier.TypedData(0.8, DataType.DOUBLE, "confidence_level")
+                ),
+                EVALUATOR_STRING,
+                DataType.DOUBLE,
+                nullValue()
+            )
+        );
+    }
+
+    private static TestCaseSupplier inconsistentDataThatAccidentallyGivesGoodLookingInterval() {
+        return new TestCaseSupplier(
+            "inconsistentDataThatAccidentallyGivesGoodLookingInterval",
+            List.of(DataType.DOUBLE, DataType.DOUBLE, DataType.INTEGER, DataType.INTEGER, DataType.DOUBLE),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(1358.0, DataType.DOUBLE, "bestEstimate"),
+                    new TestCaseSupplier.TypedData(
+                        List.of(
+                            735.0,
+                            724.0,
+                            711.0,
+                            748.0,
+                            733.0,
+                            789.0,
+                            742.0,
+                            757.0,
+                            747.0,
+                            745.0,
+                            736.0,
+                            743.0,
+                            756.0,
+                            754.0,
+                            739.0,
+                            732.0,
+                            722.0,
+                            728.0,
+                            744.0,
+                            754.0,
+                            717.0,
+                            738.0,
+                            750.0,
+                            735.0,
+                            756.0,
+                            764.0,
+                            728.0,
+                            747.0,
+                            740.0,
+                            747.0,
+                            756.0,
+                            725.0
+                        ),
+                        DataType.DOUBLE,
+                        "estimates"
+                    ),
+                    new TestCaseSupplier.TypedData(2, DataType.INTEGER, "trialCount"),
+                    new TestCaseSupplier.TypedData(16, DataType.INTEGER, "bucketCount"),
                     new TestCaseSupplier.TypedData(0.8, DataType.DOUBLE, "confidence_level")
                 ),
                 EVALUATOR_STRING,

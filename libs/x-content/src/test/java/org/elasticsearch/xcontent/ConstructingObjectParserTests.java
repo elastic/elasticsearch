@@ -754,10 +754,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
             assertEquals(1, o.intField);
             assertWarnings(
                 false,
-                new DeprecationWarning(
-                    DeprecationLogger.CRITICAL,
-                    "[struct_with_compatible_fields][1:14] " + "Deprecated field [old_name] used, expected [new_name] instead"
-                )
+                "[struct_with_compatible_fields][1:14] " + "Deprecated field [old_name] used, expected [new_name] instead"
             );
         }
     }
@@ -824,7 +821,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 {"old_name": 1, "second_field": "someString"}""", RestApiVersion.minimumSupported());
             StructRemovalField parse = StructRemovalField.PARSER.parse(parser, null);
 
-            assertCriticalWarnings("The field old_name has been removed and is being ignored");
+            assertWarnings("The field old_name has been removed and is being ignored");
         }
     }
 

@@ -56,7 +56,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -237,24 +236,26 @@ public class PainlessExecuteAction {
              */
             static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
                 if (indexExpression == null) {
+                    // TODO consider returning QualifiedIndexExpression directly.
+                    // It is required to make the second argument of the tuple non null below
                     return new Tuple<>(null, null);
                 }
                 String trimmed = indexExpression.trim();
-                String[] parts = RemoteClusterAware.splitIndexName(trimmed);
+                var parts = RemoteClusterAware.splitIndexName(trimmed);
                 // The parser here needs to ensure that the indexExpression is not of the form "remote1:blogs,remote2:blogs"
                 // because (1) only a single index is allowed for Painless Execute and
                 // (2) if this method returns Tuple("remote1", "blogs,remote2:blogs") that will not fail with "index not found".
                 // Instead, it will fail with the inaccurate and confusing error message:
                 // "Cross-cluster calls are not supported in this context but remote indices were requested: [blogs,remote1:blogs]"
                 // which comes later out of the IndexNameExpressionResolver pathway this code uses.
-                if ((parts[0] != null && parts[1].isEmpty())
-                    || parts[1].contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR))) {
+                if ((parts.clusterAlias() != null && parts.indexExpression().isEmpty())
+                    || parts.indexExpression().contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR))) {
                     throw new IllegalArgumentException(
                         "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
                     );
                 }
 
-                return new Tuple<>(parts[0], parts[1]);
+                return new Tuple<>(parts.clusterAlias(), parts.indexExpression());
             }
 
             public String getClusterAlias() {
@@ -351,6 +352,7 @@ public class PainlessExecuteAction {
 
         private final Script script;
         private final ScriptContext<?> context;
+        @Nullable
         private final ContextSetup contextSetup;
         private transient IndicesOptions indicesOptions;
 
@@ -388,6 +390,7 @@ public class PainlessExecuteAction {
             return context;
         }
 
+        @Nullable
         public ContextSetup getContextSetup() {
             return contextSetup;
         }
@@ -407,11 +410,21 @@ public class PainlessExecuteAction {
                 validationException = addValidationError("only inline scripts are supported", validationException);
             }
             if (needDocumentAndIndex(context)) {
-                if (contextSetup.index == null) {
-                    validationException = addValidationError("index is a required parameter for current context", validationException);
-                }
-                if (contextSetup.document == null) {
-                    validationException = addValidationError("document is a required parameter for current context", validationException);
+                if (contextSetup == null) {
+                    validationException = addValidationError(
+                        "context_setup is a required parameter for current context",
+                        validationException
+                    );
+                } else {
+                    if (contextSetup.index == null) {
+                        validationException = addValidationError("index is a required parameter for current context", validationException);
+                    }
+                    if (contextSetup.document == null) {
+                        validationException = addValidationError(
+                            "document is a required parameter for current context",
+                            validationException
+                        );
+                    }
                 }
             }
             return validationException;
@@ -473,7 +486,7 @@ public class PainlessExecuteAction {
         }
 
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {
-            return scriptContext == FilterScript.CONTEXT || scriptContext == ScoreScript.CONTEXT;
+            return scriptContext != PainlessTestScript.CONTEXT;
         }
 
     }
@@ -565,9 +578,11 @@ public class PainlessExecuteAction {
             } else {
                 // forward to remote cluster after stripping off the clusterAlias from the index expression
                 removeClusterAliasFromIndexExpression(request);
+                final var contextSetup = request.getContextSetup();
+                assert contextSetup != null : "non-local indices must have context_setup";
                 transportService.getRemoteClusterService()
                     .getRemoteClusterClient(
-                        request.getContextSetup().getClusterAlias(),
+                        contextSetup.getClusterAlias(),
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     )
@@ -587,8 +602,8 @@ public class PainlessExecuteAction {
         static void removeClusterAliasFromIndexExpression(Request request) {
             String index = request.index();
             if (index != null) {
-                String[] split = RemoteClusterAware.splitIndexName(index);
-                if (split[0] != null) {
+                var split = RemoteClusterAware.splitIndexName(index);
+                if (split.clusterAlias() != null) {
                     /*
                      * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
                      * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
@@ -596,7 +611,7 @@ public class PainlessExecuteAction {
                      * We need to strip off the clusterAlias from the index before executing the script locally,
                      * so it will resolve to a local index
                      */
-                    request.index(split[1]);
+                    request.index(split.indexExpression());
                 }
             }
         }
@@ -629,7 +644,6 @@ public class PainlessExecuteAction {
 
         @Override
         protected Response shardOperation(Request request, ShardId shardId) throws IOException {
-            IndexService indexService;
             if (request.contextSetup != null && request.contextSetup.getIndex() != null) {
                 ClusterState clusterState = clusterService.state();
                 IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
@@ -639,20 +653,23 @@ public class PainlessExecuteAction {
                     throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
                 }
                 Index concreteIndex = concreteIndices[0];
-                indexService = indicesServices.indexServiceSafe(concreteIndex);
+                IndexService indexService = indicesServices.indexServiceSafe(concreteIndex);
+                return innerShardOperation(request, scriptService, indexService);
             } else {
-                indexService = null;
+                String errorMessage = "only painless_test scripts are allowed to have no context_setup";
+                if (request.context != PainlessTestScript.CONTEXT) {
+                    assert false : errorMessage;
+                    throw new IllegalStateException(errorMessage);
+                }
+
+                return painlessTestOperation(request, scriptService);
             }
-            return innerShardOperation(request, scriptService, indexService);
         }
 
         static Response innerShardOperation(Request request, ScriptService scriptService, IndexService indexService) throws IOException {
             final ScriptContext<?> scriptContext = request.context;
             if (scriptContext == PainlessTestScript.CONTEXT) {
-                PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
-                PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
-                String result = Objects.toString(painlessTestScript.execute());
-                return new Response(result);
+                return painlessTestOperation(request, scriptService);
             } else if (scriptContext == FilterScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
@@ -671,6 +688,7 @@ public class PainlessExecuteAction {
                     ScoreScript scoreScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     scoreScript.setDocument(0);
 
+                    assert request.contextSetup != null : "context_setup must be present here, and was validated earlier";
                     if (request.contextSetup.query != null) {
                         Query luceneQuery = request.contextSetup.query.rewrite(context).toQuery(context);
                         IndexSearcher indexSearcher = new IndexSearcher(leafReaderContext.reader());
@@ -836,6 +854,13 @@ public class PainlessExecuteAction {
             }
         }
 
+        private static Response painlessTestOperation(Request request, ScriptService scriptService) {
+            PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
+            PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
+            String result = Objects.toString(painlessTestScript.execute());
+            return new Response(result);
+        }
+
         private static Response prepareRamIndex(
             Request request,
             CheckedBiFunction<SearchExecutionContext, LeafReaderContext, Response, IOException> handler,
@@ -848,7 +873,7 @@ public class PainlessExecuteAction {
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
 
-                    SourceToParse sourceToParse = (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES)
+                    SourceToParse sourceToParse = (indexService.getIndexSettings().getMode().isTsdb())
                         ? new SourceToParse(
                             null,
                             document,
@@ -916,7 +941,7 @@ public class PainlessExecuteAction {
                 request.enableCrossProjectMode();
             }
 
-            return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
+            return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 

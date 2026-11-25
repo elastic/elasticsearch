@@ -1761,6 +1761,54 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         );
     }
 
+    // An aggregate function's arguments must not contain another aggregate function. This is expression-level
+    // nesting, as opposed to testNestedAggregate's plan-level nesting via sub-selects.
+    public void testNestedAggregateFunctionInExpression() {
+        Consumer<String> checkMsg = (String sql) -> {
+            var actual = error(sql);
+            assertTrue(actual, actual.contains("Cannot embed aggregate functions within each other"));
+        };
+
+        checkMsg.accept("SELECT SUM(SUM(int)) FROM test");
+        checkMsg.accept("SELECT SUM(ABS(SUM(int))) FROM test");
+        checkMsg.accept("SELECT SUM(int) AS s, AVG(int) FROM test HAVING SUM(SUM(int)) > 10");
+        checkMsg.accept("SELECT AVG(AVG(int)) FROM test");
+        checkMsg.accept("SELECT PERCENTILE(PERCENTILE(int, 50), 50) FROM test");
+    }
+
+    // A single-value identity aggregate applied to an aggregate alias is legal: the group is down to one row by the
+    // time HAVING/ORDER BY runs, so SUM/AVG/MIN/MAX/PERCENTILE return that one value and the optimizer drops the
+    // redundant wrapper (see Optimizer.CollapseAggregateOverAggregate). The inner aggregate can be anything - only
+    // the outer one has to be an identity, since the inner is simply what produces the single value.
+    public void testIdentityAggregateOverAggregateAliasIsAccepted() {
+        accept("SELECT SUM(int) AS s FROM test HAVING SUM(s) > 10");
+        accept("SELECT SUM(int) AS s FROM test ORDER BY SUM(s)");
+        accept("SELECT AVG(int) AS a FROM test HAVING AVG(a) > 10");
+        accept("SELECT MIN(int) AS m FROM test GROUP BY keyword ORDER BY MIN(m)");
+        accept("SELECT PERCENTILE(int, 50) AS p FROM test HAVING PERCENTILE(p, 50) > 10");
+        accept("SELECT AVG(int) AS a FROM test HAVING SUM(a) > 10");
+        accept("SELECT COUNT(int) AS c FROM test HAVING SUM(c) > 10");
+        accept("SELECT STDDEV_POP(int) AS s FROM test HAVING MAX(s) > 10");
+    }
+
+    // The mirror image of the above: an alias only hides the nesting, it does not make it legal. Neither an outer
+    // aggregate that is not an identity over a single value, nor an inner aggregate reached through a scalar
+    // function, leaves the optimizer anything to collapse, so both have to be rejected here rather than blow up
+    // further down in the optimizer or the query translator.
+    public void testNonCollapsibleAggregateOverAggregateAliasIsRejected() {
+        Consumer<String> checkMsg = (String sql) -> {
+            var actual = error(sql);
+            assertTrue(actual, actual.contains("Cannot embed aggregate functions within each other"));
+        };
+
+        checkMsg.accept("SELECT AVG(int) AS a FROM test HAVING COUNT(a) > 1");
+        checkMsg.accept("SELECT AVG(int) AS a FROM test HAVING PERCENTILE_RANK(a, 10) > 1");
+        checkMsg.accept("SELECT AVG(int) AS a FROM test HAVING STDDEV_POP(a) > 1");
+        checkMsg.accept("SELECT AVG(int) AS a FROM test HAVING SUM(ABS(a)) > 10");
+        checkMsg.accept("SELECT PERCENTILE(int, 50) AS p FROM test HAVING PERCENTILE(ABS(p), 50) > 10");
+        checkMsg.accept("SELECT MIN(int) AS m FROM test GROUP BY keyword ORDER BY MIN(m + 1)");
+    }
+
     private String randomTopHitsFunction() {
         return randomFrom(Arrays.asList(First.class, Last.class)).getSimpleName().toUpperCase(Locale.ROOT);
     }

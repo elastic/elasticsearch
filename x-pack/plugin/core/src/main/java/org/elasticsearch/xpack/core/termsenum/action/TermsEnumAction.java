@@ -28,6 +28,7 @@ public class TermsEnumAction extends ActionType<TermsEnumResponse> {
 
     static final ParseField INDEX_FILTER = new ParseField("index_filter");
     static final ParseField TIMEOUT = new ParseField("timeout");
+    static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     private TermsEnumAction() {
         super(NAME);
@@ -53,5 +54,6 @@ public class TermsEnumAction extends ActionType<TermsEnumResponse> {
             ObjectParser.ValueType.STRING
         );
         PARSER.declareObject(TermsEnumRequest::indexFilter, (p, context) -> parseTopLevelQuery(p), INDEX_FILTER);
+        PARSER.declareString(TermsEnumRequest::projectRouting, PROJECT_ROUTING);
     }
 }

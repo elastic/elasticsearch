@@ -539,6 +539,56 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
     }
 
+    public void testRankVectorsType() {
+        // vector1 omits element_type (defaults to float), vector5 sets it explicitly to float.
+        // Both must be counted under the same "float" key to verify the accumulation path.
+        String mapping = """
+            {
+              "properties": {
+                "vector1": {
+                  "type": "rank_vectors",
+                  "dims": 64
+                },
+                "vector2": {
+                  "type": "rank_vectors",
+                  "element_type": "byte",
+                  "dims": 128
+                },
+                "vector3": {
+                  "type": "rank_vectors",
+                  "element_type": "bit",
+                  "dims": 1024
+                },
+                "vector4": {
+                  "type": "rank_vectors",
+                  "element_type": "bfloat16"
+                },
+                "vector5": {
+                  "type": "rank_vectors",
+                  "element_type": "float",
+                  "dims": 256
+                }
+              }
+            }""";
+        int indicesCount = 3;
+        IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
+        RankVectorsFieldStats expectedStats = new RankVectorsFieldStats("rank_vectors");
+        expectedStats.count = 5 * indicesCount;
+        expectedStats.indexCount = indicesCount;
+        expectedStats.vectorDimMin = 64;
+        expectedStats.vectorDimMax = 1024;
+        // vector1 (implicit float) and vector5 (explicit float) both count under "float"
+        expectedStats.vectorElementTypeCount.put("float", 2 * indicesCount);
+        expectedStats.vectorElementTypeCount.put("byte", indicesCount);
+        expectedStats.vectorElementTypeCount.put("bit", indicesCount);
+        expectedStats.vectorElementTypeCount.put("bfloat16", indicesCount);
+        assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
+    }
+
     public void testAccountsRegularIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"long"}}}""";

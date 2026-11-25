@@ -486,7 +486,7 @@ public final class ConfigurationUtils {
     }
 
     public static List<Processor> readProcessorConfigs(
-        List<Map<String, Object>> processorConfigs,
+        List<?> processorConfigs,
         ScriptService scriptService,
         Map<String, Processor.Factory> processorFactories,
         ProjectId projectId
@@ -494,13 +494,26 @@ public final class ConfigurationUtils {
         Exception exception = null;
         List<Processor> processors = new ArrayList<>();
         if (processorConfigs != null) {
-            for (Map<String, Object> processorConfigWithKey : processorConfigs) {
-                for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
+            for (Object processorConfigWithKey : processorConfigs) {
+                if (processorConfigWithKey instanceof Map<?, ?> == false) {
+                    // the list comes straight from user input, so its elements may not be objects
+                    exception = ExceptionsHelper.useOrSuppress(
+                        exception,
+                        new ElasticsearchParseException(
+                            "processor configuration must be an object, but was ["
+                                + (processorConfigWithKey == null ? "null" : processorConfigWithKey.getClass().getSimpleName())
+                                + "]"
+                        )
+                    );
+                    continue;
+                }
+                for (Map.Entry<?, ?> entry : ((Map<?, ?>) processorConfigWithKey).entrySet()) {
+                    String processorType = String.valueOf(entry.getKey());
                     try {
                         if (entry.getValue() == null) {
-                            throw newConfigurationException(entry.getKey(), null, null, "processor config cannot be [null]");
+                            throw newConfigurationException(processorType, null, null, "processor config cannot be [null]");
                         } else {
-                            processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue(), projectId));
+                            processors.add(readProcessor(processorFactories, scriptService, processorType, entry.getValue(), projectId));
                         }
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
@@ -558,9 +571,11 @@ public final class ConfigurationUtils {
      * is being done with the result of calling the script, and the code can then avoid doing that thing per-document.
      */
     public static class ConstantTemplateScriptFactory implements TemplateScript.Factory {
-        final TemplateScript script;
+        private final String value;
+        private final TemplateScript script;
 
         private ConstantTemplateScriptFactory(String value) {
+            this.value = value;
             this.script = new TemplateScript(Map.of()) {
                 @Override
                 public String execute() {
@@ -572,6 +587,15 @@ public final class ConfigurationUtils {
         @Override
         public TemplateScript newInstance(Map<String, Object> params) {
             return script;
+        }
+
+        /**
+         * The constant that this always renders as, which is mostly helpful for being able to see what a processor has been configured with
+         * (e.g. when a test checks the field that a processor has been given).
+         */
+        @Override
+        public String toString() {
+            return value;
         }
     }
 

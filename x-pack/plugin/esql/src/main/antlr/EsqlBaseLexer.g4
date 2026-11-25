@@ -13,6 +13,7 @@ lexer grammar EsqlBaseLexer;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 }
 
 options {
@@ -28,7 +29,19 @@ options {
  * A. To add a development command (only available behind in snapshot/dev builds)
  *
  * Since the tokens/modes are in development, add a predicate like this:
- * DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand' -> ...
+ * DEV_MYCOMMAND : 'mycommand' {this.isDevVersion()}? -> ...
+ *
+ * IMPORTANT: put the predicate AFTER the literal, never before it (this goes for any
+ * predicate, e.g. EsqlCapabilities.Cap.X.isEnabled()):
+ *
+ * - Before ({this.isDevVersion()}? 'mycommand'): ANTLR cannot cache the mode's start
+ *   state, so ALL queries are lexed slowly, even those not using the command.
+ * - After ('mycommand' {this.isDevVersion()}?): only the transition on the literal's
+ *   last character is uncached, which keywords rarely hit.
+ *
+ * Symbols are the exception. A trailing predicate on '->' uncaches the '>' transition,
+ * which every query using '->' hits. For symbols, keep the lexer rule unconditional and
+ * guard the parser rule with {this.isDevVersion()}? instead. See the ARROW token.
  *
  * B. To add a new (production-ready) token
  *
@@ -55,13 +68,20 @@ options {
  * all other commands.
  */
 import ChangePoint,
+       Dedup,
+       DenseVector,
        Enrich,
        Explain,
        Expression,
+       FillNull,
        From,
        Fork,
+       Let,
        Fuse,
+       Highlight,
        Inline,
+       InExpression,
+       Into,
        Join,
        Lookup,
        MMR,

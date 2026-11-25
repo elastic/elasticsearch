@@ -57,7 +57,8 @@ public final class Centroid implements Comparable<Centroid> {
 
     private void start(double x, long w, int id) {
         this.id = id;
-        add(x, w);
+        this.centroid = x;
+        this.count = w;
     }
 
     public void add(double x, long w) {

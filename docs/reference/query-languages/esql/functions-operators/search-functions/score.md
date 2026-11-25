@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SCORE` function [esql-score]
 
-:::{include} ../../_snippets/functions/layout/score.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/score.md
 :::

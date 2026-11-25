@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
 import org.elasticsearch.index.fielddata.LeafPointFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSource;
@@ -26,7 +26,7 @@ public abstract class LeafCartesianPointFieldData extends LeafPointFieldData<Car
     }
 
     @Override
-    public final SortedBinaryDocValues getBytesValues() {
+    public final SortableBinaryDocValues getBytesValues() {
         throw new UnsupportedOperationException("scripts and term aggs are not supported by point doc values");
     }
 

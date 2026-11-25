@@ -1,5 +1,0 @@
-area: Mapping
-issues: []
-pr: 144236
-summary: Update semantic text to use BFLOAT16 by default
-type: enhancement

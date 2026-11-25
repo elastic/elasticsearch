@@ -96,6 +96,16 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         this.onScriptError = onScriptError;
     }
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     /**
      * Expose the {@code params} of the script to the script itself.
      */
@@ -108,6 +118,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     }
 
     protected final void emitFromCompositeScript(CompositeFieldScript compositeFieldScript) {
+        compositeFieldScript._setCancellationCheck(_getCancellationCheck());
         List<Object> values = compositeFieldScript.getValues(fieldName);
         if (values == null) {
             return;

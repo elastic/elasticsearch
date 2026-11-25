@@ -63,12 +63,13 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldValBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -84,7 +85,7 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long fieldVal = fieldValVector.getLong(p);
         result.appendLong(p, DateTrunc.processDateNanos(fieldVal, this.rounding));
@@ -105,7 +106,7 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

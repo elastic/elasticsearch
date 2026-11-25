@@ -52,6 +52,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.rest.MethodHandlers;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 
@@ -86,7 +87,6 @@ class Elasticsearch {
 
     private static final String POLICY_PATCH_PREFIX = "es.entitlements.policy.";
     private static final String SERVER_POLICY_PATCH_NAME = POLICY_PATCH_PREFIX + "server";
-    private static final String APM_AGENT_PACKAGE_NAME = "co.elastic.apm.agent";
 
     /**
      * Main entry point for starting elasticsearch.
@@ -163,7 +163,7 @@ class Elasticsearch {
     /**
      * Second phase of process initialization.
      *
-     * <p> Phase 2 consists of everything that must occur up to and including security manager initialization.
+     * <p> Phase 2 consists of everything that must occur up to and including entitlement initialization.
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
         // always start by dumping what we know about the process to the log
@@ -192,7 +192,7 @@ class Elasticsearch {
             BootstrapSettings.CTRLHANDLER_SETTING.get(args.nodeSettings())
         );
 
-        // initialize probes before the security manager is installed
+        // initialize probes before entitlements are installed
         initializeProbes();
 
         Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown, "elasticsearch-shutdown"));
@@ -201,24 +201,27 @@ class Elasticsearch {
         final Logger logger = LogManager.getLogger(JarHell.class);
         JarHell.checkJarHell(logger::debug);
 
-        // Log ifconfig output before SecurityManager is installed
+        // Log ifconfig output before entitlements are installed
         IfConfig.logIfNecessary();
 
         ensureInitialized(
             // See https://github.com/elastic/elasticsearch/issues/136268
             TermsEnum.class,
-            // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before entitlements) to be
+            // sure
             ReleaseVersions.class,
-            // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before entitlements)
+            // to be sure
             ReferenceDocs.class,
-            // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
+            // The following classes use MethodHandles.lookup during initialization, load them now (before entitlements) to be sure they
+            // succeed
             AbstractRefCounted.class,
             SubscribableListener.class,
             RunOnce.class,
             // We eagerly initialize to work around log4j permissions & JDK-8309727
             VectorUtil.class,
             // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
-            // it now (before SM) to be sure
+            // it now (before entitlements) to be sure
             RequestHandlerRegistry.class,
             MethodHandlers.class
         );
@@ -234,8 +237,25 @@ class Elasticsearch {
 
         var pluginData = Stream.concat(
             modulesBundles.stream()
-                .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-            pluginsBundles.stream().map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                .map(
+                    bundle -> new PolicyUtils.PluginData(
+                        bundle.getDir(),
+                        bundle.pluginDescriptor().getName(),
+                        bundle.pluginDescriptor().isModular(),
+                        bundle.pluginDescriptor().isStable(),
+                        false
+                    )
+                ),
+            pluginsBundles.stream()
+                .map(
+                    bundle -> new PolicyUtils.PluginData(
+                        bundle.getDir(),
+                        bundle.pluginDescriptor().getName(),
+                        bundle.pluginDescriptor().isModular(),
+                        bundle.pluginDescriptor().isStable(),
+                        true
+                    )
+                )
         ).toList();
 
         var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);
@@ -250,12 +270,13 @@ class Elasticsearch {
 
         pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
-        var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers(), APM_AGENT_PACKAGE_NAME);
+        var scopeResolver = ScopeResolver.create(pluginsLoader.pluginLayers());
         Map<String, Collection<Path>> pluginSourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
             .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), bundle -> List.of(bundle.getDir())));
         EntitlementBootstrap.bootstrap(
             serverPolicyPatch,
             pluginPolicies,
+            PolicyUtils.stablePluginSyntheticModuleNames(pluginData),
             scopeResolver::resolveClassToScope,
             nodeEnv.settings()::getValues,
             nodeEnv.dataDirs(),
@@ -397,8 +418,8 @@ class Elasticsearch {
     /**
      * Third phase of initialization.
      *
-     * <p> Phase 3 consists of everything after security manager is initialized. Up until now, the system has been single
-     * threaded. This phase can spawn threads, write to the log, and is subject ot the security manager policy.
+     * <p> Phase 3 consists of everything after entitlements are initialized. Up until now, the system has been single
+     * threaded. This phase can spawn threads, write to the log, and is subject to the entitlement policy.
      *
      * <p> At the end of phase 3 the system is ready to accept requests and the main thread is ready to terminate. This means:
      * <ul>
@@ -431,6 +452,10 @@ class Elasticsearch {
         IOUtils.close(bootstrap.secureSettings());
 
         INSTANCE.start();
+
+        if (ReadinessService.enabled(bootstrap.environment())) {
+            waitForNodeReady(INSTANCE.node.injector().getInstance(ReadinessService.class));
+        }
 
         if (bootstrap.args().daemonize()) {
             LogConfigurator.removeConsoleAppender();
@@ -518,6 +543,17 @@ class Elasticsearch {
                     + org.apache.lucene.util.Version.LATEST
                     + "]"
             );
+        }
+    }
+
+    static void waitForNodeReady(ReadinessService readinessService) {
+        CountDownLatch ready = new CountDownLatch(1);
+        readinessService.addBoundAddressListener(address -> ready.countDown());
+        try {
+            ready.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException("Interrupted while waiting for node to be ready", e);
         }
     }
 

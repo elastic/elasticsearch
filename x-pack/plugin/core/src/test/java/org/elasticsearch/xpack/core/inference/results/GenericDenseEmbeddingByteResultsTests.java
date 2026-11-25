@@ -48,7 +48,7 @@ public class GenericDenseEmbeddingByteResultsTests extends AbstractWireSerializi
             List.of(new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 }))
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "embeddings_bytes" : [
@@ -69,7 +69,7 @@ public class GenericDenseEmbeddingByteResultsTests extends AbstractWireSerializi
             )
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "embeddings_bytes" : [

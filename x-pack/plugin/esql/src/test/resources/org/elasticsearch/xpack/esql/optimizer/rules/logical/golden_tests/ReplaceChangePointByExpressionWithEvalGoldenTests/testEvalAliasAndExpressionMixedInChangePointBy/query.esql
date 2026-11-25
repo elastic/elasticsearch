@@ -1,0 +1,4 @@
+FROM employees
+| KEEP emp_no, salary, languages
+| EVAL x = emp_no + 5
+| CHANGE_POINT salary ON emp_no BY x, languages * 2

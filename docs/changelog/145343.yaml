@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 145343
-summary: Only use `MemorySegment` scorers when slices can be obtained from the `IndexInput`
-type: bug

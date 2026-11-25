@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 152308
+ - 152309
+pr: 153484
+summary: Handle `TopologyException` in binary spatial geometry ops
+type: bug

@@ -70,7 +70,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
             NvidiaEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             NvidiaEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

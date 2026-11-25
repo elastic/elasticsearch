@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -49,15 +50,35 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
         "dimensions"
     );
 
-    private final List<Attribute> attributes;
+    private static final TransportVersion ESQL_TS_INFO_LIMIT = TransportVersion.fromName("esql_ts_info_limit");
+    private static final TransportVersion ESQL_TS_INFO_LIMIT_BACKPORT = TransportVersion.fromName("esql_ts_info_limit_backport");
 
-    public TsInfo(Source source, LogicalPlan child) {
-        this(source, child, buildAttributes(source));
+    /**
+     * Whether the {@code TS_INFO} limit is on the wire at this transport version. The limit came with
+     * {@code esql_ts_info_limit}, and the 9.6 and 9.5 backports carry it under {@code esql_ts_info_limit_backport}.
+     * The first definition holds a patch id from the serverless patch branch, which the transport version generator
+     * can't keep when it adds release branches, so the backports got a definition of their own.
+     */
+    public static boolean limitOnWire(TransportVersion version) {
+        return version.supports(ESQL_TS_INFO_LIMIT) || version.supports(ESQL_TS_INFO_LIMIT_BACKPORT);
     }
 
-    private TsInfo(Source source, LogicalPlan child, List<Attribute> attributes) {
+    private final List<Attribute> attributes;
+    @Nullable
+    private final Integer limit;
+
+    public TsInfo(Source source, LogicalPlan child) {
+        this(source, child, (Integer) null);
+    }
+
+    public TsInfo(Source source, LogicalPlan child, @Nullable Integer limit) {
+        this(source, child, buildAttributes(source), limit);
+    }
+
+    private TsInfo(Source source, LogicalPlan child, List<Attribute> attributes, @Nullable Integer limit) {
         super(source, child);
         this.attributes = attributes;
+        this.limit = limit;
     }
 
     @Override
@@ -66,13 +87,20 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
     }
 
     private TsInfo(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            limitOnWire(in.getTransportVersion()) ? in.readOptionalVInt() : null
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
+        if (limitOnWire(out.getTransportVersion())) {
+            out.writeOptionalVInt(limit);
+        }
     }
 
     @Override
@@ -82,12 +110,21 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
 
     @Override
     protected NodeInfo<TsInfo> info() {
-        return NodeInfo.create(this, TsInfo::new, child());
+        return NodeInfo.create(this, TsInfo::new, child(), limit);
     }
 
     @Override
     public TsInfo replaceChild(LogicalPlan newChild) {
-        return new TsInfo(source(), newChild, attributes);
+        return new TsInfo(source(), newChild, attributes, limit);
+    }
+
+    @Nullable
+    public Integer limit() {
+        return limit;
+    }
+
+    public TsInfo withLimit(@Nullable Integer newLimit) {
+        return new TsInfo(source(), child(), attributes, newLimit);
     }
 
     @Override
@@ -112,7 +149,7 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
 
     @Override
     public int hashCode() {
-        return Objects.hash(child());
+        return Objects.hash(child(), limit);
     }
 
     @Override
@@ -125,21 +162,23 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
         }
 
         TsInfo other = (TsInfo) obj;
-        return Objects.equals(child(), other.child());
+        return Objects.equals(child(), other.child()) && Objects.equals(limit, other.limit);
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES);
-        if (hasTsSource == false) {
-            failures.add(fail(this, "TS_INFO can only be used with TS source command"));
-        }
-
         child().forEachDown(p -> {
             if (p instanceof PipelineBreaker) {
                 failures.add(fail(this, "TS_INFO cannot be used after {} command", pipelineBreakerCommandName(p)));
             }
         });
+        if (failures.hasFailures()) {
+            return;
+        }
+        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode().isTsdb());
+        if (hasTsSource == false) {
+            failures.add(fail(this, "TS_INFO can only be used with TS source command"));
+        }
     }
 
     private static String pipelineBreakerCommandName(LogicalPlan plan) {

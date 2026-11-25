@@ -10,15 +10,17 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -35,6 +37,13 @@ class FlattenedFieldParser {
     static final String SEPARATOR = "\0";
     static final byte SEPARATOR_BYTE = '\0';
 
+    /**
+     * The type the keyed doc values report for a document whose leaves are all null, built from the keyed term's type so the document
+     * presents the keyed field the way a document holding a keyed term does. Static rather than built per mapper, because the keyed term
+     * is always a {@link StringField}, whatever the mapping.
+     */
+    private static final FieldType KEYED_TYPE_WHEN_VALUELESS = ColumnarBinaryDocValuesField.typeWhenValueless(StringField.TYPE_NOT_STORED);
+
     private final String rootFieldFullPath;
     private final String keyedFieldFullPath;
     private final String keyedIgnoredValuesFieldFullPath;
@@ -45,6 +54,7 @@ class FlattenedFieldParser {
     private final String nullValue;
 
     private final boolean usesBinaryDocValues;
+    private final boolean usesArrayOrderBinaryDocValues;
     private final boolean hasRootDocValues;
     private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final IndexVersion indexVersion;
@@ -52,6 +62,9 @@ class FlattenedFieldParser {
     private final Map<String, FieldMapper> mappedSubFields;
 
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
+
+    private final boolean writeDimensionRouting;
+    private final int maxKeyedValueLength;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -66,7 +79,10 @@ class FlattenedFieldParser {
         Map<String, FieldMapper> mappedSubFields,
         boolean storeIgnoredFieldsInBinaryDocValues,
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
-        IndexVersion indexVersion
+        IndexVersion indexVersion,
+        boolean writeDimensionRouting,
+        boolean usesArrayOrderBinaryDocValues,
+        int maxKeyedValueLength
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -76,11 +92,14 @@ class FlattenedFieldParser {
         this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
+        this.usesArrayOrderBinaryDocValues = usesArrayOrderBinaryDocValues;
         this.hasRootDocValues = hasRootDocValues;
         this.mappedSubFields = mappedSubFields;
         this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
         this.preserveLeafArrays = preserveLeafArrays;
         this.indexVersion = indexVersion;
+        this.writeDimensionRouting = writeDimensionRouting;
+        this.maxKeyedValueLength = maxKeyedValueLength;
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
@@ -124,36 +143,52 @@ class FlattenedFieldParser {
 
     private void parseFieldValue(Context context, XContentParser.Token token, ContentPath path, String currentName) throws IOException {
         XContentParser parser = context.parser();
+        // Objects and arrays record themselves as the immediate parent, as DocumentParser#parseObject and #parseArray do, so that a mapped
+        // sub-field can tell an element of its own array from any other value (see FieldArrayContext#shouldRecordOffsets).
         if (token == XContentParser.Token.START_OBJECT) {
             path.add(currentName);
             validateDepthLimit(path);
+            var prev = context.documentParserContext().getImmediateXContentParent();
+            context.documentParserContext().setImmediateXContentParent(token);
             parseObject(context, path);
+            context.documentParserContext().setImmediateXContentParent(prev);
             path.remove();
         } else if (token == XContentParser.Token.START_ARRAY) {
+            var prev = context.documentParserContext().getImmediateXContentParent();
+            context.documentParserContext().setImmediateXContentParent(token);
             parseArray(context, path, currentName);
+            context.documentParserContext().setImmediateXContentParent(prev);
         } else if (token.isValue()) {
             String value = parser.text();
             addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            String key = path.pathAsText(currentName);
-            if (key.contains(SEPARATOR)) {
-                throw new IllegalArgumentException(
-                    "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
-                );
-            }
-            FieldMapper mappedSubField = mappedSubFields.get(key);
-            if (mappedSubField != null) {
-                mappedSubField.parse(context.documentParserContext());
-            } else if (nullValue != null) {
-                addField(context, path, currentName, nullValue);
-            } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
-                context.arrayContext.recordNull(key);
-            }
+            addNull(context, path, currentName);
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
             // this case, since XContentParser verifies that the input is well-formed as it parses.
             throw new IllegalArgumentException("Encountered unexpected token [" + token.toString() + "].");
         }
+    }
+
+    /**
+     * Builds the error for a {@code key\0value} encoding that is longer than the field allows. The row path and the columnar
+     * batch path both use it so that they report the same message.
+     */
+    static IllegalArgumentException overLimitSizeKeyedValueException(String rootFieldFullPath, String key, int valueLength, int maxLength) {
+        return new IllegalArgumentException(
+            "Flattened field ["
+                + rootFieldFullPath
+                + "] contains a field"
+                + " whose keyed encoding is longer than the allowed max length of "
+                + maxLength
+                + " bytes. Key length: "
+                + key.length()
+                + ", value length: "
+                + valueLength
+                + " for key starting with ["
+                + key.substring(0, Math.min(key.length(), 50))
+                + "]"
+        );
     }
 
     private void addField(Context context, ContentPath path, String currentName, String value) throws IOException {
@@ -168,7 +203,7 @@ class FlattenedFieldParser {
         // and are not part of the flattened field's root/keyed representation.
         FieldMapper mappedSubField = mappedSubFields.get(key);
         if (mappedSubField != null) {
-            mappedSubField.parse(context.documentParserContext());
+            FallbackPostMapper.parseField(context.documentParserContext(), mappedSubField);
             return;
         }
 
@@ -176,16 +211,24 @@ class FlattenedFieldParser {
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
         if (value.length() > ignoreAbove) {
-            if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
-                if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+            var lookup = context.documentParserContext().mappingLookup();
+            if (lookup.isSourceSynthetic() || lookup.isSourceColumnarStored()) {
+                // In document-order mode there is no _offsets sidecar; ignored values are tail-appended during read.
+                if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT && usesArrayOrderBinaryDocValues == false) {
                     context.arrayContext.recordOffset(key, new BytesRef(value));
                 }
                 if (storeIgnoredFieldsInBinaryDocValues) {
+                    // Array-order mode must preserve duplicates; SORTED_UNIQUE would lose them via TreeSet deduplication.
+                    // SORTED (not UNSORTED) because ignored values lose their document position by definition —
+                    // they are tail-appended per key — so we sort them for deterministic reconstruction.
+                    var ordering = usesArrayOrderBinaryDocValues
+                        ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+                        : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE;
                     MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                         context.documentParserContext.doc(),
                         keyedIgnoredValuesFieldFullPath,
                         BytesRef.deepCopyOf(bytesKeyedValue),
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                        ordering,
                         indexVersion
                     );
                 } else {
@@ -195,22 +238,11 @@ class FlattenedFieldParser {
             return;
         }
 
-        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
-        // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
-        if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
-            String msg = "Flattened field ["
-                + rootFieldFullPath
-                + "] contains one immense field"
-                + " whose keyed encoding is longer than the allowed max length of "
-                + IndexWriter.MAX_TERM_LENGTH
-                + " bytes. Key length: "
-                + key.length()
-                + ", value length: "
-                + value.length()
-                + " for key starting with ["
-                + key.substring(0, Math.min(key.length(), 50))
-                + "]";
-            throw new IllegalArgumentException(msg);
+        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time, or the non-indexed
+        // field limit for fields without terms in columnar index modes; we can throw a more user friendly exception here with the key
+        // and value lengths
+        if (bytesKeyedValue.length > maxKeyedValueLength) {
+            throw overLimitSizeKeyedValueException(rootFieldFullPath, key, value.length(), maxKeyedValueLength);
         }
         BytesRef bytesValue = new BytesRef(value);
         if (fieldType.indexType().hasTerms()) {
@@ -228,12 +260,21 @@ class FlattenedFieldParser {
                         MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                     );
                 }
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                    context.documentParserContext.doc(),
-                    keyedFieldFullPath,
-                    bytesKeyedValue,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                if (usesArrayOrderBinaryDocValues) {
+                    // Document-order mode: store key\0value inline, preserving document order and duplicates.
+                    MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordValue(
+                        context.documentParserContext.doc(),
+                        keyedFieldFullPath,
+                        bytesKeyedValue
+                    );
+                } else {
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        context.documentParserContext.doc(),
+                        keyedFieldFullPath,
+                        bytesKeyedValue,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
+                }
             } else {
                 if (hasRootDocValues) {
                     context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
@@ -241,19 +282,59 @@ class FlattenedFieldParser {
                 context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
             }
 
-            if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+            // In document-order mode there is no _offsets sidecar.
+            if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT && usesArrayOrderBinaryDocValues == false) {
                 context.arrayContext.recordOffset(key, bytesValue);
             }
 
-            if (fieldType.isDimension() == false || context.documentParserContext().getRoutingFields().isNoop()) {
+            if (writeDimensionRouting == false) {
                 return;
             }
 
             final String keyedFieldName = FlattenedFieldParser.extractKey(bytesKeyedValue).utf8ToString();
-            if (fieldType.isDimension() && fieldType.dimensions().contains(keyedFieldName)) {
+            if (fieldType.dimensions().contains(keyedFieldName)) {
                 final BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
                 context.documentParserContext().getRoutingFields().addString(rootFieldFullPath + "." + keyedFieldName, keyedFieldValue);
             }
+        }
+    }
+
+    private void addNull(Context context, ContentPath path, String currentName) throws IOException {
+        String key = path.pathAsText(currentName);
+        if (key.contains(SEPARATOR)) {
+            throw new IllegalArgumentException(
+                "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+            );
+        }
+        FieldMapper mappedSubField = mappedSubFields.get(key);
+        if (mappedSubField != null) {
+            FallbackPostMapper.parseField(context.documentParserContext(), mappedSubField);
+        } else if (nullValue != null) {
+            addField(context, path, currentName, nullValue);
+        } else if (usesArrayOrderBinaryDocValues) {
+            // Document-order mode: record a null slot with the key inline so synthetic source can reconstruct it.
+            MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(
+                context.documentParserContext.doc(),
+                keyedFieldFullPath,
+                new BytesRef(key + SEPARATOR),
+                fieldType.indexType().hasTerms() ? KEYED_TYPE_WHEN_VALUELESS : null
+            );
+        } else if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+            context.arrayContext.recordNull(key);
+        }
+    }
+
+    /**
+     * Indexes the current parser value at {@code path} (already a full dotted key from the document root). A null token records a null
+     * slot via {@link #addNull} to preserve columnar array order; any other token is indexed via {@link #addField}.
+     */
+    void indexValueAtPath(DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext, String path)
+        throws IOException {
+        Context context = new Context(documentParserContext.parser(), documentParserContext, arrayContext);
+        if (documentParserContext.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            addNull(context, new ContentPath(), path);
+        } else {
+            addField(context, new ContentPath(), path, documentParserContext.parser().text());
         }
     }
 

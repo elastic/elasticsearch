@@ -28,7 +28,6 @@ import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
@@ -51,10 +50,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.AssumptionViolatedException;
@@ -355,7 +352,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
         MappedFieldType ft = mapperService.fieldType(field);
         SourceToParse source = source(b -> b.field(ft.name(), value));
-        var fielddataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        var fielddataContext = new FieldDataContext("", null, () -> null, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT);
         var fdt = fielddataContext.fielddataOperation();
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
@@ -370,8 +367,12 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
-                .getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics(),
+                null
+            ).getSource(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromDocValues = docValueFetcher.fetchValues(s, 0, new ArrayList<>());
@@ -452,10 +453,8 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     public void testAnalyzerAttributeDefault() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
         var fieldMapper = (PatternTextFieldMapper) mapper.mappingLookup().getMapper("field");
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        var result = (Map<?, ?>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2().get("field");
+        var result = (Map<?, ?>) XContentHelper.convertToMap(JsonXContent.jsonXContent, fieldMappingToString(mapper, "field"), false)
+            .get("field");
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("type"), equalTo("pattern_text"));
     }
@@ -463,10 +462,8 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     public void testAnalyzerAttributeStandard() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("analyzer", "standard")));
         var fieldMapper = (PatternTextFieldMapper) mapper.mappingLookup().getMapper("field");
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        var result = (Map<?, ?>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2().get("field");
+        var result = (Map<?, ?>) XContentHelper.convertToMap(JsonXContent.jsonXContent, fieldMappingToString(mapper, "field"), false)
+            .get("field");
         assertThat(result.size(), equalTo(2));
         assertThat(result.get("type"), equalTo("pattern_text"));
         assertThat(result.get("analyzer"), equalTo("standard"));
@@ -475,10 +472,8 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     public void testAnalyzerAttributeLog() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("analyzer", "delimiter")));
         var fieldMapper = (PatternTextFieldMapper) mapper.mappingLookup().getMapper("field");
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        var result = (Map<?, ?>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2().get("field");
+        var result = (Map<?, ?>) XContentHelper.convertToMap(JsonXContent.jsonXContent, fieldMappingToString(mapper, "field"), false)
+            .get("field");
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("type"), equalTo("pattern_text"));
         assertThat(fieldMapper.getAnalyzer(), equalTo(DelimiterAnalyzer.INSTANCE));
@@ -530,6 +525,27 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testValueFetcherWithFieldMissingFromAllDocuments() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field_with_value").field("type", "pattern_text").endObject();
+            b.startObject("field_without_value").field("type", "pattern_text").endObject();
+        }));
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field_with_value", "this is a value 123"))).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ValueFetcher fetcher = mapperService.fieldType("field_without_value")
+                    .valueFetcher(createSearchExecutionContext(mapperService, newSearcher(reader)), null);
+                fetcher.setNextReader(reader.leaves().get(0));
+
+                assertEquals(List.of(), fetcher.fetchValues(null, 0, new ArrayList<>()));
+            }
+        }
+    }
+
     public void testFieldDataWithMissingFieldSegment() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
         MappedFieldType ft = mapperService.fieldType("field");
@@ -543,7 +559,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 
@@ -638,7 +661,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 
@@ -670,7 +700,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 

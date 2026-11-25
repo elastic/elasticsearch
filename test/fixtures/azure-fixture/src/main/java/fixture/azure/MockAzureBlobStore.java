@@ -18,9 +18,11 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -45,6 +47,11 @@ public class MockAzureBlobStore {
         this.leaseExpiryPredicate = Objects.requireNonNull(leaseExpiryPredicate);
     }
 
+    public void setAccessTier(String path, String accessTier) {
+        final AzureBlockBlob blob = getExistingBlob(path);
+        blob.setAccessTier(accessTier);
+    }
+
     public void putBlock(String path, String blockId, BytesReference content, @Nullable String leaseId) {
         blobs.compute(path, (p, existing) -> {
             if (existing != null) {
@@ -58,9 +65,12 @@ public class MockAzureBlobStore {
         });
     }
 
-    public void putBlockList(String path, List<String> blockIds, @Nullable String leaseId) {
+    public void putBlockList(String path, List<String> blockIds, @Nullable String leaseId, @Nullable String accessTier) {
         final AzureBlockBlob blob = getExistingBlob(path);
         blob.putBlockList(blockIds, leaseId);
+        if (accessTier != null) {
+            blob.setAccessTier(accessTier);
+        }
     }
 
     public void putBlob(
@@ -69,25 +79,38 @@ public class MockAzureBlobStore {
         String blobType,
         @Nullable String ifNoneMatch,
         @Nullable String leaseId,
-        @Nullable CopyInfo copyInfo
+        @Nullable CopyInfo copyInfo,
+        @Nullable String accessTier
     ) {
         blobs.compute(path, (p, existingValue) -> {
             if (existingValue != null) {
                 existingValue.setContents(contents, leaseId, ifNoneMatch, copyInfo);
+                if (accessTier != null) {
+                    existingValue.setAccessTier(accessTier);
+                }
                 return existingValue;
             } else {
                 validateBlobType(blobType);
                 final AzureBlockBlob newBlob = new AzureBlockBlob();
                 newBlob.setContents(contents, leaseId, copyInfo);
+                newBlob.setAccessTier(accessTier);
                 return newBlob;
             }
         });
     }
 
-    public CopyInfo copyBlob(String path, String sourcePath, String sourceUrl) {
+    public CopyInfo copyBlob(String path, String sourcePath, String sourceUrl, @Nullable String accessTierOverride) {
         AzureBlockBlob sourceBlob = getBlob(sourcePath, null);
         final var copyInfo = new CopyInfo(UUID.randomUUID().toString(), sourceUrl);
-        putBlob(path, sourceBlob.getContents(), sourceBlob.type(), null, null, copyInfo);
+        putBlob(
+            path,
+            sourceBlob.getContents(),
+            sourceBlob.type(),
+            null,
+            null,
+            copyInfo,
+            accessTierOverride != null ? accessTierOverride : sourceBlob.accessTier()
+        );
         return copyInfo;
     }
 
@@ -131,7 +154,8 @@ public class MockAzureBlobStore {
         })
             .filter(e -> e.getValue().isCommitted())
             .peek(e -> e.getValue().checkLeaseForRead(leaseId))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            // Real Azure List Blobs returns names in lexicographic order.
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, TreeMap::new));
     }
 
     public String acquireLease(String path, int leaseTimeSeconds, @Nullable String proposedLeaseId) {
@@ -173,11 +197,33 @@ public class MockAzureBlobStore {
         private final Object writeLock = new Object();
         private final Lease lease = new Lease();
         private volatile CopyInfo copyInfo = null;
+        private volatile String accessTier = null;
         private final Map<String, BytesReference> blocks;
         private volatile BytesReference contents;
+        private volatile Instant lastModified = Instant.now();
+        /** Bumped on every content change, so that each write has an ETag of its own, as on the real service. */
+        private volatile long version = 1;
 
         private AzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();
+        }
+
+        public Instant lastModified() {
+            return lastModified;
+        }
+
+        /** The quoted ETag of the current content. It changes with every write, so a rewritten blob never looks unchanged. */
+        public String etag() {
+            return "\"" + version + "\"";
+        }
+
+        @Nullable
+        public String accessTier() {
+            return accessTier;
+        }
+
+        public void setAccessTier(@Nullable String accessTier) {
+            this.accessTier = accessTier;
         }
 
         public void putBlock(String blockId, BytesReference content, @Nullable String leaseId) {
@@ -197,6 +243,8 @@ public class MockAzureBlobStore {
                 }
                 final BytesReference[] resolvedContents = blockIds.stream().map(blocks::get).toList().toArray(new BytesReference[0]);
                 contents = CompositeBytesReference.of(resolvedContents);
+                lastModified = Instant.now();
+                version++;
             }
         }
 
@@ -223,6 +271,8 @@ public class MockAzureBlobStore {
                 this.contents = contents;
                 this.blocks.clear();
                 this.copyInfo = copyInfo;
+                this.lastModified = Instant.now();
+                this.version++;
             }
         }
 
@@ -327,7 +377,7 @@ public class MockAzureBlobStore {
                     leaseId = proposedLeaseId != null ? proposedLeaseId : UUID.randomUUID().toString();
                     validateLeaseDuration(leaseDurationSeconds);
                     this.leaseDurationSeconds = leaseDurationSeconds;
-                    logger.debug("Granting lease, prior state={}, leaseId={}, expires={}", prevState, leaseId);
+                    logger.debug("Granting lease, prior state={}, leaseId={}, expires={}", prevState, leaseId, leaseDurationSeconds);
                 }
                 case Leased -> {
                     if (leaseId.equals(proposedLeaseId) == false) {

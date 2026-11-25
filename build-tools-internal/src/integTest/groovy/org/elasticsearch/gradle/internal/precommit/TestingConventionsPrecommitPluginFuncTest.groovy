@@ -105,16 +105,16 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
 
         assertOutputContains(result.getOutput(), """\
             * What went wrong:
-            Execution failed for task ':testTestingConventions'.
+            Execution failed for task ':testTestingConventions' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin').
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
                > Following test classes do not extend any supported base class:
                  \torg.acme.InvalidTests""".stripIndent()
         )
 
         and: "problems report contains testing-conventions violations"
-        assertProblemsReportContains("testing-conventions")
-        assertProblemsReportContainsProblem("missing-base-class")
-        assertProblemsReportSeverity("missing-base-class", "ERROR")
+        assertProblemsReportContains("Testing Conventions")
+        assertProblemsReportContainsProblem("Missing test base class")
+        assertProblemsReportSeverity("Missing test base class", "ERROR")
         def diagnostics = problemsReportDiagnostics()
         diagnostics.any { it.contextualLabel?.contains("org.acme.InvalidTests") }
     }
@@ -148,15 +148,15 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.task(":testTestingConventions").outcome == TaskOutcome.FAILED
         assertOutputContains(result.getOutput(), """\
             * What went wrong:
-            Execution failed for task ':testTestingConventions'.
+            Execution failed for task ':testTestingConventions' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin').
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
                > Following test classes do not match naming convention to use suffix 'UnitTest':
                  \torg.acme.valid.SomeNameMissmatchingTest""".stripIndent()
         )
 
         and: "problems report contains invalid-suffix violations"
-        assertProblemsReportContains("testing-conventions")
-        assertProblemsReportContainsProblem("invalid-suffix")
+        assertProblemsReportContains("Testing Conventions")
+        assertProblemsReportContainsProblem("Invalid test class suffix")
     }
 
     def "provided base classes do not need match naming convention"() {
@@ -182,49 +182,50 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
     }
 
-    def "applies conventions on yaml-rest-test tests"() {
+    def "test classes must not run with the plain randomized runner"() {
         given:
-        buildApiRestrictionsDisabled = true
-        clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase")
-        buildFile << """
-        apply plugin:'elasticsearch.legacy-yaml-rest-test'
-
-        dependencies {
-            yamlRestTestImplementation "org.apache.lucene:tests.util:1.0"
-            yamlRestTestImplementation "org.junit:junit:4.42"
-        }
-        """
-
-        clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase") {
-            """
-            public void testMe() {
-            }
-            """
-        }
-        clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeOtherMatchingIT", null) {
-            """
-            public void testMe() {
-            }
-            """
-        }
+        simpleJavaBuild()
+        runnerClasses()
+        runWithClazz("org.acme.valid.SomeTests", "org.elasticsearch.test.junit.runner.ESRandomizedRunner")
+        // @RunWith is inherited, the subclass of a class with the right runner is fine as well
+        file("src/test/java/org/acme/valid/InheritingTests.java").text = """
+            package org.acme.valid;
+            public class InheritingTests extends SomeTests {}
+        """.stripIndent()
 
         when:
-        def result = gradleRunner("testingConventions").buildAndFail()
+        def result = gradleRunner("precommit").build()
         then:
-        result.task(":yamlRestTestTestingConventions").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.getOutput(), """\
-            * What went wrong:
-            Execution failed for task ':yamlRestTestTestingConventions'.
-            > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
-               > Following test classes do not extend any supported base class:
-                 \torg.acme.valid.SomeOtherMatchingIT""".stripIndent()
-        )
+        result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
+
+        when:
+        runWithClazz("org.acme.PlainTests", "com.carrotsearch.randomizedtesting.RandomizedRunner")
+        file("src/test/java/org/acme/InheritingPlainTests.java").text = """
+            package org.acme;
+            public class InheritingPlainTests extends PlainTests {}
+        """.stripIndent()
+        result = gradleRunner("precommit").buildAndFail()
+        then:
+        result.task(":testTestingConventions").outcome == TaskOutcome.FAILED
+        result.output.contains("Following test classes run with the plain RandomizedRunner, use ESRandomizedRunner instead:")
+        result.output.contains("org.acme.PlainTests")
+        result.output.contains("org.acme.InheritingPlainTests")
+        assertProblemsReportContainsProblem("Plain randomized runner")
+
+        when: "the project opts out"
+        buildFile << """
+        tasks.named('testTestingConventions').configure {
+            allowPlainRandomizedRunner = true
+        }
+        """
+        result = gradleRunner("precommit").build()
+        then:
+        result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
     }
 
     @Unroll
     def "applies conventions on #sourceSetName tests"() {
         given:
-        buildApiRestrictionsDisabled = pluginName.contains('legacy')
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.ESIntegTestCase")
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.rest.ESRestTestCase")
         buildFile << """
@@ -259,16 +260,49 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.task(taskName).outcome == TaskOutcome.FAILED
         assertOutputContains(result.getOutput(), """\
             * What went wrong:
-            Execution failed for task '${taskName}'.
+            Execution failed for task '${taskName}' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin').
             > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
                > Following test classes do not match naming convention to use suffix 'IT' or 'Tests':
                  \torg.acme.valid.SomeNonMatchingTest""".stripIndent()
         )
 
         where:
-        pluginName                              | taskName                                 | sourceSetName
-        "elasticsearch.legacy-java-rest-test"   | ":javaRestTestTestingConventions"        | "javaRestTest"
-        "elasticsearch.internal-cluster-test"   | ":internalClusterTestTestingConventions" | "internalClusterTest"
+        pluginName                            | taskName                                 | sourceSetName
+        "elasticsearch.internal-cluster-test" | ":internalClusterTestTestingConventions" | "internalClusterTest"
+    }
+
+    /** Stand-ins for the runner annotation and the runners, which the check looks up by name. */
+    private void runnerClasses() {
+        file("src/test/java/org/junit/runner/RunWith.java").text = """
+            package org.junit.runner;
+            import java.lang.annotation.*;
+            @Retention(RetentionPolicy.RUNTIME)
+            @Inherited
+            public @interface RunWith {
+                Class<?> value();
+            }
+        """.stripIndent()
+        file("src/test/java/com/carrotsearch/randomizedtesting/RandomizedRunner.java").text = """
+            package com.carrotsearch.randomizedtesting;
+            public class RandomizedRunner {}
+        """.stripIndent()
+        file("src/test/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text = """
+            package org.elasticsearch.test.junit.runner;
+            public class ESRandomizedRunner {}
+        """.stripIndent()
+    }
+
+    private void runWithClazz(String className, String runner) {
+        int lastDot = className.lastIndexOf('.')
+        File clazzFile = file("src/test/java/${className.replace('.', '/')}.java")
+        clazzFile.parentFile.mkdirs()
+        clazzFile.text = """
+            package ${className.substring(0, lastDot)};
+            @org.junit.runner.RunWith(${runner}.class)
+            public class ${className.substring(lastDot + 1)} extends org.apache.lucene.tests.util.LuceneTestCase {
+                public void testMe() {}
+            }
+        """.stripIndent()
     }
 
     private void simpleJavaBuild() {

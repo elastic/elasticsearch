@@ -9,7 +9,7 @@ mapped_pages:
 
 Provides [dictionary stemming](docs-content://manage-data/data-store/text-analysis/stemming.md#dictionary-stemmers) based on a provided [Hunspell dictionary](https://en.wikipedia.org/wiki/Hunspell). The `hunspell` filter requires [configuration](#analysis-hunspell-tokenfilter-dictionary-config) of one or more language-specific Hunspell dictionaries.
 
-This filter uses Lucene’s [HunspellStemFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/hunspell/HunspellStemFilter.md).
+This filter uses Lucene’s [HunspellStemFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/hunspell/HunspellStemFilter.html).
 
 ::::{tip}
 If available, we recommend trying an algorithmic stemmer for your language before using the `hunspell` token filter. In practice, algorithmic stemmers typically outperform dictionary stemmers. See [Dictionary stemmers](docs-content://manage-data/data-store/text-analysis/stemming.md#dictionary-stemmers).
@@ -28,6 +28,8 @@ Hunspell dictionaries are stored and detected on a dedicated `hunspell` director
     |    |    |-- en_US.dic
     |    |    |-- en_US.aff
 ```
+
+The dictionaries must be available on every node in the cluster. How you add them depends on where you run {{es}}: refer to the [custom configuration file instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 Each dictionary can be configured with one setting:
 

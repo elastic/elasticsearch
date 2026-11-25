@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.path;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.path.PathTrie.TrieMatchingMode;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -100,7 +101,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("/v/x/c", params), equalTo("test6"));
     }
 
-    // https://github.com/elastic/elasticsearch/pull/17916
     public void testWildcardMatchingModes() {
         PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("{testA}", "test1");
@@ -120,31 +120,31 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test1"));
         assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test1"));
         assertThat(trie.retrieve("/a", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test1"));
-        assertThat(trie.retrieveAll("/a", () -> params).toList(), contains(null, "test1", "test1", "test1"));
+        assertThat(Iterators.toList(trie.retrieveAll("/a", () -> params)), contains(null, "test1", "test1", "test1"));
 
         assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
         assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test4"));
         assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test3"));
         assertThat(trie.retrieve("/a/b", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test3"));
-        assertThat(trie.retrieveAll("/a/b", () -> params).toList(), contains(null, "test4", "test3", "test3"));
+        assertThat(Iterators.toList(trie.retrieveAll("/a/b", () -> params)), contains(null, "test4", "test3", "test3"));
 
         assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
         assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), equalTo("test5"));
         assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), equalTo("test7"));
         assertThat(trie.retrieve("/a/b/c", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test7"));
-        assertThat(trie.retrieveAll("/a/b/c", () -> params).toList(), contains(null, "test5", "test7", "test7"));
+        assertThat(Iterators.toList(trie.retrieveAll("/a/b/c", () -> params)), contains(null, "test5", "test7", "test7"));
 
         assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
         assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), nullValue());
         assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), nullValue());
         assertThat(trie.retrieve("/x/y/z", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test9"));
-        assertThat(trie.retrieveAll("/x/y/z", () -> params).toList(), contains(null, null, null, "test9"));
+        assertThat(Iterators.toList(trie.retrieveAll("/x/y/z", () -> params)), contains(null, null, null, "test9"));
 
         assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
         assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED), nullValue());
         assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED), nullValue());
         assertThat(trie.retrieve("/d/e/f", params, TrieMatchingMode.WILDCARD_NODES_ALLOWED), equalTo("test10"));
-        assertThat(trie.retrieveAll("/d/e/f", () -> params).toList(), contains(null, null, null, "test10"));
+        assertThat(Iterators.toList(trie.retrieveAll("/d/e/f", () -> params)), contains(null, null, null, "test10"));
     }
 
     // https://github.com/elastic/elasticsearch/pull/17916

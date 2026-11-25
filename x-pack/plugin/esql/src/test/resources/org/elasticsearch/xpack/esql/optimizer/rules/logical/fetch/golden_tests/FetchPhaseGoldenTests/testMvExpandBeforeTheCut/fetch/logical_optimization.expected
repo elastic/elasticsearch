@@ -1,0 +1,6 @@
+Project[[first_name{f}#0, job_positions{r}#1]]
+\_Fetch[_doc{f}#2,[first_name{f}#0],employees,[]]
+  \_Project[[_doc{f}#2, hire_date{f}#3, job_positions{r}#1]]
+    \_TopN[[Order[hire_date{f}#3,ASC,LAST]],10[INTEGER],false]
+      \_MvExpand[job_positions{f}#4,job_positions{r}#1]
+        \_EsRelation[employees][_doc{f}#2, avg_worked_seconds{f}#5, birth_date{f}#6, emp_no{f}#7, first_name{f}#0, gender{f}#8, height{f}#9, height.float{f}#10, height.half_float{f}#11, height.scaled_float{f}#12, hire_date{f}#3, is_rehired{f}#13, job_positions{f}#4, languages{f}#14, languages.byte{f}#15, languages.long{f}#16, languages.short{f}#17, last_name{f}#18, salary{f}#19, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]

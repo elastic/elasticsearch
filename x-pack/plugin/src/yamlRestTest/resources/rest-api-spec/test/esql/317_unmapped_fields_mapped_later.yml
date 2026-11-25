@@ -1,0 +1,197 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_v2, optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard ]
+      reason: >
+        LOAD and LOAD_ALL read a field from _source only while the index does not map it. Once the field is mapped, ES|QL
+        reads it like any mapped field, so a document indexed before the mapping update is null for it, although _source
+        still holds the value. This is a documented limitation (see esql-unmapped-fields.md), not a goal: these tests pin
+        it, with stored and with synthetic _source, so that a change of this behavior is deliberate. They do not mean the
+        behavior is desired. See https://github.com/elastic/elasticsearch/issues/164035.
+
+  # Indexed under dynamic:false, so "f", "n" and "other" are in _source only. "f" and "n" are mapped afterwards.
+  #
+  # The rebalancer must not move a copy of these indices once "f" and "n" are mapped: a copy that is built by recovery
+  # replays the translog with the current mapping, so it holds doc values for the first document, and the result then
+  # depends on which copy answers. Rebalancing is disabled for them, see https://github.com/elastic/elasticsearch/issues/164963.
+  - do:
+      indices.create:
+        index: mapped-later-stored
+        body:
+          settings:
+            index.routing.rebalance.enable: none
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  # Wait for any replica to be initialized and started before the first document. A replica that is still recovering replays the
+  # translog with the current mapping, so it would hold doc values for "f" and "n" for the first document, and the
+  # result would depend on which copy answers. Not waiting for green: on a single node the replica stays unassigned.
+  - do:
+      cluster.health:
+        index: mapped-later-stored
+        wait_for_status: yellow
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+  - do:
+      index:
+        index: mapped-later-stored
+        id: "1"
+        refresh: true
+        body:
+          id: "1"
+          f: "v1"
+          n: 7
+          other: "o1"
+  - do:
+      indices.put_mapping:
+        index: mapped-later-stored
+        body:
+          properties:
+            f:
+              type: keyword
+            n:
+              type: long
+  - do:
+      index:
+        index: mapped-later-stored
+        id: "2"
+        refresh: true
+        body:
+          id: "2"
+          f: "v2"
+          n: 8
+          other: "o2"
+
+  # The same, with synthetic _source: the old values are in _ignored_source instead of the stored _source.
+  - do:
+      indices.create:
+        index: mapped-later-synthetic
+        body:
+          settings:
+            index.mapping.source.mode: synthetic
+            index.routing.rebalance.enable: none
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      cluster.health:
+        index: mapped-later-synthetic
+        wait_for_status: yellow
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+  - do:
+      index:
+        index: mapped-later-synthetic
+        id: "1"
+        refresh: true
+        body:
+          id: "1"
+          f: "v1"
+          n: 7
+          other: "o1"
+  - do:
+      indices.put_mapping:
+        index: mapped-later-synthetic
+        body:
+          properties:
+            f:
+              type: keyword
+            n:
+              type: long
+  - do:
+      index:
+        index: mapped-later-synthetic
+        id: "2"
+        refresh: true
+        body:
+          id: "2"
+          f: "v2"
+          n: 8
+          other: "o2"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: mapped-later-stored,mapped-later-synthetic
+        ignore_unavailable: true
+
+---
+'LOAD returns null for a document indexed before the field was mapped':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM mapped-later-stored | SORT id | KEEP id, f, n | LIMIT 5'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: f }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: n }
+  - match: { columns.2.type: long }
+  - length: { values: 2 }
+  - match: { values.0: [ "1", null, null ] }
+  - match: { values.1: [ "2", "v2", 8 ] }
+
+---
+'the result is the same without LOAD':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM mapped-later-stored | SORT id | KEEP id, f, n | LIMIT 5'
+  - match: { values.0: [ "1", null, null ] }
+  - match: { values.1: [ "2", "v2", 8 ] }
+
+---
+'LOAD_ALL does not return the old values in _unmapped_fields either':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM mapped-later-stored | SORT id | LIMIT 5'
+  - length: { columns: 4 }
+  - match: { columns.0.name: f }
+  - match: { columns.1.name: id }
+  - match: { columns.2.name: n }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { columns.3.type: _source }
+  # "other" was never mapped, and is the control: it is still discovered, but f and n are gone for the old document.
+  - match: { values.0: [ null, "1", null, { other: o1 } ] }
+  - match: { values.1: [ "v2", "2", 8, { other: o2 } ] }
+
+---
+'the old values are still in _source':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM mapped-later-stored METADATA _source | SORT id | KEEP id, _source | LIMIT 5'
+  - match: { values.0: [ "1", { id: "1", f: v1, n: 7, other: o1 } ] }
+  - match: { values.1: [ "2", { id: "2", f: v2, n: 8, other: o2 } ] }
+
+---
+'the same holds with synthetic source':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM mapped-later-synthetic | SORT id | KEEP id, f, n | LIMIT 5'
+  - match: { values.0: [ "1", null, null ] }
+  - match: { values.1: [ "2", "v2", 8 ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM mapped-later-synthetic | SORT id | LIMIT 5'
+  - match: { values.0: [ null, "1", null, { other: o1 } ] }
+  - match: { values.1: [ "v2", "2", 8, { other: o2 } ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM mapped-later-synthetic METADATA _source | SORT id | KEEP id, _source | LIMIT 5'
+  - match: { values.0: [ "1", { id: "1", f: v1, n: 7, other: o1 } ] }

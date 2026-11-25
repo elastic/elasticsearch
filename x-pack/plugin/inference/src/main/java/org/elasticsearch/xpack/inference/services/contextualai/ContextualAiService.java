@@ -21,8 +21,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -31,12 +30,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.action.ContextualAiActionCreator;
+import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -46,7 +45,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_ADDED;
 
 /**
@@ -90,56 +91,6 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
         return SUPPORTED_TASK_TYPES;
     }
 
-    @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            var model = retrieveModelCreatorFromMapOrThrow(
-                MODEL_CREATORS,
-                inferenceEntityId,
-                taskType,
-                NAME,
-                ConfigurationParseContext.REQUEST
-            ).createFromMaps(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettingsMap,
-                taskSettingsMap,
-                null,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
-
-            ServiceUtils.throwIfNotEmptyMap(config, NAME);
-            ServiceUtils.throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            ServiceUtils.throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
-    }
-
-    @Override
-    public ContextualAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            MODEL_CREATORS,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.REQUEST
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
     protected void doInfer(
         Model model,
         InferenceInputs inputs,
@@ -160,6 +111,18 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
     }
 
     @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof ContextualAiRerankModel contextualAiRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new ContextualAiActionCreator(getSender(), getServiceComponents());
+
+        var action = contextualAiRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -173,7 +136,7 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
     }
 
     @Override
-    protected boolean supportsChunkedInfer() {
+    public boolean supportsChunkedInfer() {
         return false;
     }
 

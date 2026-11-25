@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class IndexModeFieldMapper extends MetadataFieldMapper {
 
@@ -114,5 +116,11 @@ public class IndexModeFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
+        // No preParse/postParse override — nothing to port for the columnar path either.
+        return true;
     }
 }

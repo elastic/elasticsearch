@@ -15,13 +15,21 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
@@ -29,11 +37,15 @@ import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TopNPreFilter;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -41,13 +53,21 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
@@ -56,9 +76,13 @@ import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNPreFilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
@@ -70,7 +94,23 @@ import java.util.List;
 public class MapperUtils {
     private MapperUtils() {}
 
+    /**
+     * Records {@code logical}'s id on {@code physical} when the physical node does not already name an origin.
+     * 1:1 translations call this once; a node that already has an origin is left alone so a second stamp
+     * does not duplicate the id.
+     */
+    static <P extends PhysicalPlan> P stampOrigin(P physical, LogicalPlan logical) {
+        if (physical != null && logical != null && physical.planOrigin().isEmpty()) {
+            physical.withOrigin(logical.planId());
+        }
+        return physical;
+    }
+
     static PhysicalPlan mapLeaf(LeafPlan p) {
+        return stampOrigin(mapLeafUnstamped(p), p);
+    }
+
+    private static PhysicalPlan mapLeafUnstamped(LeafPlan p) {
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
         }
@@ -80,10 +120,28 @@ public class MapperUtils {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
         }
 
+        if (p instanceof EqlRelation eql) {
+            return new EqlSourceExec(
+                eql.source(),
+                eql.query(),
+                eql.indexPattern().indexPattern(),
+                eql.options(),
+                eql.mode(),
+                eql.output(),
+                eql.pushedLimit(),
+                eql.preResolvedFieldCaps(),
+                eql.requestFilter()
+            );
+        }
+
         return unsupported(p);
     }
 
     static PhysicalPlan mapUnary(UnaryPlan p, PhysicalPlan child) {
+        return stampOrigin(mapUnaryUnstamped(p, child), p);
+    }
+
+    private static PhysicalPlan mapUnaryUnstamped(UnaryPlan p, PhysicalPlan child) {
         if (p instanceof Filter f) {
             return new FilterExec(f.source(), child, f.condition());
         }
@@ -94,6 +152,25 @@ public class MapperUtils {
 
         if (p instanceof Eval eval) {
             return new EvalExec(eval.source(), child, eval.fields());
+        }
+
+        if (p instanceof PackDims pack) {
+            return new PackDimsExec(pack.source(), child, pack.dims(), pack.packed());
+        }
+
+        if (p instanceof UnpackDims unpack) {
+            return new UnpackDimsExec(unpack.source(), child, unpack.packed(), unpack.dims());
+        }
+
+        if (p instanceof InsertEmptyBuckets insertEmptyBuckets) {
+            return new InsertEmptyBucketsExec(
+                insertEmptyBuckets.source(),
+                child,
+                insertEmptyBuckets.buckets(),
+                insertEmptyBuckets.groups(),
+                insertEmptyBuckets.defaultValues(),
+                null
+            );
         }
 
         if (p instanceof Dissect dissect) {
@@ -111,7 +188,8 @@ public class MapperUtils {
                 rerank.inferenceId(),
                 rerank.queryText(),
                 rerank.rerankFields(),
-                rerank.scoreAttribute()
+                rerank.scoreAttribute(),
+                rerank.timeout()
             );
         }
 
@@ -122,7 +200,21 @@ public class MapperUtils {
                 completion.inferenceId(),
                 completion.prompt(),
                 completion.targetField(),
-                completion.taskSettings()
+                completion.taskSettings(),
+                completion.timeout()
+            );
+        }
+
+        if (p instanceof DenseVector denseVector) {
+            return new DenseVectorExec(
+                denseVector.source(),
+                child,
+                denseVector.inferenceId(),
+                denseVector.fields(),
+                denseVector.generatedAttributes(),
+                denseVector.timeout(),
+                denseVector.inputType(),
+                denseVector.endpointTaskType()
             );
         }
 
@@ -148,6 +240,49 @@ public class MapperUtils {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
         }
 
+        if (p instanceof NestedExpand expand) {
+            return new NestedExpandExec(expand.source(), child, expand.path(), expand.expanded(), expand.paths());
+        }
+
+        if (p instanceof Fetch fetch) {
+            return new FetchExec(
+                fetch.source(),
+                child,
+                fetch.doc(),
+                fetch.fetchedAttributes(),
+                fetch.indexPattern(),
+                fetch.originalIndices(),
+                null
+            );
+        }
+
+        if (p instanceof Highlight highlight) {
+            return new HighlightExec(
+                highlight.source(),
+                child,
+                highlight.prefix(),
+                highlight.query(),
+                highlight.fields(),
+                highlight.options(),
+                highlight.generatedAttributes(),
+                highlight.indexKey(),
+                highlight.fieldMappings()
+            );
+        }
+
+        if (p instanceof TimeSeriesCollapse collapse) {
+            return new TimeSeriesCollapseExec(
+                collapse.source(),
+                child,
+                collapse.value(),
+                collapse.step(),
+                collapse.dimensions(),
+                collapse.start(),
+                collapse.end(),
+                collapse.stepMillis()
+            );
+        }
+
         if (p instanceof ChangePoint changePoint) {
             return new ChangePointExec(
                 changePoint.source(),
@@ -155,7 +290,8 @@ public class MapperUtils {
                 changePoint.value(),
                 changePoint.key(),
                 changePoint.targetType(),
-                changePoint.targetPvalue()
+                changePoint.targetPvalue(),
+                changePoint.groupings()
             );
         }
 
@@ -165,6 +301,17 @@ public class MapperUtils {
 
         if (p instanceof Sample sample) {
             return new SampleExec(sample.source(), child, sample.probability());
+        }
+
+        if (p instanceof TopNPreFilter preFilter) {
+            return new TopNPreFilterExec(
+                preFilter.source(),
+                child,
+                preFilter.key(),
+                preFilter.limit(),
+                preFilter.asc(),
+                preFilter.nullsFirst()
+            );
         }
 
         if (p instanceof SparklineGenerateEmptyBuckets sparklineGenerateEmptyBuckets) {
@@ -200,6 +347,18 @@ public class MapperUtils {
             return new RegisteredDomainExec(rd.source(), child, rd.getInput(), rd.outputFieldNames(), rd.generatedAttributes());
         }
 
+        if (p instanceof IpLocation ip) {
+            return new IpLocationExec(
+                ip.source(),
+                child,
+                ip.getInput(),
+                ip.outputFieldNames(),
+                ip.generatedAttributes(),
+                ip.databaseFile(),
+                ip.firstOnly()
+            );
+        }
+
         if (p instanceof UserAgent ua) {
             return new UserAgentExec(
                 ua.source(),
@@ -224,7 +383,7 @@ public class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        return switch (aggregate) {
+        AggregateExec exec = switch (aggregate) {
             case TimeSeriesAggregate ts -> new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
@@ -233,9 +392,7 @@ public class MapperUtils {
                 aggMode,
                 intermediateAttributes,
                 null,
-                ts.timeBucket(),
-                ts.outputTimeBucket(),
-                ts.isCollapsed()
+                ts.timeBucket()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),
@@ -259,6 +416,11 @@ public class MapperUtils {
                 null
             );
         };
+        return stampOrigin(exec, aggregate);
+    }
+
+    static PhysicalPlan mapIntoWrite(Into into, PhysicalPlan child) {
+        return new IntoExec(into.source(), child, into.destination(), into.child().output(), into.output(), IntoExec.Mode.WRITE);
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

@@ -24,6 +24,7 @@ The following tools are available:
 * [*elasticsearch-croneval*](/reference/elasticsearch/command-line-tools/elasticsearch-croneval.md)
 * [*elasticsearch-keystore*](/reference/elasticsearch/command-line-tools/elasticsearch-keystore.md)
 * [*elasticsearch-node*](/reference/elasticsearch/command-line-tools/node-tool.md)
+* [*elasticsearch-plugin*](/reference/elasticsearch/command-line-tools/elasticsearch-plugin.md)
 * [*elasticsearch-reconfigure-node*](/reference/elasticsearch/command-line-tools/reconfigure-node.md)
 * [*elasticsearch-reset-password*](/reference/elasticsearch/command-line-tools/reset-password.md)
 * [*elasticsearch-saml-metadata*](/reference/elasticsearch/command-line-tools/saml-metadata.md)

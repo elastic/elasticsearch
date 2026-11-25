@@ -5079,7 +5079,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression fn = (Expression) convert;
             List<Expression> children = new ArrayList<>(fn.children());
             children.set(0, resolvedAttr);
-
+            for (int i = 1; i < children.size(); i++) {
+                // The conversion is serialized with the field, so the surrogates in its constant arguments have to be resolved too
+                children.set(i, children.get(i).transformUp(Expression.class, SubstituteSurrogateExpressions::rule));
+            }
             Expression e = ((Expression) convert).replaceChildren(children);
             if (e.children().size() > 1 && e.typeResolved().unresolved()) {
                 // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when

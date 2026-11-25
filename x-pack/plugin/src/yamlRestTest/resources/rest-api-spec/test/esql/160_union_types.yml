@@ -472,6 +472,15 @@ load two indices and convert keyword and text with a base:
         body:
           query: 'FROM base_union_* | EVAL l = TO_LONG(hex, COUNT(*))'
 
+  # The base can be any constant expression, including the ones that are rewritten before running
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM base_union_* METADATA _index | EVAL l = TO_LONG(hex, TO_INTEGER("16")) | KEEP _index, l | SORT _index'
+  - match: { values.0: ["base_union_keyword", 255] }
+  - match: { values.1: ["base_union_text", 16] }
 ---
 load two indices and convert keyword and text with a base, with unmapped fields:
   - requires:

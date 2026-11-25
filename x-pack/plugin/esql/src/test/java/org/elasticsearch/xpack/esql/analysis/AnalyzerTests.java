@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -4101,7 +4102,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "text");
         Map<String, Class<? extends Expression>> conversionClasses = Map.of("TO_LONG", ToLongBase.class, "TO_INTEGER", ToIntegerBase.class);
         for (Map.Entry<String, Class<? extends Expression>> function : conversionClasses.entrySet()) {
-            for (String base : List.of("16", "8 + 8")) {
+            for (String base : List.of("16", "8 + 8", "TO_INTEGER(\"16\")")) {
                 LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
                     .query("FROM foo, bar | EVAL x = " + function.getKey() + "(value, " + base + ")");
 
@@ -4122,6 +4123,10 @@ public class AnalyzerTests extends AnalyzerTestCase {
                     // The only attribute is the loaded field, the base is a constant that can be evaluated while loading.
                     assertThat(conversion.references(), hasSize(1));
                     assertTrue(conversion.children().get(1).foldable());
+                    // The conversion is serialized with the field, so there can't be surrogates left in the base
+                    conversion.children()
+                        .get(1)
+                        .forEachDown(Expression.class, e -> assertThat(e, not(instanceOf(OnlySurrogateExpression.class))));
                 }
             }
         }

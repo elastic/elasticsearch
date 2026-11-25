@@ -83,8 +83,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     @Nullable
     private final String datasetLabel;
     /**
-     * Optional hook fired from {@link #getOutput()} after a previous non-empty page has been
-     * returned, so LimitOperator can charge remaining before the ramp counts the page.
+     * Optional hook fired from {@link #getOutput()} or {@link #isBlocked()} after a previous
+     * non-empty page has been returned, so LimitOperator can charge remaining before the ramp
+     * counts the page. {@link #isBlocked()} covers a paused reader whose next {@code getOutput}
+     * never runs because the driver skips blocked sources.
      */
     @Nullable
     private final Runnable onPagePolled;
@@ -158,16 +160,20 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         this.onPagePolled = onPagePolled;
     }
 
+    private void notifyPendingPagePolled() {
+        if (pendingPagePolled) {
+            pendingPagePolled = false;
+            if (onPagePolled != null) {
+                onPagePolled.run();
+            }
+        }
+    }
+
     @Override
     public Page getOutput() {
         long startNanos = System.nanoTime();
         try {
-            if (pendingPagePolled) {
-                pendingPagePolled = false;
-                if (onPagePolled != null) {
-                    onPagePolled.run();
-                }
-            }
+            notifyPendingPagePolled();
             final var page = buffer.pollPage();
             if (page != null) {
                 if (pagesEmitted == 0) {
@@ -224,6 +230,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public IsBlockedResult isBlocked() {
+        // Driver checks isBlocked before getOutput. Count the last returned page here so a
+        // paused reader with an empty buffer still reports progress without waiting for page K+1.
+        notifyPendingPagePolled();
         if (isBlocked.listener().isDone()) {
             isBlocked = buffer.waitForReading();
             if (isBlocked.listener().isDone()) {

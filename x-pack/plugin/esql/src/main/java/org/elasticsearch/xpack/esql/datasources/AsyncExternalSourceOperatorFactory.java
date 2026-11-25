@@ -1791,7 +1791,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return;
         }
         try {
-            executor.execute(() -> dispatchParked(drain.toStart(), drain.toSkip()));
+            producerExecutor.execute(() -> dispatchParked(drain.toStart(), drain.toSkip()));
         } catch (Exception e) {
             dispatchParked(drain.toStart(), drain.toSkip());
         }

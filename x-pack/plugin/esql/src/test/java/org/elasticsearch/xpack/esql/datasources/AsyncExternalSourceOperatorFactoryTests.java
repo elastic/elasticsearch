@@ -6198,9 +6198,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            waitForBufferedPage(operators.get(0));
             observed.tryAccumulateHits(1);
-            pollQualifyingPages(operators.get(0), 2);
+            waitForBufferedPage(operators.get(0));
+            pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(readCount.get(), equalTo(1));
             finishHeldOpenOperators(operators, releaseUnits, done);
@@ -6238,8 +6238,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            waitForBufferedPage(operators.get(0));
             observed.tryAccumulateHits(1);
+            waitForBufferedPage(operators.get(0));
             pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(readCount.get(), equalTo(1));
@@ -6363,9 +6363,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            waitForBufferedPage(operators.get(0));
             observed.tryAccumulateHits(observed.remaining());
-            pollQualifyingPages(operators.get(0), progressPages);
+            waitForBufferedPage(operators.get(0));
+            pollQualifyingPages(operators.get(0), 1);
             Page sibling = operators.get(1).getOutput();
             if (sibling != null) {
                 sibling.releaseBlocks();
@@ -6573,7 +6573,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
         AtomicInteger readCount = new AtomicInteger();
         CountDownLatch entered = new CountDownLatch(drivers);
-        LatchedPageReader formatReader = new LatchedPageReader(readCount, entered, null, 1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        LatchedPageReader formatReader = new LatchedPageReader(readCount, entered, proceed, 1);
         ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "filtered-limit-noop"));
         try {
             AsyncExternalSourceOperatorFactory factory = limitBudgetFactory(formatReader, sliceQueue, pool, rowLimit, 10);
@@ -6592,12 +6593,14 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
             assertTrue(entered.await(30, TimeUnit.SECONDS));
             assertThat(readCount.get(), equalTo(drivers));
+            proceed.countDown();
             for (SourceOperator op : operators) {
                 drainRemaining(op);
                 op.close();
             }
             assertTrue(done.await(30, TimeUnit.SECONDS));
         } finally {
+            proceed.countDown();
             pool.shutdownNow();
             assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
         }

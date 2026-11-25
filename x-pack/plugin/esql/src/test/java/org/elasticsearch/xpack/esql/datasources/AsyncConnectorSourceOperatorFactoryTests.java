@@ -181,9 +181,9 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            waitForBufferedPage(operators.get(0));
             observed.tryAccumulateHits(1);
-            pollQualifyingPages(operators.get(0), 2);
+            waitForBufferedPage(operators.get(0));
+            pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(executeCount.get(), equalTo(1));
             finishHeldOpenOperators(operators, releaseUnits, done);
@@ -223,8 +223,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            waitForBufferedPage(operators.get(0));
             observed.tryAccumulateHits(1);
+            waitForBufferedPage(operators.get(0));
             pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(executeCount.get(), equalTo(1));

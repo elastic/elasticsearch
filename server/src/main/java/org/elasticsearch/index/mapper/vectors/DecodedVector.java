@@ -135,6 +135,19 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
      */
     public abstract String toBase64();
 
+    /**
+     * Encodes float components as base64 of four big-endian bytes each.
+     * The same layout accepted when decoding a float vector.
+     *
+     * @param floats the vector components
+     * @return base64-encoded string representation
+     */
+    public static String floatsToBase64(float[] floats) {
+        ByteBuffer buffer = ByteBuffer.allocate(floats.length * Float.BYTES).order(ByteOrder.BIG_ENDIAN);
+        buffer.asFloatBuffer().put(floats);
+        return Base64.getEncoder().encodeToString(buffer.array());
+    }
+
     /** A vector whose components are stored as one raw byte each. */
     static final class ByteVector extends DecodedVector {
         private final byte[] bytes;
@@ -232,9 +245,7 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
 
         @Override
         public String toBase64() {
-            ByteBuffer buffer = ByteBuffer.allocate(floats.length * Float.BYTES).order(ByteOrder.BIG_ENDIAN);
-            buffer.asFloatBuffer().put(floats);
-            return Base64.getEncoder().encodeToString(buffer.array());
+            return floatsToBase64(floats);
         }
     }
 

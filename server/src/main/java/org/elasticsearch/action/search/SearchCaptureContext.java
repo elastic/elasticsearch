@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Map;
 import java.util.Optional;
@@ -62,13 +63,14 @@ public class SearchCaptureContext extends QueryCaptureContext {
         this(task, namedWriteableRegistry, request, null, tookInNanos, error);
     }
 
+    /** The query rendered with {@code params}, which select how float vectors are written. */
     @Override
-    public String getQuery() {
+    public String getQuery(ToXContent.Params params) {
         var source = request.source();
         if (source == null) {
             return "{}";
         } else {
-            return source.toString(FORMAT_PARAMS);
+            return source.toString(params);
         }
     }
 

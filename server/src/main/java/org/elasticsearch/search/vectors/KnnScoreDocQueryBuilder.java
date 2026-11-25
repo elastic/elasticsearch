@@ -154,7 +154,7 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
             builder.field("field", fieldName);
         }
         if (queryVector != null) {
-            builder.field("query", queryVector);
+            builder.field("query", queryVector, params);
         }
         if (vectorSimilarity != null) {
             builder.field("similarity", vectorSimilarity);

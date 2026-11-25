@@ -208,7 +208,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     @Override
     public void doToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (queryBuilder != null) {
-            builder.field(QUERY_FIELD.getPreferredName(), queryBuilder);
+            builder.field(QUERY_FIELD.getPreferredName(), queryBuilder, params);
         }
 
         if (searchAfterBuilder != null) {
@@ -224,7 +224,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
         }
 
         if (collapseBuilder != null) {
-            builder.field(COLLAPSE_FIELD.getPreferredName(), collapseBuilder);
+            builder.field(COLLAPSE_FIELD.getPreferredName(), collapseBuilder, params);
         }
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xcontent.ToXContent;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -312,7 +313,7 @@ public class QueryInterceptorTests extends ESTestCase {
         }
 
         @Override
-        public String getQuery() {
+        public String getQuery(ToXContent.Params params) {
             return "";
         }
 

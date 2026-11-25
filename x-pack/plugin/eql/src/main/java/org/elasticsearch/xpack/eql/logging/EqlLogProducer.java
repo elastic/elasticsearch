@@ -11,18 +11,19 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Optional;
 
 public class EqlLogProducer implements ActivityLogProducer<EqlCaptureContext> {
 
     @Override
-    public Optional<ESLogMessage> produce(EqlCaptureContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(EqlCaptureContext context, ActionLoggingFields additionalFields, ToXContent.Params formatParams) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
-        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
+        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery(formatParams));
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
-        context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
+        context.getFilter(formatParams).ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
 
         var remotes = context.remoteClusterAliases();
         if (remotes.isEmpty() == false) {

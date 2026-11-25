@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.junit.Before;
 
 import java.util.Map;
@@ -40,7 +41,11 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     public void setup() {
         producer = new ActivityLogProducer<>() {
             @Override
-            public Optional<ESLogMessage> produce(QueryCaptureContext ctx, ActionLoggingFields additionalFields) {
+            public Optional<ESLogMessage> produce(
+                QueryCaptureContext ctx,
+                ActionLoggingFields additionalFields,
+                ToXContent.Params formatParams
+            ) {
                 return Optional.of(produceCommon(ctx, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields));
             }
 
@@ -86,7 +91,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     }
 
     public void testSuccess() {
-        ESLogMessage message = producer.produce(makeSuccessContext(), makeFields()).get();
+        ESLogMessage message = producer.produce(makeSuccessContext(), makeFields(), ToXContent.EMPTY_PARAMS).get();
 
         assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task"));
         assertThat(message.get(TRACE_ID_FIELD), equalTo("test_trace_id"));
@@ -105,7 +110,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     }
 
     public void testProduceCommonFailure() {
-        ESLogMessage message = producer.produce(makeFailContext(), makeFields()).get();
+        ESLogMessage message = producer.produce(makeFailContext(), makeFields(), ToXContent.EMPTY_PARAMS).get();
 
         assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task2"));
         assertThat(message.get(TRACE_ID_FIELD), equalTo("test_trace_id2"));

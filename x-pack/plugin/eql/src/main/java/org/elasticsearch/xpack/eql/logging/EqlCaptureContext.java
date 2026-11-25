@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
@@ -41,7 +42,7 @@ public class EqlCaptureContext extends QueryCaptureContext {
     }
 
     @Override
-    public String getQuery() {
+    public String getQuery(ToXContent.Params params) {
         return request.query();
     }
 

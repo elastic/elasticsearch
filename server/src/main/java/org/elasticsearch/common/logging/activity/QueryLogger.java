@@ -17,7 +17,11 @@ import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
+import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.search.vectors.VectorData.FloatFormat;
+import org.elasticsearch.xcontent.ToXContent;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -75,6 +79,26 @@ public class QueryLogger<Context extends QueryCaptureContext> extends QuerySink<
         Setting.Property.NodeScope
     );
 
+    // By default the vectors are not written
+    static final FloatFormat DEFAULT_FLOAT_FORMAT = FloatFormat.ELIDED;
+
+    /**
+     * How float vectors in logged queries are written: {@code elided} (an empty array, so the vector contents are not
+     * logged, the default), {@code array} (JSON numbers) or {@code base64} (compact).
+     */
+    public static final Setting<FloatFormat> QUERY_LOGGER_VECTOR_FORMAT = Setting.enumSetting(
+        FloatFormat.class,
+        QUERY_LOGGER_SETTINGS_PREFIX + "vector_format",
+        DEFAULT_FLOAT_FORMAT,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /** The params to serialize a query with, so that float vectors are written in {@code floatFormat}. */
+    static ToXContent.Params formatParams(FloatFormat floatFormat) {
+        return new ToXContent.MapParams(Map.of(VectorData.TOXCONTENT_FLOAT_VECTOR_FORMAT, floatFormat.paramValue()));
+    }
+
     private final ActivityLogProducer<Context> producer;
     private final ActivityLogWriter writer;
     private final ActionLoggingFields additionalFields;
@@ -84,6 +108,7 @@ public class QueryLogger<Context extends QueryCaptureContext> extends QuerySink<
     private volatile long threshold = -1;
     private volatile Level logLevel = Level.INFO;
     private volatile boolean logSystemSearches = false;
+    private volatile ToXContent.Params formatParams = formatParams(DEFAULT_FLOAT_FORMAT);
 
     public QueryLogger(
         ClusterSettings settings,
@@ -113,6 +138,7 @@ public class QueryLogger<Context extends QueryCaptureContext> extends QuerySink<
         settings.initializeAndWatch(QUERY_LOGGER_LEVEL, this::setLogLevel);
         settings.initializeAndWatch(QUERY_LOGGER_INCLUDE_USER, fieldsContext::setIncludeUserInformation);
         settings.initializeAndWatch(QUERY_LOGGER_LOG_SYSTEM, v -> logSystemSearches = v);
+        settings.initializeAndWatch(QUERY_LOGGER_VECTOR_FORMAT, v -> formatParams = formatParams(v));
     }
 
     private void setLogLevel(Level level) {
@@ -141,7 +167,7 @@ public class QueryLogger<Context extends QueryCaptureContext> extends QuerySink<
         if (threshold > 0 && context.getTookInNanos() < threshold) {
             return Optional.empty();
         }
-        Optional<ESLogMessage> event = producer.produce(context, additionalFields);
+        Optional<ESLogMessage> event = producer.produce(context, additionalFields, formatParams);
         if (isSystemSearch) {
             event.ifPresent(message -> message.field(QueryLogging.QUERY_FIELD_IS_SYSTEM, true));
         }

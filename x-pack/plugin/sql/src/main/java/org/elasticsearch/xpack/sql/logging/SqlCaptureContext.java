@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.logging;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
@@ -34,7 +35,7 @@ public class SqlCaptureContext extends QueryCaptureContext {
     }
 
     @Override
-    public String getQuery() {
+    public String getQuery(ToXContent.Params params) {
         return request.query();
     }
 

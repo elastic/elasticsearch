@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -33,7 +32,6 @@ import java.util.stream.Collectors;
  * extended by specific contexts for each search action.
  */
 public abstract class QueryCaptureContext {
-    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     private final long tookInNanos;
     private final String type;
@@ -116,7 +114,7 @@ public abstract class QueryCaptureContext {
     /**
      * Get query text.
      */
-    public abstract String getQuery();
+    public abstract String getQuery(ToXContent.Params params);
 
     /**
      * Number of results.
@@ -155,16 +153,16 @@ public abstract class QueryCaptureContext {
         return null;
     }
 
-    public Optional<String> getFilter() {
-        return filterToLogString(queryFilter());
+    public Optional<String> getFilter(ToXContent.Params params) {
+        return filterToLogString(queryFilter(), params);
     }
 
-    public static Optional<String> filterToLogString(QueryBuilder filter) {
+    public static Optional<String> filterToLogString(QueryBuilder filter, ToXContent.Params params) {
         if (filter == null) {
             return Optional.empty();
         }
         try {
-            return Optional.of(XContentHelper.toXContent(filter, XContentType.JSON, FORMAT_PARAMS, true).utf8ToString());
+            return Optional.of(XContentHelper.toXContent(filter, XContentType.JSON, params, true).utf8ToString());
         } catch (IOException e) {
             return Optional.empty();
         }

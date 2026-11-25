@@ -153,7 +153,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(RESCORE_QUERY_FIELD.getPreferredName(), queryBuilder);
+        builder.field(RESCORE_QUERY_FIELD.getPreferredName(), queryBuilder, params);
         builder.field(QUERY_WEIGHT_FIELD.getPreferredName(), queryWeight);
         builder.field(RESCORE_QUERY_WEIGHT_FIELD.getPreferredName(), rescoreQueryWeight);
         builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));

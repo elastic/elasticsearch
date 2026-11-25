@@ -415,10 +415,12 @@ public class SplitSourceServiceTests extends ESTestCase {
         IntConsumer assertMaxConcurrentHandoffs,
         boolean testCancel
     ) {
-        try (
-            var threadPool = new TestThreadPool(getTestName());
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettingsWithHandoffThrottle())
-        ) {
+        try (var threadPool = new TestThreadPool(getTestName()) {
+            @Override
+            public ExecutorService generic() {
+                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            }
+        }; ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettingsWithHandoffThrottle())) {
             var projectId = randomProjectIdOrDefault();
             int maxConcurrentHandoffs = Math.max(1, (int) (numShards * maxConcurrentHandoffPercentage / 100.0));
             assertMaxConcurrentHandoffs.accept(maxConcurrentHandoffs);

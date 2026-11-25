@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167564
+summary: Convert epoch_second/epoch_millis declared dates arithmetically
+type: bug

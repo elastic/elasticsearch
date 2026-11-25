@@ -117,6 +117,16 @@ public class IntoParserTests extends AbstractStatementParserTests {
         expectError("ROW a = 1 | INTO dst WITH {\"refresh\": true, \"REFRESH\": false}", "Duplicate option [refresh] in INTO");
     }
 
+    /**
+     * The map builder only remembers the names of entries with a literal value, so a name that first had a map as its value can come
+     * again. INTO checks the entries it is given, so that the invalid first value cannot be hidden by the second.
+     */
+    public void testOptionRepeatedAfterAMapValueRejected() {
+        String error = "Duplicate option [refresh] in INTO";
+        expectError("ROW a = 1 | INTO dst WITH {\"refresh\": {}, \"refresh\": false}", error);
+        expectError("ROW a = 1 | INTO dst WITH {\"refresh\": {\"x\": 1}, \"REFRESH\": true}", error);
+    }
+
     public void testExplainInto() {
         Explain explain = as(query("EXPLAIN (ROW a = 1 | INTO dst)"), Explain.class);
         assertThat(as(explain.query(), Into.class).destination(), equalTo("dst"));

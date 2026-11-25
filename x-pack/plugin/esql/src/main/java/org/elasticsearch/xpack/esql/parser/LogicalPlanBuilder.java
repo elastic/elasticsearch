@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -621,12 +622,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return IntoOptions.DEFAULT;
         }
         Map<String, Expression> optionExpressionsByName = new LinkedHashMap<>();
-        optionsExpression.keyFoldedMap().forEach((key, value) -> {
-            String name = key.toLowerCase(Locale.ROOT);
-            if (optionExpressionsByName.put(name, value) != null) {
-                throw new ParsingException(value.source(), "Duplicate option [{}] in INTO", name);
+        // The entries, not the folded map: it keeps only the last value of a name, which would hide an invalid one before it
+        for (EntryExpression entry : optionsExpression.entryExpressions()) {
+            if (entry.key() instanceof Literal key) {
+                String name = BytesRefs.toString(key.value()).toLowerCase(Locale.ROOT);
+                if (optionExpressionsByName.put(name, entry.value()) != null) {
+                    throw new ParsingException(entry.value().source(), "Duplicate option [{}] in INTO", name);
+                }
+            } else {
+                throw new ParsingException(entry.key().source(), "Option names must be literals in INTO");
             }
-        });
+        }
 
         boolean refresh = IntoOptions.DEFAULT.refresh();
         Expression refreshExpr = optionExpressionsByName.remove("refresh");

@@ -77,7 +77,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String FUNCTION_CALLING_CONFIG = "functionCallingConfig";
     private static final String TOOL_MODE = "mode";
     private static final String TOOL_MODE_ANY = "ANY";
-    private static final String TOOL_MODE_AUTO = "auto";
+    private static final String TOOL_MODE_NONE = "NONE";
+    private static final String TOOL_CHOICE_AUTO = "auto";
+    private static final String TOOL_CHOICE_NONE = "none";
+    private static final String TOOL_CHOICE_REQUIRED = "required";
     private static final String ALLOWED_FUNCTION_NAMES = "allowedFunctionNames";
 
     private static final String FUNCTION_CALL = "functionCall";
@@ -532,17 +535,29 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             toolChoice = toolChoiceObject;
         } else if (request.toolChoice() instanceof ToolChoiceString) {
             ToolChoiceString toolChoiceString = (ToolChoiceString) request.toolChoice();
-            if (toolChoiceString.value().equals(TOOL_MODE_AUTO)) {
-                return;
+            switch (toolChoiceString.value()) {
+                case TOOL_CHOICE_AUTO -> {
+                    return;
+                }
+                case TOOL_CHOICE_REQUIRED -> {
+                    writeToolMode(builder, TOOL_MODE_ANY);
+                    return;
+                }
+                case TOOL_CHOICE_NONE -> {
+                    writeToolMode(builder, TOOL_MODE_NONE);
+                    return;
+                }
+                default -> throw new ElasticsearchStatusException(
+                    format(
+                        "Tool choice value [%s] not supported by Google VertexAI ChatCompletion. Supported values: [%s, %s, %s]",
+                        toolChoiceString.value(),
+                        TOOL_CHOICE_AUTO,
+                        TOOL_CHOICE_NONE,
+                        TOOL_CHOICE_REQUIRED
+                    ),
+                    RestStatus.BAD_REQUEST
+                );
             }
-            throw new ElasticsearchStatusException(
-                format(
-                    "Tool choice value [%s] not supported by Google VertexAI ChatCompletion. Supported values: [%s]",
-                    toolChoiceString.value(),
-                    TOOL_MODE_AUTO
-                ),
-                RestStatus.BAD_REQUEST
-            );
         } else {
             return;
         }
@@ -569,9 +584,18 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                 builder.endArray();
             }
 
-            builder.endObject();
-            builder.endObject();
         }
+
+        builder.endObject();
+        builder.endObject();
+    }
+
+    private static void writeToolMode(XContentBuilder builder, String mode) throws IOException {
+        builder.startObject(TOOL_CONFIG);
+        builder.startObject(FUNCTION_CALLING_CONFIG);
+        builder.field(TOOL_MODE, mode);
+        builder.endObject();
+        builder.endObject();
     }
 
     private void buildGenerationConfig(XContentBuilder builder) throws IOException {

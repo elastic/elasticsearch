@@ -467,7 +467,7 @@ public record StatelessCompoundCommit(
 
                 Map<String, BlobLocation> referencedBlobLocations = input.readMap(
                     StreamInput::readString,
-                    (is) -> BlobLocation.readFromStore(is, version == VERSION_WITH_BLOB_LENGTH)
+                    (is) -> readLegacyBlobLocationFromStore(is, version == VERSION_WITH_BLOB_LENGTH)
                 );
                 List<InternalFile> internalFiles = input.readCollectionAsList(InternalFile::new);
                 long headerSize = input.readLong();
@@ -610,6 +610,25 @@ public record StatelessCompoundCommit(
                 c.extraContent,
                 c.timestampFieldValueRange
             );
+        }
+    }
+
+    /**
+     * Reads a {@link BlobLocation} from the header of a compound commit written before xcontent encoding. Ancient commits (before
+     * {@link #VERSION_WITH_XCONTENT_ENCODING}) can still contain the length of the blob.
+     */
+    static BlobLocation readLegacyBlobLocationFromStore(StreamInput in, boolean includesBlobLength) throws IOException {
+        long primaryTerm = in.readVLong();
+        String blobName = in.readString();
+        if (includesBlobLength) {
+            in.readVLong(); // ignore blobLength
+        }
+        long offset = in.readVLong();
+        long length = in.readVLong();
+        try {
+            return new BlobLocation(new BccBlob(blobName, primaryTerm), offset, length);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("malformed blob name [" + blobName + ']', e);
         }
     }
 

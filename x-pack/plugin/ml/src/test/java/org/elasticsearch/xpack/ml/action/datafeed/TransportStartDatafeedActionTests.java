@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
@@ -68,7 +67,6 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -321,11 +319,17 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         verifyNoInteractions(validator);
     }
 
-    public void testMasterOperationGivenEsqlRemoteSourcesOnNodeWithoutRemoteClusterClientShouldRejectStart() {
+    public void testMasterOperationGivenEsqlProbeFailureOnNodeWithoutRemoteClusterClientShouldPropagateItWithoutCreatingTask() {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
+        // ES|QL rejects a query with a cluster prefix on a node without remote_cluster_client, so the probe fails before it can list
+        // sources.
+        ElasticsearchStatusException probeFailure = new ElasticsearchStatusException(
+            "node [master-1] does not have the remote_cluster_client role",
+            RestStatus.BAD_REQUEST
+        );
         doAnswer(invocation -> {
-            invocation.<ActionListener<List<String>>>getArgument(6).onResponse(List.of("east:logs-*"));
+            invocation.<ActionListener<List<String>>>getArgument(6).onFailure(probeFailure);
             return null;
         }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -376,19 +380,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             ActionTestUtils.assertNoSuccessListener(failure::set)
         );
 
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(
-            failure.get().getMessage(),
-            equalTo(
-                Messages.getMessage(
-                    Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
-                    "esql-datafeed",
-                    List.of("east:logs-*"),
-                    clusterService.getNodeName()
-                )
-            )
-        );
+        assertThat(failure.get(), sameInstance(probeFailure));
         verifyNoInteractions(persistentTasksService);
     }
 

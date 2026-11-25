@@ -47,6 +47,11 @@ teardown:
         force: true
         ignore: 404
   - do:
+      ml.delete_datafeed:
+        datafeed_id: esql-ccs-preview-feed
+        force: true
+        ignore: 404
+  - do:
       ml.delete_job:
         job_id: esql-ccs-job
         force: true
@@ -88,6 +93,29 @@ teardown:
       ml.close_job:
         job_id: esql-ccs-job
         force: true
+
+---
+"Test preview ES|QL datafeed returns the rows of a remote cluster index":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: esql-ccs-preview-feed
+        body: >
+          {
+            "job_id": "esql-ccs-job",
+            "esql_query": "FROM my_remote_cluster:remote_test_index | KEEP date, user",
+            "source_time_field": "date",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+
+  - do:
+      ml.preview_datafeed:
+        datafeed_id: esql-ccs-preview-feed
+        start: "2018-10-29T12:00:00Z"
+        end: "2018-10-29T13:00:00Z"
+  - length: { $body: 9 }
+  - is_true: 0.date
+  - is_true: 0.user
 
 ---
 "Test put and start ES|QL datafeed on a wildcard remote cluster index":

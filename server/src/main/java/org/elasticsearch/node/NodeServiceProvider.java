@@ -15,11 +15,10 @@ import org.elasticsearch.cluster.CacheSizesAndCommitmentCollector;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.NodeSearchCapacityCollector;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.PartitionSizeCollector;
-import org.elasticsearch.cluster.SearchCopyDemandCollector;
 import org.elasticsearch.cluster.SearchLaneRequirementsCollector;
+import org.elasticsearch.cluster.SearchLoadMetricsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -122,13 +121,9 @@ class NodeServiceProvider {
             SearchLaneRequirementsCollector.class,
             () -> SearchLaneRequirementsCollector.EMPTY
         );
-        final SearchCopyDemandCollector searchCopyDemandCollector = pluginsService.loadSingletonServiceProvider(
-            SearchCopyDemandCollector.class,
-            () -> SearchCopyDemandCollector.EMPTY
-        );
-        final NodeSearchCapacityCollector nodeSearchCapacityCollector = pluginsService.loadSingletonServiceProvider(
-            NodeSearchCapacityCollector.class,
-            () -> NodeSearchCapacityCollector.EMPTY
+        final SearchLoadMetricsCollector searchLoadMetricsCollector = pluginsService.loadSingletonServiceProvider(
+            SearchLoadMetricsCollector.class,
+            () -> SearchLoadMetricsCollector.EMPTY
         );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
@@ -141,8 +136,7 @@ class NodeServiceProvider {
             partitionSizeCollector,
             new NodeUsageStatsForThreadPoolsCollector(),
             searchLaneRequirementsCollector,
-            searchCopyDemandCollector,
-            nodeSearchCapacityCollector
+            searchLoadMetricsCollector
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)

@@ -118,8 +118,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final PartitionSizeCollector partitionSizeCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
     private final SearchLaneRequirementsCollector searchLaneRequirementsCollector;
-    private final SearchCopyDemandCollector searchCopyDemandCollector;
-    private final NodeSearchCapacityCollector nodeSearchCapacityCollector;
+    private final SearchLoadMetricsCollector searchLoadMetricsCollector;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     private AsyncRefresh currentRefresh;
@@ -139,8 +138,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         PartitionSizeCollector partitionSizeCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector,
         SearchLaneRequirementsCollector searchLaneRequirementsCollector,
-        SearchCopyDemandCollector searchCopyDemandCollector,
-        NodeSearchCapacityCollector nodeSearchCapacityCollector
+        SearchLoadMetricsCollector searchLoadMetricsCollector
     ) {
         this.threadPool = threadPool;
         this.client = client;
@@ -149,8 +147,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.partitionSizeCollector = partitionSizeCollector;
         this.nodeUsageStatsForThreadPoolsCollector = nodeUsageStatsForThreadPoolsCollector;
         this.searchLaneRequirementsCollector = searchLaneRequirementsCollector;
-        this.searchCopyDemandCollector = searchCopyDemandCollector;
-        this.nodeSearchCapacityCollector = nodeSearchCapacityCollector;
+        this.searchLoadMetricsCollector = searchLoadMetricsCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -262,8 +259,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 fetchCacheUsageAndCommitments();
                 fetchPartitionSizes();
                 fetchSearchLaneRequirements();
-                fetchSearchCopyDemands();
-                fetchNodeSearchCapacities();
+                fetchSearchLoadMetrics();
             }
         }
 
@@ -373,44 +369,24 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void fetchSearchCopyDemands() {
+        private void fetchSearchLoadMetrics() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                final ActionListener<Map<ClusterInfo.NodeAndShard, SearchCopyDemand>> listener = ActionListener.releaseAfter(
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands) {
-                            searchCopyDemands = demands;
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("failed to fetch search copy demands", e);
-                            searchCopyDemands = Map.of();
-                        }
-                    },
-                    fetchRefs.acquire()
-                );
-                // A throw before the collector notifies its listener must still release the refresh reference.
-                ActionListener.run(listener, l -> searchCopyDemandCollector.collectSearchCopyDemands(clusterStateSupplier.get(), l));
-            }
-        }
-
-        private void fetchNodeSearchCapacities() {
-            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                final ActionListener<Map<String, NodeSearchCapacity>> listener = ActionListener.releaseAfter(new ActionListener<>() {
+                final ActionListener<SearchLoadMetrics> listener = ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
-                    public void onResponse(Map<String, NodeSearchCapacity> capacities) {
-                        nodeSearchCapacities = capacities;
+                    public void onResponse(SearchLoadMetrics searchLoadMetrics) {
+                        searchCopyDemands = searchLoadMetrics.searchCopyDemands();
+                        nodeSearchCapacities = searchLoadMetrics.nodeSearchCapacities();
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("failed to fetch node search capacities", e);
+                        logger.warn("failed to fetch search load metrics", e);
+                        searchCopyDemands = Map.of();
                         nodeSearchCapacities = Map.of();
                     }
                 }, fetchRefs.acquire());
                 // A throw before the collector notifies its listener must still release the refresh reference.
-                ActionListener.run(listener, l -> nodeSearchCapacityCollector.collectNodeSearchCapacities(clusterStateSupplier.get(), l));
+                ActionListener.run(listener, l -> searchLoadMetricsCollector.collectSearchLoadMetrics(clusterStateSupplier.get(), l));
             }
         }
 

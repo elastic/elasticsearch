@@ -10,25 +10,22 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
-
-import java.util.Map;
 
 /**
- * Collects per-copy search demand for {@link ClusterInfo}. A copy absent from the returned map has no measurement.
+ * Collects per-copy search demand and per-node search capacity for {@link ClusterInfo}.
  */
-public interface SearchCopyDemandCollector {
+public interface SearchLoadMetricsCollector {
 
     /**
-     * Used when no search-copy demand collector is available, so no copy has a measurement.
+     * Used when no search load metrics collector is available.
      */
-    SearchCopyDemandCollector EMPTY = (clusterState, listener) -> listener.onResponse(Map.of());
+    SearchLoadMetricsCollector EMPTY = (clusterState, listener) -> listener.onResponse(SearchLoadMetrics.EMPTY);
 
     /**
-     * Collects per-copy search demand, keyed by the node and shard the copy is on.
+     * Collects per-copy search demand and per-node search capacity from one cluster state snapshot.
      *
      * @param clusterState The cluster state snapshot for this collection.
      * @param listener The listener which will receive the results.
      */
-    void collectSearchCopyDemands(ClusterState clusterState, ActionListener<Map<NodeAndShard, SearchCopyDemand>> listener);
+    void collectSearchLoadMetrics(ClusterState clusterState, ActionListener<SearchLoadMetrics> listener);
 }

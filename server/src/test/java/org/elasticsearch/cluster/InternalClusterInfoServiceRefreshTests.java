@@ -302,60 +302,23 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         }
     }
 
-    public void testSearchCopyDemandCollectorSuccessAndFailure() {
+    public void testSearchLoadMetricsCollectorSuccessAndFailure() {
         try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
             final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));
             final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = Map.of(nodeAndShard, new SearchCopyDemand(1.25d, 3.0d));
-            final AtomicBoolean failDemands = new AtomicBoolean();
-            final SearchCopyDemandCollector searchCopyDemandCollector = mock(SearchCopyDemandCollector.class);
-            doAnswer(invocation -> {
-                final ActionListener<Map<ClusterInfo.NodeAndShard, SearchCopyDemand>> listener = invocation.getArgument(1);
-                if (failDemands.get()) {
-                    listener.onFailure(new IllegalStateException("simulated search copy demand failure"));
-                } else {
-                    listener.onResponse(demands);
-                }
-                return null;
-            }).when(searchCopyDemandCollector).collectSearchCopyDemands(any(), any());
-
-            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
-                EstimatedHeapUsageCollector.EMPTY,
-                CacheSizesAndCommitmentCollector.EMPTY,
-                PartitionSizeCollector.EMPTY,
-                SearchLaneRequirementsCollector.EMPTY,
-                searchCopyDemandCollector,
-                NodeSearchCapacityCollector.EMPTY
-            );
-
-            // Success populates the ClusterInfo
-            ClusterInfo clusterInfo = refresh(clusterInfoService);
-            verify(searchCopyDemandCollector).collectSearchCopyDemands(any(), any());
-            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(demands));
-
-            // Failure returns an empty map
-            Mockito.clearInvocations(searchCopyDemandCollector);
-            failDemands.set(true);
-            clusterInfo = refresh(clusterInfoService);
-            verify(searchCopyDemandCollector).collectSearchCopyDemands(any(), any());
-            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(Map.of()));
-        }
-    }
-
-    public void testNodeSearchCapacityCollectorSuccessAndFailure() {
-        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
             final Map<String, NodeSearchCapacity> capacities = Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
-            final AtomicBoolean failCapacities = new AtomicBoolean();
-            final NodeSearchCapacityCollector nodeSearchCapacityCollector = mock(NodeSearchCapacityCollector.class);
+            final SearchLoadMetrics searchLoadMetrics = new SearchLoadMetrics(demands, capacities);
+            final AtomicBoolean failSearchLoadMetrics = new AtomicBoolean();
+            final SearchLoadMetricsCollector searchLoadMetricsCollector = mock(SearchLoadMetricsCollector.class);
             doAnswer(invocation -> {
-                final ActionListener<Map<String, NodeSearchCapacity>> listener = invocation.getArgument(1);
-                if (failCapacities.get()) {
-                    listener.onFailure(new IllegalStateException("simulated node search capacity failure"));
+                final ActionListener<SearchLoadMetrics> listener = invocation.getArgument(1);
+                if (failSearchLoadMetrics.get()) {
+                    listener.onFailure(new IllegalStateException("simulated search load metrics failure"));
                 } else {
-                    listener.onResponse(capacities);
+                    listener.onResponse(searchLoadMetrics);
                 }
                 return null;
-            }).when(nodeSearchCapacityCollector).collectNodeSearchCapacities(any(), any());
+            }).when(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
                 nodeStatsClient(context.threadPool()),
@@ -363,32 +326,34 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 CacheSizesAndCommitmentCollector.EMPTY,
                 PartitionSizeCollector.EMPTY,
                 SearchLaneRequirementsCollector.EMPTY,
-                SearchCopyDemandCollector.EMPTY,
-                nodeSearchCapacityCollector
+                searchLoadMetricsCollector
             );
 
-            // Success populates the ClusterInfo
+            // Success populates both ClusterInfo maps from the one snapshot.
             ClusterInfo clusterInfo = refresh(clusterInfoService);
-            verify(nodeSearchCapacityCollector).collectNodeSearchCapacities(any(), any());
+            verify(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
+            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(demands));
             assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(capacities));
 
-            // Failure returns an empty map
-            Mockito.clearInvocations(nodeSearchCapacityCollector);
-            failCapacities.set(true);
+            // Failure clears both maps.
+            Mockito.clearInvocations(searchLoadMetricsCollector);
+            failSearchLoadMetrics.set(true);
             clusterInfo = refresh(clusterInfoService);
-            verify(nodeSearchCapacityCollector).collectNodeSearchCapacities(any(), any());
+            verify(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
+            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(Map.of()));
             assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(Map.of()));
         }
     }
 
-    public void testSearchCopyDemandCollectorReleasesRefreshAfterThrow() {
+    public void testSearchLoadMetricsCollectorReleasesRefreshAfterThrow() {
         try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
             final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));
             final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = Map.of(nodeAndShard, new SearchCopyDemand(1.25d, 3.0d));
-            final SearchCopyDemandCollector searchCopyDemandCollector = mock(SearchCopyDemandCollector.class);
-            doAnswer(invocation -> { throw new IllegalStateException("simulated search copy demand failure"); }).when(
-                searchCopyDemandCollector
-            ).collectSearchCopyDemands(any(), any());
+            final Map<String, NodeSearchCapacity> capacities = Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
+            final SearchLoadMetricsCollector searchLoadMetricsCollector = mock(SearchLoadMetricsCollector.class);
+            doAnswer(invocation -> { throw new IllegalStateException("simulated search load metrics failure"); }).when(
+                searchLoadMetricsCollector
+            ).collectSearchLoadMetrics(any(), any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
                 nodeStatsClient(context.threadPool()),
@@ -396,54 +361,22 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 CacheSizesAndCommitmentCollector.EMPTY,
                 PartitionSizeCollector.EMPTY,
                 SearchLaneRequirementsCollector.EMPTY,
-                searchCopyDemandCollector,
-                NodeSearchCapacityCollector.EMPTY
+                searchLoadMetricsCollector
             );
 
-            // A throw before the listener still finishes this refresh with an empty map.
+            // A throw before the listener still finishes this refresh with empty maps.
             ClusterInfo clusterInfo = refresh(clusterInfoService);
             assertThat(clusterInfo.getSearchCopyDemands(), equalTo(Map.of()));
-
-            // A later refresh still runs.
-            doAnswer(invocation -> {
-                final ActionListener<Map<ClusterInfo.NodeAndShard, SearchCopyDemand>> listener = invocation.getArgument(1);
-                listener.onResponse(demands);
-                return null;
-            }).when(searchCopyDemandCollector).collectSearchCopyDemands(any(), any());
-            clusterInfo = refresh(clusterInfoService);
-            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(demands));
-        }
-    }
-
-    public void testNodeSearchCapacityCollectorReleasesRefreshAfterThrow() {
-        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
-            final Map<String, NodeSearchCapacity> capacities = Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
-            final NodeSearchCapacityCollector nodeSearchCapacityCollector = mock(NodeSearchCapacityCollector.class);
-            doAnswer(invocation -> { throw new IllegalStateException("simulated node search capacity failure"); }).when(
-                nodeSearchCapacityCollector
-            ).collectNodeSearchCapacities(any(), any());
-
-            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
-                EstimatedHeapUsageCollector.EMPTY,
-                CacheSizesAndCommitmentCollector.EMPTY,
-                PartitionSizeCollector.EMPTY,
-                SearchLaneRequirementsCollector.EMPTY,
-                SearchCopyDemandCollector.EMPTY,
-                nodeSearchCapacityCollector
-            );
-
-            // A throw before the listener still finishes this refresh with an empty map.
-            ClusterInfo clusterInfo = refresh(clusterInfoService);
             assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(Map.of()));
 
             // A later refresh still runs.
             doAnswer(invocation -> {
-                final ActionListener<Map<String, NodeSearchCapacity>> listener = invocation.getArgument(1);
-                listener.onResponse(capacities);
+                final ActionListener<SearchLoadMetrics> listener = invocation.getArgument(1);
+                listener.onResponse(new SearchLoadMetrics(demands, capacities));
                 return null;
-            }).when(nodeSearchCapacityCollector).collectNodeSearchCapacities(any(), any());
+            }).when(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
             clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(demands));
             assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(capacities));
         }
     }
@@ -522,8 +455,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 cacheSizesAndCommitmentCollector,
                 partitionSizeCollector,
                 searchLaneRequirementsCollector,
-                SearchCopyDemandCollector.EMPTY,
-                NodeSearchCapacityCollector.EMPTY
+                SearchLoadMetricsCollector.EMPTY
             );
         }
 
@@ -533,8 +465,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
             PartitionSizeCollector partitionSizeCollector,
             SearchLaneRequirementsCollector searchLaneRequirementsCollector,
-            SearchCopyDemandCollector searchCopyDemandCollector,
-            NodeSearchCapacityCollector nodeSearchCapacityCollector
+            SearchLoadMetricsCollector searchLoadMetricsCollector
         ) {
             final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
                 settings,
@@ -547,8 +478,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 partitionSizeCollector,
                 NodeUsageStatsForThreadPoolsCollector.EMPTY,
                 searchLaneRequirementsCollector,
-                searchCopyDemandCollector,
-                nodeSearchCapacityCollector
+                searchLoadMetricsCollector
             );
             // Refresh is a no-op if there are no listeners, and AsyncRefresh asserts that at least one listener is notified.
             clusterInfoService.addListener(ignored -> {});

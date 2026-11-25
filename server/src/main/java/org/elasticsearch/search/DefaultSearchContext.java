@@ -869,7 +869,19 @@ final class DefaultSearchContext extends SearchContext {
         if (rewriteQuery instanceof MatchAllDocsQuery == false || this.searchAfter() != null || this.size == 0) {
             return;
         }
+        // The tail skips documents before the first hit. That is wrong if the collector filters or counts hits, or if a scroll
+        // page only accepts documents after the last one it returned.
+        if (parsedPostFilter() != null
+            || minimumScore() != null
+            || terminateAfter() != DEFAULT_TERMINATE_AFTER
+            || scrollContext() != null) {
+            return;
+        }
         if (indexService.getIndexSettings().getIndexSortConfig().containsDescendingTimestampSort() == false) {
+            return;
+        }
+        // Only the data stream timestamp mapper makes sure that every document has exactly one @timestamp value
+        if (indexService.mapperService().mappingLookup().isDataStreamTimestampFieldEnabled() == false) {
             return;
         }
         SortAndFormats sort = sort();

@@ -195,7 +195,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
             }
         }
 
-        void setScorer(Scorable scorer) throws IOException {}
+        protected void setScorer(Scorable scorer) throws IOException {}
 
         protected abstract int docCount();
 
@@ -332,7 +332,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         }
 
         @Override
-        void setScorer(Scorable scorer) throws IOException {
+        protected void setScorer(Scorable scorer) throws IOException {
             if (iteratorCost == -1) {
                 if (scorer instanceof Scorer) {
                     iteratorCost = ((Scorer) scorer).iterator().cost(); // starting iterator cost is the scorer's cost
@@ -464,7 +464,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         }
 
         @Override
-        void setScorer(Scorable scorer) throws IOException {
+        protected void setScorer(Scorable scorer) throws IOException {
             updateCompetitiveIterator();
         }
 

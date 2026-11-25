@@ -1,0 +1,96 @@
+---
+"Ascending sort on a runtime @timestamp on an index sorted by descending @timestamp":
+  # A match-all query sorted by @timestamp ascending can read only the end of each segment, because the index sort puts the
+  # smallest timestamps there. A runtime field that shadows @timestamp has other values, so its smallest values can be anywhere.
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.sort.field: "@timestamp"
+            index.sort.order: desc
+          mappings:
+            # Like a backing index of a data stream, so the search can use the tail
+            _data_stream_timestamp:
+              enabled: true
+            properties:
+              "@timestamp":
+                type: date
+                format: epoch_millis
+              rank:
+                type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"@timestamp": 1, "rank": 9}'
+          - '{"index": {"_id": "2"}}'
+          - '{"@timestamp": 2, "rank": 8}'
+          - '{"index": {"_id": "3"}}'
+          - '{"@timestamp": 3, "rank": 7}'
+          - '{"index": {"_id": "4"}}'
+          - '{"@timestamp": 4, "rank": 6}'
+          - '{"index": {"_id": "5"}}'
+          - '{"@timestamp": 5, "rank": 5}'
+          - '{"index": {"_id": "6"}}'
+          - '{"@timestamp": 6, "rank": 4}'
+          - '{"index": {"_id": "7"}}'
+          - '{"@timestamp": 7, "rank": 3}'
+          - '{"index": {"_id": "8"}}'
+          - '{"@timestamp": 8, "rank": 2}'
+          - '{"index": {"_id": "9"}}'
+          - '{"@timestamp": 9, "rank": 1}'
+          - '{"index": {"_id": "10"}}'
+          - '{"@timestamp": 10, "rank": 0}'
+          - '{"index": {"_id": "11"}}'
+          - '{"@timestamp": 11, "rank": 1}'
+          - '{"index": {"_id": "12"}}'
+          - '{"@timestamp": 12, "rank": 2}'
+          - '{"index": {"_id": "13"}}'
+          - '{"@timestamp": 13, "rank": 3}'
+          - '{"index": {"_id": "14"}}'
+          - '{"@timestamp": 14, "rank": 4}'
+          - '{"index": {"_id": "15"}}'
+          - '{"@timestamp": 15, "rank": 5}'
+          - '{"index": {"_id": "16"}}'
+          - '{"@timestamp": 16, "rank": 6}'
+          - '{"index": {"_id": "17"}}'
+          - '{"@timestamp": 17, "rank": 7}'
+          - '{"index": {"_id": "18"}}'
+          - '{"@timestamp": 18, "rank": 8}'
+          - '{"index": {"_id": "19"}}'
+          - '{"@timestamp": 19, "rank": 9}'
+          - '{"index": {"_id": "20"}}'
+          - '{"@timestamp": 20, "rank": 10}'
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  # The smallest ranks are in the middle of the segment
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_all: {}
+          runtime_mappings:
+            "@timestamp":
+              type: long
+              script:
+                source: "emit(doc['rank'].value)"
+          sort:
+            - "@timestamp": asc
+          size: 2
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "10" }
+  - match: { hits.hits.0.sort.0: 0 }
+  - match: { hits.hits.1._id: "11" }
+  - match: { hits.hits.1.sort.0: 1 }

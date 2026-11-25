@@ -120,7 +120,6 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
         final var indices = createIndices();
         waitForGreenAndBalanced();
 
-        // Concurrent maps so that the searcher can read them while the indexer writes to them.
         final Map<String, Long> acked = new ConcurrentHashMap<>();
         final Map<String, Long> attempted = new ConcurrentHashMap<>();
         final var indexer = new Indexer(indices, acked, attempted, new Random(randomLong()));
@@ -180,17 +179,32 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
             }
             case CLOSE_AND_REOPEN -> {
                 final var subset = randomSubsetOf(between(1, Math.min(5, indices.size())), indices);
-                final var indexPattern = String.join(",", subset);
-                closeIndex(indexPattern);
-                openIndex(indexPattern);
+                closeIndices(subset);
+                openIndices(subset);
             }
             case RESTART_DATA_NODE -> {
                 final var nodeName = randomFrom(DATA_NODE_NAMES);
                 final boolean forcibly = randomBoolean();
                 logger.info("--> restarting node [{}], forcibly [{}]", nodeName, forcibly);
-                cluster.restartNodeInPlace(DATA_NODE_NAMES.indexOf(nodeName), forcibly);
+                restartNodeInPlace(nodeName, forcibly);
             }
         }
+    }
+
+    private static void restartNodeInPlace(String nodeName, boolean forcibly) {
+        try {
+            cluster.restartNodeInPlace(DATA_NODE_NAMES.indexOf(nodeName), forcibly);
+        } catch (RuntimeException e) {
+            throw new AssertionError("cluster did not become ready after restarting node [" + nodeName + "]" + clusterDiagnostics(), e);
+        }
+    }
+
+    private static void closeIndices(List<String> indices) throws IOException {
+        assertAcknowledged(client().performRequest(new Request("POST", "/" + String.join(",", indices) + "/_close")));
+    }
+
+    private static void openIndices(List<String> indices) throws IOException {
+        assertAcknowledged(client().performRequest(new Request("POST", "/" + String.join(",", indices) + "/_open")));
     }
 
     private void relocateOffNode(String nodeSpecName) throws IOException {
@@ -210,7 +224,7 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
         final List<String> matchingNames = new ArrayList<>();
         for (final var node : entityAsList(client().performRequest(request))) {
             final String name = ObjectPath.evaluate(node, "name");
-            if (name.contains(nodeSpecName)) {
+            if (name.startsWith(nodeSpecName + "-")) {
                 matchingNames.add(name);
             }
         }
@@ -378,6 +392,9 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
                     if (failedItems > 0) {
                         logger.info("--> [{}/{}] bulk items to [{}] failed, first error: {}", failedItems, numItems, indexName, firstError);
                     }
+                } catch (ResponseException e) {
+                    failedBulks++;
+                    logger.info("--> bulk request to [{}] failed: {}", indexName, e.getMessage());
                 } catch (IOException e) {
                     failedBulks++;
                     logger.info("--> bulk request to [{}] failed", indexName, e);
@@ -445,6 +462,9 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
                             response.evaluate("_shards")
                         );
                     }
+                } catch (ResponseException e) {
+                    failedSearches++;
+                    logger.info("--> refresh or search on [{}] failed: {}", indexName, e.getMessage());
                 } catch (IOException e) {
                     failedSearches++;
                     logger.info("--> refresh or search on [{}] failed", indexName, e);

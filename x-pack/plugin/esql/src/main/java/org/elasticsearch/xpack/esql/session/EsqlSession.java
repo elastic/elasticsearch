@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -159,7 +160,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
@@ -168,6 +169,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -186,6 +188,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.telemetry.QuerySourceCommand;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
@@ -737,6 +740,21 @@ public class EsqlSession {
         // For EXPLAIN (detected and unwrapped right after parsing), enable profile to capture plans from all nodes
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
+        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
+        // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis, the query's now.
+        // Also kept on the request, together with that now, so the time range the query asked for is known however the query
+        // ends from here on. It is deliberately not extracted earlier, against a now of its own: planning must resolve date math
+        // against the same now as NOW() and the filter on the data nodes.
+        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            request.filter(),
+            finalConfiguration::absoluteStartedTimeInMillis
+        );
+        if (timestampBounds != null) {
+            // The millisecond now that date math was resolved against, rather than the configuration's finer-grained now().
+            Instant now = Instant.ofEpochMilli(finalConfiguration.absoluteStartedTimeInMillis());
+            request.setRequestedTimeRange(new RequestedTimeRange(timestampBounds, now));
+        }
 
         analyzedPlan(
             plan,
@@ -744,6 +762,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
+            timestampBounds,
             viewResolution.indexViewOrigins(),
             viewResolution.viewSettings(),
             new ActionListener<Versioned<LogicalPlan>>() {
@@ -825,6 +844,12 @@ public class EsqlSession {
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
+                    try {
+                        SubqueryJoin.rejectUntilSupported(plan);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
+                    }
                     // Flag external-source usage on the execution info so the coordinator emits external-source-scoped
                     // operational metrics and query metering for any query whose analyzed plan references one, even if
                     // nothing ends up being scanned.
@@ -1503,18 +1528,18 @@ public class EsqlSession {
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
 
-        if (firstJoin instanceof AbstractSubqueryJoin) {
-            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
+        if (firstJoin instanceof AbstractInSubqueryJoin) {
+            AbstractInSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractInSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
             if (semiJoinTuple != null) {
                 AtomicReference<Page> localRelationPage = new AtomicReference<>();
                 subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
                     LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
-                    // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
+                    // AbstractInSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
                     // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
                     // below releases the right one at end of main plan execution.
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
-                    return AbstractSubqueryJoin.newMainPlan(
+                    return AbstractInSubqueryJoin.newMainPlan(
                         mainPlan,
                         semiJoinTuple,
                         resultWrapper,
@@ -1608,7 +1633,7 @@ public class EsqlSession {
             // Whether checking the subquery join, HashJoin or InlineJoin first does not matter, the plan is processed bottom up, looking
             // for
             // joins whose right child haven't been evaluated yet
-            if (p instanceof AbstractSubqueryJoin sj) {
+            if (p instanceof AbstractInSubqueryJoin sj) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }
@@ -1837,7 +1862,7 @@ public class EsqlSession {
         if (max == Integer.MAX_VALUE) {
             return 0;
         }
-        return allowExpensiveQueries ? max : Math.min(max, AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES);
+        return allowExpensiveQueries ? max : Math.min(max, AbstractInSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES);
     }
 
     private static void releaseLocalRelationBlocks(AtomicReference<Page> localRelationPage) {
@@ -2051,6 +2076,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         IndexViewOrigins indexViewOrigins,
         Map<String, ViewQuerySettings> viewSettings,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
@@ -2082,6 +2108,7 @@ public class EsqlSession {
                     configuration,
                     executionInfo,
                     requestFilter,
+                    timestampBounds,
                     indexViewOrigins,
                     delegate
                 );
@@ -2096,11 +2123,14 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert planningCpu.isMeteringCurrentThread() : "analyzedPlanAfterDatasetResolution reached on an unmetered thread";
+        // Classified here, where views and datasets are resolved but PROMQL is not yet translated into the same plan as TS.
+        planTelemetry.sourceCommand(QuerySourceCommand.of(rewritten));
         // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
         // does, and next to it: both must match, and the query is often narrower than the time picker.
         Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(
@@ -2127,15 +2157,8 @@ public class EsqlSession {
         PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, viewSettings, requestFilter, configuration)
             .withMinimumTransportVersion(localClusterMinimumVersion)
             .withIndexViewOrigins(indexViewOrigins);
-        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
-        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
-        // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start).
-        // PromQL / TBUCKET / TSTEP keep LEGACY rounding. Listing uses RANGE_QUERY so folder hints are never tighter
-        // than the row-filter rewrite (a time_zone range the translator drops does not narrow listing).
-        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-            requestFilter,
-            configuration::absoluteStartedTimeInMillis
-        );
+        // PromQL / TBUCKET / TSTEP keep LEGACY rounding (timestampBounds). Listing uses RANGE_QUERY so folder hints are never
+        // tighter than the row-filter rewrite (a time_zone range the translator drops does not narrow listing).
         TimestampBounds listingBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
             requestFilter,
             configuration::absoluteStartedTimeInMillis,

@@ -290,6 +290,22 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(randomNonNegativeLong(), greaterThanOrEqualTo(0L));
     }
 
+    public void testRandomLongsBetween() {
+        long min = randomLongBetween(-1000, 1000);
+        long max = min + randomLongBetween(0, 1000);
+        int size = between(0, 100);
+        long[] values = randomLongsBetween(size, min, max).toArray();
+        assertThat(values.length, equalTo(size));
+        for (long value : values) {
+            assertThat(value, both(greaterThanOrEqualTo(min)).and(lessThanOrEqualTo(max)));
+        }
+    }
+
+    public void testRandomLongsBetweenDegenerate() {
+        long value = randomLong();
+        assertThat(randomLongsBetween(10, value, value).distinct().toArray(), equalTo(new long[] { value }));
+    }
+
     public void testRandomNonNegativeInt() {
         assertThat(randomNonNegativeInt(), greaterThanOrEqualTo(0));
     }

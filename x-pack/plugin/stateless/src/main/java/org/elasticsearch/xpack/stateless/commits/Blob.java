@@ -63,4 +63,16 @@ public sealed interface Blob extends Writeable permits BccBlob, MergeBlob {
         }
         return expectedType.cast(blob);
     }
+
+    /// Creates a [Blob] from its name and primary term. The implementation type is recognized by the prefix of the blob name.
+    ///
+    /// @throws IllegalArgumentException if the blob name is not recognized
+    static Blob of(String blobName, long primaryTerm) {
+        if (BccBlob.startsWithBlobPrefix(blobName)) {
+            return new BccBlob(blobName, primaryTerm);
+        } else if (MergeBlob.startsWithPrefix(blobName)) {
+            return new MergeBlob(blobName, primaryTerm);
+        }
+        throw new IllegalArgumentException("unrecognized blob name [" + blobName + ']');
+    }
 }

@@ -20,13 +20,11 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -1042,12 +1040,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         return internalCluster().startNode(
             Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", cbRequestLimit).build()
         );
-    }
-
-    private long getRequestBreakerUsed(String node) {
-        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        return breaker.getUsed();
     }
 
     private void createIndexForTest(String indexName, Settings indexSettings) {

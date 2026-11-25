@@ -211,7 +211,7 @@ public class EqlGeneratorTests extends ESTestCase {
         }
     }
 
-    public void testOnlyGeneratesEventsWhenAColumnIsNamedLikeASyntheticColumn() {
+    public void testGeneratesEveryModeWhenAColumnIsNamedLikeASyntheticColumn() {
         assumeEqlCommand();
         List<Column> columns = new ArrayList<>(COLUMNS);
         columns.add(columns.size() - 1, new Column("_sequence", "long", List.of()));
@@ -221,10 +221,11 @@ public class EqlGeneratorTests extends ESTestCase {
             copy.add(1);
             rows.add(copy);
         }
-        for (int i = 0; i < 200; i++) {
-            CommandDescription description = generate(executor(columns, rows, Map.of("tags", 2)));
-            assertThat(description.commandString(), branch(description).mode(), equalTo(Mode.EVENT));
+        Set<Mode> modes = EnumSet.noneOf(Mode.class);
+        for (int i = 0; i < 1000; i++) {
+            modes.add(branch(generate(executor(columns, rows, Map.of("tags", 2)))).mode());
         }
+        assertThat(modes, equalTo(EnumSet.allOf(Mode.class)));
     }
 
     public void testNoFromBranchNextToEqlWhenATypeIsNotConvertible() {

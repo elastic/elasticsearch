@@ -190,6 +190,12 @@ public class FillNullCcsIT extends ESRestTestCase {
      * the ordinary {@code local_only} nulls are filled, confirming {@code ON *} did run.
      */
     public void testFillNullOnStarLeavesMetadataIndexAlone() throws IOException {
+        // A coordinator can support FILLNULL yet predate the fix that keeps a union's injected _index nulls unfilled; such an
+        // old coordinator (the oldToNew BWC run) would fill them with "zzz" and fail the assertion below. Skip it there.
+        assumeTrue(
+            "the coordinating cluster must skip metadata columns after a union",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FILLNULL_ALL_COLUMNS_SKIPS_METADATA_AFTER_UNION.capabilityName()))
+        );
         Map<String, Object> result = runEsql(Strings.format("""
             FROM %s,*:%s,(FROM %s | KEEP name) METADATA _index
             | KEEP name, local_only, _index

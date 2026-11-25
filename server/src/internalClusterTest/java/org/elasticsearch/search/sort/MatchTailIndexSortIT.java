@@ -10,17 +10,23 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -166,6 +172,81 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
         assertAscSortTimestamps(5, List.of(1000L, 1001L, 1002L, 1003L, 1004L));
     }
 
+    /** Terminate after collects the first documents of the segment, not its tail. */
+    public void testTerminateAfter() {
+        createSegment(1500);
+        assertSameAsWithoutMatchTail(
+            query -> prepareSearch(INDEX).setQuery(query)
+                .setTerminateAfter(100)
+                .addSort("@timestamp", SortOrder.ASC)
+                .setTrackTotalHits(true)
+                .setSize(5)
+        );
+    }
+
+    /** A scroll page after the first one only accepts documents after the last one it returned, so not the tail. */
+    public void testScroll() {
+        createSegment(1500);
+        assertThat(scrollTimestamps(matchAllQuery()), equalTo(scrollTimestamps(everyDocument())));
+    }
+
+    private List<List<Object>> scrollTimestamps(QueryBuilder query) {
+        List<List<Object>> pages = new ArrayList<>();
+        SearchResponse response = prepareSearch(INDEX).setQuery(query)
+            .addSort("@timestamp", SortOrder.ASC)
+            .setSize(5)
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .get();
+        try {
+            for (int page = 0; page < 3; page++) {
+                List<Object> timestamps = new ArrayList<>();
+                response.getHits().forEach(hit -> timestamps.add(hit.getSortValues()[0]));
+                pages.add(timestamps);
+                String scrollId = response.getScrollId();
+                response.decRef();
+                response = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+            }
+        } finally {
+            clearScroll(response.getScrollId());
+            response.decRef();
+        }
+        return pages;
+    }
+
+    /**
+     * One segment with {@code numDocs} documents. From 2048 documents on, a match-all query gets a dense scorer. Documents from
+     * 1000 on have {@code keep}, so the smallest timestamps, at the end of the segment, do not.
+     */
+    private void createSegment(int numDocs) {
+        createIndex(descendingTimestampSort());
+        List<Map<String, Object>> docs = new ArrayList<>();
+        for (long i = 0; i < numDocs; i++) {
+            docs.add(Map.of("@timestamp", 1000 + i, "keep", i >= 1000));
+        }
+        indexBatch(docs);
+        assertNoFailures(indicesAdmin().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
+    }
+
+    /** A range query that matches every document does not use the match tail, but reads the documents in the same order. */
+    private static QueryBuilder everyDocument() {
+        return rangeQuery("@timestamp").gte(0);
+    }
+
+    private void assertSameAsWithoutMatchTail(Function<QueryBuilder, SearchRequestBuilder> search) {
+        List<Object> expected = new ArrayList<>();
+        long[] expectedTotal = new long[1];
+        assertNoFailuresAndResponse(search.apply(everyDocument()), response -> {
+            response.getHits().forEach(hit -> expected.add(hit.getSortValues()[0]));
+            expectedTotal[0] = response.getHits().getTotalHits().value();
+        });
+        assertNoFailuresAndResponse(search.apply(matchAllQuery()), response -> {
+            List<Object> actual = new ArrayList<>();
+            response.getHits().forEach(hit -> actual.add(hit.getSortValues()[0]));
+            assertThat(actual, equalTo(expected));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(expectedTotal[0]));
+        });
+    }
+
     private static Settings descendingTimestampSort() {
         return Settings.builder().put("index.sort.field", "@timestamp").put("index.sort.order", "desc").build();
     }
@@ -184,7 +265,7 @@ public class MatchTailIndexSortIT extends ESIntegTestCase {
                         .put("index.refresh_interval", "-1")
                         .put(sortSettings)
                 )
-                .setMapping("@timestamp", timestampMapping, "host.name", "type=keyword")
+                .setMapping("@timestamp", timestampMapping, "host.name", "type=keyword", "keep", "type=boolean")
         );
     }
 

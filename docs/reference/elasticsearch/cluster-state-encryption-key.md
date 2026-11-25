@@ -39,6 +39,13 @@ To let a node persist the key to disk, it needs a password configured as a [secu
 
 These settings are node-local. Configure a different password value on each node. Password IDs can be the same across nodes.
 
+Every master-eligible and data node needs a password. These nodes write cluster state to disk, and a node that can't persist the key can't persist cluster state at all. Other nodes, such as dedicated coordinating nodes, don't need one:
+
+* {{es}} creates the cluster state encryption key only once every master-eligible and data node has a password configured. Until then, the elected master logs a warning that names the nodes without one, reports them in its health report, and checks again periodically. During a rolling upgrade it also waits until every node is upgraded, and logs a separate warning while it does.
+* Once the key exists, a master-eligible or data node without a password can't join the cluster. It logs a message containing `cannot join the cluster: the cluster uses a cluster state encryption key` and keeps retrying. Configure the password in its keystore and restart it, or reload its secure settings. During a rolling upgrade, a node that still runs an earlier version isn't checked when it joins, so configure the password before you restart a node that doesn't have one.
+* {{es}} rejects a secure settings reload that would remove the password from a master-eligible or data node, even before the key exists, since the elected master may already be creating it. To remove the password, update the keystore and restart the node. After a restart, a node without a password can't join the cluster once the key exists, until you configure the password again.
+* A password that's configured but can't be used, such as one shorter than 14 characters in FIPS mode, counts as missing.
+
 :::{warning}
 Add both settings to every node's keystore before you reload secure settings on any node, and before any new node joins. A node without the password can't save cluster state. Refer to [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
 :::
@@ -167,7 +174,9 @@ You can rotate each node's password independently without restarting {{es}}. The
 The `cluster_state_encryption` health indicator reports on the status of the cluster state encryption:
 
 * **Green**: encryption is either working normally, or hasn't been configured (which is expected on most self-managed clusters that haven't set a password).
-* **Yellow**: a password is missing where one is required, a node can't persist the key to disk, or {{es}} failed to decrypt the key.
+* **Yellow**: a password is missing where one is required, a master-eligible or data node can't persist the key to disk, {{es}} failed to decrypt the key, or the elected master is waiting for nodes without a password before it creates the key.
+
+The health report is calculated by the node that receives the request. Only the elected master knows which nodes it's waiting for: send the request to the elected master to see them in `nodes_without_password`.
 
 ## Reset the cluster state encryption key [cluster-state-encryption-key-reset]
 

@@ -91,6 +91,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         WrappedKey wrap(byte[] plaintextPek);
 
         byte[] unwrap(byte[] wrappedPek, String passwordId);
+
+        /** Returns why this node cannot wrap the key for its persisted cluster state, or {@code null} if it can. */
+        @Nullable
+        default String wrapForGatewayFailure() {
+            return null;
+        }
     }
 
     /** Plaintext AES-256 key bytes and generation timestamp */

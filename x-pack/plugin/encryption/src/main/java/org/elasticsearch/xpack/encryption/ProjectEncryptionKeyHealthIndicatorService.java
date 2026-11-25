@@ -21,8 +21,11 @@ import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -33,9 +36,12 @@ import static org.elasticsearch.health.HealthStatus.YELLOW;
  * <ul>
  *   <li>YELLOW opt-out: no password is configured and {@code cluster.state.encryption.required} is {@code false}, meaning
  *       secrets are stored unencrypted in cluster state.</li>
- *   <li>YELLOW cannot-persist: a PEK is installed but this node lacks the password material to wrap it for disk. The next
- *       cluster-state persist on this node will fail, and the node will not survive a restart without the password.</li>
+ *   <li>YELLOW cannot-persist: a PEK is installed but this node, which persists cluster state, lacks a usable password to wrap it for
+ *       disk. The next cluster-state persist on this node will fail, and the node will not survive a restart without the password.</li>
  * </ul>
+ *
+ * <p>On the elected master it also reports, as YELLOW, the nodes that can't persist the key while installing the first key waits for
+ * them. Only the elected master knows these nodes.
  */
 class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorService {
 
@@ -51,6 +57,8 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final String YELLOW_DECRYPTION_FAILED =
         "Cluster state encryption is degraded: the encryption key could not be decrypted on startup.";
     static final String YELLOW_MISSING_PASSWORD = "Cluster state encryption is degraded: no active password is configured on this node.";
+    static final String YELLOW_WAITING_FOR_NODES =
+        "The cluster state encryption key is not created yet: some nodes that persist cluster state can't persist it.";
 
     static final List<HealthIndicatorImpact> WRAP_FAILURE_IMPACTS = List.of(
         new HealthIndicatorImpact(
@@ -67,6 +75,16 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
             "encryption_unavailable",
             1,
             "Cluster state encryption is unavailable on this node. Encrypt and decrypt operations will fail.",
+            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+        )
+    );
+    static final List<HealthIndicatorImpact> WAITING_FOR_NODES_IMPACTS = List.of(
+        new HealthIndicatorImpact(
+            NAME,
+            "encryption_key_waiting_for_nodes",
+            2,
+            "The cluster state encryption key is not created until every node that persists cluster state can persist it."
+                + " Until then, encrypted secrets can't be stored or read.",
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
     );
@@ -105,6 +123,15 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
             + " POST /_nodes/reload_secure_settings (stateful).",
         HELP_URL
     );
+    static final Diagnosis.Definition NODES_WITHOUT_PASSWORD_DEFINITION = new Diagnosis.Definition(
+        NAME,
+        "nodes_without_password",
+        "The elected master waits to create the cluster state encryption key until every node that persists cluster state"
+            + " can persist it, and the nodes in nodes_without_password can't.",
+        "Configure cluster.state.encryption.active_password_id and the matching cluster.state.encryption.password.<id> on the nodes in"
+            + " nodes_without_password and reload their secure settings.",
+        HELP_URL
+    );
     static final Diagnosis.Definition ENCRYPTION_OPT_OUT_DEFINITION = new Diagnosis.Definition(
         NAME,
         "encryption_opt_out",
@@ -117,15 +144,24 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final ProjectEncryptionKeyService pekService;
+    private final PasswordPekEncryption pekEncryption;
+    private final Supplier<Set<String>> nodesWithoutPassword;
+    private final boolean persistsClusterState;
 
     ProjectEncryptionKeyHealthIndicatorService(
         ClusterService clusterService,
         ProjectResolver projectResolver,
-        ProjectEncryptionKeyService pekService
+        ProjectEncryptionKeyService pekService,
+        PasswordPekEncryption pekEncryption,
+        Supplier<Set<String>> nodesWithoutPassword,
+        boolean persistsClusterState
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.pekService = pekService;
+        this.pekEncryption = pekEncryption;
+        this.nodesWithoutPassword = nodesWithoutPassword;
+        this.persistsClusterState = persistsClusterState;
     }
 
     @Override
@@ -139,87 +175,87 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         ProjectMetadata project = clusterState.metadata().getProject(projectResolver.getProjectId());
         ProjectEncryptionKeyMetadata metadata = project.custom(ProjectEncryptionKeyMetadata.TYPE);
         EncryptionServiceState serviceState = pekService.state();
+        Set<String> waitingFor = nodesWithoutPassword.get();
+        HealthIndicatorDetails details = details(metadata, serviceState, waitingFor);
 
         return switch (serviceState) {
             case READY -> {
                 if (metadata == null) {
+                    if (waitingFor.isEmpty()) {
+                        yield createIndicator(
+                            GREEN,
+                            "Cluster state encryption is configured; awaiting first key install.",
+                            details,
+                            List.of(),
+                            List.of()
+                        );
+                    }
                     yield createIndicator(
-                        GREEN,
-                        "Cluster state encryption is configured; awaiting first key install.",
-                        detailsBuilder(null, serviceState),
-                        List.of(),
-                        List.of()
+                        YELLOW,
+                        YELLOW_WAITING_FOR_NODES,
+                        details,
+                        WAITING_FOR_NODES_IMPACTS,
+                        List.of(new Diagnosis(NODES_WITHOUT_PASSWORD_DEFINITION, List.of()))
                     );
                 }
-                if (pekService.canWrapForDisk() == false) {
+                if (persistsClusterState && pekEncryption.canWrapForGateway() == false) {
                     yield createIndicator(
                         YELLOW,
                         YELLOW_CANNOT_PERSIST,
-                        detailsBuilder(metadata, serviceState),
+                        details,
                         WRAP_FAILURE_IMPACTS,
                         List.of(new Diagnosis(MISSING_WRAP_CREDENTIALS_DEFINITION, List.of()))
                     );
                 }
-                yield createIndicator(GREEN, GREEN_HEALTHY, detailsBuilder(metadata, serviceState), List.of(), List.of());
+                yield createIndicator(GREEN, GREEN_HEALTHY, details, List.of(), List.of());
             }
             case DISABLED -> {
                 if (pekService.isEncryptionRequired() == false) {
                     yield createIndicator(
                         YELLOW,
                         YELLOW_OPT_OUT,
-                        detailsBuilder(metadata, serviceState),
+                        details,
                         OPT_OUT_IMPACTS,
                         List.of(new Diagnosis(ENCRYPTION_OPT_OUT_DEFINITION, List.of()))
                     );
                 }
-                yield createIndicator(GREEN, GREEN_NOT_CONFIGURED, detailsBuilder(metadata, serviceState), List.of(), List.of());
+                yield createIndicator(GREEN, GREEN_NOT_CONFIGURED, details, List.of(), List.of());
             }
             case UNAVAILABLE_DECRYPTION_FAILED -> createIndicator(
                 YELLOW,
                 YELLOW_DECRYPTION_FAILED,
-                detailsBuilder(metadata, serviceState),
+                details,
                 ENCRYPTION_UNAVAILABLE_IMPACTS,
                 List.of(new Diagnosis(DECRYPTION_FAILED_DEFINITION, List.of()))
             );
             case UNAVAILABLE_MISSING_PASSWORD -> createIndicator(
                 YELLOW,
                 YELLOW_MISSING_PASSWORD,
-                detailsBuilder(metadata, serviceState),
+                details,
                 ENCRYPTION_UNAVAILABLE_IMPACTS,
                 List.of(new Diagnosis(MISSING_PASSWORD_DEFINITION, List.of()))
             );
         };
     }
 
-    private HealthIndicatorDetails detailsBuilder(@Nullable ProjectEncryptionKeyMetadata metadata, EncryptionServiceState serviceState) {
+    private HealthIndicatorDetails details(
+        @Nullable ProjectEncryptionKeyMetadata metadata,
+        EncryptionServiceState serviceState,
+        Set<String> waitingFor
+    ) {
         String activePasswordId = pekService.getActivePasswordId();
-        if (metadata == null) {
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "state",
-                    serviceState.displayValue(),
-                    "encryption_required",
-                    pekService.isEncryptionRequired(),
-                    "active_password_id",
-                    activePasswordId == null ? "(unset)" : activePasswordId
-                )
-            );
+        Map<String, Object> details = new HashMap<>();
+        details.put("state", serviceState.displayValue());
+        details.put("encryption_required", pekService.isEncryptionRequired());
+        details.put("active_password_id", activePasswordId == null ? "(unset)" : activePasswordId);
+        if (waitingFor.isEmpty() == false) {
+            details.put("nodes_without_password", waitingFor);
         }
-        return new SimpleHealthIndicatorDetails(
-            Map.of(
-                "state",
-                serviceState.displayValue(),
-                "encryption_required",
-                pekService.isEncryptionRequired(),
-                "active_password_id",
-                activePasswordId == null ? "(unset)" : activePasswordId,
-                "metadata_password_id",
-                metadata.getPasswordId(),
-                "active_key_id",
-                metadata.getActiveKeyId(),
-                "key_count",
-                metadata.getKeys().size()
-            )
-        );
+        if (metadata != null) {
+            details.put("metadata_password_id", metadata.getPasswordId());
+            details.put("active_key_id", metadata.getActiveKeyId());
+            details.put("key_count", metadata.getKeys().size());
+        }
+        return new SimpleHealthIndicatorDetails(details);
     }
 }

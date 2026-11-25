@@ -83,6 +83,47 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
+     * Returns why {@code settings} don't let a node wrap the key for its persisted cluster state, or {@code null} if they do. Derives a
+     * wrapping key, since a configured password can still be unusable, such as one too short for FIPS; that is slow, so callers should
+     * cache the result.
+     */
+    @Nullable
+    static String wrapForGatewayFailure(Settings settings) {
+        String passwordId = getActivePasswordId(settings);
+        if (passwordId == null) {
+            return "[" + ACTIVE_PASSWORD_ID_KEY + "] is not configured";
+        }
+        try (SecureString password = getPassword(settings, passwordId)) {
+            if (password == null) {
+                return "[" + PASSWORD_PREFIX + passwordId + "] is not configured";
+            }
+            PasswordBasedEncryption.deriveKek(password.getChars(), PasswordBasedEncryption.generateSalt());
+            return null;
+        } catch (Exception e) {
+            return "[" + PASSWORD_PREFIX + passwordId + "] cannot be used to wrap the key: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Rejects a reload that removes the active password, which this node wraps the key with. It is kept even before the cluster has a
+     * key, since the master installs one once every node has reported that it can persist it. A restart can still remove it.
+     */
+    static void validateReload(boolean currentCanWrap, Settings updated) {
+        if (currentCanWrap) {
+            String failure = wrapForGatewayFailure(updated);
+            if (failure != null) {
+                throw new IllegalArgumentException(
+                    "cannot reload cluster state encryption settings: with the reloaded settings this node could no longer persist the"
+                        + " cluster state encryption key ("
+                        + failure
+                        + "); keeping the previous settings. To remove the password, update the keystore and restart the node; once the"
+                        + " cluster has a key, the node cannot rejoin without one"
+                );
+            }
+        }
+    }
+
+    /**
      * Returns a {@link Settings} that merges all non-secure entries from {@code settings} with a durable in-memory snapshot of the
      * encryption-related secure settings read from the same source. The returned instance does not hold a reference to the original
      * keystore, so it remains valid after {@link org.elasticsearch.plugins.ReloadablePlugin#reload} closes it.

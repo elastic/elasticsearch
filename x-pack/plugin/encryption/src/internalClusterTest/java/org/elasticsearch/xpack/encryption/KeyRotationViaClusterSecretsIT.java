@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -284,22 +283,7 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
     }
 
     private static String rotatedPasswordOnlyJson(long version) {
-        return Strings.format(
-            """
-                {
-                    "metadata": {
-                        "version": "%s",
-                        "compatibility": "8.4.0"
-                    },
-                    "state": {
-                        "cluster_secrets": {
-                            "string_secrets": {
-                                "%s": "%s",
-                                "%s": "%s"
-                            }
-                        }
-                    }
-                }""",
+        return EncryptionIntegTestUtils.clusterSecretsJson(
             version,
             ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + ROTATED_PASSWORD_ID,
             ROTATED_PASSWORD,
@@ -309,23 +293,7 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
     }
 
     private static String encryptionPasswordsJson(long version, String v1Password, String v2Password, String activePasswordId) {
-        return Strings.format(
-            """
-                {
-                    "metadata": {
-                        "version": "%s",
-                        "compatibility": "8.4.0"
-                    },
-                    "state": {
-                        "cluster_secrets": {
-                            "string_secrets": {
-                                "%s": "%s",
-                                "%s": "%s",
-                                "%s": "%s"
-                            }
-                        }
-                    }
-                }""",
+        return EncryptionIntegTestUtils.clusterSecretsJson(
             version,
             ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + INITIAL_PASSWORD_ID,
             v1Password,

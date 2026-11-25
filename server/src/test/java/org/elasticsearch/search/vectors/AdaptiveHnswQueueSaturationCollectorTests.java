@@ -14,9 +14,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.util.Random;
 
+@RunWith(ESRandomizedRunner.class)
 public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
 
     public void testDelegate() {

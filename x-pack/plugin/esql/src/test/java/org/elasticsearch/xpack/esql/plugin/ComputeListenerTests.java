@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -67,6 +68,7 @@ public class ComputeListenerTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            SearchLoadMetrics.EMPTY,
             randomList(
                 0,
                 2,

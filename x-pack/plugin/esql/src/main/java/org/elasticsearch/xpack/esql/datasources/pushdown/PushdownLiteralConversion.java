@@ -408,19 +408,14 @@ public final class PushdownLiteralConversion {
             case LT, LTE -> {
                 // col < d / col <= d → col <= floor(d)
                 long bound = (long) Math.floor(d);
-                yield Converted.converted(integralLiteral(source, columnType, bound), BoundOp.LTE);
+                yield convertIntegralOutOfRangeOrExact(source, columnType, bound, min, max, BoundOp.LTE);
             }
             case GT, GTE -> {
                 // col > d / col >= d → col >= ceil(d)
                 long bound = (long) Math.ceil(d);
-                yield Converted.converted(integralLiteral(source, columnType, bound), BoundOp.GTE);
+                yield convertIntegralOutOfRangeOrExact(source, columnType, bound, min, max, BoundOp.GTE);
             }
         };
-    }
-
-    private static Literal integralLiteral(Source source, DataType columnType, long bound) {
-        Number boxed = columnType == DataType.INTEGER ? (int) bound : bound;
-        return new Literal(source, boxed, columnType);
     }
 
     /**

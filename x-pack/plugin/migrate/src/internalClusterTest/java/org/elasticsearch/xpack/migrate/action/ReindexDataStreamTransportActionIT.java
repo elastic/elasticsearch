@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
+import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
@@ -195,6 +196,10 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
                 )
             )
         );
+
+        // The reindex copies documents through the migration pipeline, which is installed asynchronously. Wait for it so that
+        // the reindexes below succeed or fail for the reasons this test checks, not because the pipeline is missing.
+        assertBusy(() -> assertTrue(getPipelines(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME).isFound()));
 
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,

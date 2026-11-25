@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -57,7 +57,7 @@ public class BccBlobTests extends AbstractWireSerializingTestCase<BccBlob> {
     }
 
     public void testRejectsNonNumericGeneration() {
-        var blobName = BatchedCompoundCommit.PREFIX + randomAlphaOfLengthBetween(1, 10);
+        var blobName = BccBlob.PREFIX + randomAlphaOfLengthBetween(1, 10);
         var exception = expectThrows(IllegalArgumentException.class, () -> new BccBlob(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("malformed blob name [" + blobName + ']'));
         assertThat(exception.getCause(), instanceOf(NumberFormatException.class));
@@ -79,15 +79,15 @@ public class BccBlobTests extends AbstractWireSerializingTestCase<BccBlob> {
 
         var malformed = expectThrows(
             IllegalArgumentException.class,
-            () -> new BccBlob(BatchedCompoundCommit.PREFIX + randomAlphaOfLengthBetween(1, 10), randomNonNegativeLong())
+            () -> new BccBlob(BccBlob.PREFIX + randomAlphaOfLengthBetween(1, 10), randomNonNegativeLong())
         );
         assertThat(malformed.getMessage(), containsString("malformed blob name"));
         assertThat(malformed.getCause(), instanceOf(NumberFormatException.class));
     }
 
     public void testRejectsNonPositiveGeneration() {
-        var blobName = BatchedCompoundCommit.PREFIX + randomFrom("0", "-1", "-" + randomLongBetween(1, Long.MAX_VALUE));
-        var generation = Long.parseLong(blobName.substring(BatchedCompoundCommit.PREFIX.length()));
+        var blobName = BccBlob.PREFIX + randomFrom("0", "-1", "-" + randomLongBetween(1, Long.MAX_VALUE));
+        var generation = Long.parseLong(blobName.substring(BccBlob.PREFIX.length()));
 
         var fromBlobName = expectThrows(IllegalArgumentException.class, () -> new BccBlob(blobName, randomNonNegativeLong()));
         assertThat(fromBlobName.getMessage(), containsString("the generation must be positive"));
@@ -134,7 +134,7 @@ public class BccBlobTests extends AbstractWireSerializingTestCase<BccBlob> {
     }
 
     public void testReadRejectsMalformedGeneration() {
-        var blobName = BatchedCompoundCommit.PREFIX + randomAlphaOfLengthBetween(1, 10);
+        var blobName = BccBlob.PREFIX + randomAlphaOfLengthBetween(1, 10);
         var exception = expectThrows(IOException.class, () -> readInvalidBlob(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("malformed blob name"));
     }

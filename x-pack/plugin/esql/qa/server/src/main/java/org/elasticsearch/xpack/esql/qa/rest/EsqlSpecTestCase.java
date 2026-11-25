@@ -197,6 +197,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private static final Protected INGEST = new Protected("test data ingestion");
     private static final Protected VIEWS = new Protected("view loading");
     protected static boolean testClustersOk = true;
+    protected static boolean checkEmptyBreaker = true;
 
     @Before
     public void setup() throws IOException {
@@ -296,6 +297,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             || "approximation".equals(groupName)
             || "unmapped-load".equals(groupName)
             || "unmapped-load-all".equals(groupName)
+            || "fillnull".equals(groupName)
             || "metadata-views-and-subqueries".equals(groupName)
             || "named_subquery".equals(groupName);
     }
@@ -690,8 +692,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @After
     public void assertRequestBreakerEmptyAfterTests() throws Exception {
-        if (testClustersOk) {
-            assertRequestBreakerEmpty();
+        if (testClustersOk && checkEmptyBreaker) {
+            try {
+                assertRequestBreakerEmpty();
+            } catch (AssertionError e) {
+                checkEmptyBreaker = false;
+                throw e;
+            }
         }
     }
 

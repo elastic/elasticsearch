@@ -12,6 +12,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -53,7 +54,7 @@ public class UpdateByQuerySliceEnabledIT extends ESIntegTestCase {
         assertThat(response.evaluate("updated"), equalTo(1));
         assertThat(response.evaluate("failures"), empty());
 
-        response = updateByQuery(index, SliceIndexing.SLICE_ALL);
+        response = updateByQuery(index, null);
         assertThat(response.evaluate("updated"), equalTo(3));
         assertThat(response.evaluate("failures"), empty());
         assertHitCount(prepareSearch(index).setSize(0), 3L);
@@ -96,8 +97,8 @@ public class UpdateByQuerySliceEnabledIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh(index).get();
     }
 
-    private ObjectPath updateByQuery(String index, String slice) throws IOException {
-        Request request = new Request("POST", "/" + index + "/" + slice + "/_update_by_query");
+    private ObjectPath updateByQuery(String index, @Nullable String slice) throws IOException {
+        Request request = new Request("POST", "/" + index + (slice == null ? "" : "/" + slice) + "/_update_by_query");
         request.addParameter("refresh", "true");
         request.setJsonEntity("""
             {"query": {"match_all": {}}}""");

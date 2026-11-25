@@ -208,8 +208,8 @@ final class StoredResponseSizeCheck implements FetchedHitsCheck {
             @Override
             public void onRejection(Exception e) {
                 // Holds the slot like a sampling task, so no other task starts while this completes the fetch phase, even if an onHits
-                // arrives meanwhile, which can't happen today since onFetchDone runs after every onHits. The calls stay remembered for
-                // a later request to sample. A fetch phase that is done is checked against the samples taken so far, and leaves the
+                // arrives meanwhile, as it can for a chunk still being handled when its shard's fetch fails. The calls stay remembered
+                // for a later request to sample. A fetch phase that is done is checked against the samples taken so far, and leaves the
                 // rest to the store.
                 holdSamplingSlot(false);
             }

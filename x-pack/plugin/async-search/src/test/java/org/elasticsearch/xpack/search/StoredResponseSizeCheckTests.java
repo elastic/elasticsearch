@@ -301,10 +301,10 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
     }
 
     /**
-     * A rejected sampling holds the slot while it completes the fetch phase, so a request that arrives meanwhile doesn't start another
-     * sampling task next to it.
+     * A rejected sampling holds the slot until no request is left, so it also completes a fetch-done listener published while it
+     * completes another one, without starting a second task.
      */
-    public void testRejectedSamplingHoldsTheSlotWhileItCompletesTheFetchPhase() {
+    public void testRejectedSamplingCompletesAListenerPublishedWhileItHoldsTheSlot() {
         AtomicInteger submitted = new AtomicInteger();
         StoredResponseSizeCheck check = new StoredResponseSizeCheck(() -> LIMIT, () -> true, r -> {
             submitted.incrementAndGet();
@@ -315,15 +315,11 @@ public class StoredResponseSizeCheckTests extends ESTestCase {
             check.onHits(hits, heapBytes(hits));
         }
         final int submittedBefore = submitted.get();
-
-        AtomicBoolean completed = new AtomicBoolean();
-        check.onFetchDone(ActionListener.running(() -> {
-            List<SearchHit> more = hits(HITS_PER_BATCH, SOURCE_SIZE, false);
-            check.onHits(more, heapBytes(more));
-            completed.set(true);
-        }));
-        assertTrue(completed.get());
-        // Only the fetch phase submitted a task. The call made while completing it found the slot held.
+        AtomicBoolean secondCompleted = new AtomicBoolean();
+        // The fetch phase is done once, but a second listener published from the first one's completion lands while the rejected
+        // task holds the slot, as an onFetchDone does when it races the late chunk of a shard whose fetch failed.
+        check.onFetchDone(ActionListener.running(() -> check.onFetchDone(ActionListener.running(() -> secondCompleted.set(true)))));
+        assertTrue(secondCompleted.get());
         assertThat(submitted.get(), equalTo(submittedBefore + 1));
     }
 

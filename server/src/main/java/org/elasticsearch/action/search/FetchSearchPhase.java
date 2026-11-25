@@ -150,19 +150,20 @@ class FetchSearchPhase extends SearchPhase {
         final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-            () -> context.getTask()
-                .getFetchedHitsCheck()
-                .onFetchDone(
-                    ActionListener.wrap(
-                        ignored -> moveToNextPhase(
-                            fetchResults.getAtomicArray(),
-                            fetchResults::transferCharge,
-                            reducedQueryPhase,
-                            phaseStartTimeInNanos
-                        ),
-                        e -> context.onPhaseFailure(NAME, "", e)
-                    )
-                ),
+            () -> context.getTask().getFetchedHitsCheck().onFetchDone(ActionListener.wrap(ignored -> {
+                // A late chunk of a shard whose fetch failed can trip while the check finishes, and the trip fails the search.
+                if (context.failedOnCoordinatorTrip()) {
+                    return;
+                }
+                try {
+                    moveToNextPhase(fetchResults.getAtomicArray(), fetchResults::transferCharge, reducedQueryPhase, phaseStartTimeInNanos);
+                } catch (Exception e) {
+                    context.onPhaseFailure(NAME, "", e);
+                }
+            },
+                // The check failed the search. Failing through the trip means a later trip from a late chunk doesn't fail it again.
+                e -> context.failOnCoordinatorTrip(NAME, e)
+            )),
             context
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {

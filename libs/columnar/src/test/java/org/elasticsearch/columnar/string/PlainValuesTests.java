@@ -143,7 +143,8 @@ public class PlainValuesTests extends ESTestCase {
                 lengthBlockSize,
                 numValues,
                 -1,
-                out.outputs()
+                out.outputs(),
+                true
             );
             for (int slot = 0; slot < numValues; slot++) {
                 slots.write(writer, slot);
@@ -204,7 +205,8 @@ public class PlainValuesTests extends ESTestCase {
                         lengthBlockSize,
                         values.size(),
                         -1,
-                        out.outputs()
+                        out.outputs(),
+                        false
                     );
                     final PiecewiseValue piecewise = new PiecewiseValue();
                     for (int i = 0; i < values.size(); i++) {
@@ -276,7 +278,8 @@ public class PlainValuesTests extends ESTestCase {
                     valuesPerBlock,
                     values.size(),
                     -1,
-                    out.outputs()
+                    out.outputs(),
+                    false
                 );
                 for (BytesRef value : values) {
                     writer.add(value);
@@ -371,7 +374,8 @@ public class PlainValuesTests extends ESTestCase {
                     lengthBlockSize,
                     values.size(),
                     constantLength,
-                    out.outputs()
+                    out.outputs(),
+                    false
                 );
                 long runs = 0;
                 for (int i = 0; i < values.size(); i++) {

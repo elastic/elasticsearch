@@ -16,9 +16,9 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -46,7 +46,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -85,11 +84,13 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     private final Map<String, String> patterns = new HashMap<>();
     private final ProjectLayout projectLayout;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     @Inject
     public ForbiddenPatternsTask(ProjectLayout projectLayout, Problems problems) {
         this.projectLayout = projectLayout;
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.FORBIDDEN_PATTERNS.group(problems);
         setDescription("Checks source files for invalid patterns like nocommits or tabs");
         getInputs().property("excludes", filesFilter.getExcludes());
         getInputs().property("rules", patterns);
@@ -142,11 +143,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                             violations.add("- " + label);
                             problems.add(
                                 problemReporter.create(
-                                    ProblemId.create(
-                                        toKebabCase(ruleName),
-                                        "Forbidden pattern: " + ruleName,
-                                        ElasticsearchBuildProblems.FORBIDDEN_PATTERNS
-                                    ),
+                                    problemGroup.problemId("Forbidden pattern"),
                                     spec -> spec.contextualLabel(label)
                                         .lineInFileLocation(absolutePath, lineNumber)
                                         .solution("Remove the forbidden pattern from the source file")
@@ -162,10 +159,6 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
         File outputMarker = getOutputMarker();
         outputMarker.getParentFile().mkdirs();
         Files.writeString(outputMarker.toPath(), "done");
-    }
-
-    static String toKebabCase(String name) {
-        return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
     }
 
     @OutputFile

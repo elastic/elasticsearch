@@ -16,9 +16,9 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
@@ -53,6 +53,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
 
     private final SetProperty<File> srcDirs;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     private FileCollection classesDirs;
 
@@ -64,6 +65,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
     public JavaModulePrecommitTask(ObjectFactory objectFactory, Problems problems) {
         srcDirs = objectFactory.setProperty(File.class);
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.JAVA_MODULE.group(problems);
     }
 
     @InputFiles
@@ -137,7 +139,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         if (rawVersion.isEmpty()) {
             problems.add(
                 problemReporter.create(
-                    ProblemId.create("missing-module-version", "Missing module version", ElasticsearchBuildProblems.JAVA_MODULE),
+                    problemGroup.problemId("Missing module version"),
                     spec -> spec.contextualLabel("No version found in module " + mref.descriptor().name())
                         .solution("Add a version to the module descriptor")
                 )
@@ -147,7 +149,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         if (rawVersion.get().equals(expectedVersion) == false) {
             problems.add(
                 problemReporter.create(
-                    ProblemId.create("module-version-mismatch", "Module version mismatch", ElasticsearchBuildProblems.JAVA_MODULE),
+                    problemGroup.problemId("Module version mismatch"),
                     spec -> spec.contextualLabel(
                         "Expected version [" + expectedVersion + "] but found [" + rawVersion.get() + "] in " + mref.descriptor().name()
                     ).solution("Update the module version to " + expectedVersion)
@@ -162,7 +164,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
             && mref.descriptor().name().startsWith("co.elastic.") == false) {
             problems.add(
                 problemReporter.create(
-                    ProblemId.create("invalid-module-name-prefix", "Invalid module name prefix", ElasticsearchBuildProblems.JAVA_MODULE),
+                    problemGroup.problemId("Invalid module name prefix"),
                     spec -> spec.contextualLabel(
                         "Expected name starting with 'org.elasticsearch.' or 'co.elastic.' in " + mref.descriptor().name()
                     ).solution("Rename the module to start with 'org.elasticsearch.' or 'co.elastic.'")
@@ -186,11 +188,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
                         if (modServices.contains(service) == false) {
                             problems.add(
                                 problemReporter.create(
-                                    ProblemId.create(
-                                        "missing-module-service",
-                                        "Missing module service declaration",
-                                        ElasticsearchBuildProblems.JAVA_MODULE
-                                    ),
+                                    problemGroup.problemId("Missing module service declaration"),
                                     spec -> spec.contextualLabel(
                                         String.format(Locale.ROOT, "Expected provides %s in module %s", service, mref.descriptor().name())
                                     )

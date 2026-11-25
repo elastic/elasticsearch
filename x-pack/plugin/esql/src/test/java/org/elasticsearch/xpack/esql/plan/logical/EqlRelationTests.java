@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -40,9 +42,10 @@ public class EqlRelationTests extends ESTestCase {
     private static final String QUERY = "sequence [process where true] [network where true] | tail 3";
     private static final Map<String, Object> OPTIONS = Map.of("size", 10);
     private static final List<Attribute> OUTPUT = List.of(new ReferenceAttribute(EMPTY, "@timestamp", DATETIME));
+    private static final QueryBuilder FILTER = QueryBuilders.termQuery("host", "a");
 
     private static EqlRelation relation() {
-        return new EqlRelation(EMPTY, PATTERN, QUERY, OPTIONS, EqlRelation.Mode.SEQUENCE, true, OUTPUT, 5, fieldCaps());
+        return new EqlRelation(EMPTY, PATTERN, QUERY, OPTIONS, EqlRelation.Mode.SEQUENCE, true, OUTPUT, 5, fieldCaps(), FILTER);
     }
 
     private static FieldCapabilitiesResponse fieldCaps() {
@@ -59,6 +62,7 @@ public class EqlRelationTests extends ESTestCase {
         assertThat(relation.output(), equalTo(OUTPUT));
         assertThat(relation.pushedLimit(), equalTo(5));
         assertThat(relation.preResolvedFieldCaps(), not(equalTo(null)));
+        assertThat(relation.requestFilter(), sameInstance(FILTER));
         assertTrue("EqlRelation exposes a fully resolved schema", relation.expressionsResolved());
     }
 
@@ -66,6 +70,7 @@ public class EqlRelationTests extends ESTestCase {
         EqlRelation relation = new EqlRelation(EMPTY, PATTERN, QUERY, OPTIONS, EqlRelation.Mode.SEQUENCE, true, OUTPUT);
         assertThat(relation.pushedLimit(), equalTo(null));
         assertThat(relation.preResolvedFieldCaps(), equalTo(null));
+        assertThat(relation.requestFilter(), equalTo(null));
     }
 
     public void testWithPushedLimitReplacesLimitAndKeepsFieldCaps() {
@@ -74,9 +79,21 @@ public class EqlRelationTests extends ESTestCase {
         assertThat(withLimit.pushedLimit(), equalTo(42));
         // The carrier rides along so a later planning stage still reuses the resolved field-caps.
         assertThat(withLimit.preResolvedFieldCaps(), sameInstance(relation.preResolvedFieldCaps()));
+        assertThat(withLimit.requestFilter(), sameInstance(FILTER));
         assertThat(withLimit.query(), equalTo(QUERY));
         assertThat(withLimit.mode(), equalTo(EqlRelation.Mode.SEQUENCE));
         assertTrue(withLimit.hasExplicitLimit());
+    }
+
+    public void testWithRequestFilterReplacesFilterAndKeepsTheRest() {
+        QueryBuilder other = QueryBuilders.rangeQuery("@timestamp").gte("now-15m");
+        EqlRelation relation = relation();
+        EqlRelation withFilter = relation.withRequestFilter(other);
+        assertThat(withFilter.requestFilter(), sameInstance(other));
+        assertThat(withFilter.pushedLimit(), equalTo(5));
+        assertThat(withFilter.preResolvedFieldCaps(), sameInstance(relation.preResolvedFieldCaps()));
+        assertThat(withFilter.output(), equalTo(OUTPUT));
+        assertThat(withFilter, not(equalTo(relation)));
     }
 
     public void testWithAttributesReplacesOutput() {
@@ -87,6 +104,7 @@ public class EqlRelationTests extends ESTestCase {
         EqlRelation withAttrs = relation().withAttributes(newOutput);
         assertThat(withAttrs.output(), equalTo(newOutput));
         assertThat(withAttrs.pushedLimit(), equalTo(5));
+        assertThat(withAttrs.requestFilter(), sameInstance(FILTER));
         assertThat(withAttrs.mode(), equalTo(EqlRelation.Mode.SEQUENCE));
         assertTrue(withAttrs.hasExplicitLimit());
     }
@@ -94,7 +112,7 @@ public class EqlRelationTests extends ESTestCase {
     public void testEqualsIgnoresSourceAndPreResolvedFieldCaps() {
         // Two relations that differ only in Source and the coordinator-local field-caps carrier are equal: the carrier
         // is a resolution ES|QL happens to hold, not part of the plan's meaning.
-        EqlRelation a = new EqlRelation(EMPTY, PATTERN, QUERY, OPTIONS, EqlRelation.Mode.EVENT, false, OUTPUT, 5, fieldCaps());
+        EqlRelation a = new EqlRelation(EMPTY, PATTERN, QUERY, OPTIONS, EqlRelation.Mode.EVENT, false, OUTPUT, 5, fieldCaps(), FILTER);
         EqlRelation b = new EqlRelation(
             new Source(1, 4, "EQL logs-* \"process where true\""),
             PATTERN,
@@ -104,7 +122,8 @@ public class EqlRelationTests extends ESTestCase {
             false,
             OUTPUT,
             5,
-            null
+            null,
+            FILTER
         );
         assertThat(a, equalTo(b));
         assertThat(a.hashCode(), equalTo(b.hashCode()));
@@ -113,7 +132,18 @@ public class EqlRelationTests extends ESTestCase {
     public void testEqualsAndHashCode() {
         checkEqualsAndHashCode(
             relation(),
-            r -> new EqlRelation(r.source(), PATTERN, r.query(), OPTIONS, r.mode(), r.hasExplicitLimit(), OUTPUT, r.pushedLimit(), null),
+            r -> new EqlRelation(
+                r.source(),
+                PATTERN,
+                r.query(),
+                OPTIONS,
+                r.mode(),
+                r.hasExplicitLimit(),
+                OUTPUT,
+                r.pushedLimit(),
+                null,
+                r.requestFilter()
+            ),
             EqlRelationTests::mutate
         );
     }
@@ -123,14 +153,16 @@ public class EqlRelationTests extends ESTestCase {
         EqlRelation.Mode mode = r.mode();
         boolean hasExplicitLimit = r.hasExplicitLimit();
         Integer pushedLimit = r.pushedLimit();
-        switch (between(0, 3)) {
+        QueryBuilder requestFilter = r.requestFilter();
+        switch (between(0, 4)) {
             case 0 -> query = query + " | head 1";
             case 1 -> mode = mode == EqlRelation.Mode.EVENT ? EqlRelation.Mode.SAMPLE : EqlRelation.Mode.EVENT;
             case 2 -> hasExplicitLimit = hasExplicitLimit == false;
             case 3 -> pushedLimit = 999;
+            case 4 -> requestFilter = requestFilter == null ? FILTER : null;
             default -> throw new AssertionError();
         }
-        return new EqlRelation(r.source(), PATTERN, query, OPTIONS, mode, hasExplicitLimit, OUTPUT, pushedLimit, null);
+        return new EqlRelation(r.source(), PATTERN, query, OPTIONS, mode, hasExplicitLimit, OUTPUT, pushedLimit, null, requestFilter);
     }
 
     public void testToStringWrapsQueryAndSchema() {

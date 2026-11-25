@@ -70,6 +70,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
@@ -139,7 +140,9 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.scheduling.QueryScheduler;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -591,6 +594,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES, this::setFetchPhaseTargetChunkBytes);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(BATCHED_QUERY_PHASE, bulkExecuteQueryPhase -> this.batchQueryPhase = bulkExecuteQueryPhase);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(DocValuesBatchPrefetcher.BUDGET_SETTING, fetchPhase::setDocValuesPrefetchBudget);
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
@@ -1247,7 +1252,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Runs {@code executable} on the pool of {@code shard} through the {@link QueryScheduler}, as a task of {@code shard}, so
-     * its time is the search load of the shard.
+     * its time is the search load of the shard. The phase reports its load with its result.
      */
     private <T extends RefCounted> void runAsync(
         IndexShard shard,
@@ -1255,25 +1260,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        TaskLoadAttribution.Target searchLoad = shard.shardSearchStats().searchLoadTarget();
-        executeOnShard(shard, task, ActionRunnable.supplyAndDecRef(listener, () -> {
+        QueryLoad load = new QueryLoad();
+        TaskLoadAttribution.Target searchLoad = load.charging(shard.shardSearchStats().searchLoadTarget());
+        shardExecutor(shard, task, load).execute(ActionRunnable.supplyAndDecRef(listener, () -> {
             TaskLoadAttribution.attribute(searchLoad);
             return executable.get();
         }));
     }
 
     /**
-     * Runs a phase of {@code task} on the pool of {@code shard}, through the {@link QueryScheduler}.
+     * The pool of {@code shard} for the tasks of {@code task}, through the {@link QueryScheduler}. Their waiting goes to
+     * {@code load}.
      */
-    private void executeOnShard(IndexShard shard, Task task, Runnable runnable) {
-        shardExecutor(shard, task).execute(runnable);
-    }
-
-    /**
-     * The pool of {@code shard}, through the {@link QueryScheduler}, for the tasks of {@code task}.
-     */
-    private Executor shardExecutor(IndexShard shard, Task task) {
-        return queryScheduler.executor(queryId(task), getExecutor(shard), shard);
+    private Executor shardExecutor(IndexShard shard, Task task, QueryLoad load) {
+        return queryScheduler.executor(queryId(task), getExecutor(shard), shard, load);
     }
 
     /**
@@ -1355,11 +1355,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
-        result.setDirectoryMetrics(metricsDelta.get().merge(context.getWorkerThreadsMetrics()));
+        result.setDirectoryMetrics(chargeAndAddSearchLoad(metricsDelta.get().merge(context.getWorkerThreadsMetrics()), context));
     }
 
     private static void setFetchDirectoryMetrics(SearchPhaseResult result, SearchContext context) {
-        result.setDirectoryMetrics(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()));
+        result.setDirectoryMetrics(
+            chargeAndAddSearchLoad(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()), context)
+        );
+    }
+
+    /**
+     * Adds the load of the phase to its result, after charging the running task so far.
+     */
+    private static DirectoryMetrics chargeAndAddSearchLoad(DirectoryMetrics metrics, SearchContext context) {
+        QueryLoad.Charging searchLoad = context.searchLoad();
+        if (searchLoad == null) {
+            return metrics;
+        }
+        TaskLoadAttribution.chargeSoFar(searchLoad, System.nanoTime());
+        return metrics.merge(SearchLoadMetrics.directoryMetricsOf(searchLoad.load()));
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
@@ -1487,9 +1501,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         // the chunks produced after the first one queue for the shard and are its tasks too
+        final QueryLoad load = new QueryLoad();
         final Executor searchExecutor = TaskLoadAttribution.charging(
-            shardExecutor(readerContext.indexShard(), task),
-            readerContext.indexShard().shardSearchStats().searchLoadTarget()
+            shardExecutor(readerContext.indexShard(), task, load),
+            load.charging(readerContext.indexShard().shardSearchStats().searchLoadTarget())
         );
         searchExecutor.execute(new AbstractRunnable() {
             private volatile SearchContext searchContext;
@@ -2147,6 +2162,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             part.close();
             throw e;
         }
+        // slices are charged to the phase that creates the context
+        QueryLoad.Charging searchLoad = QueryLoad.Charging.running();
+        if (searchLoad != null) {
+            context.searchLoad(searchLoad);
+        }
+
         // Release the memory used for query construction once the search context is closed, before its part.
         context.addReleasable(context.getSearchExecutionContext()::releaseQueryConstructionMemory);
         context.addReleasable(part);

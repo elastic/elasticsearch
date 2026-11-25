@@ -15,8 +15,8 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ScoreOperatorTests extends ESTestCase {
 
@@ -39,38 +39,46 @@ public class ScoreOperatorTests extends ESTestCase {
         }
     }
 
-    // A pre-fix federated node still answering an all-null _score baseline: nothing sound to add onto.
-    public void testThrowsOnAllNullScoreBaseline() {
+    // Rows without a score baseline, e.g. every row of a union branch that did not ask for METADATA _score, have
+    // nothing to add onto and stay null.
+    public void testKeepsAllNullScoreBaseline() {
         int positions = 2;
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
         ScoreOperator scoreOp = new ScoreOperator(blockFactory, ConstantEvaluators.constantDouble(2.0).get(driverContext), 0);
         scoreOp.addInput(new Page(blockFactory.newConstantNullBlock(positions)));
+        Page result = scoreOp.getOutput();
         try {
-            IllegalStateException e = expectThrows(IllegalStateException.class, scoreOp::getOutput);
-            assertThat(e.getMessage(), containsString("predates federated runtime scoring support"));
+            DoubleBlock scoreOut = result.getBlock(0);
+            for (int i = 0; i < positions; i++) {
+                assertThat(scoreOut.isNull(i), is(true));
+            }
         } finally {
+            result.releaseBlocks();
             scoreOp.close();
         }
     }
 
-    // A TopN can rebuild one page from rows sourced across a mixed-version cluster, interleaving a pre-fix
-    // node's null _score with a fixed node's real baseline in the same block. Neither areAllValuesNull() nor
-    // a real DoubleVector applies here, so the check must key off asVector() rather than "all null".
-    public void testThrowsOnMixedNullScoreBaseline() {
-        int positions = 2;
+    // A merge or TopN can interleave rows from a scored branch with rows from an unscored one in the same block:
+    // the scored rows get the search's score added, the unscored ones stay null.
+    public void testAddsOntoMixedNullScoreBaseline() {
         DoubleBlock mixedBaseline;
-        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positions)) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(3)) {
             builder.appendNull();
             builder.appendDouble(0.0);
+            builder.appendDouble(1.5);
             mixedBaseline = builder.build();
         }
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
         ScoreOperator scoreOp = new ScoreOperator(blockFactory, ConstantEvaluators.constantDouble(2.0).get(driverContext), 0);
         scoreOp.addInput(new Page(mixedBaseline));
+        Page result = scoreOp.getOutput();
         try {
-            IllegalStateException e = expectThrows(IllegalStateException.class, scoreOp::getOutput);
-            assertThat(e.getMessage(), containsString("predates federated runtime scoring support"));
+            DoubleBlock scoreOut = result.getBlock(0);
+            assertThat(scoreOut.isNull(0), is(true));
+            assertThat(scoreOut.getDouble(scoreOut.getFirstValueIndex(1)), equalTo(2.0));
+            assertThat(scoreOut.getDouble(scoreOut.getFirstValueIndex(2)), equalTo(3.5));
         } finally {
+            result.releaseBlocks();
             scoreOp.close();
         }
     }

@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -22,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.hamcrest.Matchers.containsString;
 
 public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSerializationTests<EqlSourceExec> {
 
@@ -33,7 +37,7 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
         EqlRelation.Mode mode = randomFrom(EqlRelation.Mode.values());
         List<Attribute> attributes = randomList(1, 10, EqlSourceExecSerializationTests::randomEqlAttribute);
         Integer pushedLimit = randomBoolean() ? null : between(0, 10_000);
-        return new EqlSourceExec(source, query, indices, options, mode, attributes, pushedLimit, null);
+        return new EqlSourceExec(source, query, indices, options, mode, attributes, pushedLimit, null, null);
     }
 
     /**
@@ -92,7 +96,7 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
             case 5 -> pushedLimit = randomValueOtherThan(pushedLimit, () -> randomBoolean() ? null : between(0, 10_000));
             default -> throw new IllegalStateException();
         }
-        return new EqlSourceExec(instance.source(), query, indices, options, mode, attributes, pushedLimit, null);
+        return new EqlSourceExec(instance.source(), query, indices, options, mode, attributes, pushedLimit, null, null);
     }
 
     @Override
@@ -113,7 +117,8 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
             EqlRelation.Mode.EVENT,
             List.of(randomReferenceAttribute(true)),
             5,
-            carrier
+            carrier,
+            null
         );
         assertSame(carrier, original.preResolvedFieldCaps());
         assertEquals(Integer.valueOf(5), original.pushedLimit());
@@ -121,5 +126,34 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
         EqlSourceExec copy = copyInstance(original);
         assertNull("the transient field-caps carrier must not survive serialization", copy.preResolvedFieldCaps());
         assertEquals("dropping the redundant carrier must not change plan identity", original, copy);
+    }
+
+    public void testRequestFilterIsPartOfPlanIdentity() {
+        EqlSourceExec instance = randomEqlSourceExec();
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        EqlSourceExec withFilter = withRequestFilter(instance, filter);
+        assertSame(filter, withFilter.requestFilter());
+        assertNotEquals(instance, withFilter);
+        assertEquals(withFilter, withRequestFilter(instance, QueryBuilders.termQuery("host", "a")));
+    }
+
+    public void testWriteToRejectsRequestFilter() {
+        EqlSourceExec withFilter = withRequestFilter(randomEqlSourceExec(), QueryBuilders.termQuery("host", "a"));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> withFilter.writeTo(new BytesStreamOutput()));
+        assertThat(e.getMessage(), containsString("must not be serialized"));
+    }
+
+    private static EqlSourceExec withRequestFilter(EqlSourceExec instance, QueryBuilder filter) {
+        return new EqlSourceExec(
+            instance.source(),
+            instance.query(),
+            instance.indices(),
+            instance.options(),
+            instance.mode(),
+            instance.output(),
+            instance.pushedLimit(),
+            null,
+            filter
+        );
     }
 }

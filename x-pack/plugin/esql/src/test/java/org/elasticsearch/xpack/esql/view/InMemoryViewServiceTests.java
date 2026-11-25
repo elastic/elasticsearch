@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PlanSize;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
@@ -50,9 +53,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -1576,6 +1581,172 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(rewritten, matchesPlan(query("TS emp | STATS count(*)")));
     }
 
+    public void testViewNextToIndexInEqlTargetIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("line 1:1: Views are not supported in EQL command, found view(s) [view_b]; use FROM view_b instead"),
+            () -> replaceViews(query("EQL emp,view_b,-view_a \"process where true\""))
+        );
+    }
+
+    public void testViewAsEqlTargetInViewBodyIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("inner_view", "FROM emp");
+        addView("outer_view", "EQL inner_view \"process where true\"");
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "line 1:1 (in view [outer_view]): Views are not supported in EQL command, found view(s) [inner_view]; "
+                    + "use FROM inner_view instead"
+            ),
+            () -> replaceViews(query("FROM outer_view"))
+        );
+    }
+
+    public void testViewAsEqlTargetInSubqueryIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("line 1:12: Views are not supported in EQL command, found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("FROM emp, (EQL view_a \"process where true\")"))
+        );
+    }
+
+    public void testViewRepeatedInEqlTargetIsReportedOnce() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("Views are not supported in EQL command, found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("EQL view_a,view_a \"process where true\""))
+        );
+    }
+
+    public void testEveryViewInEqlTargetIsReported() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM emp");
+        expectThrows(
+            VerificationException.class,
+            containsString("found view(s) [view_a, view_b]; use FROM view_a, view_b instead"),
+            () -> replaceViews(query("EQL view_a,emp,view_b \"process where true\""))
+        );
+    }
+
+    public void testEqlTargetMatchingAViewOnlyThroughAWildcardIsLeftAlone() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        assertThat(eqlTarget(replaceViews(query("EQL view_* \"process where true\""), true)), equalTo("view_*"));
+    }
+
+    public void testViewExcludedFromEqlTargetIsLeftAlone() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        for (String pattern : List.of("emp,-view_a", "emp,view_a,-view_a", "emp,view_a,-view_*")) {
+            assertThat(eqlTarget(replaceViews(query("EQL " + pattern + " \"any where true\""))), equalTo(pattern));
+        }
+    }
+
+    public void testRemoteEqlTargetIsNotLookedUpOutsideCrossProjectMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        for (String pattern : List.of("remote:view_a", "*:view_a", "remote:view_a,remote:-view_a")) {
+            InMemoryViewResolver resolver = viewService.getViewResolver();
+            assertThat(eqlTarget(replaceViews(query("EQL " + pattern + " \"process where true\""), resolver)), equalTo(pattern));
+            assertThat(pattern, resolver.requestedIndices(), empty());
+        }
+    }
+
+    public void testRemoteNameNextToAViewInEqlTargetIsNotLookedUp() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        InMemoryViewResolver resolver = viewService.getViewResolver();
+        expectThrows(
+            VerificationException.class,
+            containsString("found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("EQL remote:logs,view_a \"process where true\""), resolver)
+        );
+        assertThat(resolver.requestedIndices(), contains(List.of("view_a")));
+    }
+
+    public void testRemoteEqlTargetIsLookedUpInCrossProjectMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        InMemoryViewResolver resolver = cpsViewResolver();
+        assertThat(eqlTarget(replaceViews(query("EQL remote:view_a \"process where true\""), resolver)), equalTo("remote:view_a"));
+        assertThat(resolver.requestedIndices(), contains(List.of("remote:view_a")));
+    }
+
+    private static String eqlTarget(LogicalPlan plan) {
+        return as(plan, UnresolvedEqlRelation.class).indexPattern().indexPattern();
+    }
+
+    /**
+     * The PromQL sub-parser tags its {@link Source}s with the view name like the ES|QL parser does, so a data node reads
+     * their text from the view's query rather than the caller's, which can be shorter than the source position.
+     */
+    public void testPromqlViewSourcesCarryTheViewName() {
+        EsqlStatement statement = parse("PROMQL index=emp step=5m bytes=(sum(rate(network.bytes_in[5m])))", "promql_view");
+        PromqlCommand promql = (PromqlCommand) statement.plan().collect(PromqlCommand.class::isInstance).getFirst();
+        List<Source> sources = new ArrayList<>();
+        promql.promqlPlan().forEachDown(p -> {
+            sources.add(p.source());
+            p.forEachExpressionDown(Expression.class, e -> sources.add(e.source()));
+        });
+        List<Source> tagged = sources.stream().filter(s -> s != Source.EMPTY).toList();
+        assertThat(tagged, not(empty()));
+        for (Source source : tagged) {
+            assertThat(source.toString(), source.viewName(), equalTo("promql_view"));
+        }
+    }
+
+    /**
+     * PromQL treats a missing label or metric as absent, so a PROMQL body nullifies in the view's own scope unless the
+     * definition sets {@code unmapped_fields} itself. Other bodies keep the default.
+     */
+    public void testPromqlViewBodyResolvesUnmappedFieldsWithNullify() {
+        assertThat(viewSettings("PROMQL index=emp step=5m sum(network.bytes_in)").unmappedFields(), equalTo(UnmappedResolution.NULLIFY));
+        assertThat(viewSettings("FROM emp").unmappedFields(), equalTo(UnmappedResolution.DEFAULT));
+        assertThat(viewSettings("TS emp | STATS count(*)").unmappedFields(), equalTo(UnmappedResolution.DEFAULT));
+        assertThat(
+            viewSettings("SET unmapped_fields=\"load\"; PROMQL index=emp step=5m sum(network.bytes_in)").unmappedFields(),
+            equalTo(UnmappedResolution.LOAD)
+        );
+        // DEFAULT asks for the query type's own behavior, which for PromQL is to nullify.
+        assertThat(
+            viewSettings("SET unmapped_fields=\"default\"; PROMQL index=emp step=5m sum(network.bytes_in)").unmappedFields(),
+            equalTo(UnmappedResolution.NULLIFY)
+        );
+        // The setting stays implicit: only an explicit SET counts as supplied by the view author.
+        assertThat(viewSettings("PROMQL index=emp step=5m sum(network.bytes_in)").supplied(), empty());
+    }
+
+    /**
+     * A cluster default for {@code unmapped_fields} is not the view's own {@code SET}, so a PROMQL body still nullifies under it,
+     * as the same PROMQL run directly does. Other bodies take the cluster default.
+     */
+    public void testPromqlViewBodyNullifiesWhateverTheClusterDefault() {
+        for (UnmappedResolution clusterDefault : List.of(UnmappedResolution.LOAD, UnmappedResolution.DEFAULT)) {
+            Settings cluster = Settings.builder()
+                .put(QuerySettings.UNMAPPED_FIELDS.clusterSetting().getKey(), clusterDefault.settingValue())
+                .build();
+            assertThat(
+                ViewQuerySettings.from(parse("PROMQL index=emp step=5m sum(network.bytes_in)", "v"), cluster, Settings.EMPTY)
+                    .unmappedFields(),
+                equalTo(UnmappedResolution.NULLIFY)
+            );
+            assertThat(ViewQuerySettings.from(parse("FROM emp", "v"), cluster, Settings.EMPTY).unmappedFields(), equalTo(clusterDefault));
+        }
+    }
+
+    private ViewQuerySettings viewSettings(String viewQuery) {
+        return ViewQuerySettings.from(parse(viewQuery, "v"), Settings.EMPTY, Settings.EMPTY);
+    }
+
     public void testCircularViewInFork() {
         addView("view_a", "FROM view_b");
         addView("view_b", "FROM view_a");
@@ -2489,12 +2660,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A {@code LET} binding keys its branch by its name, but a view of the same name can sit at the same level: the binding
+     * A {@code LET} named subquery keys its branch by its name, but a view of the same name can sit at the same level: the named subquery
      * shadows the view only where the name is written, so a wildcard still reaches the view. A view's key is recorded
-     * verbatim and asserted unique, and the binding comes first, so the binding's key must step aside for the view's.
+     * verbatim and asserted unique, and the named subquery comes first, so the named subquery's key must step aside for the view's.
      */
     public void testLetBindingKeyStepsAsideForSameNamedView() {
-        assumeTrue("Requires LET support", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         addIndex("let-key-index");
         addView("let_key_view", "FROM let-key-index | LIMIT 1");

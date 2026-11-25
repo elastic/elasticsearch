@@ -950,6 +950,14 @@ load two indexes, convert client_ip to a keyword and then with an unknown option
 
 ---
 load two indexes, convert client_ip with a valid option:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [to_ip_leading_zeros]
+      reason: "TO_IP options are not supported by older nodes"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

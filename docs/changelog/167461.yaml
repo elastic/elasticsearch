@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 167461
-summary: Reject unsafe DF pushdown literals
-type: enhancement
+summary: Decline multi-valued literals in ES|QL dataset filter pushdown
+type: bug

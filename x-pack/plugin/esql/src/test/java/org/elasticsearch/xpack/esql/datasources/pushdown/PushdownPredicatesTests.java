@@ -248,6 +248,18 @@ public class PushdownPredicatesTests extends ESTestCase {
         assertFalse(PushdownPredicates.isRange(upperIsMv, SUPPORTED));
     }
 
+    public void testAllPushdownLiteralsAgreeDeclinesMultiValuedLiteralUnderAnd() {
+        // canConvert(And) is left || right; Parquet then translates both children. A Collection
+        // sibling of a safe arm must fail the shared all-leaves walk, not only isComparison.
+        Equals mv = new Equals(SRC, field("id", DataType.INTEGER), new Literal(SRC, List.of(1, 2), DataType.INTEGER), null);
+        Equals scalar = new Equals(SRC, field("id", DataType.INTEGER), new Literal(SRC, 1, DataType.INTEGER), null);
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(mv));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new And(SRC, scalar, mv)));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new Or(SRC, scalar, mv)));
+        assertFalse(PushdownPredicates.allPushdownLiteralsAgree(new Not(SRC, mv)));
+        assertTrue(PushdownPredicates.allPushdownLiteralsAgree(scalar));
+    }
+
     private static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(SRC, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }

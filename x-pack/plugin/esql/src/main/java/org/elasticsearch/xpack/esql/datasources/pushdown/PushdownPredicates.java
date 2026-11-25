@@ -115,31 +115,33 @@ public final class PushdownPredicates {
 
     /**
      * {@code true} when every comparison / {@code IN} / {@code Range} leaf in {@code expr} that has
-     * a named field and a foldable literal agrees under {@link #isAgreeingPushdownLiteral}.
-     * Polarized like an all-leaves walk ({@code &&} of children). Column-column compares, non-date
-     * non-numeric pairs, and unknown nodes pass. Used at {@code canConvert} entry points so a mixed
-     * leaf nested under AND/OR/NOT is not attached.
+     * a named field and a foldable literal agrees under {@link #isAgreeingPushdownLiteral} and is
+     * not a {@link Collection}-valued {@link Literal}. Polarized like an all-leaves walk
+     * ({@code &&} of children). Column-column compares, non-date non-numeric pairs, and unknown
+     * nodes pass. Used at {@code canConvert} entry points so a mixed or multi-valued leaf nested
+     * under AND/OR/NOT is not attached — {@code canConvert(And)} is {@code left || right}, and
+     * Parquet then translates both children.
      */
     public static boolean allPushdownLiteralsAgree(Expression expr) {
         if (expr instanceof EsqlBinaryComparison bc) {
             if (bc.left() instanceof NamedExpression && bc.right().foldable()) {
-                return isAgreeingPushdownLiteral(bc.left().dataType(), bc.right());
+                return isSafePushdownLiteral(bc.left().dataType(), bc.right());
             }
             if (bc.right() instanceof NamedExpression && bc.left().foldable()) {
-                return isAgreeingPushdownLiteral(bc.right().dataType(), bc.left());
+                return isSafePushdownLiteral(bc.right().dataType(), bc.left());
             }
         }
         if (expr instanceof In in && in.value() instanceof NamedExpression) {
             for (Expression item : in.list()) {
-                if (item.foldable() && isAgreeingPushdownLiteral(in.value().dataType(), item) == false) {
+                if (item.foldable() && isSafePushdownLiteral(in.value().dataType(), item) == false) {
                     return false;
                 }
             }
             return true;
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression) {
-            return (range.lower().foldable() == false || isAgreeingPushdownLiteral(range.value().dataType(), range.lower()))
-                && (range.upper().foldable() == false || isAgreeingPushdownLiteral(range.value().dataType(), range.upper()));
+            return (range.lower().foldable() == false || isSafePushdownLiteral(range.value().dataType(), range.lower()))
+                && (range.upper().foldable() == false || isSafePushdownLiteral(range.value().dataType(), range.upper()));
         }
         if (expr instanceof MvContains mvContains) {
             return leafLiteralAgrees(mvContains.left(), mvContains.right());
@@ -373,6 +375,14 @@ public final class PushdownPredicates {
      */
     private static boolean isMultiValuedLiteral(Expression e) {
         return e instanceof Literal lit && lit.value() instanceof Collection<?>;
+    }
+
+    /**
+     * A foldable literal that is both type-agreeing and scalar. Used by the all-leaves walk so a
+     * {@link Collection} nested under a partial AND is not attached even when the other arm converts.
+     */
+    private static boolean isSafePushdownLiteral(DataType columnType, Expression literal) {
+        return isMultiValuedLiteral(literal) == false && isAgreeingPushdownLiteral(columnType, literal);
     }
 
     /** An {@code mv_} leaf's literal agrees with its field, or the leaf is not a field-and-literal shape at all. */

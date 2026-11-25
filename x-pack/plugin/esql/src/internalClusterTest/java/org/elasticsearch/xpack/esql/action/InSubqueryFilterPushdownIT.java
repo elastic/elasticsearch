@@ -88,6 +88,21 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
         updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
     }
 
+    /**
+     * A shard rejects a {@code terms} query longer than its {@code index.max_terms_count}, so the default threshold of 100 is capped by
+     * a lower limit and the join becomes a hash join rather than a failed query.
+     */
+    public void testDefaultThresholdIsCappedByMaxTermsCount() {
+        updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
+        int values = 75;
+        createEvents("events", values - 25, "type=keyword");
+
+        QueryResult result = query("events", values, getPragmas());
+
+        assertThat(result.matches(), equalTo((long) values));
+        assertThat(result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
+    }
+
     public void testDefaultThresholdUsesHashJoinAboveLimit() {
         updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
         createEvents("events", null, "type=keyword,index=false");

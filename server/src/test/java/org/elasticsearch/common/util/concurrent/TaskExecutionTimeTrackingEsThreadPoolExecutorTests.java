@@ -761,6 +761,47 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     /**
+     * A tracking scaling pool with core=0 force-queues work and then submits the unwrapped worker
+     * probe. That probe must not trip the TimedRunnable assertion in beforeExecute/afterExecute.
+     */
+    public void testScalingFromZeroDoesNotAssertOnWorkerProbe() throws Exception {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        EsThreadPoolExecutor executor = EsExecutors.newScaling(
+            "probe-test",
+            0,
+            2,
+            1,
+            TimeUnit.MILLISECONDS,
+            false,
+            TestEsExecutors.testOnlyDaemonThreadFactory("probe"),
+            context,
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
+        );
+        try {
+            CyclicBarrier busy = new CyclicBarrier(3);
+            CountDownLatch release = new CountDownLatch(1);
+            for (int i = 0; i < 2; i++) {
+                executor.execute(() -> {
+                    try {
+                        busy.await(10, TimeUnit.SECONDS);
+                        release.await(10, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                });
+            }
+            busy.await(10, TimeUnit.SECONDS);
+            CountDownLatch thirdDone = new CountDownLatch(1);
+            executor.execute(thirdDone::countDown);
+            release.countDown();
+            assertTrue(thirdDone.await(10, TimeUnit.SECONDS));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
      * Ensures that the time reported by {@code System.nanoTime()} has advanced. It is otherwise feasible for the clock to report no time
      * passing between operations. Call this method if time passing must be guaranteed.
      */

@@ -187,6 +187,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
@@ -203,6 +204,7 @@ import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
@@ -4109,12 +4111,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * The {@code DESCRIBE} that {@code plan} ends with, followed only by commands that don't add rows and no {@code LIMIT},
+     * or {@code null}. Such a plan returns at most one row per column of the input of the {@code DESCRIBE}.
+     */
+    @Nullable
+    private static Describe boundingDescribe(LogicalPlan plan) {
+        while (plan instanceof Project
+            || plan instanceof Eval
+            || plan instanceof Filter
+            || plan instanceof OrderBy
+            || plan instanceof RegexExtract) {
+            plan = ((UnaryPlan) plan).child();
+        }
+        return plan instanceof Describe describe ? describe : null;
+    }
+
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             if (logicalPlan instanceof Into) {
                 // INTO returns one stats row, so the default 1000 cap must not truncate the rows it writes.
                 return logicalPlan;
+            }
+            Describe describe = boundingDescribe(logicalPlan);
+            if (describe != null) {
+                // DESCRIBE returns one row per column, so a lower limit would only drop columns.
+                var source = logicalPlan.source();
+                return new Limit(source, new Literal(source, describe.child().output().size(), DataType.INTEGER), logicalPlan);
             }
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply

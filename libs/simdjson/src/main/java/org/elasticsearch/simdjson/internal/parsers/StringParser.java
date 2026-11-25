@@ -55,6 +55,8 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  *       compared via {@code hasQuoteFirst}/{@code hasBackslash}; halves the number of
  *       {@code VectorMask.toLong} conversions per chunk, which profiling showed as the
  *       largest single cost once the scalar length/escape scan above was vectorized.</li>
+ *   <li>An unpaired surrogate escape becomes {@code ?} in a string value and is rejected in a
+ *       field name ({@link #parseFieldName}); upstream rejects it in both.</li>
  * </ul>
  */
 public final class StringParser {
@@ -79,10 +81,17 @@ public final class StringParser {
     /**
      * Unescapes the JSON string opening at {@code idx} into {@code stringBuffer}, returning the
      * number of bytes written. {@code stringBuffer} must have room for the raw byte length of the
-     * string plus {@link #DESTINATION_PADDING}.
+     * string plus {@link #DESTINATION_PADDING}. Each unpaired surrogate escape becomes {@code ?}.
      */
     public int parseString(byte[] buffer, int idx, byte[] stringBuffer) {
-        return doParseString(buffer, idx, stringBuffer, 0);
+        return doParseString(buffer, idx, stringBuffer, 0, false);
+    }
+
+    /**
+     * Like {@link #parseString}, for a field name: an unpaired surrogate escape is rejected.
+     */
+    public int parseFieldName(byte[] buffer, int idx, byte[] stringBuffer) {
+        return doParseString(buffer, idx, stringBuffer, 0, true);
     }
 
     /**
@@ -123,7 +132,7 @@ public final class StringParser {
         }
     }
 
-    private int doParseString(byte[] buffer, int idx, byte[] stringBuffer, int offset) {
+    private int doParseString(byte[] buffer, int idx, byte[] stringBuffer, int offset, boolean rejectUnpairedSurrogates) {
         int src = idx + 1;
         int dst = offset;
         int loopBound = buffer.length - BYTES_PROCESSED;
@@ -153,11 +162,14 @@ public final class StringParser {
                 dst += backslashDist;
                 int codePoint = parseUnicodeCodePoint(buffer, src);
                 src += 6;
-                if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_HIGH_SURROGATE) {
-                    codePoint = parseLowSurrogate(buffer, src, codePoint);
-                    src += 6;
-                } else if (codePoint >= MIN_LOW_SURROGATE && codePoint <= MAX_LOW_SURROGATE) {
-                    throw new JsonParsingException("Invalid code point. The range U+DC00–U+DFFF is reserved for low surrogate.");
+                if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_LOW_SURROGATE) {
+                    int lowSurrogate = codePoint <= MAX_HIGH_SURROGATE ? lowSurrogateAt(buffer, src) : -1;
+                    if (lowSurrogate >= 0) {
+                        codePoint = combineSurrogates(codePoint, lowSurrogate);
+                        src += 6;
+                    } else {
+                        codePoint = unpairedSurrogate(rejectUnpairedSurrogates);
+                    }
                 }
                 dst += storeCodePointInStringBuffer(codePoint, dst, stringBuffer);
             } else {
@@ -166,11 +178,11 @@ public final class StringParser {
                 dst += backslashDist + 1;
             }
         }
-        return doParseStringScalar(buffer, src, stringBuffer, dst);
+        return doParseStringScalar(buffer, src, stringBuffer, dst, rejectUnpairedSurrogates);
     }
 
     /** Byte-at-a-time fallback for the tail when fewer than BYTES_PROCESSED bytes remain in the buffer. */
-    private int doParseStringScalar(byte[] buffer, int src, byte[] stringBuffer, int dst) {
+    private int doParseStringScalar(byte[] buffer, int src, byte[] stringBuffer, int dst, boolean rejectUnpairedSurrogates) {
         while (true) {
             byte b = buffer[src];
             if (b == QUOTE) {
@@ -181,11 +193,14 @@ public final class StringParser {
                 if (escapeChar == 'u') {
                     int codePoint = parseUnicodeCodePoint(buffer, src);
                     src += 6;
-                    if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_HIGH_SURROGATE) {
-                        codePoint = parseLowSurrogate(buffer, src, codePoint);
-                        src += 6;
-                    } else if (codePoint >= MIN_LOW_SURROGATE && codePoint <= MAX_LOW_SURROGATE) {
-                        throw new JsonParsingException("Invalid code point. The range U+DC00–U+DFFF is reserved for low surrogate.");
+                    if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_LOW_SURROGATE) {
+                        int lowSurrogate = codePoint <= MAX_HIGH_SURROGATE ? lowSurrogateAt(buffer, src) : -1;
+                        if (lowSurrogate >= 0) {
+                            codePoint = combineSurrogates(codePoint, lowSurrogate);
+                            src += 6;
+                        } else {
+                            codePoint = unpairedSurrogate(rejectUnpairedSurrogates);
+                        }
                     }
                     dst += storeCodePointInStringBuffer(codePoint, dst, stringBuffer);
                 } else {
@@ -201,21 +216,24 @@ public final class StringParser {
         }
     }
 
-    private int parseLowSurrogate(byte[] buffer, int src, int codePoint) {
-        if (src + 6 > buffer.length) {
-            throw new JsonParsingException("Low surrogate should start with '\\u'");
+    /** Returns the low surrogate written by the {@code \\uXXXX} escape at {@code src}, or {@code -1} if there is none there. */
+    private static int lowSurrogateAt(byte[] buffer, int src) {
+        if (src + 6 > buffer.length || buffer[src] != BACKSLASH || buffer[src + 1] != 'u') {
+            return -1;
         }
-        if ((buffer[src] << 8 | buffer[src + 1]) != ('\\' << 8 | 'u')) {
-            throw new JsonParsingException("Low surrogate should start with '\\u'");
-        } else {
-            int codePoint2 = parseUnicodeCodePoint(buffer, src);
-            int lowBit = codePoint2 - MIN_LOW_SURROGATE;
-            if (lowBit >> 10 == 0) {
-                return (((codePoint - MIN_HIGH_SURROGATE) << 10) | lowBit) + 0x10000;
-            } else {
-                throw new JsonParsingException("Invalid code point. Low surrogate should be in the range U+DC00–U+DFFF.");
-            }
+        int codeUnit = hexToInt(buffer, src + 2);
+        return codeUnit >= MIN_LOW_SURROGATE && codeUnit <= MAX_LOW_SURROGATE ? codeUnit : -1;
+    }
+
+    private static int combineSurrogates(int highSurrogate, int lowSurrogate) {
+        return (((highSurrogate - MIN_HIGH_SURROGATE) << 10) | (lowSurrogate - MIN_LOW_SURROGATE)) + 0x10000;
+    }
+
+    private static int unpairedSurrogate(boolean reject) {
+        if (reject) {
+            throw new JsonParsingException("Unpaired surrogate escape");
         }
+        return '?';
     }
 
     private static int parseUnicodeCodePoint(byte[] buffer, int backslashIndex) {

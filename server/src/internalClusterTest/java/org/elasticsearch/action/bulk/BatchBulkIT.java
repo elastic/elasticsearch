@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -65,6 +68,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.sourcebatch.SourceBatch;
@@ -89,6 +93,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
@@ -4009,6 +4014,236 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertHitIds(index, QueryBuilders.termQuery("short_field", 4464));
         assertHitIds(index, QueryBuilders.termQuery("int_field", -1294967296));
         assertHitIds(index, QueryBuilders.termQuery("long_field", Long.MAX_VALUE), "valid");
+    }
+
+    /**
+     * A mapping with a {@code nested} field sends every batch to the sequential path, also a batch that has no value for it: the
+     * nested mapper changes the shape of every document, and the batch path cannot write child documents yet (Phase 0 of
+     * elastic/elasticsearch#167077). Phase 1 turns the expectation of this test around: it must then see {@code batch indexed}.
+     */
+    public void testNestedMappingFallsBackFromBatchMode() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
+        final SourceFieldMapper.Mode sourceMode = randomFrom(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
+        final String withNested = "test-nested-fallback";
+        final String rootOnly = "test-nested-root-only";
+        createNestedIndex(withNested, mode, sourceMode);
+        createNestedIndex(rootOnly, mode, sourceMode);
+
+        assertNestedBulkFallsBack(withNested, nestedSources(mode, 20));
+        final Map<String, String> rootOnlySources = new LinkedHashMap<>();
+        for (int i = 0; i < 20; i++) {
+            rootOnlySources.put("doc-" + i, withTimestamp(mode, "\"host\":\"host-" + i + "\""));
+        }
+        assertNestedBulkFallsBack(rootOnly, rootOnlySources);
+
+        refresh(withNested, rootOnly);
+        assertResponse(prepareSearch(withNested).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), response -> {
+            // Only the root documents count here: the search does not see the child documents.
+            assertThat(response.getHits().getTotalHits().value(), equalTo(20L));
+        });
+        assertResponse(prepareSearch(rootOnly).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), response -> {
+            assertThat(response.getHits().getTotalHits().value(), equalTo(20L));
+        });
+    }
+
+    /**
+     * What a nested mapping does on the sequential path, which the batch path must match once it takes nested values: {@code _source},
+     * nested queries and {@code inner_hits}. The second index is written with batch indexing off, so the write path is the one thing
+     * that changes between the two, and the sequential path is the oracle. Today both go through it, so the test passes; it is the net
+     * for Phase 1 of elastic/elasticsearch#167077, and it carries no log expectation for that reason.
+     */
+    public void testNestedBatchMatchesRowPath() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
+        final SourceFieldMapper.Mode sourceMode = randomFrom(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
+        final String batched = "test-nested-batched";
+        final String sequential = "test-nested-sequential";
+        createNestedIndex(batched, mode, sourceMode);
+        createNestedIndex(sequential, mode, sourceMode);
+
+        final Map<String, String> sources = nestedSources(mode, 50);
+        sources.put("doc-control", crossChildControlSource(mode));
+        final String coordinatingNode = findCoordinatingNode();
+        assertNoFailures(client(coordinatingNode).bulk(bulkOf(batched, sources)).actionGet());
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        try {
+            assertNoFailures(client(coordinatingNode).bulk(bulkOf(sequential, sources)).actionGet());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        refresh(batched, sequential);
+
+        for (String id : sources.keySet()) {
+            assertThat("source of [" + id + "]", sourceOf(batched, id), equalTo(sourceOf(sequential, id)));
+        }
+
+        final QueryBuilder byAuthor = QueryBuilders.nestedQuery(
+            "comments",
+            QueryBuilders.termQuery("comments.author", "author-1"),
+            ScoreMode.None
+        );
+        assertSameHits(batched, sequential, byAuthor, "nested term query");
+        final QueryBuilder authorWithManyVotes = QueryBuilders.nestedQuery(
+            "comments",
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("comments.author", "author-1"))
+                .must(QueryBuilders.rangeQuery("comments.votes").gte(2)),
+            ScoreMode.None
+        );
+        assertSameHits(batched, sequential, authorWithManyVotes, "nested bool query within one child");
+
+        // Comparing the two indices cannot tell if both are wrong in the same way. In "doc-control" no single child has author-1 and
+        // at least 2 votes, although one child has the author and another child has the votes, so a predicate that is evaluated across
+        // children matches it. It has to stay out of the hits on both indices, and its children have to be visible one by one.
+        final QueryBuilder onlyControl = QueryBuilders.idsQuery().addIds("doc-control");
+        final QueryBuilder authorWithFewVotes = QueryBuilders.nestedQuery(
+            "comments",
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("comments.author", "author-1"))
+                .must(QueryBuilders.rangeQuery("comments.votes").lte(1)),
+            ScoreMode.None
+        );
+        for (String index : List.of(batched, sequential)) {
+            assertHitIds(index, QueryBuilders.boolQuery().must(authorWithManyVotes).filter(onlyControl));
+            assertHitIds(index, QueryBuilders.boolQuery().must(authorWithFewVotes).filter(onlyControl), "doc-control");
+        }
+        assertSameHits(batched, sequential, QueryBuilders.termQuery("host", "host-3"), "root term query");
+        assertSameHits(batched, sequential, QueryBuilders.matchAllQuery(), "match all");
+
+        // inner_hits name the matching children by their position within the nested field, in source order.
+        final QueryBuilder withInnerHits = QueryBuilders.nestedQuery(
+            "comments",
+            QueryBuilders.existsQuery("comments.author"),
+            ScoreMode.None
+        ).innerHit(new InnerHitBuilder().setSize(10).addSort(SortBuilders.fieldSort("comments.votes").order(SortOrder.ASC)));
+        assertThat("inner_hits", innerHits(batched, withInnerHits), equalTo(innerHits(sequential, withInnerHits)));
+    }
+
+    /** An inner hit of a nested field: where the child sits within the nested field, and its {@code _source}. */
+    private record InnerHit(String nestedField, int offset, Map<String, Object> source) {}
+
+    /**
+     * For every matching root document, its {@code comments} inner hits in the order they come back, each with its nested field and
+     * offset, because the offset is the only difference between children with the same source.
+     */
+    private Map<String, List<InnerHit>> innerHits(String index, QueryBuilder query) {
+        final Map<String, List<InnerHit>> result = new TreeMap<>();
+        assertResponse(prepareSearch(index).setQuery(query).setSize(100), response -> {
+            for (SearchHit hit : response.getHits().getHits()) {
+                final List<InnerHit> children = new ArrayList<>();
+                for (SearchHit inner : hit.getInnerHits().get("comments").getHits()) {
+                    final SearchHit.NestedIdentity identity = inner.getNestedIdentity();
+                    children.add(new InnerHit(identity.getField().string(), identity.getOffset(), inner.getSourceAsMap()));
+                }
+                result.put(hit.getId(), children);
+            }
+        });
+        return result;
+    }
+
+    /**
+     * Bulk-indexes {@code sources} and asserts that batch indexing was disabled because of the use of nested field types.
+     * Via followup changes will replace this assertion that batch indexing is enabled.
+     */
+    private void assertNestedBulkFallsBack(String index, Map<String, String> sources) {
+        final Logger mapperLogger = LogManager.getLogger(ShardBatchMapper.class);
+        final Logger indexerLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origMapperLevel = mapperLogger.getLevel();
+        final Level origIndexerLevel = indexerLogger.getLevel();
+        Loggers.setLevel(mapperLogger, Level.DEBUG);
+        Loggers.setLevel(indexerLogger, Level.TRACE);
+        try (var mapperLog = MockLog.capture(ShardBatchMapper.class); var indexerLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mapperLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "nested mapping disables the batch path",
+                    ShardBatchMapper.class.getName(),
+                    Level.DEBUG,
+                    "batch indexing disabled: mapping defines nested objects"
+                )
+            );
+            indexerLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            final BulkResponse response = client(findCoordinatingNode()).bulk(bulkOf(index, sources)).actionGet();
+            assertNoFailures(response);
+            assertThat(response.getItems().length, equalTo(sources.size()));
+            mapperLog.assertAllExpectationsMatched();
+            indexerLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(mapperLogger, origMapperLevel);
+            Loggers.setLevel(indexerLogger, origIndexerLevel);
+        }
+    }
+
+    private void createNestedIndex(String index, IndexMode mode, SourceFieldMapper.Mode sourceMode) {
+        final String timestamp = mode == IndexMode.LOGSDB_COLUMNAR ? "\"@timestamp\": { \"type\": \"date\" }," : "";
+        final String mapping = Strings.format("""
+            {
+                "properties": {
+                    %s
+                    "host": { "type": "keyword" },
+                    "comments": {
+                        "type": "nested",
+                        "properties": {
+                            "author": { "type": "keyword" },
+                            "votes": { "type": "long" }
+                        }
+                    }
+                }
+            }
+            """, timestamp);
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), mode.getName())
+                        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode.toString())
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+    }
+
+    /**
+     * Documents with no, one and several comments, in the array spelling and in the object spelling, and with an empty array, so that
+     * the children per document vary.
+     */
+    private static Map<String, String> nestedSources(IndexMode mode, int numDocs) {
+        final Map<String, String> sources = new LinkedHashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            final String host = "\"host\":\"host-" + (i % 7) + "\"";
+            final String comment = "{\"author\":\"author-" + (i % 3) + "\",\"votes\":" + (i % 5) + "}";
+            sources.put("doc-" + i, withTimestamp(mode, switch (i % 5) {
+                case 0 -> host;
+                case 1 -> host + ",\"comments\":" + comment;
+                case 2 -> host + ",\"comments\":[" + comment + "," + comment.replace("author-", "author-x") + "]";
+                case 3 -> host + ",\"comments\":[]";
+                default -> host + ",\"comments\":[" + comment + "," + comment + "," + comment + "]";
+            }));
+        }
+        return sources;
+    }
+
+    /**
+     * A document in which the author {@code author-1} and 2 or more votes sit in different children, so that no single child has both.
+     * It is a negative control for a nested query that must match within one child.
+     */
+    private static String crossChildControlSource(IndexMode mode) {
+        return withTimestamp(
+            mode,
+            "\"host\":\"host-0\",\"comments\":[{\"author\":\"author-1\",\"votes\":0},{\"author\":\"author-2\",\"votes\":4}]"
+        );
+    }
+
+    /** {@code members} as a JSON object, with an {@code @timestamp} where the index mode needs one. */
+    private static String withTimestamp(IndexMode mode, String members) {
+        return mode == IndexMode.LOGSDB_COLUMNAR ? "{\"@timestamp\":\"2025-01-01T00:00:00Z\"," + members + "}" : "{" + members + "}";
     }
 
     private Map<String, Object> sourceOf(String index, String id) {

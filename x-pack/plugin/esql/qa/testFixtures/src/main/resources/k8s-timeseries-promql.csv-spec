@@ -3315,6 +3315,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_count_values
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_independent_join
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=1h result=(count_values by (cluster, pod) ("v", network.bytes_in{cluster="qa"}) * on (cluster, pod) network.bytes_in{cluster="qa"})
 | SORT pod;
 
@@ -3331,6 +3332,7 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_count_values
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_independent_join
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=1h result=(count_values by (pod) ("v", network.bytes_in) * on (pod) group_left network.bytes_in{cluster="qa"})
 | SORT pod, v;
 

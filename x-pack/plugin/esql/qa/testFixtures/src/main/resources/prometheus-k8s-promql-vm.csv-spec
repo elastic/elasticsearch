@@ -1553,6 +1553,7 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_independent_join
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m result=(count(count by (cluster) (network.eth0.tx)) / sum(network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result
@@ -1569,6 +1570,7 @@ required_capability: promql_vector_matching_v0
 required_capability: promql_binary_independent_join
 required_capability: promql_scalar
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m result=(scalar(sum(network.eth0.tx)) * sum by (cluster) (network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, cluster
@@ -1602,6 +1604,7 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_independent_join
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result;
@@ -1617,6 +1620,7 @@ required_capability: promql_vector_matching_v0
 required_capability: promql_binary_independent_join
 required_capability: promql_count_values
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m result=(count_values("v", network.eth0.tx) / network.eth0.rx)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result;
@@ -1681,6 +1685,7 @@ required_capability: promql_vector_matching_v0
 required_capability: promql_binary_opaque_signature_match
 required_capability: promql_topk
 required_capability: promql_binary_independent_join
+required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk(1, last_over_time(network.eth0.tx{cluster="qa"}[5m])) + on (pod, cluster) ceil(sum_over_time(network.eth0.tx{cluster="qa"}[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, pod, cluster;

@@ -517,7 +517,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 labels,
                 labelLiterals(context, labels.source(), match.filterLabels()),
                 false,
-                context.passthroughPaths()
+                context.roots()
             );
         }
         var ignored = new TreeSet<String>(match.filterLabels());
@@ -527,7 +527,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             labels,
             labelLiterals(context, labels.source(), ignored),
             true,
-            context.passthroughPaths()
+            context.roots()
         );
     }
 
@@ -544,7 +544,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 labels,
                 labelLiterals(context, labels.source(), List.of(LabelMatcher.NAME)),
                 true,
-                context.passthroughPaths()
+                context.roots()
             );
         }
         if (match.grouping() == Joining.NONE && match.filter() != VectorMatch.Filter.NONE) {
@@ -554,7 +554,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 labels,
                 labelLiterals(context, labels.source(), match.filterLabels()),
                 keep == false,
-                context.passthroughPaths()
+                context.roots()
             );
         }
         for (String included : match.groupingLabels()) {
@@ -564,7 +564,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                     one.source(),
                     one,
                     Literal.keyword(one.source(), context.labelName(included)),
-                    context.passthroughPaths()
+                    context.roots()
                 );
             labels = new TimeSeriesMetadataSet(
                 labels.source(),
@@ -572,7 +572,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
                 Literal.keyword(labels.source(), context.labelName(included)),
                 value,
                 context.labelPath(included),
-                context.passthroughPaths()
+                context.roots()
             );
         }
         return labels;

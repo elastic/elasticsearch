@@ -638,14 +638,7 @@ public record TranslationContext(
             Expression value = column == null ? new Literal(source, null, DataType.KEYWORD)
                 : DataType.isString(column.dataType()) ? column
                 : new ToString(source, column, configuration());
-            labels = new TimeSeriesMetadataSet(
-                source,
-                labels,
-                Literal.keyword(source, labelName(label)),
-                value,
-                labelPath(label),
-                passthroughPaths
-            );
+            labels = new TimeSeriesMetadataSet(source, labels, Literal.keyword(source, labelName(label)), value, labelPath(label), roots);
         }
         return labels;
     }
@@ -717,11 +710,7 @@ public record TranslationContext(
         }
         for (String label : wanted.labels()) {
             columns.add(
-                new Alias(
-                    source,
-                    label,
-                    new TimeSeriesMetadataPath(source, labels, Literal.keyword(source, labelName(label)), passthroughPaths)
-                )
+                new Alias(source, label, new TimeSeriesMetadataPath(source, labels, Literal.keyword(source, labelName(label)), roots))
             );
         }
         LogicalPlan table = columns.isEmpty() ? plan : new Eval(source, plan, columns);

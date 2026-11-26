@@ -36,6 +36,14 @@ import java.util.Arrays;
  * It is named after the action that the filter authorizes for each document that a bulk creates, which is what the rows of an
  * {@code INTO} are, so that exactly the callers whom a bulk would allow to create a document there pass, whatever privileges grant that,
  * custom ones included, and a denial is audited under the same action as the write would be.
+ * <p>
+ * A bulk is authorized twice: its own actions ({@code indices:data/write/bulk*}) decide whether the caller may send it at all, and then
+ * the creation of each document does. This checks the second. The privileges for indexing a document ({@code create_doc},
+ * {@code create}, {@code index}, {@code write}) grant both, so for a role that uses one of them, passing this check means passing both.
+ * A custom role written with raw action patterns that grants the creation of a document but not the bulk actions passes it without being
+ * able to send the bulk that {@code INTO} writes with, and is told what a planning error tells a writer, about a destination that it may
+ * create documents in. It cannot use {@code INTO}. Checking the bulk actions as well would mean copying the gates of bulk here, which
+ * would drift from it.
  */
 public class EsqlIntoDestinationAction extends TransportAction<EsqlIntoDestinationAction.Request, EsqlIntoDestinationAction.Response> {
     // The name that AuthorizationService gives to the creation of a document by a bulk

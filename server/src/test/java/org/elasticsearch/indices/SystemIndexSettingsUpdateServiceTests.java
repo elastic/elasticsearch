@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
@@ -29,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -297,6 +299,55 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
         );
         verify(updateService).updateSettings(captor.capture(), any());
         assertThat(captor.getValue().settings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
+    }
+
+    public void testDynamicClusterSettingRemovalResetsUnmanagedSystemDataStreamToDefault() {
+        String dataStreamName = ".test-unmanaged";
+        SystemDataStreamDescriptor descriptor = new SystemDataStreamDescriptor(
+            dataStreamName,
+            "unmanaged system data stream",
+            SystemDataStreamDescriptor.Type.EXTERNAL_UNMANAGED,
+            null,
+            Map.of(),
+            List.of("test"),
+            "test",
+            null
+        );
+        SystemIndices systemIndices = new SystemIndices(
+            List.of(new SystemIndices.Feature("test", "test feature", List.of(), List.of(descriptor)))
+        );
+
+        MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
+        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(updateService, systemIndices, Settings.EMPTY);
+
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .system(true)
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
+                    .put(backingIndex, false)
+                    .put(DataStream.builder(dataStreamName, List.of(backingIndex.getIndex())).setSystem(true).setHidden(true).build())
+            )
+            .build();
+
+        Settings clusterWithAutoExpand = Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2").build();
+        ClusterState withSetting = masterState(Metadata.builder(metadata).persistentSettings(clusterWithAutoExpand).build());
+        service.clusterChanged(event(withSetting, withSetting)); // prime: marks flag true
+        verifyNoInteractions(updateService);
+
+        // Cluster API removes the setting → no descriptor template to read from, so the generic default "false" is used
+        ClusterState withoutSetting = masterState(Metadata.builder(metadata).persistentSettings(Settings.EMPTY).build());
+        service.clusterChanged(event(withoutSetting, withSetting));
+
+        ArgumentCaptor<UpdateSettingsClusterStateUpdateRequest> captor = ArgumentCaptor.forClass(
+            UpdateSettingsClusterStateUpdateRequest.class
+        );
+        verify(updateService).updateSettings(captor.capture(), any());
+        assertThat(captor.getValue().settings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("false"));
     }
 
     public void testNoUpdateWhenNoSystemIndicesExist() {

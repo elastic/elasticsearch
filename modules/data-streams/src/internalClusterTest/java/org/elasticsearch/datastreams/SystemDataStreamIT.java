@@ -386,6 +386,9 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             var writeIndex = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
             assertThat(ObjectPath.eval("properties.second.type", writeIndex.mapping().sourceAsMap()), equalTo("keyword"));
 
+            Map<String, Object> getResponse = entityAsMap(restClient.performRequest(new Request("GET", "/_data_stream/" + dataStreamName)));
+            assertThat(ObjectPath.eval("data_streams.0.template", getResponse), equalTo("test-unmanaged"));
+
             putTemplate.setJsonEntity(unmanagedTemplate(".test-other", "first"));
             re = expectThrows(ResponseException.class, () -> restClient.performRequest(putTemplate));
             assertThat(re.getMessage(), containsString("would cause data streams [" + dataStreamName + "] to no longer match"));

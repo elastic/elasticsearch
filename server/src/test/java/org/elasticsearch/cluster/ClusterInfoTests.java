@@ -144,76 +144,44 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         var hostedShardsPartitionSizeByNodeId = instance.getHostedShardsPartitionSizeByNodeId();
         var shardSearchLaneRequirements = instance.getShardSearchLaneRequirements();
         var shardSearchLoads = instance.getShardSearchLoads();
-
-        // Each serialized field is chosen independently so equals() is checked field by field.
-        if (randomBoolean()) {
-            leastAvailableSpaceUsage = randomValueOtherThan(leastAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage);
-        }
-        if (randomBoolean()) {
-            mostAvailableSpaceUsage = randomValueOtherThan(mostAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage);
-        }
-        if (randomBoolean()) {
-            shardSizes = randomValueOtherThan(shardSizes, ClusterInfoTests::randomShardSizes);
-        }
-        if (randomBoolean()) {
-            shardDataSetSizes = randomValueOtherThan(shardDataSetSizes, ClusterInfoTests::randomDataSetSizes);
-        }
-        if (randomBoolean()) {
-            dataPath = randomValueOtherThan(dataPath, ClusterInfoTests::randomRoutingToDataPath);
-        }
-        if (randomBoolean()) {
-            reservedSpace = randomValueOtherThan(reservedSpace, ClusterInfoTests::randomReservedSpace);
-        }
-        if (randomBoolean()) {
-            nodeHeapMetrics = randomValueOtherThan(nodeHeapMetrics, ClusterInfoTests::randomNodeHeapUsage);
-        }
-        if (randomBoolean()) {
-            estimatedShardHeapUsages = randomValueOtherThan(estimatedShardHeapUsages, ClusterInfoTests::randomShardHeapUsages);
-        }
-        if (randomBoolean()) {
-            defaultShardHeapUsage = randomValueOtherThan(defaultShardHeapUsage, ClusterInfoTests::randomShardAndIndexHeapUsage);
-        }
-        if (randomBoolean()) {
-            nodeUsageStatsForThreadPools = randomValueOtherThan(
+        var searchCopyDemands = instance.getSearchCopyDemands();
+        var nodeSearchCapacities = instance.getNodeSearchCapacities();
+        switch (between(0, 19)) {
+            case 0 -> leastAvailableSpaceUsage = randomValueOtherThan(leastAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage);
+            case 1 -> mostAvailableSpaceUsage = randomValueOtherThan(mostAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage);
+            case 2 -> shardSizes = randomValueOtherThan(shardSizes, ClusterInfoTests::randomShardSizes);
+            case 3 -> shardDataSetSizes = randomValueOtherThan(shardDataSetSizes, ClusterInfoTests::randomDataSetSizes);
+            case 4 -> dataPath = randomValueOtherThan(dataPath, ClusterInfoTests::randomRoutingToDataPath);
+            case 5 -> reservedSpace = randomValueOtherThan(reservedSpace, ClusterInfoTests::randomReservedSpace);
+            case 6 -> nodeHeapMetrics = randomValueOtherThan(nodeHeapMetrics, ClusterInfoTests::randomNodeHeapUsage);
+            case 7 -> estimatedShardHeapUsages = randomValueOtherThan(estimatedShardHeapUsages, ClusterInfoTests::randomShardHeapUsages);
+            case 8 -> defaultShardHeapUsage = randomValueOtherThan(defaultShardHeapUsage, ClusterInfoTests::randomShardAndIndexHeapUsage);
+            case 9 -> nodeUsageStatsForThreadPools = randomValueOtherThan(
                 nodeUsageStatsForThreadPools,
                 ClusterInfoTests::randomNodeUsageStatsForThreadPools
             );
-        }
-        if (randomBoolean()) {
-            shardWriteLoads = randomValueOtherThan(shardWriteLoads, ClusterInfoTests::randomPerShardDoubles);
-        }
-        if (randomBoolean()) {
-            maxHeapSizePerNode = randomValueOtherThan(maxHeapSizePerNode, ClusterInfoTests::randomMaxHeapSizes);
-        }
-        if (randomBoolean()) {
-            nodeIdsWriteLoadHotspotting = randomValueOtherThan(
+            case 10 -> shardWriteLoads = randomValueOtherThan(shardWriteLoads, ClusterInfoTests::randomPerShardDoubles);
+            case 11 -> maxHeapSizePerNode = randomValueOtherThan(maxHeapSizePerNode, ClusterInfoTests::randomMaxHeapSizes);
+            case 12 -> nodeIdsWriteLoadHotspotting = randomValueOtherThan(
                 nodeIdsWriteLoadHotspotting,
                 ClusterInfoTests::randomNodeIdsWriteLoadHotspottingSet
             );
-        }
-        if (randomBoolean()) {
-            nodeCacheSizeAndCommitments = randomValueOtherThan(
+            case 13 -> nodeCacheSizeAndCommitments = randomValueOtherThan(
                 nodeCacheSizeAndCommitments,
                 ClusterInfoTests::randomNodeCacheSizeAndCommitmentsMap
             );
-        }
-        if (randomBoolean()) {
-            shardCacheRequirements = randomValueOtherThan(shardCacheRequirements, ClusterInfoTests::randomShardCacheRequirements);
-        }
-        if (randomBoolean()) {
-            hostedShardsPartitionSizeByNodeId = randomValueOtherThan(
+            case 14 -> shardCacheRequirements = randomValueOtherThan(shardCacheRequirements, ClusterInfoTests::randomShardCacheRequirements);
+            case 15 -> hostedShardsPartitionSizeByNodeId = randomValueOtherThan(
                 hostedShardsPartitionSizeByNodeId,
                 ClusterInfoTests::randomHostedShardsPartitionSizes
             );
+            case 16 -> shardSearchLaneRequirements = randomValueOtherThan(shardSearchLaneRequirements, ClusterInfoTests::randomPerShardDoubles);
+            case 17 -> shardSearchLoads = randomValueOtherThan(shardSearchLoads, ClusterInfoTests::randomPerShardDoubles);
+            case 18 -> searchCopyDemands = randomValueOtherThan(searchCopyDemands, ClusterInfoTests::randomSearchCopyDemands);
+            case 19 -> nodeSearchCapacities = randomValueOtherThan(nodeSearchCapacities, ClusterInfoTests::randomNodeSearchCapacities);
+            default -> throw new IllegalArgumentException();
         }
-        if (randomBoolean()) {
-            shardSearchLaneRequirements = randomValueOtherThan(shardSearchLaneRequirements, ClusterInfoTests::randomPerShardDoubles);
-        }
-        if (randomBoolean()) {
-            shardSearchLoads = randomValueOtherThan(shardSearchLoads, ClusterInfoTests::randomPerShardDoubles);
-        }
-
-        var mutated = new ClusterInfo(
+        return new ClusterInfo(
             leastAvailableSpaceUsage,
             mostAvailableSpaceUsage,
             shardSizes,
@@ -231,32 +199,10 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             shardCacheRequirements,
             hostedShardsPartitionSizeByNodeId,
             shardSearchLaneRequirements,
-            shardSearchLoads
+            shardSearchLoads,
+            searchCopyDemands,
+            nodeSearchCapacities
         );
-        // randomBoolean() can leave every field unchanged; equals/hashCode requires a difference.
-        if (mutated.equals(instance)) {
-            return new ClusterInfo(
-                randomValueOtherThan(leastAvailableSpaceUsage, ClusterInfoTests::randomDiskUsage),
-                mostAvailableSpaceUsage,
-                shardSizes,
-                shardDataSetSizes,
-                dataPath,
-                reservedSpace,
-                nodeHeapMetrics,
-                estimatedShardHeapUsages,
-                defaultShardHeapUsage,
-                nodeUsageStatsForThreadPools,
-                shardWriteLoads,
-                maxHeapSizePerNode,
-                nodeIdsWriteLoadHotspotting,
-                nodeCacheSizeAndCommitments,
-                shardCacheRequirements,
-                hostedShardsPartitionSizeByNodeId,
-                shardSearchLaneRequirements,
-                shardSearchLoads
-            );
-        }
-        return mutated;
     }
 
     public static ClusterInfo randomClusterInfo() {

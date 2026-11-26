@@ -14,9 +14,10 @@ import org.openjdk.jmh.annotations.Param;
 import java.io.IOException;
 
 /**
- * A {@code terms} query over a {@code PLAIN} column, over the data shapes
- * {@link ColumnarPlainStringRangeSlicingBenchmark} ranges over. One of the three arrives in term order, so it
- * is bisected by rank, and the other two are compared value by value.
+ * A {@code terms} query over a {@code PLAIN} column, with the plain skip index off ({@code COLUMNAR_PLAIN}) and
+ * on ({@code COLUMNAR_PLAIN_BOUNDED}), over the data shapes {@link ColumnarPlainStringRangeSlicingBenchmark}
+ * ranges over. Values in ascending term order are bisected by rank, and with the skip index each term is
+ * confined to the chunks it can fall in. The other shapes are compared value by value.
  *
  * <p>Run with:
  * <pre>
@@ -26,7 +27,10 @@ import java.io.IOException;
  */
 public class ColumnarPlainStringTermsSlicingBenchmark extends AbstractStringTermsSlicingBenchmark {
 
-    @Param({ "SORTED_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID" })
+    @Param({ "COLUMNAR_PLAIN", "COLUMNAR_PLAIN_BOUNDED" })
+    private StringFormat format;
+
+    @Param({ "SORTED_POD_NAME", "SORTED_HOSTNAME", "DESCENDING_POD_NAME", "SHUFFLED_POD_NAME", "TRACE_ID" })
     private StringData data;
 
     /**
@@ -47,7 +51,7 @@ public class ColumnarPlainStringTermsSlicingBenchmark extends AbstractStringTerm
 
     @Override
     StringFormat format() {
-        return StringFormat.COLUMNAR_PLAIN;
+        return format;
     }
 
     @Override
@@ -62,8 +66,6 @@ public class ColumnarPlainStringTermsSlicingBenchmark extends AbstractStringTerm
 
     @Override
     void validateLayout(StringFormat.Column column) throws IOException {
-        if (column.shape().startsWith("plain") == false) {
-            throw new IllegalStateException("COLUMNAR_PLAIN produced a non-plain layout: " + column.shape());
-        }
+        format.requirePlainLayout(column, numDocs, data.ordered());
     }
 }

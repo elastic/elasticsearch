@@ -69,6 +69,12 @@ public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
         try {
             scriptPermits.release(pageSize());
             assertBusy(() -> {
+                if (future.isDone()) {
+                    // the driver checks for cancellation between pages (Driver.runSingleLoopIteration).
+                    // If the cancel arrives after page 1 is sent and before the script runs for page 2, the driver stops without
+                    // ever blocking. The query then completes almost immediately, and the future is completed.
+                    return;
+                }
                 List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks();
                 assertTrue("expected the query task to be cancelled on failure: " + tasks, tasks.stream().anyMatch(TaskInfo::cancelled));
             }, 30, TimeUnit.SECONDS);

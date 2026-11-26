@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.junit.Before;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -642,6 +643,52 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
+    public void testEsqlRawQueryWithUnalignedStartShouldChunkContiguouslyFromStart() throws IOException {
+        chunkSpan = TimeValue.timeValueSeconds(2);
+        // A raw resume start (latest posted row + 1) is not on a grouping-interval boundary and must not be floored.
+        final long start = 1_234L;
+        final long end = 5_000L;
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createRawEsqlContext(start, end));
+
+        InputStream inputStream1 = mock(InputStream.class);
+        InputStream inputStream2 = mock(InputStream.class);
+        // The summary MIN lies inside the window; flooring it to the grouping interval (1_000) would rewind the first chunk.
+        stubSummary(start, end, new DataSummary(1_300L, 4_900L, 10L));
+        stubChunk(1_300L, 3_300L, inputStream1);
+        stubChunk(3_300L, end, inputStream2);
+
+        assertNextStream(extractor, inputStream1);
+        assertNextStream(extractor, inputStream2);
+        assertNoMoreData(extractor);
+
+        InOrder inOrder = Mockito.inOrder(dataExtractorFactory);
+        inOrder.verify(dataExtractorFactory).newExtractor(start, end);
+        inOrder.verify(dataExtractorFactory).newExtractor(1_300L, 3_300L);
+        inOrder.verify(dataExtractorFactory).newExtractor(3_300L, end);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
+    public void testEsqlRawTruncatedChunkShouldShrinkBelowOneGroupingInterval() throws IOException {
+        // A raw chunk is not bound to the grouping grid, so a truncated 1.5s chunk retries with half its length (0.75s).
+        final long end = 3_000L;
+        chunkSpan = TimeValue.timeValueMillis(1_500L);
+        DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createRawEsqlContext(0L, end));
+        InputStream shrunkStream = mock(InputStream.class);
+        InputStream secondStream = mock(InputStream.class);
+        InputStream thirdStream = mock(InputStream.class);
+        stubSummary(0L, end, new DataSummary(0L, end - 1, 2_000L));
+        stubTruncatedChunk(0L, 1_500L, EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
+        stubTruncatedChunk(0L, 750L, 500L, shrunkStream);
+        // The next chunk keeps the shrunk span; the sparse result then regrows the span back to the initial 1.5s..
+        stubTruncatedChunk(750L, 1_500L, 100L, secondStream);
+        stubTruncatedChunk(1_500L, end, 100L, thirdStream);
+
+        assertThat(extractor.next().data().orElseThrow(), equalTo(shrunkStream));
+        assertThat(extractor.next().data().orElseThrow(), equalTo(secondStream));
+        assertThat(extractor.next().data().orElseThrow(), equalTo(thirdStream));
+        assertThat(extractor.getIncompleteSearchInterval(), equalTo(Optional.empty()));
+    }
+
     public void testEsqlWindowShouldAlignToDeclaredGroupingInterval() throws IOException {
         final long groupingInterval = 60_000L;
         final long alignedStart = 120_000L;
@@ -783,6 +830,12 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
         return createContext(start, end, hasAggregations, histogramInterval, false);
+    }
+
+    private ChunkedDataExtractorContext createRawEsqlContext(long start, long end) {
+        // Raw rows keep source timestamps, so the factory gives them the identity aligner.
+        ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIdentityTimeAligner();
+        return new ChunkedDataExtractorContext(jobId, scrollSize, start, end, chunkSpan, timeAligner, false, null, true, true);
     }
 
     private ChunkedDataExtractorContext createEsqlContext(long start, long end) {

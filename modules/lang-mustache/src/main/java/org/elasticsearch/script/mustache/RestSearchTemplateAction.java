@@ -76,7 +76,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             clusterSupportsFeature,
             size -> searchRequest.source().size(size),
             null,
-            Optional.of(crossProjectEnabled)
+            Optional.of(crossProjectEnabled),
+            true
         );
 
         // Creates the search template request

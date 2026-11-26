@@ -74,7 +74,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -1163,42 +1162,11 @@ public class TransportSearchActionTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    /** The handler charges a remote response's bytes from when they arrive until the transport releases them. */
-    public void testRemoteResponseHandlerReservesResponseBytes() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofKb(1));
+    public void testRemoteResponseHandlerReservesUnderTheMergerLabel() {
+        var breaker = new SearchResponseMergerTests.LabelRecordingBreaker();
         var handler = new TransportSearchAction.RemoteResponseHandler(ActionListener.noop(), EsExecutors.DIRECT_EXECUTOR_SERVICE, breaker);
-        Releasable reservation = handler.reserveResponseBytes(100);
-        assertThat(breaker.getUsed(), equalTo(100L));
-        reservation.close();
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    /**
-     * A trip reserving a response reaches the listener as the trip itself, which marks it as this node's failure rather than the remote
-     * cluster's. Other transport failures pass through unchanged.
-     */
-    public void testRemoteResponseHandlerReportsItsOwnTrip() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(10));
-        AtomicReference<Exception> tripFailure = new AtomicReference<>();
-        var trippingHandler = new TransportSearchAction.RemoteResponseHandler(
-            ActionListener.wrap(r -> fail("unexpected response"), tripFailure::set),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            breaker
-        );
-        CircuitBreakingException trip = expectThrows(CircuitBreakingException.class, () -> trippingHandler.reserveResponseBytes(100));
-        trippingHandler.handleException(new RemoteTransportException("Failed to reserve memory", trip));
-        assertSame(trip, tripFailure.get());
-        assertThat(breaker.getUsed(), equalTo(0L));
-
-        AtomicReference<Exception> otherFailure = new AtomicReference<>();
-        var handler = new TransportSearchAction.RemoteResponseHandler(
-            ActionListener.wrap(r -> fail("unexpected response"), otherFailure::set),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            breaker
-        );
-        TransportException failure = new RemoteTransportException("remote failed", new ElasticsearchException("boom"));
-        handler.handleException(failure);
-        assertSame(failure, otherFailure.get());
+        handler.reserveResponseBytes(100).close();
+        assertThat(breaker.charged, contains(SearchResponseMerger.BREAKER_LABEL));
     }
 
     /**
@@ -1398,6 +1366,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 0,
                 0,
                 List.of(),
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
@@ -1584,6 +1553,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 1,
                 0,
                 100,
+                List.of(),
                 List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
@@ -1998,7 +1968,7 @@ public class TransportSearchActionTests extends ESTestCase {
             1,
             0,
             100L,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
     }
@@ -2656,7 +2626,7 @@ public class TransportSearchActionTests extends ESTestCase {
             )
             .build();
         TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(metadata.getIndex(), metadata), request.indices());
-        assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
+        assertNull("omitting _slice on a slice-enabled index should leave routing unrestricted (null routing)", request.routing());
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsRoutingWhenSliceEnabled() {
@@ -2733,10 +2703,9 @@ public class TransportSearchActionTests extends ESTestCase {
         assertEquals("s1,s2", request.routing());
     }
 
-    public void testValidateAndResolveSearchSliceRoutingNormalizesAllToNullRouting() {
+    public void testValidateAndResolveSearchSliceRoutingWithoutSliceLeavesRoutingUnrestricted() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-enabled-index");
-        request.searchSlice(SliceIndexing.SLICE_ALL);
         IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
             .settings(
                 settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
@@ -2750,7 +2719,7 @@ public class TransportSearchActionTests extends ESTestCase {
             Map.of(enabled.getIndex(), enabled),
             request.indices()
         );
-        assertEquals(SliceIndexing.SLICE_ALL, requestedSlice);
+        assertNull(requestedSlice);
         assertNull(request.routing());
     }
 
@@ -2991,12 +2960,8 @@ public class TransportSearchActionTests extends ESTestCase {
         final SearchRequest named = new SearchRequest(indices).searchSlice(randomFrom("s1", "s1,s2"));
         assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, named, indices), arrayContaining("sliced"));
 
-        // every slice, no slice or a routing value searches every index
-        for (SearchRequest request : List.of(
-            new SearchRequest(indices).searchSlice(SliceIndexing.SLICE_ALL),
-            new SearchRequest(indices),
-            new SearchRequest(indices).routing("s1")
-        )) {
+        // no slice or a routing value searches every index
+        for (SearchRequest request : List.of(new SearchRequest(indices), new SearchRequest(indices).routing("s1"))) {
             assertThat(TransportSearchAction.ignoreIndicesWithoutSlices(projectState, request, indices), arrayContaining(indices));
         }
     }

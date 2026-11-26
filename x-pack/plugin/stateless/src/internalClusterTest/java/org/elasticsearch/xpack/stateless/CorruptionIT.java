@@ -254,7 +254,8 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
                         try {
                             assertNoFailures(prepareSearch(indexName).setTimeout(timeValueSeconds(60)));
                         } catch (SearchPhaseExecutionException e) {
-                            if (Arrays.stream(e.shardFailures())
+                            if (e.shardFailures()
+                                .stream()
                                 .map(Exception::getCause)
                                 .allMatch(e1 -> e1 instanceof NoShardAvailableActionException)) {
                                 throw new AssertionError(e);

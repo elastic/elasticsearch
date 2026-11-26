@@ -312,8 +312,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         // Short circuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
-        if (canShortCircuit(downsampleIndexName, parentTask, request.getWaitTimeout(), startTime, projectMetadata, listener)) {
-            logger.info("Skipping downsampling, because a previous execution already completed downsampling");
+        if (canShortCircuit(
+            sourceIndexMetadata.getIndex(),
+            downsampleIndexName,
+            parentTask,
+            request.getWaitTimeout(),
+            startTime,
+            projectMetadata,
+            listener
+        )) {
+            logger.info("Skipping downsampling, because a previous execution already completed downsampling or it cannot be resumed");
             return;
         }
         try {
@@ -428,6 +436,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 }, e -> {
                     if (e instanceof ResourceAlreadyExistsException) {
                         if (canShortCircuit(
+                            sourceIndexMetadata.getIndex(),
                             request.getTargetIndex(),
                             parentTask,
                             request.getWaitTimeout(),
@@ -435,7 +444,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             clusterService.state().metadata().getProject(projectMetadata.id()),
                             listener
                         )) {
-                            logger.info("Downsample tasks are not created, because a previous execution already completed downsampling");
+                            logger.info(
+                                "Downsample tasks are not created, because a previous execution already completed or cannot be resumed"
+                            );
                             return;
                         }
                         performShardDownsampling(
@@ -462,9 +473,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     /**
-     * Shortcircuit when another downsample api invocation already completed successfully.
+     * Short-circuit when another downsample api invocation already completed successfully or cannot be resumed.
      */
     private boolean canShortCircuit(
+        Index sourceIndex,
         String targetIndexName,
         TaskId parentTask,
         TimeValue waitTimeout,
@@ -482,7 +494,25 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // This isn't a downsample index, so fail:
             listener.onFailure(new ResourceAlreadyExistsException(targetIndexMetadata.getIndex()));
             return true;
-        } else if (downsampleStatus == DownsampleTaskStatus.SUCCESS) {
+        }
+        final String recordedSourceName = targetIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        final String recordedSourceUuid = targetIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY);
+        final Index recordedSourceIndex = recordedSourceName == null || recordedSourceUuid == null
+            ? null
+            : new Index(recordedSourceName, recordedSourceUuid);
+        if (recordedSourceIndex != null && sourceIndex.equals(recordedSourceIndex) == false) {
+            listener.onFailure(
+                new ResourceAlreadyExistsException(
+                    "The target index [{}] belongs to a different source {}. Choose a different target name, if this is not triggered by"
+                        + " a lifecycle, or delete the existing target index before retrying downsampling {}.",
+                    targetIndexName,
+                    recordedSourceIndex,
+                    sourceIndex
+                )
+            );
+            return true;
+        }
+        if (downsampleStatus == DownsampleTaskStatus.SUCCESS) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return true;
         }

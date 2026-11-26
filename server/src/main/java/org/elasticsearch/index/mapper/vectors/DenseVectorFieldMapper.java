@@ -47,6 +47,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -59,6 +60,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
@@ -85,6 +87,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperMergeContext;
@@ -142,6 +145,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -173,7 +177,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             + "is deprecated and will be removed in a future version";
 
     private static final int DEFAULT_BBQ_IVF_QUANTIZE_BITS = 1;
-    private static final int DEFAULT_ASH_IVF_QUANTIZE_BITS = 2;
 
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
@@ -2238,28 +2241,34 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean isAsh = quantizationType == BBQIVFIndexOptions.QuantizationType.ASH;
                 Object quantizeBitsNode = indexOptionsMap.remove("bits");
-                int defaultBits = isAsh ? DEFAULT_ASH_IVF_QUANTIZE_BITS : DEFAULT_BBQ_IVF_QUANTIZE_BITS;
-                int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, defaultBits);
-                if (isAsh) {
-                    if (IvfSegmentConfig.AshConfig.isValidBitsPerDim(quantizeBits) == false) {
-                        throw new IllegalArgumentException(
-                            "'bits' must be 1, 2, 3, 4 or 8 for ASH quantization, got: " + quantizeBits + " for field [" + fieldName + "]"
-                        );
+                // ASH leaves unset bits to be derived from the vector dimension when the field is written, see
+                // IvfSegmentConfig.AshConfig#forDims
+                Integer quantizeBits = quantizeBitsNode == null && isAsh
+                    ? null
+                    : XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
+                if (quantizeBits != null) {
+                    if (isAsh) {
+                        if (IvfSegmentConfig.AshConfig.isValidBitsPerDim(quantizeBits) == false) {
+                            throw new IllegalArgumentException(
+                                "'bits' must be 1, 2, 3, 4 or 8 for ASH quantization, got: "
+                                    + quantizeBits
+                                    + " for field ["
+                                    + fieldName
+                                    + "]"
+                            );
+                        }
+                    } else {
+                        // check the range before narrowing, so that e.g. 257 is not accepted as 1
+                        if (quantizeBits < 0
+                            || quantizeBits > Byte.MAX_VALUE
+                            || QuantEncoding.isValidBits(quantizeBits.byteValue()) == false) {
+                            throw new IllegalArgumentException(
+                                "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
+                            );
+                        }
                     }
-                } else {
-                    if (QuantEncoding.isValidBits((byte) quantizeBits) == false) {
-                        throw new IllegalArgumentException(
-                            "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
-                        );
-                    }
-                }
-                if (rescoreVector == null) {
-                    // adjust the oversampling factor based on quantization scheme
-                    // no oversampling with 4 bits
-                    if (quantizeBits == 2) {
-                        rescoreVector = new RescoreVector(1.5f);
-                    } else if (quantizeBits == 1) {
-                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    if (rescoreVector == null) {
+                        rescoreVector = BBQIVFIndexOptions.defaultRescoreVector(quantizeBits);
                     }
                 }
 
@@ -3069,7 +3078,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
         final IndexVersion indexVersionCreated;
-        final int bits;
+        /** The configured bits; only {@code null} for ASH, which then derives them from the vector dimension. */
+        @Nullable
+        final Integer bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
         final DenseVectorAutoCalibrate autoCalibrate;
@@ -3110,13 +3121,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             RescoreVector rescoreVector,
             IndexVersion indexVersionCreated,
             boolean doPrecondition,
-            int bits,
+            @Nullable Integer bits,
             boolean experimentalFeaturesEnabled,
             @Nullable DenseVectorAutoCalibrate autoCalibrate,
             QuantizationType quantizationType,
             boolean onDiskMerge
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector, onDiskMerge);
+            if (bits == null && quantizationType != QuantizationType.ASH) {
+                throw new IllegalArgumentException("bits must be set for quantization type [" + quantizationType + "]");
+            }
             this.clusterSize = clusterSize;
             this.flatIndexThreshold = flatIndexThreshold;
             this.defaultVisitPercentage = defaultVisitPercentage;
@@ -3160,15 +3174,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (quantizationType == QuantizationType.ASH && !Build.current().isSnapshot()) {
                     throw new IllegalArgumentException("quantization_type 'ash' is only available in snapshot builds");
                 }
-                if (quantizationType == QuantizationType.ASH && Build.current().isSnapshot()) {
-                    var ashConfig = IvfSegmentConfig.AshConfig.of(
-                        bits,
-                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
-                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION,
-                        IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS
-                    );
+                if (usesAshFormat()) {
                     return new ESNextDiskASHVectorsFormat(
-                        ashConfig,
+                        ashConfigResolver(),
                         clusterSize,
                         ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -3187,7 +3195,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     return new ESNextDiskBBQVectorsFormat(
-                        QuantEncoding.fromBits((byte) bits),
+                        QuantEncoding.fromBits((byte) resolve(null).bits()),
                         clusterSize,
                         ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -3208,7 +3216,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                     : IvfMergeConfigResolver.useCodecDefault();
                 return new ES950DiskBBQVectorsFormat(
-                    QuantEncoding.fromBits((byte) bits),
+                    QuantEncoding.fromBits((byte) resolve(null).bits()),
                     clusterSize,
                     ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
@@ -3224,7 +3232,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(
-                    ES940DiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                    ES940DiskBBQVectorsFormat.QuantEncoding.fromBits((byte) resolve(null).bits()),
                     clusterSize,
                     ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
@@ -3256,7 +3264,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && flatIndexThreshold == that.flatIndexThreshold
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
-                && bits == that.bits
+                && Objects.equals(bits, that.bits)
                 && doPrecondition == that.doPrecondition
                 && Objects.equals(autoCalibrate, that.autoCalibrate)
                 && Objects.equals(quantizationType, that.quantizationType)
@@ -3295,7 +3303,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            builder.field("bits", bits);
+            if (bits != null) {
+                builder.field("bits", bits);
+            }
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
             }
@@ -3333,8 +3343,79 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return autoCalibrate.profile();
         }
 
-        public int getBits() {
+        /**
+         * Returns the configured bits, or {@code null} when ASH is left to derive them from the vector dimension. Use
+         * {@link #resolve} for the bits a field of a given dimension is quantized with.
+         */
+        @Nullable
+        public Integer getBits() {
             return bits;
+        }
+
+        /**
+         * Returns whether the field is written with the ASH format. An ASH mapping falls back to an OSQ format when
+         * ASH is not available to the index: outside snapshot builds, without experimental features, or on indices
+         * created before ASH. Both the server and the {@code DiskBBQPlugin} format selection go through this, so that
+         * the bits used at write time and at query time agree.
+         */
+        public boolean usesAshFormat() {
+            return quantizationType == QuantizationType.ASH
+                && Build.current().isSnapshot()
+                && experimentalFeaturesEnabled
+                && indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE);
+        }
+
+        /**
+         * The bits a field is quantized with and the rescore oversampling it gets by default, see {@link #resolve}.
+         *
+         * @param rescoreVector the rescore oversampling, or {@code null} for none
+         */
+        public record Quantization(int bits, @Nullable RescoreVector rescoreVector) {}
+
+        /**
+         * Resolves the bits a field with {@code dims} dimensions is quantized with, and its rescore oversampling.
+         * <ul>
+         *     <li>Configured bits are used as they are, with the configured oversampling, which the parser already
+         *     defaults for them.</li>
+         *     <li>Otherwise, which only happens for ASH, the bits are derived from the dimension when the field is
+         *     written with the ASH format. When it falls back to an OSQ format, see {@link #usesAshFormat}, or when
+         *     {@code dims} is {@code null} because no vectors have been indexed yet, they are the fixed ASH default.
+         *     The oversampling is the configured one, or the default for those bits.</li>
+         * </ul>
+         * The OSQ formats are built without the dimension, and resolve with {@code null}.
+         */
+        public Quantization resolve(@Nullable Integer dims) {
+            if (bits != null) {
+                return new Quantization(bits, rescoreVector);
+            }
+            int derivedBits = usesAshFormat() && dims != null
+                ? IvfSegmentConfig.AshConfig.defaultBitsPerDim(dims)
+                : IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM;
+            return new Quantization(derivedBits, rescoreVector != null ? rescoreVector : defaultRescoreVector(derivedBits));
+        }
+
+        /**
+         * The rescore oversampling a field gets when none is configured, which depends on how coarsely it is quantized.
+         * There is no oversampling above 2 bits.
+         */
+        @Nullable
+        private static RescoreVector defaultRescoreVector(int bits) {
+            return switch (bits) {
+                case 1 -> new RescoreVector(DEFAULT_OVERSAMPLE);
+                case 2 -> new RescoreVector(1.5f);
+                case 3, 4, 7, 8 -> null;
+                default -> throw new IllegalArgumentException("unsupported bits [" + bits + "]");
+            };
+        }
+
+        /**
+         * Returns how the ASH codec picks the configuration for each field: from the configured bits, or with bits
+         * derived from the vector dimension when none are configured. The projected dimensions always follow from the
+         * vector dimension.
+         */
+        public AshConfigResolver ashConfigResolver() {
+            assert usesAshFormat();
+            return AshConfigResolver.dimsDerived(bits, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
         }
 
         public QuantizationType getQuantizationType() {
@@ -3569,9 +3650,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (queryOversample != null) {
                 return queryOversample;
             }
-            return indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions && quantizedIndexOptions.rescoreVector != null
-                ? quantizedIndexOptions.rescoreVector.oversample
-                : null;
+            RescoreVector rescoreVector = mappingRescoreVector();
+            return rescoreVector != null ? rescoreVector.oversample : null;
+        }
+
+        /**
+         * The rescore oversampling the index options ask for, including any default that depends on the vector dimension.
+         */
+        @Nullable
+        private RescoreVector mappingRescoreVector() {
+            return switch (indexOptions) {
+                case BBQIVFIndexOptions bbqIndexOptions -> bbqIndexOptions.resolve(dims).rescoreVector();
+                case QuantizedIndexOptions quantizedIndexOptions -> quantizedIndexOptions.rescoreVector;
+                // index options that are not quantized have nothing to rescore
+                case null, default -> null;
+            };
         }
 
         /**
@@ -3877,13 +3970,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
                 }
-                float mappingOversample = bbqIndexOptions.rescoreVector != null
-                    ? bbqIndexOptions.rescoreVector.oversample
+                BBQIVFIndexOptions.Quantization quantization = bbqIndexOptions.resolve(dims);
+                float mappingOversample = quantization.rescoreVector() != null
+                    ? quantization.rescoreVector().oversample
                     : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
                     bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
-                    bbqIndexOptions.bits,
+                    quantization.bits(),
                     mappingOversample,
                     queryOversample
                 );
@@ -4002,13 +4096,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
                 }
-                float mappingOversample = bbqIndexOptions.rescoreVector != null
-                    ? bbqIndexOptions.rescoreVector.oversample
+                BBQIVFIndexOptions.Quantization quantization = bbqIndexOptions.resolve(dims);
+                float mappingOversample = quantization.rescoreVector() != null
+                    ? quantization.rescoreVector().oversample
                     : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
                     bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
-                    bbqIndexOptions.bits,
+                    quantization.bits(),
                     mappingOversample,
                     queryOversample
                 );
@@ -4340,10 +4435,82 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * and mappings still waiting for their dimensions.
      */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         final DenseVectorFieldType ft = fieldType();
         final ElementType elementType = ft.element.elementType();
         return ft.indexed && ft.dims != null && (elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16);
+    }
+
+    /**
+     * The full paths of the {@code dense_vector} fields of {@code mapping} whose element values the row path parses as floats,
+     * that is every {@code float} and {@code bfloat16} vector, except those whose source text the row path may keep. {@code mapping}
+     * is the root of a mapping as {@link org.elasticsearch.cluster.metadata.MappingMetadata#sourceAsMap} returns it, and
+     * {@code indexKeepMode} the index's {@link Mapper#SYNTHETIC_SOURCE_KEEP_INDEX_SETTING}.
+     *
+     * <p>The coordinating node encodes a batch without the parsed mappings, so it reads these from the raw mapping to parse the
+     * elements of these vectors straight to float, as the row path does, instead of to double. An omitted {@code element_type}
+     * defaults to {@code float}, or to {@code bfloat16} in {@code vectordb} index mode, which are both included.
+     *
+     * <p>With synthetic source, the row path copies the text of a vector to {@code _ignored_source} when the vector or an object
+     * around it has {@code synthetic_source_keep: all}, and when it is in an array of objects that keep arrays, by their own
+     * {@code synthetic_source_keep: arrays} or the index's. A batch with such a vector falls back to the row path, but from the
+     * source rebuilt from the batch, where an element parsed to float would be written out widened to double, such as
+     * {@code 0.012299999594688416} for {@code 0.0123}. So these vectors are left out, and their elements are parsed as doubles,
+     * which keep their text. An object that keeps arrays leaves out its vectors whether or not a document holds it in an array.
+     * Vectors in an object with {@code enabled: false}, or under a disabled root, are left out too: the row path keeps such an
+     * object's source verbatim, with any source mode.
+     */
+    public static Set<String> floatElementPaths(Map<String, ?> mapping, Mapper.SourceKeepMode indexKeepMode) {
+        final Set<String> paths = new HashSet<>();
+        collectFloatElementPaths(mapping, "", indexKeepMode.toString(), paths);
+        return paths;
+    }
+
+    /**
+     * Whether the {@code _source} of an index with {@code indexSettings} may keep the client's text of its vectors, which the batch
+     * path rewrites from the encoded values. The strict columnar index modes never do: their {@code _source} renders vectors from
+     * the indexed floats. Other modes do when {@link IndexSettings#INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING} is off, unless their
+     * source is synthetic, which this does not resolve and so counts as keeping the text.
+     *
+     * <p>The coordinating node parses the elements of the vectors of such an index as doubles, not straight to float through
+     * {@link #floatElementPaths}, so that the {@code _source} the batch path rebuilds keeps the spelling it has always had: a
+     * float widened to double would be written out with up to 17 significant digits, such as {@code 0.012299999594688416} for
+     * {@code 0.0123}.
+     */
+    public static boolean sourceMayKeepVectorText(Settings indexSettings) {
+        return IndexSettings.MODE.get(indexSettings).isStrictColumnar() == false
+            && IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings) == false;
+    }
+
+    private static void collectFloatElementPaths(Map<?, ?> objectMapping, String prefix, String indexKeepMode, Set<String> paths) {
+        // An object with enabled: false, or a disabled root, keeps its source verbatim and parses none of its properties, so its
+        // vectors are never indexed and their text is kept in _source, or in _ignored_source with synthetic source.
+        if ("false".equals(String.valueOf(objectMapping.get("enabled")))) {
+            return;
+        }
+        if (objectMapping.get("properties") instanceof Map<?, ?> properties) {
+            for (Map.Entry<?, ?> entry : properties.entrySet()) {
+                if (entry.getValue() instanceof Map<?, ?> fieldMapping) {
+                    final String path = prefix + entry.getKey();
+                    final Object keepMode = fieldMapping.get(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+                    if (CONTENT_TYPE.equals(fieldMapping.get("type"))) {
+                        final Object elementType = fieldMapping.get("element_type");
+                        if ((elementType == null
+                            || ElementType.FLOAT.toString().equals(elementType)
+                            || ElementType.BFLOAT16.toString().equals(elementType))
+                            // a vector parses its array itself, so only keeping all source keeps its text
+                            && Mapper.SourceKeepMode.ALL.toString().equals(keepMode) == false) {
+                            paths.add(path);
+                        }
+                    } else {
+                        final Object objectKeepMode = keepMode != null ? keepMode : indexKeepMode;
+                        if (Mapper.SourceKeepMode.NONE.toString().equals(objectKeepMode)) {
+                            collectFloatElementPaths(fieldMapping, path + ".", indexKeepMode, paths);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -4379,29 +4546,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     continue;
                 }
                 case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
-                    vector = new float[dims];
+                    vector = vectorElements(source, doc, type, dims);
                     // Accumulated in float, element by element, exactly as FloatElement#parseVectorArray does on the row path, so
                     // that the unit-length check of dot_product accepts and rejects the same vectors on both paths.
                     // TODO: only dot_product and cosine need the magnitude (l2_norm and max_inner_product use it only to guard
-                    // against overflow), and it could be computed after the loop with the SIMD ESVectorUtil#dotProduct, as the
-                    // query path does.
+                    // against overflow), and it could be computed with the SIMD ESVectorUtil#dotProduct, as the query path does.
                     float sum = 0;
-                    final ArrayReader array = source.getArrayValue(doc);
-                    int index = 0;
-                    while (array.next()) {
-                        if (index >= dims) {
-                            throw new UnsupportedOperationException(
-                                "mapColumnBatch: [" + fullPath() + "] has more dimensions than defined in the mapping [" + dims + "]"
-                            );
-                        }
-                        final float value = vectorElementValue(array);
-                        vector[index++] = value;
+                    for (float value : vector) {
                         sum += value * value;
-                    }
-                    if (index != dims) {
-                        throw new UnsupportedOperationException(
-                            "mapColumnBatch: [" + fullPath() + "] has [" + index + "] dimensions, the mapping defines [" + dims + "]"
-                        );
                     }
                     squaredMagnitude = sum;
                 }
@@ -4462,12 +4614,42 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
+     * The elements of the array vector of {@code doc}, which must have {@code dims} of them, as floats. An array of {@code dims}
+     * numbers only, the common case, is read in bulk; any other array is read element by element, which allocates no more than
+     * {@code dims} floats, stops at the first element past them, and throws on a non-number element.
+     */
+    private float[] vectorElements(EscfColumn source, int doc, byte type, int dims) {
+        final float[] numbers = type == SourceValueType.FIXED_ARRAY ? source.numericArrayAsFloats(doc, dims) : null;
+        if (numbers != null) {
+            return numbers;
+        }
+        final float[] vector = new float[dims];
+        final ArrayReader array = source.getArrayValue(doc);
+        int index = 0;
+        while (array.next()) {
+            if (index >= dims) {
+                throw new UnsupportedOperationException(
+                    "mapColumnBatch: [" + fullPath() + "] has more dimensions than defined in the mapping [" + dims + "]"
+                );
+            }
+            vector[index++] = vectorElementValue(array);
+        }
+        if (index != dims) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: [" + fullPath() + "] has [" + index + "] dimensions, the mapping defines [" + dims + "]"
+            );
+        }
+        return vector;
+    }
+
+    /**
      * The value of the vector element {@code array} is positioned on, converted to a float the way the row path's
      * {@code XContentParser#floatValue} converts a JSON number. Anything but a number is left for the row path to reject.
      *
-     * <p>TODO: a {@code DOUBLE} element was parsed from JSON as a double and is narrowed here, so it is rounded twice and may differ
-     * by an ulp from the row path, which parses straight to float; it also takes twice the bytes of a float in the batch. Read
-     * float elements once the ESCF encoder produces them for float vectors: https://github.com/elastic/elasticsearch/issues/165790
+     * <p>The coordinating node parses the elements of a vector its mapping already knows straight to float, as the row path does,
+     * so a {@code DOUBLE} element holds such a float exactly and narrowing it is exact. A vector the coordinating node did not
+     * know as one, such as one mapped dynamically by this very bulk, has its elements parsed as doubles: narrowing those rounds
+     * twice, which on the rare doubles that are float midpoints may give a float one ulp off the row path's.
      */
     private float vectorElementValue(ArrayReader array) {
         return switch (array.type()) {
@@ -4659,9 +4841,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         );
     }
 
+    /**
+     * Keeps the current leaf's state in instance fields, so only the loader for the most recently loaded leaf is valid.
+     * Leaf loaders may be used from different threads one after another, as peer recovery does, but never concurrently.
+     */
     private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
-        private FloatVectorValues floatValues;
-        private ByteVectorValues byteValues;
+        private KnnVectorValues vectorValues;
         private NumericDocValues magnitudeReader;
 
         private boolean hasValue;
@@ -4670,27 +4855,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final VectorSimilarity vectorSimilarity;
-        private final Thread creationThread;
 
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.vectorSimilarity = vectorSimilarity;
-            this.creationThread = Thread.currentThread();
         }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            floatValues = reader.getFloatVectorValues(fullPath());
-            if (floatValues != null) {
+            vectorValues = reader.getFloatVectorValues(fullPath());
+            if (vectorValues != null) {
                 if (shouldNormalize()) {
                     magnitudeReader = reader.getNumericDocValues(fullPath() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
-                return createLoader(floatValues.iterator(), true);
+                return createLoader(vectorValues, true);
             }
 
-            byteValues = reader.getByteVectorValues(fullPath());
-            if (byteValues != null) {
-                return createLoader(byteValues.iterator(), false);
+            vectorValues = reader.getByteVectorValues(fullPath());
+            if (vectorValues != null) {
+                return createLoader(vectorValues, false);
             }
 
             return null;
@@ -4700,10 +4883,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity);
         }
 
-        private DocValuesLoader createLoader(KnnVectorValues.DocIndexIterator iterator, boolean checkMagnitude) {
+        private DocValuesLoader createLoader(KnnVectorValues values, boolean checkMagnitude) {
+            KnnVectorValues.DocIndexIterator iterator = values.iterator();
             return docId -> {
-                assert creationThread == Thread.currentThread()
-                    : "Thread mismatch: created by [" + creationThread + "], but accessed by [" + Thread.currentThread() + "]";
+                assert values == vectorValues : "doc values loader for [" + fullPath() + "] used after the loader moved to another leaf";
                 if (iterator.docID() > docId) {
                     return hasValue = false;
                 }
@@ -4730,11 +4913,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             float magnitude = hasMagnitude ? Float.intBitsToFloat((int) magnitudeReader.longValue()) : Float.NaN;
             b.startArray(leafName());
-            if (floatValues != null) {
+            if (vectorValues instanceof FloatVectorValues floatValues) {
                 for (float v : floatValues.vectorValue(ord)) {
                     b.value(hasMagnitude ? v * magnitude : v);
                 }
-            } else if (byteValues != null) {
+            } else if (vectorValues instanceof ByteVectorValues byteValues) {
                 for (byte v : byteValues.vectorValue(ord)) {
                     b.value(v);
                 }
@@ -4750,7 +4933,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          */
         private List<?> copyVectorAsList() throws IOException {
             assert hasValue : "vector is null for ord=" + ord;
-            if (floatValues != null) {
+            if (vectorValues instanceof FloatVectorValues floatValues) {
                 float[] raw = floatValues.vectorValue(ord);
                 List<Float> copyList = new ArrayList<>(raw.length);
 
@@ -4765,7 +4948,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
                 return copyList;
-            } else if (byteValues != null) {
+            } else if (vectorValues instanceof ByteVectorValues byteValues) {
                 byte[] raw = byteValues.vectorValue(ord);
                 List<Byte> copyList = new ArrayList<>(raw.length);
                 for (int i = 0; i < raw.length; i++) {

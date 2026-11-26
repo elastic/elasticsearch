@@ -9,18 +9,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -76,22 +72,6 @@ public class LenientConversionTests extends ESTestCase {
         assertThat(new ToLong(SOURCE, integer()).convertsInput(), is(true));
         assertThat(new ToIp(SOURCE, bool(), null).convertsInput(), is(false));
         assertThat(new ToIp(SOURCE, keyword(), null).convertsInput(), is(true));
-    }
-
-    /**
-     * A column of an unsupported type that isn't a field, like the ones {@code ENRICH} returns, is a value that can't be converted. A
-     * field is unsupported because of its mapping, and the analyzer decides what to do with it.
-     */
-    public void testUnsupportedInput() {
-        assertFoldsToNullWhenResolved(new ToLong(SOURCE, new ReferenceAttribute(SOURCE, "x", DataType.UNSUPPORTED)));
-        EsField unsupportedField = new EsField("x", DataType.UNSUPPORTED, Map.of(), false, EsField.TimeSeriesFieldType.NONE);
-        Expression field = new ToLong(SOURCE, new FieldAttribute(SOURCE, "x", unsupportedField));
-        assertThat(field.typeResolved().resolved(), is(false));
-    }
-
-    private static void assertFoldsToNullWhenResolved(Expression conversion) {
-        assertTrue("expected resolved [" + conversion + "] but got " + conversion.typeResolved(), conversion.typeResolved().resolved());
-        assertThat(((ConvertFunction) conversion).convertsInput(), is(false));
     }
 
     /**

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -28,8 +27,8 @@ final class LenientConversion {
      * <p>
      * It checks that by resolving the function again with the input replaced by {@code null}, which every conversion accepts. This
      * way, the other arguments of the function (options, base) are checked by the function itself, and an invalid one still fails, with
-     * the strict error. Fields mapped to several types and fields of an unsupported type are not eligible here, as the analyzer
-     * resolves them, and neither are types that can't be returned by a query: the strict error is returned for all of them.
+     * the strict error. Fields mapped to several types and fields of an unsupported type are not eligible, and neither are types that
+     * can't be returned by a query: the strict error is returned for all of them.
      * </p>
      */
     static <T extends Expression & ConvertFunction> Expression.TypeResolution resolve(T convert) {
@@ -38,11 +37,7 @@ final class LenientConversion {
             return strict;
         }
         DataType inputType = convert.field().dataType();
-        // An unsupported input is lenient only if it isn't a field: fields are unsupported, or mapped to several types, because of their
-        // mapping, and the analyzer decides what to do with them. Anything else, like an ENRICH column, is a value of a type that
-        // can't be converted.
-        if ((inputType == DataType.UNSUPPORTED && convert.field() instanceof FieldAttribute)
-            || DataType.isRepresentableInOutput(inputType) == false) {
+        if (inputType == DataType.UNSUPPORTED || DataType.isRepresentableInOutput(inputType) == false) {
             return strict;
         }
         List<Expression> children = new ArrayList<>(convert.children());

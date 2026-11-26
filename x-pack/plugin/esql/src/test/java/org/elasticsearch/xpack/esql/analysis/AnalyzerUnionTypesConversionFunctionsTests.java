@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -123,7 +124,8 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
     /** The conversion functions with optional arguments that aren't used on unions, and why. */
     private static final Map<String, String> OPTIONAL_ARGUMENTS_NOT_ON_UNIONS = Map.of(
         "to_text",
-        "its analyzer option is rejected on any index-mapped field, as it would re-analyze the values row by row, so it never applies to a union"
+        "its analyzer option is rejected on any index-mapped field, as it would re-analyze the values row by row, "
+            + "so it never applies to a union"
     );
 
     public AnalyzerUnionTypesConversionFunctionsTests(VersionMode versionMode) {
@@ -200,25 +202,26 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
     }
 
     /**
-     * The conversion functions with optional arguments need them in {@link #WITH_OTHER_ARGUMENTS}, so that a new one is tested with
-     * them, unless there is a reason why they can't be used on a union.
+     * The conversion functions with other arguments, optional or required, need them in {@link #WITH_OTHER_ARGUMENTS}, so that a new
+     * one is tested with them, unless there is a reason why they can't be used on a union.
      */
-    public void testConversionFunctionsWithOptionalArgumentsAreTestedWithThem() {
+    public void testConversionFunctionsWithOtherArgumentsAreTestedWithThem() {
         Set<String> tested = new TreeSet<>();
         WITH_OTHER_ARGUMENTS.forEach(c -> tested.add(c.function()));
-        Set<String> withOptionalArguments = new TreeSet<>();
+        Set<String> withOtherArguments = new TreeSet<>();
         for (FunctionDefinition definition : TEST_FUNCTION_REGISTRY.listFunctions()) {
             if (ConvertFunction.class.isAssignableFrom(definition.clazz())
                 && FoldablesConvertFunction.class.isAssignableFrom(definition.clazz()) == false
-                && OptionalArgument.class.isAssignableFrom(definition.clazz())) {
-                withOptionalArguments.add(definition.name());
+                && (OptionalArgument.class.isAssignableFrom(definition.clazz()) || conversionOf(definition, DataType.KEYWORD) == null)) {
+                withOtherArguments.add(definition.name());
             }
         }
         Set<String> expected = new TreeSet<>(tested);
         expected.addAll(OPTIONAL_ARGUMENTS_NOT_ON_UNIONS.keySet());
         assertThat(
-            "conversion functions with optional arguments should be in WITH_OTHER_ARGUMENTS, or in OPTIONAL_ARGUMENTS_NOT_ON_UNIONS with a reason",
-            withOptionalArguments,
+            "conversion functions with other arguments should be in WITH_OTHER_ARGUMENTS, "
+                + "or in OPTIONAL_ARGUMENTS_NOT_ON_UNIONS with a reason",
+            withOtherArguments,
             equalTo(expected)
         );
     }
@@ -315,7 +318,8 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
             try {
                 analyze(definition.name(), "", type, type);
                 return true;
-            } catch (RuntimeException e) {
+            } catch (VerificationException e) {
+                // The type is rejected. Any other failure is a bug that has to fail the test, not remove the type from it
                 return false;
             }
         }).sorted(Comparator.comparing(DataType::typeName)).toList();

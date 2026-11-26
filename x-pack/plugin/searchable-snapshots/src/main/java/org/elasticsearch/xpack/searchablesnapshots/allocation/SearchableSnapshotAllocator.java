@@ -534,6 +534,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         /**
          * Snapshot of the current fetch state for this shard, without starting new fetches or mutating fetch state.
          * If a fetch is still in flight, or cache data has not yet been fetched from every current data node, the result has no data.
+         * NB. The result may include entries for nodes that have since departed the cluster. This is ok as this is consumed by
+         * {@code ReplicaShardAllocator#findMatchingNodes} which filters out nodes that have no current {@link RoutingNode}
          */
         synchronized AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> peekData(ShardId shardId, DiscoveryNodes nodes) {
             if (fetchingDataNodes.isEmpty() == false) {

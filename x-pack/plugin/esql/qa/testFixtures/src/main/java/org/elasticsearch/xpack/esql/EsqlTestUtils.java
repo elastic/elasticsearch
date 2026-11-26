@@ -390,13 +390,23 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         private final boolean supportsLoaderConfig;
+        private final boolean singleValue;
 
         public TestSearchStats() {
             this(true);
         }
 
         public TestSearchStats(boolean supportsLoaderConfig) {
+            this(supportsLoaderConfig, false);
+        }
+
+        /**
+         * @param multiValue whether every field is reported as possibly multivalued, i.e. {@link #isSingleValue} returns
+         *                   {@code false}. Defaults to {@code false}, meaning all fields are single-valued.
+         */
+        public TestSearchStats(boolean supportsLoaderConfig, boolean multiValue) {
             this.supportsLoaderConfig = supportsLoaderConfig;
+            this.singleValue = multiValue == false;
         }
 
         @Override
@@ -455,7 +465,7 @@ public final class EsqlTestUtils {
 
         @Override
         public boolean isSingleValue(FieldName field) {
-            return false;
+            return singleValue;
         }
 
         @Override
@@ -569,7 +579,20 @@ public final class EsqlTestUtils {
         }
 
         public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues, boolean supportsLoaderConfig) {
-            super(supportsLoaderConfig);
+            this(minValues, maxValues, supportsLoaderConfig, false);
+        }
+
+        /**
+         * @param multiValue whether every field is reported as possibly multivalued, see
+         *                   {@link TestSearchStats#TestSearchStats(boolean, boolean)}.
+         */
+        public TestSearchStatsWithMinMax(
+            Map<String, Object> minValues,
+            Map<String, Object> maxValues,
+            boolean supportsLoaderConfig,
+            boolean multiValue
+        ) {
+            super(supportsLoaderConfig, multiValue);
             this.minValues = minValues;
             this.maxValues = maxValues;
         }
@@ -2022,9 +2045,9 @@ public final class EsqlTestUtils {
 
     /**
      * Rewrites index names inside a LET-prefix query for cross-cluster testing.
-     * Real index names in LET binding bodies are converted to remote patterns ({@code *:index,index}).
-     * LET binding names used as FROM sources in subsequent bindings or the main query are left unchanged.
-     * Each {@code LET name = (subquery);} statement declares exactly one binding.
+     * Real index names in LET subquery bodies are converted to remote patterns ({@code *:index,index}).
+     * LET subquery names used as FROM sources in subsequent named subqueries or the main query are left unchanged.
+     * Each {@code LET name = (subquery);} statement declares exactly one named subquery.
      */
     private static String convertLetQueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
         // Split at the top-level ';' to separate the LET statements from the main query.
@@ -2035,7 +2058,7 @@ public final class EsqlTestUtils {
         }
         String mainQuery = String.join(";", parts.subList(letCount, parts.size())).strip();
 
-        // First pass: collect all binding names so we can skip rewriting them as remote indices.
+        // First pass: collect all subquery names so we can skip rewriting them as remote indices.
         Set<String> letBindingNames = new HashSet<>();
         List<String[]> parsedBindings = new ArrayList<>();
         for (String letStatement : parts.subList(0, letCount)) {
@@ -2047,7 +2070,7 @@ public final class EsqlTestUtils {
             parsedBindings.add(new String[] { name, binding.substring(eqIdx + 1).strip() });
         }
 
-        // Second pass: rewrite each binding body, leaving LET binding name references unchanged.
+        // Second pass: rewrite each subquery body, leaving LET subquery name references unchanged.
         StringBuilder result = new StringBuilder();
         for (String[] parsedBinding : parsedBindings) {
             String bodyWithParens = parsedBinding[1];
@@ -2058,7 +2081,7 @@ public final class EsqlTestUtils {
             result.append("LET ").append(parsedBinding[0]).append(" = (").append(rewrittenBody).append(");\n");
         }
 
-        // Rewrite the main query, treating LET binding names as non-indices.
+        // Rewrite the main query, treating LET subquery names as non-indices.
         if (mainQuery.isEmpty() == false) {
             result.append(convertSubqueryToRemoteIndices(mainQuery, bothClusterIndices, letBindingNames));
         }
@@ -2129,7 +2152,7 @@ public final class EsqlTestUtils {
                 String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices, letBindingNames);
                 transformed.add("(" + transformedSubquery + ")");
             } else if (letBindingNames.contains(unquoteIndexName(indexPatternOrSubquery))) {
-                // This source is a LET binding name, not a real ES index — leave it unchanged.
+                // This source is a LET subquery name, not a real ES index — leave it unchanged.
                 transformed.add(indexPatternOrSubquery);
             } else {
                 // Indices that live on both clusters (enrich source / lookup indices) must become
@@ -2170,7 +2193,7 @@ public final class EsqlTestUtils {
      * <p>Like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
      *
      * @param bothClusterIndices see {@link #convertSubqueryToRemoteIndices(String, Set)}.
-     * @param letBindingNames    LET binding names, which are not real indices and must not be rewritten.
+     * @param letBindingNames    LET subquery names, which are not real indices and must not be rewritten.
      */
     private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices, Set<String> letBindingNames) {
         StringBuilder result = new StringBuilder();

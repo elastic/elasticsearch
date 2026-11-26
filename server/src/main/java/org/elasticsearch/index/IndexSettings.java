@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
@@ -52,6 +53,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
@@ -1132,8 +1134,10 @@ public final class IndexSettings {
     /**
      * Per-index switch for batch indexing. Defaults to {@code true} for strictly columnar index modes. Time series indices default
      * to {@code true} when the {@code tsdb_batch_indexing} feature flag is enabled ({@link BatchIndexingEnabled#TSDB_FEATURE_FLAG}),
-     * unless the deprecated {@link #TIME_SERIES_BATCH_INDEXING} is explicitly set, in which case they take its value. Other index
-     * modes default to {@code false}.
+     * unless the deprecated {@link #TIME_SERIES_BATCH_INDEXING} is explicitly set, in which case they take its value. Time series
+     * indices that route on {@link IndexMetadata#INDEX_ROUTING_PATH} rather than {@link IndexMetadata#INDEX_DIMENSIONS} default to
+     * {@code false}, because the batch path can't build their {@code _tsid} (not yet implemented). Other index modes default to
+     * {@code false}.
      * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
      * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
      * explicit {@code true} when the feature flag is off.
@@ -1203,6 +1207,11 @@ public final class IndexSettings {
         }
         if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
             return TIME_SERIES_BATCH_INDEXING.get(settings);
+        }
+        if (IndexMetadata.INDEX_DIMENSIONS.get(settings).isEmpty()) {
+            // Routing based on routing_path instead of based on the _tsid is not supported yet
+            // It doesn't cause failures, but always causes a fallback to sequential mode, costing performance
+            return false;
         }
         return true;
     }
@@ -1635,7 +1644,7 @@ public final class IndexSettings {
     private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
-    private final IndexSortConfig indexSortConfig;
+    private final Supplier<IndexSortConfig> indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
@@ -1901,7 +1910,9 @@ public final class IndexSettings {
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         sliceEnabled = scopedSettings.get(SLICE_ENABLED);
-        this.indexSortConfig = new IndexSortConfig(this);
+        IndexSortConfig.validateSortSettings(settings);
+        // Parses the index sort when first used, so that tools that read index settings without plugins don't need its parser
+        this.indexSortConfig = CachedSupplier.wrap(() -> new IndexSortConfig(this));
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
@@ -2586,7 +2597,7 @@ public final class IndexSettings {
      * Returns the index sort config that should be used for this index.
      */
     public IndexSortConfig getIndexSortConfig() {
-        return indexSortConfig;
+        return indexSortConfig.get();
     }
 
     public IndexScopedSettings getScopedSettings() {

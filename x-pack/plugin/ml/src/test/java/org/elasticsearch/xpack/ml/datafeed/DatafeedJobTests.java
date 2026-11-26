@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -32,6 +33,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -78,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -108,6 +111,8 @@ public class DatafeedJobTests extends ESTestCase {
     private static final long DELAYED_DATA_WINDOW = TimeValue.timeValueMinutes(15).millis();
     private static final long DELAYED_DATA_FREQ = TimeValue.timeValueMinutes(2).millis();
     private static final long DELAYED_DATA_FREQ_HALF = TimeValue.timeValueMinutes(1).millis();
+    private static final long HOUR_MS = TimeValue.timeValueHours(1).millis();
+    private static final LongUnaryOperator BUCKET_STAMPED = recordMs -> recordMs + HOUR_MS - 1;
 
     private AnomalyDetectionAuditor auditor;
     private DataExtractorFactory dataExtractorFactory;
@@ -124,6 +129,7 @@ public class DatafeedJobTests extends ESTestCase {
     private String annotationDocId;
 
     private long currentTime;
+    private LongUnaryOperator lastEndTimeForRecord;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -148,6 +154,7 @@ public class DatafeedJobTests extends ESTestCase {
         delayedDataDetector = mock(DelayedDataDetector.class);
         when(delayedDataDetector.getWindow()).thenReturn(DELAYED_DATA_WINDOW);
         currentTime = 0;
+        lastEndTimeForRecord = LongUnaryOperator.identity();
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
@@ -728,12 +735,145 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
+    public void testEsqlBucketStampedLookBackFromResumePointShouldStartAtNextBucket() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        lastEndTimeForRecord = BUCKET_STAMPED;
+
+        // The bucket-start record 06:00 means the whole 06:00 bucket was posted.
+        createDatafeedJob(1000, 500, -1, 6 * HOUR_MS, true).runLookBack(0L, null);
+
+        verify(dataExtractorFactory).newExtractor(7 * HOUR_MS, currentTime - 500);
+    }
+
+    public void testEsqlRawLookBackFromResumePointShouldStartRightAfterLatestRow() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        long rawRecord = 8 * HOUR_MS + TimeValue.timeValueMinutes(30).millis();
+
+        createDatafeedJob(1000, 500, -1, rawRecord, true).runLookBack(0L, null);
+
+        verify(dataExtractorFactory).newExtractor(rawRecord + 1, currentTime - 500);
+    }
+
+    public void testEsqlBucketStampedRealtimeFromResumePointShouldStartAtNextBucket() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        lastEndTimeForRecord = BUCKET_STAMPED;
+
+        createDatafeedJob(1000, 500, -1, 6 * HOUR_MS, true).runRealtime();
+
+        verify(dataExtractorFactory).newExtractor(7 * HOUR_MS, (currentTime - 500) / 1000 * 1000);
+    }
+
+    public void testEsqlRawRealtimeFromResumePointShouldStartRightAfterLatestRow() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        long rawRecord = 8 * HOUR_MS + TimeValue.timeValueMinutes(30).millis();
+
+        createDatafeedJob(1000, 500, -1, rawRecord, true).runRealtime();
+
+        verify(dataExtractorFactory).newExtractor(rawRecord + 1, (currentTime - 500) / 1000 * 1000);
+    }
+
+    public void testEsqlLookBackWithEmptyWindowShouldAdvanceLastEndTimeToExtractorEnd() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        when(dataExtractor.hasNext()).thenReturn(false);
+        // The extractor stopped at 10:00 because the requested end 10:30 lies inside the next, still open, bucket.
+        when(dataExtractor.getEndTime()).thenReturn(10 * HOUR_MS);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, true);
+        long requestedEnd = 10 * HOUR_MS + TimeValue.timeValueMinutes(30).millis();
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, requestedEnd));
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(10 * HOUR_MS - 1));
+
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory).newExtractor(10 * HOUR_MS, (currentTime - 500) / 1000 * 1000);
+    }
+
+    public void testEsqlRealtimeAfterLookBackShouldContinueAtLookBackWindowEnd() throws Exception {
+        long queryDelayMs = 500;
+        long resumeEnd = 7 * HOUR_MS - 1;
+        currentTime = 20 * HOUR_MS;
+        long lookBackEnd = currentTime - queryDelayMs;
+        // The lookback posts nothing, so only the window end can move lastEndTimeMs.
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(new DataCounts(jobId)));
+        when(dataExtractor.getEndTime()).thenReturn(lookBackEnd);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, resumeEnd, true);
+        // An empty window is reported after lastEndTimeMs has advanced.
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, null));
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(lookBackEnd - 1));
+
+        currentTime = 21 * HOUR_MS;
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(7 * HOUR_MS, lookBackEnd);
+        verify(dataExtractorFactory).newExtractor(lookBackEnd, (currentTime - queryDelayMs) / 1000 * 1000);
+    }
+
+    public void testEsqlLookBackPostingRawRowsShouldNotMoveLastEndTimeBeforeWindowEnd() throws Exception {
+        long queryDelayMs = 500;
+        currentTime = 20 * HOUR_MS;
+        long lookBackEnd = currentTime - queryDelayMs;
+        long postedRow = 9 * HOUR_MS + TimeValue.timeValueMinutes(14).millis();
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(postedRow)));
+        when(dataExtractor.getEndTime()).thenReturn(lookBackEnd);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, 6 * HOUR_MS, true);
+        datafeedJob.runLookBack(0L, null);
+
+        // The latest posted row only sets lastEndTimeMs transiently; the completed window then moves it to the window end.
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(lookBackEnd - 1));
+    }
+
+    public void testEsqlBucketStampedRunFailingAfterFirstBatchShouldResumeAtNextBucket() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        lastEndTimeForRecord = BUCKET_STAMPED;
+
+        DatafeedJob datafeedJob = createDatafeedJobFailingAfterBatchWithRecord(3 * HOUR_MS);
+
+        // Bucket 03:00 was posted in full, so reading it again would double its count.
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(4 * HOUR_MS - 1));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory).newExtractor(eq(4 * HOUR_MS), anyLong());
+    }
+
+    public void testEsqlRawRunFailingAfterFirstBatchShouldResumeRightAfterLatestRow() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        lastEndTimeForRecord = LongUnaryOperator.identity();
+        long latestRow = 3 * HOUR_MS + TimeValue.timeValueMinutes(14).millis();
+
+        DatafeedJob datafeedJob = createDatafeedJobFailingAfterBatchWithRecord(latestRow);
+
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(latestRow));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory).newExtractor(eq(latestRow + 1), anyLong());
+    }
+
+    public void testEsqlBucketStampedDatafeedWithoutLatestRecordShouldNotSetLastEndTime() {
+        lastEndTimeForRecord = BUCKET_STAMPED;
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+
+        assertThat(datafeedJob.lastEndTimeMs(), nullValue());
+    }
+
     public void testEsqlTruncatedChunkShouldAuditWarningAndAdvancePastInterval() throws Exception {
         when(dataExtractor.getEndTime()).thenReturn(1000L);
         when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
-        datafeedJob.runLookBack(0L, 1000L);
+        try (var mockLog = MockLog.capture(DatafeedJob.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "truncated chunk logged at WARN",
+                    DatafeedJob.class.getCanonicalName(),
+                    Level.WARN,
+                    ".*\\[" + jobId + "\\].*reached its row limit.*"
+                )
+            );
+            datafeedJob.runLookBack(0L, 1000L);
+            mockLog.assertAllExpectationsMatched();
+        }
 
         String expectedMessage =
             "Within [1970-01-01T00:00:00.100Z, 1970-01-01T00:00:00.200Z) at least one ES|QL datafeed chunk reached its row limit. "
@@ -1426,6 +1566,29 @@ public class DatafeedJobTests extends ESTestCase {
         }
     }
 
+    private static DataCounts countsWithLatestRecord(long latestRecordMs) {
+        DataCounts counts = new DataCounts(jobId);
+        counts.incrementProcessedRecordCount(1);
+        counts.setLatestRecordTimeStamp(new Date(latestRecordMs));
+        return counts;
+    }
+
+    /** Runs a realtime cycle that posts one batch whose latest record is {@code latestRecordMs}, then fails extracting the next. */
+    private DatafeedJob createDatafeedJobFailingAfterBatchWithRecord(long latestRecordMs) throws Exception {
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(latestRecordMs)));
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(1000L, 2000L),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        ).thenThrow(new RuntimeException("extraction failed"));
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, true);
+        expectThrows(DatafeedJob.ExtractionProblemException.class, datafeedJob::runRealtime);
+        return datafeedJob;
+    }
+
     private DatafeedJob createDatafeedJobWithExtractionFailureThreshold(long frequencyMs, Integer maxConsecutiveExtractionFailures) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
@@ -1449,7 +1612,8 @@ public class DatafeedJobTests extends ESTestCase {
             -1,
             false,
             DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
-            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime))
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            LongUnaryOperator.identity()
         );
     }
 
@@ -1596,7 +1760,8 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            lastEndTimeForRecord
         );
     }
 

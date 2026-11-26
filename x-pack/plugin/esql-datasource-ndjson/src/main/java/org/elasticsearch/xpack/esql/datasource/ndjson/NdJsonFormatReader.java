@@ -39,11 +39,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
 import java.io.BufferedInputStream;
-import java.io.Closeable;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -453,7 +453,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
             } catch (IOException e) {
                 try {
-                    object.abortStream(raw);
+                    raw.close();
                 } catch (IOException ignored) {}
                 throw e;
             }
@@ -474,7 +474,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
                 closed = true;
                 // only abort the raw stream; the PushbackInputStream/BufferedInputStream wrappers hold no external resources
-                object.abortStream(raw);
+                raw.close();
             }
         };
     }
@@ -612,7 +612,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // the connection (the schema sample touches only a small prefix). Wrapping the abort in
         // a Closeable lets try-with-resources attach any abort-time error as a suppressed
         // exception on the primary failure rather than replacing it.
-        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+        try (stream) {
             CountingInputStream counted = new CountingInputStream(stream);
             InputStream limited = Streams.limitStream(counted, schemaSampleBytes);
             List<NdJsonSchemaInferrer.Widening> widenings = new ArrayList<>();
@@ -639,6 +639,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
                 mtimeMillis = mtime.toEpochMilli();
             } catch (IOException e) {
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    sourceLocation,
+                    e.getClass().getSimpleName()
+                );
                 return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows()).withWarnings(warnings)
                     .withWidenedColumns(widenedColumns);
             }
@@ -728,7 +734,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "NDJSON read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
-                object.path(),
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 context.readSchema() == null ? "null" : "present(" + context.readSchema().size() + ")",
                 context.firstSplit(),
                 context.recordAligned(),
@@ -758,7 +764,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // new mtime with old data.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {
@@ -770,6 +777,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                     chunkMode = false;
                 }
             } catch (IOException e) {
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    ExternalFailures.redactHttpUrl(object.path().toString()),
+                    e.getClass().getSimpleName()
+                );
                 cacheable = false;
                 chunkMode = false;
             }

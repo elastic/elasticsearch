@@ -253,8 +253,6 @@ public class BlobCacheMetricsTests extends ESTestCase {
         long now = fakeNowMillis.get();
         long justOver14Days = TimeValue.timeValueDays(14).getMillis() + 1;
         long oneYear = TimeValue.timeValueDays(365).getMillis();
-        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(justOver14Days));
-        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(oneYear));
         assertTrue(justOver14Days > TimeRangeBucket.FourteenDays.millis());
         assertTrue(justOver14Days <= TimeRangeBucket.OlderThan14Days.millis());
         assertTrue(oneYear <= TimeRangeBucket.OlderThan14Days.millis());

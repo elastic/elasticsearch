@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.simdjson.SimdJsonTestCase.makeJsonString;
@@ -388,6 +389,62 @@ public class StringParserTests extends ESTestCase {
             assertEquals((byte) 0x98, result[prefix + 2]);
             assertEquals((byte) 0x80, result[prefix + 3]);
         }
+    }
+
+    // ---- Unpaired surrogates ----
+
+    public void testUnpairedSurrogatesInValuesBecomeQuestionMarks() {
+        assertEquals("?", parse("\\uD800"));
+        assertEquals("?", parse("\\uDBFF"));
+        assertEquals("?", parse("\\uDC00"));
+        assertEquals("?", parse("\\uDFFF"));
+        assertEquals("?x", parse("\\uD800x"));
+        assertEquals("?A", parse("\\uD800\\u0041"));
+        assertEquals("??", parse("\\uD800\\uD800"));
+        assertEquals("??", parse("\\uDC00\\uD800"));
+        assertEquals("?\n", parse("\\uD800\\n"));
+        // The unpaired high surrogate does not consume the escape after it, which starts a valid pair.
+        assertEquals("?\uD83D\uDE00", parse("\\uD800\\uD83D\\uDE00"));
+    }
+
+    public void testUnpairedSurrogateSweepAround64() {
+        for (int prefix = 52; prefix <= 66; prefix++) {
+            String pad = "a".repeat(prefix);
+            assertEquals(pad + "?", parse(pad + "\\uD800"));
+            assertEquals(pad + "?b", parse(pad + "\\uDC00b"));
+            assertEquals(pad + "?\uD83D\uDE00", parse(pad + "\\uD800\\uD83D\\uDE00"));
+        }
+    }
+
+    public void testScalarTailUnpairedSurrogate() {
+        String pad = "a".repeat(200);
+        assertEquals(pad + "?", parse(pad + "\\uD800"));
+        assertEquals(pad + "?A", parse(pad + "\\uDBFF\\u0041"));
+    }
+
+    public void testInvalidHexAfterUnpairedSurrogateIsRejected() {
+        expectThrows(JsonParsingException.class, () -> parse("\\uD800\\uZZZZ"));
+        expectThrows(JsonParsingException.class, () -> parse("a".repeat(200) + "\\uD800\\u00G0"));
+    }
+
+    public void testUnpairedSurrogatesInFieldNamesAreRejected() {
+        for (String content : List.of(
+            "\\uD800",
+            "\\uDC00",
+            "\\uD800x",
+            "\\uD800\\u0041",
+            "a".repeat(60) + "\\uD800",
+            "a".repeat(200) + "\\uDFFF"
+        )) {
+            byte[] buf = makeJsonString(content);
+            expectThrows(JsonParsingException.class, () -> parser.parseFieldName(buf, 0, new byte[buf.length]));
+        }
+    }
+
+    public void testSurrogatePairInFieldName() {
+        byte[] buf = makeJsonString("\\uD83D\\uDE00");
+        byte[] dst = new byte[buf.length];
+        assertEquals("\uD83D\uDE00", new String(dst, 0, parser.parseFieldName(buf, 0, dst), UTF_8));
     }
 
     // ---- scanUnescapedLength ----

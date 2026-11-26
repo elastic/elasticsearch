@@ -241,14 +241,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Initial concurrent producers for a filtered LIMIT. Driver count is already
      * {@code task_concurrency}; this ramps start inside {@link #startSliceQueueRead}. A
      * match on the first split must not open one reader per driver. The cap doubles when a
-     * unit finishes and the observed limiter still has remaining rows, so a filter that
-     * matches nothing early still reaches full parallelism.
+     * unit finishes or after {@link FilteredLimitReaderRamp#PROGRESS_PAGES} processed pages,
+     * while the observed limiter still has remaining rows, so a filter that matches nothing
+     * early still reaches full parallelism.
      */
     static final int FILTERED_LIMIT_READER_RAMP = 1;
-    private final Object filteredLimitRampLock = new Object();
-    private int filteredLimitRunning;
-    private int filteredLimitCap = FILTERED_LIMIT_READER_RAMP;
-    private final ArrayDeque<ParkedProducer> filteredLimitParked = new ArrayDeque<>();
+    private final FilteredLimitReaderRamp<ParkedProducer> readerRamp = new FilteredLimitReaderRamp<>(
+        this::noFurtherCandidates,
+        parked -> parked.state().buffer.noMoreInputs()
+    );
     private final int maxRecordBytes;
     /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
     private final long statsStripeSize;
@@ -961,7 +962,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 scheme,
                 formatName,
                 operatorHold,
-                datasetLabel
+                datasetLabel,
+                filteredLimitRamp() ? this::onFilteredLimitPagePolled : null
             );
             succeeded = true;
             return operator;
@@ -1741,30 +1743,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return;
         }
         ActionListener<Void> started = ActionListener.runAfter(finishBuffer, this::onFilteredLimitProducerFinished);
-        boolean startNow;
-        ParkedProducer skipped = null;
-        synchronized (filteredLimitRampLock) {
-            if (noFurtherCandidates() || state.buffer.noMoreInputs()) {
-                skipped = new ParkedProducer(state, finishBuffer);
-                startNow = false;
-            } else if (filteredLimitRunning < filteredLimitCap) {
-                filteredLimitRunning++;
-                startNow = true;
-            } else {
-                filteredLimitParked.add(new ParkedProducer(state, finishBuffer));
-                startNow = false;
+        ParkedProducer candidate = new ParkedProducer(state, finishBuffer);
+        FilteredLimitReaderRamp.Submit submit = readerRamp.submit(candidate, noFurtherCandidates() || state.buffer.noMoreInputs());
+        switch (submit) {
+            case START -> {
+                try {
+                    executeProducer(state, started, () -> runProducerLoop(state, started), false);
+                } catch (Exception e) {
+                    started.onFailure(e);
+                }
             }
-        }
-        if (startNow) {
-            try {
-                executeProducer(state, started, () -> runProducerLoop(state, started), false);
-            } catch (Exception e) {
-                started.onFailure(e);
+            case SKIP -> candidate.finishBuffer().onResponse(null);
+            case PARK -> {
+                // Cap is full. Candidate stays queued until a drain starts or skips it.
             }
-            return;
-        }
-        if (skipped != null) {
-            skipped.finishBuffer().onResponse(null);
         }
     }
 
@@ -1776,13 +1768,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (filteredLimitRamp() == false) {
             return;
         }
-        List<ParkedProducer> toStart = new ArrayList<>();
-        List<ParkedProducer> toSkip = new ArrayList<>();
-        synchronized (filteredLimitRampLock) {
-            filteredLimitRunning--;
-            drainParkedLocked(toStart, toSkip);
-        }
-        dispatchParked(toStart, toSkip);
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.onProducerFinished();
+        dispatchParked(drain.toStart(), drain.toSkip());
     }
 
     /**
@@ -1794,35 +1781,35 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (filteredLimitRamp() == false || noFurtherCandidates()) {
             return;
         }
-        List<ParkedProducer> toStart = new ArrayList<>();
-        List<ParkedProducer> toSkip = new ArrayList<>();
-        synchronized (filteredLimitRampLock) {
-            if (filteredLimitCap < Integer.MAX_VALUE / 2) {
-                filteredLimitCap *= 2;
-            } else {
-                filteredLimitCap = Integer.MAX_VALUE;
-            }
-            drainParkedLocked(toStart, toSkip);
-        }
-        dispatchParked(toStart, toSkip);
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.doubleCap();
+        dispatchParked(drain.toStart(), drain.toSkip());
     }
 
-    private void drainParkedLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
-        if (noFurtherCandidates()) {
-            while (filteredLimitParked.isEmpty() == false) {
-                toSkip.add(filteredLimitParked.poll());
-            }
+    private void onFilteredLimitPagePolled() {
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.onProcessedPage();
+        if (drain.isEmpty()) {
             return;
         }
-        while (filteredLimitRunning < filteredLimitCap && filteredLimitParked.isEmpty() == false) {
-            ParkedProducer parked = filteredLimitParked.poll();
-            if (parked.state().buffer.noMoreInputs() || noFurtherCandidates()) {
-                toSkip.add(parked);
-                continue;
-            }
-            filteredLimitRunning++;
-            toStart.add(parked);
+        try {
+            producerExecutor.execute(() -> dispatchParked(drain.toStart(), drain.toSkip()));
+        } catch (Exception e) {
+            dispatchParked(drain.toStart(), drain.toSkip());
         }
+    }
+
+    void setFilteredLimitRampProgressPages(int pages) {
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("filtered limit ramp progress pages must be set before source operators are created");
+        }
+        readerRamp.setProgressPages(pages);
+    }
+
+    int filteredLimitRampCap() {
+        return readerRamp.cap();
+    }
+
+    int filteredLimitParkedCount() {
+        return readerRamp.parkedCount();
     }
 
     private void dispatchParked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
@@ -2741,7 +2728,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // keys stay physical — the declared-overlay stats boundary rekeys physical->logical, not the factory.
                     PhysicalNames.translateSchema(perFileReadSchema, renames),
                     fileSplit.offset(),
-                    state.buffer.capturedSourceMetadataSink(),
+                    statisticsCaptureSink(state.buffer),
                     state.buffer::recordWarning,
                     bufferedInformationalWarningSink(state.buffer),
                     state.buffer.readCounters(),
@@ -2789,7 +2776,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 } else {
                     pages = applyRowPositionStrategy(fileReader, pages, readerCols);
                 }
-                pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
+                pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(state.buffer));
             }
             // The adapter uses the same per-file schema and projected column order pinned above so it
             // can disambiguate LongBlock sources when stringifying under UBN; sharing the one source of
@@ -3008,7 +2995,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Physical (translated) names so harvest keys stay physical; see the split path above.
                 PhysicalNames.translateSchema(perFileReadSchema, renames),
                 0L,
-                state.buffer.capturedSourceMetadataSink(),
+                statisticsCaptureSink(state.buffer),
                 state.buffer::recordWarning,
                 bufferedInformationalWarningSink(state.buffer),
                 state.buffer.readCounters(),
@@ -3034,7 +3021,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = state.buffer.readCounters().meteredCpu(() -> thisFileReader.read(obj, ctx));
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
-            pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
+            pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(state.buffer));
             CloseableIterator<Page> adapted = adaptSchema(
                 pages,
                 mapping,
@@ -3208,7 +3195,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         true,
                         null,
                         0L,
-                        buffer.capturedSourceMetadataSink(),
+                        statisticsCaptureSink(buffer),
                         buffer::recordWarning,
                         bufferedInformationalWarningSink(buffer),
                         buffer.readCounters(),
@@ -3237,7 +3224,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 final CloseableIterator<Page> finalPages;
                 try {
                     pages = applyRowPositionStrategy(reader, pages, projectedColumns);
-                    pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
+                    pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(buffer));
                     CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
                     finalPages = releasingReader(
                         wrapWithVirtualColumns(
@@ -3292,6 +3279,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }));
     }
 
+    /**
+     * The sink per-file statistics are captured into, or {@code null} under {@link StripeColumnScope#NONE}.
+     * A {@code null} sink is the off switch {@link StatsCapturingIterator#wrap} and both parsing coordinators
+     * guard on.
+     * <p>
+     * Not {@code FormatReadContext.statsStripeSink}, whose {@code null} means the chunk publishes its own stripe
+     * pieces instead of staging them.
+     */
+    @Nullable
+    private ConcurrentMap<String, List<Map<String, Object>>> statisticsCaptureSink(AsyncExternalSourceBuffer buffer) {
+        return statsColumnScope == StripeColumnScope.NONE ? null : buffer.capturedSourceMetadataSink();
+    }
+
     private void consumePagesInBackground(
         CloseableIterator<Page> pages,
         AsyncExternalSourceBuffer buffer,
@@ -3300,7 +3300,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> projectedColumns,
         @Nullable FormatReadCounters formatCounters
     ) {
-        final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
+        final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(buffer));
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
             closeQuietly(capturing);
             if (isRegistryClosedAfterBufferFinished(e, buffer) == false) {

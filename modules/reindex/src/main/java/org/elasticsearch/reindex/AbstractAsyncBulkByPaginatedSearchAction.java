@@ -387,16 +387,17 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * Copies the metadata from a hit to the request.
      */
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
-        copyRouting(request, doc.getRouting());
+        copyRouting(request, doc);
         return request;
     }
 
     /**
-     * Copy the routing from a search hit to the request.
+     * Copy the routing from a search hit to the request. The hit says whether its routing is a slice, so a request over both slice
+     * enabled and other indices writes each document back the way it is stored.
      */
-    protected void copyRouting(RequestWrapper<?> request, String routing) {
-        request.setRouting(routing);
-        request.setRoutingFromSlice(mainRequest.getSearchRequest().isRoutingFromSlice());
+    protected void copyRouting(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
+        request.setRouting(doc.getRouting());
+        request.setRoutingFromSlice(doc.isRoutingFromSlice());
     }
 
     /**

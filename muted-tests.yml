@@ -1050,11 +1050,6 @@ tests:
   - :x-pack:plugin:esql:test
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double, 11 longs> null in 3}
   issue: https://github.com/elastic/elasticsearch/issues/167643
-- class: org.elasticsearch.xpack.esql.session.EsqlSessionQueryTimeFilterTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testView
-  issue: https://github.com/elastic/elasticsearch/issues/167647
 - class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
   tasks:
   - :x-pack:plugin:esql:test

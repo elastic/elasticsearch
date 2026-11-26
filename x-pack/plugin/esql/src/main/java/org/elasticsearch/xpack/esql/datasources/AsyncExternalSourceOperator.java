@@ -225,6 +225,17 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         return buffer.size() > 0;
     }
 
+    /**
+     * Surface a producer failure without firing {@link #onPagePolled}. {@link #isFinished()} stays
+     * false while a failure is pending, so waiters must check this instead of treating unfinished
+     * as still waiting for a page.
+     */
+    void throwIfFailed() {
+        if (buffer.failure() != null) {
+            throw propagateFailure(buffer.failure());
+        }
+    }
+
     @Override
     public boolean isFinished() {
         // Keep "not finished" while a failure is pending so the driver calls getOutput() and the

@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 167649
-pr: 167723
-summary: Unflake dense filtered LIMIT ramp test
-type: enhancement

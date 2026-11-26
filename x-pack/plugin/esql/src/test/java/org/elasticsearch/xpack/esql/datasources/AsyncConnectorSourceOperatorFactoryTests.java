@@ -590,11 +590,14 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Wait until an overflow page is queued. Must not call {@link SourceOperator#isBlocked()} or
      * {@link SourceOperator#getOutput()}: both fire the deferred ramp hook. Finished-empty is a
-     * failure, not success — charging remaining after that discards the in-flight page.
+     * failure, not success — charging remaining after that discards the in-flight page. A pending
+     * producer failure is thrown immediately; {@link AsyncExternalSourceOperator#isFinished()} stays
+     * false while one is stored.
      */
     private void waitForBufferedPage(SourceOperator operator) throws Exception {
         AsyncExternalSourceOperator source = (AsyncExternalSourceOperator) operator;
         assertBusy(() -> {
+            source.throwIfFailed();
             assertFalse("source finished before overflow page was buffered", operator.isFinished());
             assertTrue("expected a queued overflow page", source.hasQueuedPage());
         });

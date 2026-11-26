@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 167078
+pr: 167081
+summary: Count time range filter ages up to a minute past a bucket threshold as within it
+type: bug

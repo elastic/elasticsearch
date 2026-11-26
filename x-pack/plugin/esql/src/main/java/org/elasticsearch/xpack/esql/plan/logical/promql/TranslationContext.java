@@ -117,13 +117,36 @@ public record TranslationContext(
     /**
      * The translation of a child whose result drops the metric name, as most Prometheus functions and operators do: every
      * packing the enclosing translation requires leaves {@code __name__} out, and a {@code __name__} it requires by name reads
-     * as absent. Only a source storing the metric name as a dimension holds one to drop.
+     * as absent. See {@link #dropsMetricName()}.
      */
     public TranslationContext withoutMetricName() {
-        if (cmd.storesMetricName() == false) {
+        if (dropsMetricName() == false) {
             return this;
         }
         return withRequired(TranslationSchema.subtract(required, List.of(LabelMatcher.NAME)));
+    }
+
+    /**
+     * A child's {@code result} as the node dropping the metric name exposes it: the {@code __name__} column and every packing
+     * holding {@code __name__} leave its schema, whatever the child kept to compute its value - a {@code topk} below ranks by
+     * the full series identity. The upward counterpart of {@link #withoutMetricName()}.
+     */
+    public IntermediateResult withoutMetricName(IntermediateResult result) {
+        if (dropsMetricName() == false) {
+            return result;
+        }
+        TranslationSchema schema = intersect(result.schema(), List.of(LabelMatcher.NAME));
+        assert result.schema().isOpen() == false || schema.isOpen()
+            : "invariant: a child translated without the metric name must carry a packing without it, got " + result.schema();
+        return result.with(result.plan(), schema, result.value());
+    }
+
+    /**
+     * Whether results drop the metric name as Prometheus does: only a source storing it as a dimension holds one to drop,
+     * and only with the label container functions, as an {@code or} matches its branches on the labels without it.
+     */
+    public boolean dropsMetricName() {
+        return cmd.storesMetricName() && containerFunctions();
     }
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
@@ -151,7 +174,7 @@ public record TranslationContext(
      * which Prometheus drops from every {@code without} grouping.
      */
     public List<String> withoutLabels(List<String> labels) {
-        if (cmd.storesMetricName() == false || labels.contains(LabelMatcher.NAME)) {
+        if (dropsMetricName() == false || labels.contains(LabelMatcher.NAME)) {
             return labels;
         }
         return Stream.concat(labels.stream(), Stream.of(LabelMatcher.NAME)).toList();
@@ -198,9 +221,13 @@ public record TranslationContext(
             LogicalPlan plan = emitTimeSeriesAlias(intermediateResult, new NameId());
             return doTranslateFinal(plan, intermediateResult.kind().constant);
         }
-        // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
+        // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link. Prometheus
+        // matches the branches on their labels but the metric name, so each also exposes its label container without it.
+        TranslationContext branch = dropsMetricName()
+            ? withRequired(TranslationSchema.union(required, open(List.of(LabelMatcher.NAME))))
+            : this;
         var intermediateResultPlan = doTranslateUnion(
-            branches.stream().map(b -> translateIntermediate(b, new NameId(), new NameId())).toList()
+            branches.stream().map(b -> branch.translateIntermediate(b, new NameId(), new NameId())).toList()
         );
         return doTranslateFinal(intermediateResultPlan, false);
     }
@@ -277,6 +304,7 @@ public record TranslationContext(
             // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
             var ir = intermediateResults.get(i);
             LogicalPlan branchPlan = emitNullsFilter(source, emitTimeSeriesAlias(ir, new NameId()), ir.valueColumn());
+            branchPlan = emitMatchKey(ir, branchPlan);
             branchPlan = alignLabelColumnNames(branchPlan, columnNamesByLabel);
             var branchTagExpression = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
             LogicalPlan tagged = new Eval(source, branchPlan, List.of(branchTagExpression));
@@ -292,18 +320,44 @@ public record TranslationContext(
         List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branchPlans);
         var union = new UnionAll(source, branchPlans, unionOutput);
 
-        // Left-preferring dedup: group by every column except the value and the branch tag, keep the lowest branch.
+        // Left-preferring dedup: group by every column except the value and the branch tag, keep the lowest branch. Where the
+        // source stores the metric name, the label container without it stands in for _timeseries and __name__ is no key.
         var groupings = new ArrayList<Expression>();
         Attribute branchAttr = null;
         for (Attribute attr : unionOutput) {
             if (attr.name().equals(cmd.branchColumnName())) {
                 branchAttr = attr;
-            } else if (attr.name().equals(cmd.valueColumnName()) == false) {
-                groupings.add(attr);
-            }
+            } else if (attr.name().equals(cmd.valueColumnName()) == false
+                && (dropsMetricName() == false
+                    || (MetadataAttribute.TIMESERIES.equals(attr.name()) == false && LabelMatcher.NAME.equals(mapFinite(attr)) == false))) {
+                        groupings.add(attr);
+                    }
         }
         var order = new Order(source, branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         return new TopNBy(source, union, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
+    }
+
+    /**
+     * The branch's label container without the metric name, under one name in every branch: what an {@code or} matches
+     * series on where the source stores the metric name. The finest packing leaving {@code __name__} out, which the
+     * branch carries as {@link #translateFinal} requires it; a branch without one matches on its label columns alone.
+     */
+    private LogicalPlan emitMatchKey(IntermediateResult branch, LogicalPlan plan) {
+        if (dropsMetricName() == false) {
+            return plan;
+        }
+        Set<String> skip = branch.schema()
+            .skips()
+            .stream()
+            .filter(s -> s.contains(LabelMatcher.NAME))
+            .min(Comparator.comparingInt(Set::size))
+            .orElse(null);
+        if (skip == null) {
+            return plan;
+        }
+        Attribute packed = branch.packed(skip);
+        assert packed != null : "invariant: packing " + skip + " must be carried by the finished branch";
+        return new Eval(cmd.source(), plan, List.of(new Alias(cmd.source(), mapOpen(Set.of(LabelMatcher.NAME)), packed)));
     }
 
     /**
@@ -504,10 +558,13 @@ public record TranslationContext(
             }
         }
         for (String label : schema.labels()) {
-            Attribute carrier = find(plan.output(), label);
+            Attribute carrier = carrier(input, label);
             if (carrier != null) {
                 groupKeys.add(carrier);
                 outKeys.add(carrier);
+            } else if (find(plan.output(), label) != null) {
+                // the relation holds a label a node below dropped: absent from every series, like Prometheus
+                derived.add(emitNullExpression(mapToRef(label)));
             }
         }
 
@@ -522,6 +579,17 @@ public record TranslationContext(
             false
         );
         return derived.isEmpty() ? collapse : new Eval(source, collapse, derived);
+    }
+
+    /**
+     * The column carrying {@code label} in {@code input}, or null when the table lacks it. A node dropping the metric name
+     * leaves {@code __name__} in the plan below - the relation still holds it - but not in its schema; it reads as absent.
+     */
+    private Attribute carrier(IntermediateResult input, String label) {
+        if (LabelMatcher.NAME.equals(label) && dropsMetricName() && input.schema().holds(label) == false) {
+            return null;
+        }
+        return input.label(label);
     }
 
     /**
@@ -567,7 +635,7 @@ public record TranslationContext(
             keys.add(carrier);
         }
         for (String label : schema.labels()) {
-            Attribute carrier = find(available, label);
+            Attribute carrier = carrier(input, label);
             if (carrier == null) {
                 // a declared label the child lacks is absent from every series: grouped under null, like Prometheus
                 nulls.add(emitNullExpression(mapToRef(label)));

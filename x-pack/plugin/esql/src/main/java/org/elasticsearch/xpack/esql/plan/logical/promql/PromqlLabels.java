@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+
+import java.util.List;
 
 /**
  * Shared naming conventions for PromQL labels represented as ES|QL fields.
@@ -41,5 +45,16 @@ public final class PromqlLabels {
     /** The PromQL label name for a field or column name, which may carry the passthrough prefix. */
     public static String labelName(String name) {
         return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
+    }
+
+    /**
+     * {@code labels} without the metric name, for a node whose result drops it; unchanged where results keep it, see
+     * {@link EsqlCapabilities.Cap#FIX_PROMQL_DROP_STORED_METRIC_NAME}.
+     */
+    public static List<Attribute> withoutMetricName(List<Attribute> labels) {
+        if (EsqlCapabilities.Cap.FIX_PROMQL_DROP_STORED_METRIC_NAME.isEnabled() == false) {
+            return labels;
+        }
+        return labels.stream().filter(label -> LabelMatcher.NAME.equals(labelName(label)) == false).toList();
     }
 }

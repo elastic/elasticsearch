@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -133,7 +134,10 @@ public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits Cou
             List<Attribute> childOutput = child().output();
             if (childOutput.stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()))) {
                 // Like every aggregation, a without drops the metric name.
-                Set<String> excluded = new HashSet<>(List.of(LabelMatcher.NAME));
+                Set<String> excluded = new HashSet<>();
+                if (EsqlCapabilities.Cap.FIX_PROMQL_DROP_STORED_METRIC_NAME.isEnabled()) {
+                    excluded.add(LabelMatcher.NAME);
+                }
                 for (Attribute label : groupings) {
                     excluded.add(labelKey(label));
                 }

@@ -103,6 +103,11 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
         return skips.stream().min(Comparator.comparingInt(Set::size)).orElse(null);
     }
 
+    /** Whether a column or a packed column of this schema holds {@code label}. */
+    public boolean holds(String label) {
+        return labels.contains(label) || skips.stream().anyMatch(skip -> skip.contains(label) == false);
+    }
+
     /** True when this constraint carries at least one packed column. */
     public boolean isOpen() {
         return skips.isEmpty() == false;

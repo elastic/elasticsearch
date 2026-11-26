@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -66,7 +67,14 @@ public final class VectorBinaryComparison extends VectorBinaryOperator {
         ComparisonOp op
     ) {
         // A filter comparison keeps the left series as they are; with bool the result is a number and drops the metric name.
-        super(source, left, right, match, boolMode, op);
+        super(
+            source,
+            left,
+            right,
+            match,
+            EsqlCapabilities.Cap.FIX_PROMQL_DROP_STORED_METRIC_NAME.isEnabled() ? boolMode : boolMode == false,
+            op
+        );
         this.op = op;
         this.boolMode = boolMode;
     }

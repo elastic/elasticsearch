@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
@@ -129,10 +130,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         // If both the left and right are a scalar, this works, too
         // as both outputs will be empty (scalars don't have any grouping attributes).
         if (PromqlPlan.returnsScalar(left())) {
-            return right().output();
+            return dropMetricName ? PromqlLabels.withoutMetricName(right().output()) : right().output();
         }
         if (PromqlPlan.returnsScalar(right())) {
-            return left().output();
+            return dropMetricName ? PromqlLabels.withoutMetricName(left().output()) : left().output();
         }
         Set<String> outputLabels;
         // Labels the translation guarantees as result columns even when no operand declares them as attributes (an
@@ -336,8 +337,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Kind kind = left.kind().afterInitialAggregation || right.kind().afterInitialAggregation
             ? Kind.AFTER_INITIAL_AGGREGATE
             : Kind.BEFORE_INITIAL_AGGREGATE;
-        IntermediateResult result = new IntermediateResult(plan, shape, null, left.step(), filter, kind);
-        return context.eval(result, binaryExpr);
+        IntermediateResult result = context.eval(new IntermediateResult(plan, shape, null, left.step(), filter, kind), binaryExpr);
+        return dropMetricName ? context.withoutMetricName(result) : result;
     }
 
     /**

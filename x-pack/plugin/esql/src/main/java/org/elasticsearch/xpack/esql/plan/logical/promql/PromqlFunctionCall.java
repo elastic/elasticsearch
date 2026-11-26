@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.io.IOException;
@@ -145,11 +144,6 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
         return false;
     }
 
-    /** {@code labels} without the metric name, for a function whose result drops it. */
-    protected static List<Attribute> withoutMetricName(List<Attribute> labels) {
-        return labels.stream().filter(label -> LabelMatcher.NAME.equals(PromqlLabels.labelName(label)) == false).toList();
-    }
-
     /**
      * {@inheritDoc}
      * <p>
@@ -171,7 +165,9 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      * {@link #translate} so a new family cannot inherit this lowering by accident.
      */
     protected final IntermediateResult translateValueFunction(TranslationContext context) {
-        IntermediateResult child = (dropsMetricName() ? context.withoutMetricName() : context).translate(child());
+        IntermediateResult child = dropsMetricName()
+            ? context.withoutMetricName(context.withoutMetricName().translate(child()))
+            : context.translate(child());
         if (child.kind().constant) {
             return child;
         }

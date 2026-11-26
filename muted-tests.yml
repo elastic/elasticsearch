@@ -725,11 +725,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/166909
-- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testOnPageFetchedSeesEveryArrivingPage
-  issue: https://github.com/elastic/elasticsearch/issues/166977
 - class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -755,11 +750,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripDropsClusterWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/167022
-- class: org.elasticsearch.compute.operator.DriverTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testDriverFailingWhileBlockedClosesItsSleep
-  issue: https://github.com/elastic/elasticsearch/issues/167028
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -941,3 +931,34 @@ tests:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
   method: test {yaml=multi_cluster/50_esql_datafeeds/Test preview ES|QL datafeed returns the rows of a remote cluster index}
   issue: https://github.com/elastic/elasticsearch/issues/167541
+- class: org.elasticsearch.get.MultiGetCircuitBreakerIT
+  tasks:
+  - :server:internalClusterTest
+  method: testDocumentFromTranslogWithoutRoomInBreakerFailsAlone
+  issue: https://github.com/elastic/elasticsearch/issues/167560
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#yamlRestTest
+  method: test {yaml=esql/317_unmapped_fields_mapped_later/the same holds with synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/167562
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFold {TestCase=<datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>, <datetime>,
+    <datetime>, <null>, <datetime>, <datetime>, <datetime>}
+  issue: https://github.com/elastic/elasticsearch/issues/167582
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFold {TestCase=<date, 8 dates> null in 5}
+  issue: https://github.com/elastic/elasticsearch/issues/167584
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyEvaluateBlockWithNulls {TestCase=<int, 15 longs> null in 2}
+  issue: https://github.com/elastic/elasticsearch/issues/167588
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluatorToString {TestCase=<date, 13 dates>}
+  issue: https://github.com/elastic/elasticsearch/issues/167590

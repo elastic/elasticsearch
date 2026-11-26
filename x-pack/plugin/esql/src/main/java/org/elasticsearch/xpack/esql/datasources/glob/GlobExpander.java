@@ -1863,13 +1863,13 @@ public final class GlobExpander {
                 if (matcher.matches(relativePath)) {
                     String excludedBy = nameFilter.excludedBy(relativePath);
                     if (excludedBy == null) {
-                        globKeptCount++;
                         reserved = reserveRetained(memory, matched.size() + valueExcluded.size(), reserved, false);
                         throwIfCancelled(cancelled);
                         if (valueFilter.excludes(entry)) {
                             valueExcluded.add(entry);
                             continue;
                         }
+                        globKeptCount++;
                         fileHintAnchor = addOrStashAnchor(entry, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
                     } else {
                         // Matched what the user asked for and was dropped anyway. Keep the first one so the notice
@@ -1951,6 +1951,7 @@ public final class GlobExpander {
         }
         // Only once the drain has stopped, and only when it kept something: an empty keep already re-listed.
         // A data-column hint never binds a folder, so it is not something the kept files have to detect.
+        boolean restoredUntrusted = false;
         if (valueExcluded.isEmpty() == false && matched.isEmpty() == false) {
             List<String> prunedColumns = observedPrunedColumns(matched, valueExcluded, partitionConfig, hints);
             if (prunedColumns.isEmpty() == false && valueFilterTrusted(matched, valueExcluded, partitionConfig, prunedColumns) == false) {
@@ -1959,6 +1960,7 @@ public final class GlobExpander {
                     pattern,
                     prunedColumns
                 );
+                restoredUntrusted = true;
                 for (StorageEntry excluded : valueExcluded) {
                     fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
                 }
@@ -1998,6 +2000,7 @@ public final class GlobExpander {
                         pattern,
                         prunedColumns
                     );
+                    restoredUntrusted = true;
                     for (StorageEntry excluded : valueExcluded) {
                         fileHintAnchor = addOrStashAnchor(excluded, fileHints, matched, fileHintAnchor, maxDiscoveredFiles);
                     }
@@ -2020,7 +2023,11 @@ public final class GlobExpander {
             return emptyListing(pattern, exclusionNotice, truncated);
         }
 
-        matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig, glob);
+        // Put-back already restored the superset. Re-running the closed-range pass would drop those
+        // folders again.
+        if (restoredUntrusted == false) {
+            matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig, glob);
+        }
         if (matched.isEmpty()) {
             // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
             // it as a complete empty listing would hide files past the bound that fall inside the range.
@@ -3540,7 +3547,8 @@ public final class GlobExpander {
      * {@code listChildren}) never does. The filtered files have to detect every pruned column, and their types
      * have to match the files the filter dropped — a stray makes the column file data, and a dropped
      * {@code month=abc} is what keeps {@code month} a keyword. A failed check puts the files back;
-     * {@link #withoutFoldersOutsideClosedRange} then drops closed-range folders again, dotted segment included.
+     * {@link #withoutFoldersOutsideClosedRange} is skipped on that untrusted put-back so a closed range
+     * cannot undo the superset.
      */
     private static boolean valueFilterTrusted(
         List<StorageEntry> filtered,
@@ -4937,10 +4945,33 @@ public final class GlobExpander {
                     return true;
                 }
             }
-            if (folderRange != null && folderRange.mayContain(PartitionValueMatcher.pathBindings(entry.path().path())) == false) {
+            if (folderRange != null && folderRange.mayContain(folderRangeBindings(entry.path().path())) == false) {
                 return true;
             }
             return false;
+        }
+
+        /**
+         * Hive bindings are first-wins {@code key=value}. TEMPLATE must not use those: a mixed
+         * {@code year=2024/2025/a.parquet} path with {@code partition_path: '{year}'} binds {@code 2025}
+         * (filename dropped), not the Hive prefix. Empty bindings fail-open inside {@code mayContain}.
+         */
+        private Map<String, String> folderRangeBindings(String path) {
+            if (hive) {
+                return PartitionValueMatcher.pathBindings(path);
+            }
+            if (template == null || folderRange == null) {
+                return Map.of();
+            }
+            List<String> keys = folderRange.bindKeys();
+            Map<String, String> bindings = Maps.newHashMapWithExpectedSize(keys.size());
+            for (String key : keys) {
+                String value = TemplatePartitionDetector.columnValue(path, key, template);
+                if (value != null) {
+                    bindings.put(key, value);
+                }
+            }
+            return bindings;
         }
     }
 

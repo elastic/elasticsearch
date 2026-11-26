@@ -1005,3 +1005,8 @@ tests:
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <double>, <double>, <double>, <double>, <null>, <double>, <double>, <double>, <double>,
     <double>, <double>}
   issue: https://github.com/elastic/elasticsearch/issues/167615
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testSnapshotPrimaryRelocations
+  issue: https://github.com/elastic/elasticsearch/issues/167619

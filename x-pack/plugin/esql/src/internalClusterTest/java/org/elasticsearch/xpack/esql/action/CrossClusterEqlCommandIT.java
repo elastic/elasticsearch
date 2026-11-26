@@ -19,13 +19,16 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 
 import java.io.IOException;
@@ -36,12 +39,15 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Verifies that the {@code EQL} source command works across clusters. Its leading index-pattern argument may be
@@ -113,6 +119,18 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
             EsqlExecutionInfo.Cluster remoteCluster = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
+    }
+
+    public void testEqlFailureOnTheRemoteClusterIsLocatedInTheEsqlQuery() throws Exception {
+        setupRemoteEvents();
+        String query = "EQL " + REMOTE_CLUSTER_1 + ":eql_events \"process where process.nam == \\\"x\\\" and zzz == 1\"";
+        Throwable located = ExceptionsHelper.unwrapCause(expectThrows(Exception.class, () -> runQuery(query, false).close()));
+        assertThat(located, instanceOf(VerificationException.class));
+        assertThat(ExceptionsHelper.status(located), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(located.getSuppressed(), arrayContaining(instanceOf(NotSerializableExceptionWrapper.class)));
+        assertThat(located.getMessage(), startsWith("line 1:1: EQL query failed with 2 problems:\n"));
+        assertThat(located.getMessage(), containsString("\n    line 1:15 of the EQL query: Unknown column [process.nam]"));
+        assertThat(located.getMessage(), containsString("\n    line 1:38 of the EQL query: Unknown column [zzz]"));
     }
 
     public void testLostShardOfASingleRemoteClusterSearchIsListedOnThatCluster() throws Exception {

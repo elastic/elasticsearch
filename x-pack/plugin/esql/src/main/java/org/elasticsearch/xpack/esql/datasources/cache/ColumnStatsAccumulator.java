@@ -381,23 +381,22 @@ public final class ColumnStatsAccumulator {
         }
 
         private void updateDouble(double val) {
-            // The runtime Min/MaxDoubleAggregator use Math.min/Math.max, which PROPAGATE NaN: once any value
-            // is NaN the aggregate is NaN. Record NaN as both extremes so a served stat matches a full scan;
-            // it stays NaN because no later value compares < or > NaN. The cross-stripe/cross-file fold
-            // (SplitStats.mergedMin/mergedMax) treats a NaN operand as unmergeable, so a multi-unit column
-            // safe-misses there instead of serving a non-NaN extreme — MIN/MAX matches a scan in every shape.
+            // The runtime Min/MaxDoubleAggregator skip NaN and answer NaN only when every value is NaN. NaN is
+            // recorded only while no finite value has been seen, and is replaced by the first finite value.
             if (Double.isNaN(val)) {
-                min = Double.NaN;
-                max = Double.NaN;
+                if (min == null) {
+                    min = Double.NaN;
+                    max = Double.NaN;
+                }
                 return;
             }
             // Use the SAME Math.min/Math.max the runtime Min/MaxDoubleAggregator use so a served extreme is
             // bit-identical to a full scan's — a primitive `<`/`>` compares -0.0 == 0.0 and could not cross
             // them, but Math.min/max order -0.0 below +0.0 (and MIN(-0.0, +0.0) must be -0.0).
             Double cur = (Double) min;
-            min = cur == null ? val : Math.min(cur, val);
+            min = cur == null || cur.isNaN() ? val : Math.min(cur, val);
             Double curMax = (Double) max;
-            max = curMax == null ? val : Math.max(curMax, val);
+            max = curMax == null || curMax.isNaN() ? val : Math.max(curMax, val);
         }
 
         private void updateBytesRef(BytesRef val) {

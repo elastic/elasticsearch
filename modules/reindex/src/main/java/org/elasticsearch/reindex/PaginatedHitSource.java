@@ -12,6 +12,8 @@ package org.elasticsearch.reindex;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -143,6 +145,48 @@ public abstract class PaginatedHitSource {
     protected abstract void onBatchResponse(Response response);
 
     /**
+     * Charges a local page's source bytes to {@code breaker} until the action releases the page, since its hits pin the transport
+     * buffers past the search-side charges. Like {@code RemoteParseContext} for remote. Pages below {@code thresholdBytes} aren't
+     * charged, so a very high {@code cluster.reindex.memory_accounting_threshold} turns this off. If the coordinator already charged
+     * the hits ({@code fetch[coordinator]}), that charge is taken over instead of charging them again.
+     *
+     * @throws CircuitBreakingException if the page does not fit, after releasing the hits
+     */
+    protected static void reserveHeldPage(
+        CircuitBreaker breaker,
+        String label,
+        long thresholdBytes,
+        Supplier<Releasable> coordinatorCharge,
+        PaginatedHitSource.Response response
+    ) {
+        long bytes = 0;
+        for (PaginatedHitSource.Hit hit : response.getHits()) {
+            BytesReference source = hit.getSource();
+            if (source != null) {
+                bytes += source.length();
+            }
+        }
+        if (bytes == 0 || bytes < thresholdBytes) {
+            return;
+        }
+        Releasable charge = coordinatorCharge.get();
+        if (charge == null) {
+            charge = chargeBreaker(breaker, label, bytes, response);
+        }
+        response.setBodyReleasable(charge);
+    }
+
+    private static Releasable chargeBreaker(CircuitBreaker breaker, String label, long bytes, PaginatedHitSource.Response response) {
+        try {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        } catch (CircuitBreakingException e) {
+            response.getHits().forEach(PaginatedHitSource.Hit::release);
+            throw e;
+        }
+        return () -> breaker.addWithoutBreaking(-bytes);
+    }
+
+    /**
      * Returns the cursor for the next batch, or null if no more batches.
      */
     @Nullable
@@ -251,8 +295,8 @@ public abstract class PaginatedHitSource {
         }
 
         /**
-         * Nullable releasable for the circuit breaker reservation covering the remote HTTP response body
-         * bytes that back this batch's hits. Set only for remote reindex responses; null for local searches.
+         * Nullable releasable for the circuit breaker reservation covering the bytes that back this batch's hits.
+         * Set by the remote hit sources for the parsed HTTP response body, and by the local ones for the source bytes of the hits.
          * Wrapped in {@link Releasables#releaseOnce} so it is safe to call {@link #closeBodyReleasable()}
          * from both the normal-path cleanup and the early-exit (hit release) paths.
          */
@@ -260,7 +304,7 @@ public abstract class PaginatedHitSource {
         private Releasable bodyReleasable;
 
         /**
-         * Attaches a circuit-breaker {@link Releasable} for the remote HTTP response body.
+         * Attaches a circuit-breaker {@link Releasable} for the bytes backing this batch's hits.
          * Must be called at most once; asserts that no releasable is already set.
          */
         public void setBodyReleasable(Releasable releasable) {

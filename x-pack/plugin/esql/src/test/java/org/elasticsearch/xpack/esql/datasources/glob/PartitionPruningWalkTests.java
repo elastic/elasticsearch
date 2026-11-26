@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -90,6 +91,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
 
     private static final Source SRC = Source.EMPTY;
     private static final Instant LAST_DAY = Instant.parse("2026-10-14T00:00:00Z");
+    private static final int FINISH_CAP_ACCOUNTS = 4;
+    private static final int FINISH_CAP_FILES_PER_DAY = 4;
 
     @After
     public void clearFinishMode() {
@@ -1065,6 +1068,210 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
+    /**
+     * Finite {@code max_listed_objects} below the tree. Sequential throws on the +1 listed object.
+     * Parallel must throw too, not return a shorter result. Placeholders in each folder sort first so
+     * a raw-entry cap would stop before the trip file.
+     */
+    public void testParallelFinishListedObjectsLimitThrowsLikeSequential() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        String prefixListing = WIDE_HIVE_PREFIX + "/";
+        int maxListed = FINISH_CAP_FILES_PER_DAY + 3;
+
+        ListingWalkHarness sequential = new ListingWalkHarness(finishCapTree());
+        ListedObjectsLimitException sync = expectThrows(
+            ListedObjectsLimitException.class,
+            () -> PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalk(
+                    sequential,
+                    WIDE_HIVE_GLOB,
+                    List.of(),
+                    pred,
+                    () -> false,
+                    Integer.MAX_VALUE,
+                    maxListed,
+                    PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+                    Integer.MAX_VALUE
+                )
+            )
+        );
+        assertThat(sync.getMessage(), containsString("listed too many objects"));
+        assertFalse("listed-objects cap must not prefix-list the dataset", sequential.listedPrefixes().contains(prefixListing));
+
+        ListingWalkHarness parallel = new ListingWalkHarness(finishCapTree());
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            ListedObjectsLimitException async = expectThrows(
+                ListedObjectsLimitException.class,
+                () -> PartitionPruningWalk.withFinishMode(
+                    PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                    () -> tryWalkAsync(
+                        parallel,
+                        WIDE_HIVE_GLOB,
+                        List.of(),
+                        pred,
+                        () -> false,
+                        4,
+                        executor,
+                        Integer.MAX_VALUE,
+                        maxListed,
+                        PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+                        Integer.MAX_VALUE
+                    )
+                )
+            );
+            assertThat(async.getMessage(), containsString("listed too many objects"));
+            assertFalse("async listed-objects cap must not prefix-list the dataset", parallel.listedPrefixes().contains(prefixListing));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /**
+     * Bounded {@code maxFiles} truncates on the trip object instead of throwing. Parallel remaining
+     * merge must match sequential: same truncated prefix, not a shorter untruncated result.
+     */
+    public void testParallelFinishListedObjectsLimitTruncatesLikeSequential() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        int maxListed = FINISH_CAP_FILES_PER_DAY + 3;
+        int maxFiles = 100;
+
+        ListingWalkHarness sequentialProvider = new ListingWalkHarness(finishCapTree());
+        PartitionPruningWalk.WalkResult sequential = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalk(
+                sequentialProvider,
+                WIDE_HIVE_GLOB,
+                List.of(),
+                pred,
+                () -> false,
+                Integer.MAX_VALUE,
+                maxListed,
+                PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+                maxFiles
+            )
+        );
+        assertNotNull(sequential);
+        assertTrue(sequential.truncated());
+        assertThat(sequential.listed(), greaterThan(maxListed));
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            ListingWalkHarness parallelProvider = new ListingWalkHarness(finishCapTree());
+            PartitionPruningWalk.WalkResult parallel = PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalkAsync(
+                    parallelProvider,
+                    WIDE_HIVE_GLOB,
+                    List.of(),
+                    pred,
+                    () -> false,
+                    4,
+                    executor,
+                    Integer.MAX_VALUE,
+                    maxListed,
+                    PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+                    maxFiles
+                )
+            );
+            assertEquals(sequential, parallel);
+            assertFalse(parallelProvider.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /**
+     * {@code max_discovered_files} equal to the first survivor folder so the throw/truncate is in remaining
+     * merge, not the probe. Existing cap-0 tests trip on the first probe file.
+     */
+    public void testParallelFinishDiscoveredFilesLimitOnRemainingMatchesSequential() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        String prefixListing = WIDE_HIVE_PREFIX + "/";
+        int maxDiscovered = FINISH_CAP_FILES_PER_DAY;
+
+        ListingWalkHarness sequential = new ListingWalkHarness(finishCapTree());
+        expectThrows(
+            DiscoveredFilesLimitException.class,
+            () -> PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalk(
+                    sequential,
+                    WIDE_HIVE_GLOB,
+                    List.of(),
+                    pred,
+                    () -> false,
+                    maxDiscovered,
+                    PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+                )
+            )
+        );
+        assertFalse(sequential.listedPrefixes().contains(prefixListing));
+        assertThat(sequential.listObjectsRequests(), greaterThan(1));
+
+        ListingWalkHarness parallel = new ListingWalkHarness(finishCapTree());
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            expectThrows(
+                DiscoveredFilesLimitException.class,
+                () -> PartitionPruningWalk.withFinishMode(
+                    PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                    () -> tryWalkAsync(
+                        parallel,
+                        WIDE_HIVE_GLOB,
+                        List.of(),
+                        pred,
+                        () -> false,
+                        4,
+                        executor,
+                        maxDiscovered,
+                        PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+                    )
+                )
+            );
+            assertFalse(parallel.listedPrefixes().contains(prefixListing));
+            assertThat(parallel.listObjectsRequests(), greaterThan(1));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testParallelFinishUnavailableFailsClosed() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        String failFragment = "aws-account-id=000000000002";
+        String prefixListing = WIDE_HIVE_PREFIX + "/";
+
+        ListingWalkHarness sequential = new ListingWalkHarness(wideHiveTree());
+        sequential.setFailListObjectsContaining(failFragment);
+        sequential.setFailListObjectsUnavailable(true);
+        Exception sync = expectThrows(
+            Exception.class,
+            () -> PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false)
+            )
+        );
+        assertFinishUnavailableWithoutFlatListing(sync, sequential, prefixListing);
+
+        ListingWalkHarness parallel = new ListingWalkHarness(wideHiveTree());
+        parallel.setFailListObjectsContaining(failFragment);
+        parallel.setFailListObjectsUnavailable(true);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            Exception async = expectThrows(
+                Exception.class,
+                () -> PartitionPruningWalk.withFinishMode(
+                    PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                    () -> tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 4, executor)
+                )
+            );
+            assertFinishUnavailableWithoutFlatListing(async, parallel, prefixListing);
+        } finally {
+            terminate(executor);
+        }
+    }
+
     private void assertListenerCompletesOnce(Executor executor) throws Exception {
         ListingWalkHarness provider = new ListingWalkHarness(fieldShapedTree());
         List<Expression> filters = List.of(window(LAST_DAY, NOW));
@@ -1141,6 +1348,42 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
+    private static void assertFinishUnavailableWithoutFlatListing(Exception thrown, ListingWalkHarness provider, String prefixListing) {
+        Throwable unavailable = thrown instanceof ExternalUnavailableException
+            ? thrown
+            : ExceptionsHelper.unwrap(thrown, ExternalUnavailableException.class);
+        assertNotNull("expected ExternalUnavailableException, got " + thrown, unavailable);
+        assertFalse("failed finish must not prefix-list the dataset", provider.listedPrefixes().contains(prefixListing));
+        assertThat(provider.listObjectsRequests(), greaterThan(1));
+        assertEquals(0, provider.listObjectsInFlight());
+    }
+
+    /**
+     * Four VPC prefixes, same glob as {@link ListingWalkHarness#wideHiveTree()}, placeholders first under
+     * each matching day so a raw-entry listing cap never reaches the trip file.
+     */
+    private static List<StorageEntry> finishCapTree() {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int a = 1; a <= FINISH_CAP_ACCOUNTS; a++) {
+            String prefix = WIDE_HIVE_PREFIX
+                + "/aws-account-id="
+                + String.format(Locale.ROOT, "%012d", a)
+                + "/aws-service=vpcflowlogs/aws-region=us-east-1";
+            String day = prefix + "/year=2026/month=06/day=01";
+            entries.add(ListingWalkHarness.entry(day + "/"));
+            for (int hour = 0; hour < 2; hour++) {
+                String hourFolder = day + "/hour=" + String.format(Locale.ROOT, "%02d", hour);
+                entries.add(ListingWalkHarness.entry(hourFolder + "/"));
+                for (int n = 0; n < 2; n++) {
+                    entries.add(ListingWalkHarness.entry(hourFolder + "/f-" + n + ".parquet"));
+                }
+            }
+            entries.add(ListingWalkHarness.entry(prefix + "/year=2026/month=06/day=02/hour=00/f-0.parquet"));
+            entries.add(ListingWalkHarness.entry(prefix + "/year=2026/month=07/day=01/hour=00/f-0.parquet"));
+        }
+        return entries;
+    }
+
     private static void assertFinishFailureWithoutFlatListing(Exception thrown, ListingWalkHarness provider, String prefixListing) {
         Throwable io = thrown instanceof IOException ? thrown : ExceptionsHelper.unwrap(thrown, IOException.class);
         assertNotNull("expected IOException, got " + thrown, io);
@@ -1186,6 +1429,30 @@ public class PartitionPruningWalkTests extends ESTestCase {
         int maxDiscoveredFiles,
         int maxDirectoryListings
     ) throws IOException {
+        return tryWalk(
+            provider,
+            glob,
+            hints,
+            pred,
+            cancelled,
+            maxDiscoveredFiles,
+            Integer.MAX_VALUE,
+            maxDirectoryListings,
+            Integer.MAX_VALUE
+        );
+    }
+
+    private static PartitionPruningWalk.WalkResult tryWalk(
+        ListingWalkHarness provider,
+        String glob,
+        List<PartitionFilterHint> hints,
+        FolderRangePredicate pred,
+        BooleanSupplier cancelled,
+        int maxDiscoveredFiles,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        int maxFiles
+    ) throws IOException {
         StoragePath globPath = StoragePath.of(glob);
         return PartitionPruningWalk.tryWalk(
             provider,
@@ -1197,9 +1464,12 @@ public class PartitionPruningWalkTests extends ESTestCase {
             globPath.globPart(),
             pred,
             null,
-            Integer.MAX_VALUE,
+            maxListedObjects,
             maxDirectoryListings,
-            cancelled
+            cancelled,
+            null,
+            maxFiles,
+            null
         );
     }
 
@@ -1247,8 +1517,49 @@ public class PartitionPruningWalkTests extends ESTestCase {
         int maxDiscoveredFiles,
         int maxDirectoryListings
     ) {
+        return tryWalkAsync(
+            provider,
+            glob,
+            hints,
+            pred,
+            cancelled,
+            concurrency,
+            executor,
+            maxDiscoveredFiles,
+            Integer.MAX_VALUE,
+            maxDirectoryListings,
+            Integer.MAX_VALUE
+        );
+    }
+
+    private static PartitionPruningWalk.WalkResult tryWalkAsync(
+        ListingWalkHarness provider,
+        String glob,
+        List<PartitionFilterHint> hints,
+        FolderRangePredicate pred,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        int maxDiscoveredFiles,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        int maxFiles
+    ) {
         PlainActionFuture<PartitionPruningWalk.WalkResult> future = new PlainActionFuture<>();
-        startWalkAsync(provider, glob, hints, pred, cancelled, concurrency, executor, future, maxDiscoveredFiles, maxDirectoryListings);
+        startWalkAsync(
+            provider,
+            glob,
+            hints,
+            pred,
+            cancelled,
+            concurrency,
+            executor,
+            future,
+            maxDiscoveredFiles,
+            maxListedObjects,
+            maxDirectoryListings,
+            maxFiles
+        );
         return future.actionGet();
     }
 
@@ -1272,7 +1583,9 @@ public class PartitionPruningWalkTests extends ESTestCase {
             executor,
             listener,
             Integer.MAX_VALUE,
-            PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+            Integer.MAX_VALUE,
+            PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+            Integer.MAX_VALUE
         );
     }
 
@@ -1288,6 +1601,36 @@ public class PartitionPruningWalkTests extends ESTestCase {
         int maxDiscoveredFiles,
         int maxDirectoryListings
     ) {
+        startWalkAsync(
+            provider,
+            glob,
+            hints,
+            pred,
+            cancelled,
+            concurrency,
+            executor,
+            listener,
+            maxDiscoveredFiles,
+            Integer.MAX_VALUE,
+            maxDirectoryListings,
+            Integer.MAX_VALUE
+        );
+    }
+
+    private static void startWalkAsync(
+        ListingWalkHarness provider,
+        String glob,
+        List<PartitionFilterHint> hints,
+        FolderRangePredicate pred,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<PartitionPruningWalk.WalkResult> listener,
+        int maxDiscoveredFiles,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        int maxFiles
+    ) {
         StoragePath globPath = StoragePath.of(glob);
         PartitionPruningWalk.tryWalkAsync(
             provider,
@@ -1299,12 +1642,15 @@ public class PartitionPruningWalkTests extends ESTestCase {
             globPath.globPart(),
             pred,
             null,
-            Integer.MAX_VALUE,
+            maxListedObjects,
             maxDirectoryListings,
             cancelled,
             concurrency,
             executor,
-            listener
+            listener,
+            null,
+            maxFiles,
+            null
         );
     }
 

@@ -428,9 +428,10 @@ final class PartitionPruningWalk {
      * against {@code maxDirectoryListings}. The calling thread is not blocked; {@code listener} fires
      * on an executor thread. A cancelled child fails with {@link TaskCancelledException}. A store
      * {@link IOException} fails the listener rather than completing with {@code null}. {@code null}
-     * remains a walk withdraw (unsupported {@code listChildren}, ceiling, stray). Output and LIST
-     * count match the sequential walk: peeks consume the remaining listing budget greedily, then fail
-     * closed if any peek was skipped.
+     * remains a walk withdraw (unsupported {@code listChildren}, ceiling, stray). Output and
+     * directory-listing count match the sequential walk: peeks consume the remaining
+     * {@code maxDirectoryListings} budget greedily, then fail closed if any peek was skipped. Finish
+     * {@code listObjects} pages are a separate counter and do not count against that ceiling.
      */
     static void tryWalkAsync(
         StorageProvider provider,
@@ -795,43 +796,13 @@ final class PartitionPruningWalk {
         if (dirs.isEmpty()) {
             return collector.result(prunedColumns, columnFullTypes, prunedDirs);
         }
-        int measure = templateFrontier ? 0 : indexOfFirstShapedDir(dirs);
-        List<StorageEntry> firstBatch = listDir(provider, dirs.get(measure));
-        int second = -1;
-        DirSample secondSample = null;
-        boolean floorPrefix = true;
-        try {
-            if (mode == FinishMode.RULE && firstBatch.size() < MIN_FINISH_SAMPLE) {
-                boolean unfloored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, false);
-                boolean floored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, true);
-                if (unfloored == false && floored) {
-                    floorPrefix = false;
-                    second = templateFrontier ? (dirs.size() > 1 ? 1 : -1) : indexOfNextShapedDir(dirs, measure);
-                    if (second >= 0) {
-                        secondSample = listDirSample(provider, dirs.get(second), MIN_FINISH_SAMPLE);
-                        floorPrefix = secondSample.size() >= MIN_FINISH_SAMPLE;
-                    }
-                }
-            }
-            if (mode == FinishMode.RULE
-                && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, floorPrefix) == false) {
+        try (FinishProbe probe = probeFinish(provider, dirs, estimatedPrefixWidth, mode, templateFrontier)) {
+            if (probe.flatten) {
                 return null;
             }
-            for (StorageEntry entry : firstBatch) {
-                collector.add(entry);
-                if (collector.truncated()) {
-                    break;
-                }
-            }
-            if (secondSample != null && collector.truncated() == false) {
-                secondSample.drainInto(collector);
-            }
-            addRemainingDirs(collector, provider, dirs, measure, second);
+            applyFinishProbe(collector, probe);
+            addRemainingDirs(collector, provider, dirs, probe.measure, probe.second);
             return collector.result(prunedColumns, columnFullTypes, prunedDirs);
-        } finally {
-            if (secondSample != null) {
-                secondSample.close();
-            }
         }
     }
 
@@ -885,52 +856,26 @@ final class PartitionPruningWalk {
             listener.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
             return;
         }
-        int measure = templateFrontier ? 0 : indexOfFirstShapedDir(dirs);
-        int second = -1;
-        DirSample secondSample = null;
+        FinishProbe probe = null;
         try {
             Exception cancelledNow = cancellationFailure(cancelled);
             if (cancelledNow != null) {
                 listener.onFailure(cancelledNow);
                 return;
             }
-            List<StorageEntry> firstBatch = listDir(provider, dirs.get(measure));
-            boolean floorPrefix = true;
-            if (mode == FinishMode.RULE && firstBatch.size() < MIN_FINISH_SAMPLE) {
-                boolean unfloored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, false);
-                boolean floored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, true);
-                if (unfloored == false && floored) {
-                    floorPrefix = false;
-                    second = templateFrontier ? (dirs.size() > 1 ? 1 : -1) : indexOfNextShapedDir(dirs, measure);
-                    if (second >= 0) {
-                        secondSample = listDirSample(provider, dirs.get(second), MIN_FINISH_SAMPLE);
-                        floorPrefix = secondSample.size() >= MIN_FINISH_SAMPLE;
-                    }
-                }
-            }
-            if (mode == FinishMode.RULE
-                && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, floorPrefix) == false) {
-                closeDirSample(secondSample);
-                secondSample = null;
+            probe = probeFinish(provider, dirs, estimatedPrefixWidth, mode, templateFrontier);
+            if (probe.flatten) {
                 listener.onResponse(null);
                 return;
             }
-            for (StorageEntry entry : firstBatch) {
-                collector.add(entry);
-                if (collector.truncated()) {
-                    break;
-                }
-            }
-            if (secondSample != null && collector.truncated() == false) {
-                secondSample.drainInto(collector);
-            }
-            closeDirSample(secondSample);
-            secondSample = null;
+            applyFinishProbe(collector, probe);
+            closeDirSample(probe.secondSample);
+            probe.secondSample = null;
             if (collector.truncated()) {
                 listener.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
                 return;
             }
-            List<StoragePath> remaining = remainingFinishDirs(dirs, measure, second);
+            List<StoragePath> remaining = remainingFinishDirs(dirs, probe.measure, probe.second);
             if (remaining.isEmpty()) {
                 listener.onResponse(collector.result(prunedColumns, columnFullTypes, prunedDirs));
                 return;
@@ -949,13 +894,87 @@ final class PartitionPruningWalk {
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {
-            if (secondSample != null) {
+            if (probe != null) {
                 try {
-                    secondSample.close();
+                    probe.close();
                 } catch (IOException close) {
                     logger.debug("Closing finish sample after async probe", close);
                 }
             }
+        }
+    }
+
+    /**
+     * First-shaped-dir listing, optional second sample, and cheaperToFinish. Remaining drain is sequential
+     * {@link #addRemainingDirs} or {@link #listObjectsParallel}; this probe must stay shared so
+     * cheaperToFinish arithmetic cannot drift.
+     */
+    private static FinishProbe probeFinish(
+        StorageProvider provider,
+        List<StoragePath> dirs,
+        double estimatedPrefixWidth,
+        FinishMode mode,
+        boolean templateFrontier
+    ) throws IOException {
+        int measure = templateFrontier ? 0 : indexOfFirstShapedDir(dirs);
+        List<StorageEntry> firstBatch = listDir(provider, dirs.get(measure));
+        int second = -1;
+        DirSample secondSample = null;
+        boolean floorPrefix = true;
+        try {
+            if (mode == FinishMode.RULE && firstBatch.size() < MIN_FINISH_SAMPLE) {
+                boolean unfloored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, false);
+                boolean floored = cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, true);
+                if (unfloored == false && floored) {
+                    floorPrefix = false;
+                    second = templateFrontier ? (dirs.size() > 1 ? 1 : -1) : indexOfNextShapedDir(dirs, measure);
+                    if (second >= 0) {
+                        secondSample = listDirSample(provider, dirs.get(second), MIN_FINISH_SAMPLE);
+                        floorPrefix = secondSample.size() >= MIN_FINISH_SAMPLE;
+                    }
+                }
+            }
+            boolean flatten = mode == FinishMode.RULE
+                && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth, LIST_PAGE_SIZE, floorPrefix) == false;
+            return new FinishProbe(measure, second, firstBatch, secondSample, flatten);
+        } catch (Exception e) {
+            closeDirSample(secondSample);
+            throw e;
+        }
+    }
+
+    private static void applyFinishProbe(Collector collector, FinishProbe probe) throws IOException {
+        for (StorageEntry entry : probe.firstBatch) {
+            collector.add(entry);
+            if (collector.truncated()) {
+                return;
+            }
+        }
+        if (probe.secondSample != null && collector.truncated() == false) {
+            probe.secondSample.drainInto(collector);
+        }
+    }
+
+    private static final class FinishProbe implements AutoCloseable {
+        final int measure;
+        final int second;
+        final List<StorageEntry> firstBatch;
+        @Nullable
+        DirSample secondSample;
+        final boolean flatten;
+
+        FinishProbe(int measure, int second, List<StorageEntry> firstBatch, @Nullable DirSample secondSample, boolean flatten) {
+            this.measure = measure;
+            this.second = second;
+            this.firstBatch = firstBatch;
+            this.secondSample = secondSample;
+            this.flatten = flatten;
+        }
+
+        @Override
+        public void close() throws IOException {
+            closeDirSample(secondSample);
+            secondSample = null;
         }
     }
 
@@ -1008,30 +1027,45 @@ final class PartitionPruningWalk {
     }
 
     private static List<StorageEntry> listDir(StorageProvider provider, StoragePath dir) throws IOException {
-        return listDirUntilSkip(provider, dir, () -> false, Integer.MAX_VALUE);
+        return listDirUntilSkip(provider, dir, () -> false, Integer.MAX_VALUE, null);
     }
 
     /**
      * Recursive listing of {@code dir} that stops between pages when {@code skip} is true or
-     * {@code cap} objects have been taken. Empty when skipped mid-folder; the caller must not merge
-     * an empty skip into the collector. A finite {@code cap} is the remaining {@code max_listed_objects}
-     * budget of the next merge slot, matching sequential {@link Collector#addRecursively}.
+     * {@code cap} listed-eligible objects have been taken. Empty when skipped mid-folder; the caller
+     * must not merge an empty skip into the collector. A finite {@code cap} is
+     * {@link Collector#remainingListedTripCap()} of the next merge slot: remaining listed budget plus
+     * the trip object sequential {@link Collector#addRecursively} observes. Directory placeholders do
+     * not count toward {@code cap}.
      */
-    private static List<StorageEntry> listDirUntilSkip(StorageProvider provider, StoragePath dir, BooleanSupplier skip, int cap)
-        throws IOException {
+    private static List<StorageEntry> listDirUntilSkip(
+        StorageProvider provider,
+        StoragePath dir,
+        BooleanSupplier skip,
+        int cap,
+        @Nullable Collector collector
+    ) throws IOException {
         if (cap <= 0) {
             return List.of();
         }
         List<StorageEntry> entries = new ArrayList<>();
+        int listedTaken = 0;
         try (StorageIterator iterator = provider.listObjects(dir, true)) {
-            while (iterator.hasNext()) {
+            while (true) {
                 if (skip.getAsBoolean()) {
                     return List.of();
                 }
-                if (entries.size() >= cap) {
+                if (listedTaken >= cap) {
                     break;
                 }
-                entries.add(iterator.next());
+                if (iterator.hasNext() == false) {
+                    break;
+                }
+                StorageEntry entry = iterator.next();
+                entries.add(entry);
+                if (cap != Integer.MAX_VALUE && collector != null && collector.countsTowardListed(entry)) {
+                    listedTaken++;
+                }
             }
         }
         return entries;
@@ -1158,14 +1192,15 @@ final class PartitionPruningWalk {
                         int cap = Integer.MAX_VALUE;
                         synchronized (mergeLock) {
                             if (nextMerge.get() == i) {
-                                cap = collector.remainingListedCapacity();
+                                cap = collector.remainingListedTripCap();
                             }
                         }
                         List<StorageEntry> entries = listDirUntilSkip(
                             provider,
                             dirs.get(i),
                             () -> skipRest.get() || failure.get() != null || cancellationFailure(cancelled) != null,
-                            cap
+                            cap,
+                            collector
                         );
                         Exception cancelledAfter = cancellationFailure(cancelled);
                         if (cancelledAfter != null || failure.get() != null) {
@@ -1271,11 +1306,16 @@ final class PartitionPruningWalk {
                 return;
             }
             if (collector.truncated() == false) {
-                for (StorageEntry entry : ready) {
-                    collector.add(entry);
-                    if (collector.truncated()) {
-                        break;
+                try {
+                    for (StorageEntry entry : ready) {
+                        collector.add(entry);
+                        if (collector.truncated()) {
+                            break;
+                        }
                     }
+                } catch (RuntimeException e) {
+                    skipRest.set(true);
+                    throw e;
                 }
             }
             results.set(n, null);
@@ -2575,25 +2615,30 @@ final class PartitionPruningWalk {
         }
 
         /**
-         * Objects still allowed before {@code max_listed_objects} truncates. The next merge slot can
-         * stop paging at this count; a later slot cannot, because earlier folders may still consume budget.
+         * Listed-eligible objects the next merge slot may take, including the {@code listed > max}
+         * trip object sequential {@link #addRecursively} observes. Zero once truncated. A later slot
+         * cannot use this: earlier folders may still consume budget.
          */
-        int remainingListedCapacity() {
+        int remainingListedTripCap() {
             if (truncated) {
                 return 0;
             }
             if (maxListedObjects == Integer.MAX_VALUE) {
                 return Integer.MAX_VALUE;
             }
-            return Math.max(0, maxListedObjects - listed);
+            return Math.max(0, maxListedObjects - listed) + 1;
+        }
+
+        boolean countsTowardListed(StorageEntry entry) {
+            String relativePath = relativePath(prefixStr, entry);
+            return relativePath.isEmpty() == false && relativePath.endsWith("/") == false;
         }
 
         void add(StorageEntry entry) {
             if (truncated) {
                 return;
             }
-            String entryPath = entry.path().toString();
-            String relativePath = entryPath.startsWith(prefixStr) ? entryPath.substring(prefixStr.length()) : entry.path().objectName();
+            String relativePath = relativePath(prefixStr, entry);
             if (relativePath.isEmpty() || relativePath.endsWith("/")) {
                 return; // directory placeholder key, skipped as in the flat listing
             }
@@ -2658,6 +2703,11 @@ final class PartitionPruningWalk {
                     add(iterator.next());
                 }
             }
+        }
+
+        private static String relativePath(String prefixStr, StorageEntry entry) {
+            String entryPath = entry.path().toString();
+            return entryPath.startsWith(prefixStr) ? entryPath.substring(prefixStr.length()) : entry.path().objectName();
         }
 
         WalkResult result(Set<String> prunedColumns, Map<String, DataType> columnFullTypes, List<StoragePath> prunedDirs) {

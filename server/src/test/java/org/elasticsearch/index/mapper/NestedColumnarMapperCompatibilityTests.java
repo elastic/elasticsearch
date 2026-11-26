@@ -402,6 +402,26 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         );
     }
 
+    /**
+     * A nested mapping where no document has a value for the nested field: the batch path takes these documents, and the root
+     * documents must match x-content.
+     */
+    public void testNestedMappingWithoutNestedValues() throws IOException {
+        for (IndexMode mode : STRICT_COLUMNAR_MODES) {
+            assertColumnarMatchesXContent(
+                mappingFor(mode, hostAndN()),
+                settings(mode),
+                batch(
+                    "root only",
+                    1L,
+                    doc("r1", 1L, src(mode, "\"host\":\"h1\"")),
+                    doc("r2", 2L, src(mode, "\"host\":\"h2\"")),
+                    doc("r3", 3L, src(mode, ""))
+                )
+            );
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------------------------------------
     // Fallback pins
     // ---------------------------------------------------------------------------------------------------------------------------

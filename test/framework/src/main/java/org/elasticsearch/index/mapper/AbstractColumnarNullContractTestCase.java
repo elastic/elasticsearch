@@ -61,8 +61,8 @@ import java.util.function.Supplier;
  * indexing learns to map more shapes. A test of a scenario that lists no shape exercises the fallback, not batch indexing.
  *
  * <p>Order and multiplicity of the remaining values belong to the array-order tests. The source check compares the distinct values that
- * remain, and {@link #assertSourceKeepsTheOrderOfTheRemainingValues} only checks that dropping a null does not move or lose the values
- * that remain, so that each of the two fails for its own reason.
+ * remain, and {@link #assertSourceKeepsTheOrderOfTheRemainingValues} only checks that dropping a null does not move or lose a distinct
+ * value that remains, so that each of the two fails for its own reason.
  */
 public abstract class AbstractColumnarNullContractTestCase extends MapperServiceTestCase {
 
@@ -245,8 +245,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
                 array(first, null, second),
                 array(null, first, second),
                 array(first, second, null),
-                array(second, null, first, null, null),
-                array(second, null, first, second)
+                array(second, null, first, null, null)
             )
         );
     }

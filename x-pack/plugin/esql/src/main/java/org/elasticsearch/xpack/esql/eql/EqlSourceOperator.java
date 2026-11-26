@@ -257,7 +257,6 @@ public class EqlSourceOperator extends SourceOperator {
             if (executionInfo.getCluster(cluster) == null) {
                 continue;
             }
-            boolean reported = executionInfo.clusterReportsSearchTook(cluster);
             executionInfo.swapCluster(cluster, (alias, current) -> {
                 EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(current);
                 if (recordCounts) {
@@ -271,13 +270,15 @@ public class EqlSourceOperator extends SourceOperator {
                         true
                     );
                 }
-                if (current.getTook() != null && reported) {
+                if (current.getTook() != null && executionInfo.clusterReportsSearchTook(alias)) {
                     builder.setTook(TimeValue.timeValueNanos(current.getTook().nanos() + took.nanos()));
                 } else {
                     builder.setTook(took);
                 }
                 if (counts.failed() > 0 && current.getFailures().isEmpty() && response.shardFailures().isEmpty()) {
-                    builder.addFailures(List.of(new ShardSearchFailure(new ElasticsearchException("all shards failed"))));
+                    builder.addFailures(
+                        List.of(new ShardSearchFailure(new ElasticsearchException("[" + counts.failed() + "] shards failed")))
+                    );
                     boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias);
                     if ((executionInfo.isMainPlan() || local)
                         && (current.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING

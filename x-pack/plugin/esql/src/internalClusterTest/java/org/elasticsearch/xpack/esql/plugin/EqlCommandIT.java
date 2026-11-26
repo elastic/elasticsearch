@@ -393,6 +393,23 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         assertThat(ExceptionsHelper.stackTrace(e), containsString("Accessing failing field"));
     }
 
+    public void testSkippedShardBesideAFailedShardFailsTheQuery() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("eql_can_skip")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.blocks.write", true))
+                .setMapping("@timestamp", "type=date", "event.category", "type=keyword")
+        );
+        createFailingFieldIndex();
+        String query = "EQL eql_can_skip,eql_partial_fail \"process where event.category == \\\"process\\\" and fail_me == 1\"";
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).allowPartialResults(true);
+        Exception e = expectThrows(Exception.class, () -> run(request).close());
+        String stack = ExceptionsHelper.stackTrace(e);
+        assertThat(stack, containsString("Accessing failing field"));
+        assertThat(stack, not(containsString("all shards failed")));
+    }
+
     public void testInSubqueryReportsALostShard() throws Exception {
         setupFailingShardIndices();
         String query = "FROM eql_partial_ok METADATA _id | WHERE value IN (EQL "
@@ -421,6 +438,31 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             Throwable cause = ExceptionsHelper.unwrap(e, IllegalStateException.class);
             assertNotNull(eql + ": " + ExceptionsHelper.stackTrace(e), cause);
             assertThat(eql, cause.getMessage(), equalTo("Accessing failing field"));
+        }
+    }
+
+    public void testSecondaryStageShardFailureIsPartial() throws Exception {
+        assertLaterStageFailureIsPartial("sequence [process where value == 1] [process where value == 3 or fail_me == 1]");
+    }
+
+    public void testUntilStageShardFailureIsPartial() throws Exception {
+        assertLaterStageFailureIsPartial(
+            "sequence [process where value == 1] [process where value == 3] until [process where fail_me == 1]"
+        );
+    }
+
+    private void assertLaterStageFailureIsPartial(String eql) throws Exception {
+        setupFailingShardIndices();
+        CapturedQuery empty = assertPartialResults(partialQuery(eql), List.of());
+        assertPitShardCounts(empty.localCluster());
+        assertThat(eqlSearchIds(partialSearch(eql)), empty());
+        updateClusterSettings(Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey(), true));
+        try {
+            CapturedQuery partial = assertPartialResults(partialQuery(eql), PARTIAL_MATCH_IDS);
+            assertPitShardCounts(partial.localCluster());
+            assertThat(eqlSearchIds(partialSearch(eql)), equalTo(PARTIAL_MATCH_IDS));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getKey()));
         }
     }
 
@@ -584,6 +626,21 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
                 .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "value", "type=long", "host", "type=keyword")
         );
+        createFailingFieldIndex();
+        client().prepareBulk()
+            .add(
+                new IndexRequest("eql_partial_ok").id("ok1")
+                    .source("@timestamp", "2026-07-22T10:00:00Z", "event.category", "process", "value", 1, "host", "h1")
+            )
+            .add(
+                new IndexRequest("eql_partial_ok").id("ok3")
+                    .source("@timestamp", "2026-07-22T10:00:02Z", "event.category", "process", "value", 3, "host", "h1")
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+    }
+
+    private void createFailingFieldIndex() {
         assertAcked(
             client().admin()
                 .indices()
@@ -600,16 +657,8 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         );
         client().prepareBulk()
             .add(
-                new IndexRequest("eql_partial_ok").id("ok1")
-                    .source("@timestamp", "2026-07-22T10:00:00Z", "event.category", "process", "value", 1, "host", "h1")
-            )
-            .add(
                 new IndexRequest("eql_partial_fail").id("fail2")
                     .source("@timestamp", "2026-07-22T10:00:01Z", "event.category", "process", "value", 2, "host", "h1")
-            )
-            .add(
-                new IndexRequest("eql_partial_ok").id("ok3")
-                    .source("@timestamp", "2026-07-22T10:00:02Z", "event.category", "process", "value", 3, "host", "h1")
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();

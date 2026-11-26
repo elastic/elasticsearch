@@ -68,13 +68,13 @@ public record EqlClusterShards(String clusterAlias, int total, int successful, i
                 if (clusterTotal == null) {
                     continue;
                 }
-                int skipped = zero(cluster.getSkippedShards());
+                int clusterSkipped = zero(cluster.getSkippedShards());
                 recorded.add(
                     new EqlClusterShards(
                         alias,
                         clusterTotal,
-                        withoutSkipped(zero(cluster.getSuccessfulShards()), skipped),
-                        skipped,
+                        withoutSkipped(zero(cluster.getSuccessfulShards()), clusterSkipped),
+                        clusterSkipped,
                         zero(cluster.getFailedShards())
                     )
                 );
@@ -87,6 +87,14 @@ public record EqlClusterShards(String clusterAlias, int total, int successful, i
     }
 
     public static List<EqlClusterShards> withSearchFailures(List<EqlClusterShards> counts, Collection<ShardSearchFailure> failures) {
+        return withSearchFailures(counts, failures, Map.of());
+    }
+
+    public static List<EqlClusterShards> withSearchFailures(
+        List<EqlClusterShards> counts,
+        Collection<ShardSearchFailure> failures,
+        Map<String, Set<String>> alreadyFailedShardIds
+    ) {
         if (counts.isEmpty() || failures == null || failures.isEmpty()) {
             return counts;
         }
@@ -99,7 +107,11 @@ public record EqlClusterShards(String clusterAlias, int total, int successful, i
             if (alias == null) {
                 alias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             }
-            failedShardIds.computeIfAbsent(alias, ignored -> new HashSet<>()).add(failure.shard().getShardId().toString());
+            String shardId = failure.shard().getShardId().toString();
+            if (alreadyFailedShardIds.getOrDefault(alias, Set.of()).contains(shardId)) {
+                continue;
+            }
+            failedShardIds.computeIfAbsent(alias, ignored -> new HashSet<>()).add(shardId);
         }
         if (failedShardIds.isEmpty()) {
             return counts;

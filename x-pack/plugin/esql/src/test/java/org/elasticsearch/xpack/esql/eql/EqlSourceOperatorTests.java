@@ -655,6 +655,16 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
     }
 
+    public void testFailedCountsWithoutShardFailuresUseACountedReason() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
+        pullEventPage(executionInfo, eqlRequestOn("logs"), 8L, List.of(new EqlClusterShards(LOCAL, 3, 2, 0, 1)));
+        EsqlExecutionInfo.Cluster local = executionInfo.getCluster(LOCAL);
+        assertThat(local.getFailedShards(), equalTo(1));
+        assertThat(local.getFailures().size(), equalTo(1));
+        assertThat(local.getFailures().get(0).reason(), containsString("[1] shards failed"));
+        assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
     public void testShardCountsAndTookAreAppliedToTheSearchedCluster() {
         EsqlExecutionInfo executionInfo = executionInfo(LOCAL);
         pullEventPage(executionInfo, eqlRequestOn("logs"), 42L, List.of(new EqlClusterShards(LOCAL, 3, 2, 1, 0)));

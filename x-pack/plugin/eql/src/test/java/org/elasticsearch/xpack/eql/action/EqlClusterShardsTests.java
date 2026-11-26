@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,6 +44,23 @@ public class EqlClusterShardsTests extends ESTestCase {
         ShardSearchFailure again = new ShardSearchFailure(new IllegalStateException("lost again"), shard);
         List<EqlClusterShards> adjusted = EqlClusterShards.withSearchFailures(pit, List.of(first, again));
         assertThat(adjusted, equalTo(List.of(new EqlClusterShards("", 2, 1, 0, 1))));
+    }
+
+    public void testPitOpenFailureIsNotCountedAgain() {
+        List<EqlClusterShards> pit = List.of(new EqlClusterShards("", 2, 1, 0, 1));
+        SearchShardTarget lostAtOpen = new SearchShardTarget(null, new ShardId("logs", "_na_", 1), null);
+        SearchShardTarget searched = new SearchShardTarget("n1", new ShardId("logs", "_na_", 0), null);
+        ShardSearchFailure again = new ShardSearchFailure(new IllegalStateException("unavailable"), lostAtOpen);
+        ShardSearchFailure fresh = new ShardSearchFailure(new IllegalStateException("lost"), searched);
+        Map<String, Set<String>> alreadyFailed = Map.of("", Set.of(lostAtOpen.getShardId().toString()));
+        assertThat(
+            EqlClusterShards.withSearchFailures(pit, List.of(again), alreadyFailed),
+            equalTo(List.of(new EqlClusterShards("", 2, 1, 0, 1)))
+        );
+        assertThat(
+            EqlClusterShards.withSearchFailures(pit, List.of(again, fresh), alreadyFailed),
+            equalTo(List.of(new EqlClusterShards("", 2, 0, 0, 2)))
+        );
     }
 
     public void testSuccessfulBelowSkippedFloorsAtZero() {

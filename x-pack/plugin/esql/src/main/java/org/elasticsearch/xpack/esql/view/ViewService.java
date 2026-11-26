@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -171,8 +172,8 @@ public class ViewService {
      */
     public void validateView(ProjectId projectId, View view, ActionListener<List<String>> listener) {
         try {
-            var statement = validatePutView(clusterService.state().metadata().getProject(projectId), view);
-            final List<String> unreferenced = resolveLet(statement).unreferenced().stream().map(LetResolver::unreferencedWarning).toList();
+            final ValidatedView validated = validatePutView(clusterService.state().metadata().getProject(projectId), view);
+            final List<String> unreferenced = validated.unreferenced().stream().map(LetResolver::unreferencedWarning).toList();
             final var threadPool = clusterService.threadPool();
             // The analysis completes on another thread. Go back to the request context, so that the warnings of the analysis itself
             // do not end up on the response.
@@ -195,7 +196,7 @@ public class ViewService {
                 threadPool.generic(),
                 "view [" + view.name() + "] verification"
             );
-            ActionListener.run(analyzed, l -> queryAnalyzer.analyze(statement, view.name(), l.map(ignored -> unreferenced)));
+            ActionListener.run(analyzed, l -> queryAnalyzer.analyze(validated.statement(), view.name(), l.map(ignored -> unreferenced)));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -252,9 +253,17 @@ public class ViewService {
     }
 
     /**
+     * A view definition that may be stored.
+     *
+     * @param statement    the parsed definition
+     * @param unreferenced the named subqueries that the definition declares but never references
+     */
+    record ValidatedView(EsqlStatement statement, List<LetBinding> unreferenced) {}
+
+    /**
      * Validates that a view may be inserted into the cluster state
      */
-    EsqlStatement validatePutView(ProjectMetadata metadata, View view) {
+    ValidatedView validatePutView(ProjectMetadata metadata, View view) {
         if (view.query().length() > this.maxViewLength) {
             throw new IllegalArgumentException(
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength
@@ -307,19 +316,14 @@ public class ViewService {
         );
         // Named subqueries are substituted before anything is resolved, so their errors (forward-referenced names, a named
         // subquery read by TS or LOOKUP JOIN) depend only on the definition, and a view that has one could never be queried.
-        resolveLet(statement);
-        validateTsView(view.name(), statement.plan());
-        return statement;
-    }
-
-    // A PUT request carries no pragmas, so the plan size limit comes from the cluster setting only, as it does for the parser.
-    private LetResolver.Resolution resolveLet(EsqlStatement statement) {
-        return LetResolver.resolve(
+        LetResolver.Resolution letResolution = LetResolver.resolve(
             statement.plan(),
             statement.letBindings(),
-            new EsqlFlags(clusterService.getClusterSettings()).maxCommandCount(),
+            flags.maxCommandCount(),
             PlanSize.CLUSTER_SETTING_SOURCE
         );
+        validateTsView(view.name(), statement.plan());
+        return new ValidatedView(statement, letResolution.unreferenced());
     }
 
     /**

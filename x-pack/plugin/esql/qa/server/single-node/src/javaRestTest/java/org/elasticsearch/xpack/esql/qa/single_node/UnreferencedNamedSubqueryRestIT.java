@@ -130,6 +130,34 @@ public class UnreferencedNamedSubqueryRestIT extends ESRestTestCase {
     }
 
     /**
+     * The caller's settings stop at view boundaries. A named subquery that a view declares is analyzed with the settings of the
+     * view definition, like the rest of the view, so the caller cannot make an unknown column in it pass.
+     */
+    public void testCallerSettingsDoNotReachUnreferencedNamedSubqueryInView() throws IOException {
+        String unused = "LET unused = (FROM " + INDEX + " | EVAL x = no_such_column); ";
+        String nullify = "\"settings\": {\"unmapped_fields\": \"NULLIFY\"}";
+        // In the query itself the caller's setting applies
+        assertThat(
+            letWarnings(query(unused + "FROM " + INDEX + " | KEEP n", nullify)),
+            contains("Line 1:5: LET subquery [unused] is declared but never referenced")
+        );
+
+        putView("unreferenced-let-settings-view", unused + "FROM " + INDEX + " | KEEP n");
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            containsString("Unknown column [no_such_column]"),
+            () -> query("FROM unreferenced-let-settings-view", nullify)
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+
+        putView("unreferenced-let-set-view", "SET unmapped_fields=\\\"NULLIFY\\\"; " + unused + "FROM " + INDEX + " | KEEP n");
+        assertThat(
+            letWarnings(query("FROM unreferenced-let-set-view")),
+            contains(containsString("(in view [unreferenced-let-set-view]): LET subquery [unused] is declared but never referenced"))
+        );
+    }
+
+    /**
      * The warnings of the response, without the one about the default limit that most of these queries get.
      */
     private static List<String> letWarnings(Response response) {
@@ -142,8 +170,12 @@ public class UnreferencedNamedSubqueryRestIT extends ESRestTestCase {
     }
 
     private Response query(String query) throws IOException {
+        return query(query, null);
+    }
+
+    private Response query(String query, String extraBody) throws IOException {
         Request request = new Request("POST", "/_query");
-        request.setJsonEntity("{\"query\": \"" + query + "\"}");
+        request.setJsonEntity("{\"query\": \"" + query + "\"" + (extraBody == null ? "" : ", " + extraBody) + "}");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         return client().performRequest(request);
     }

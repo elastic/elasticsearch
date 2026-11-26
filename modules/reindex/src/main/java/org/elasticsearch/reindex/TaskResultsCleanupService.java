@@ -52,7 +52,10 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_START_TIME_IN_MILL
  * Documents in {@code .tasks} carry no write timestamp, so the age of a result is taken from the task's start time,
  * {@code task.start_time_in_millis}: a result is deleted once its task started more than {@link #TASK_RESULTS_RETENTION_PERIOD_SETTING}
  * ago. The retention period is therefore measured from when the task <em>started</em>, not from when it finished, so the result of a task
- * that runs for longer than the retention period can be deleted soon after it completes.
+ * that runs for longer than the retention period can be deleted soon after it completes. The same goes for a reindex that relocates to
+ * another node: the result that links its original task ID to the relocated task is judged by the start time of the original task, so it
+ * can be deleted while the relocated task is still running, after which getting the task by its original ID fails even though the
+ * relocated task can still be found by its own ID.
  * <p>
  * The cleanup is disabled by default: it runs only when {@link #TASK_RESULTS_CLEANUP_INTERVAL_SETTING} is a positive duration, and it is
  * stopped or started as that dynamic setting changes.

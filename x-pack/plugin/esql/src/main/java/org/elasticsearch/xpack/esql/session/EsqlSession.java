@@ -3778,7 +3778,6 @@ public class EsqlSession {
         plan.setAnalyzed();
         if (plan instanceof Into into) {
             // authorizeIntoDestinations has resolved the destination, and authorized the caller to write to it, before this runs.
-            // The existence it authorized against is the one seen here, as both read this session's own project metadata.
             String target = into.destination();
             rejectDestinationThatIsRead(into, target);
             if (configuration.explainOnly() == false) {
@@ -3787,9 +3786,7 @@ public class EsqlSession {
             }
         }
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
-        // (including column/field type mismatches against the INTO child's output). The destination is already authorized by
-        // authorizeIntoDestinations: report only what a bulk would show a writer, and nothing from templates unless the caller
-        // could also create the destination.
+        // (including column/field type mismatches against the INTO child's output).
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());
         Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);

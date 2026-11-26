@@ -1,0 +1,55 @@
+---
+setup:
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [into_command]
+      reason: "INTO is only available in snapshot builds"
+  # INTO never creates its destination, so it must exist. The mapping is explicit so that the rows are searchable right away.
+  - do:
+      indices.create:
+        index: into-dest
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 0
+            index.batch_indexing: true
+          mappings:
+            properties:
+              k:
+                type: keyword
+              n:
+                type: long
+
+---
+"INTO writes the rows of a query to an existing index":
+  - do:
+      esql.query:
+        body:
+          query: 'ROW k = ["a", "b", "c"], n = 1 | MV_EXPAND k | INTO into-dest'
+  - match: { columns.0.name: total }
+  - match: { columns.1.name: created }
+  - match: { values.0: [3, 3] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM into-dest | SORT k | KEEP k, n | LIMIT 10'
+  - match: { values: [["a", 1], ["b", 1], ["c", 1]] }
+
+---
+"INTO a destination that does not exist is an error, and does not create it":
+  - do:
+      catch: missing
+      esql.query:
+        body:
+          query: 'ROW k = "a" | INTO into-missing'
+  - match: { error.reason: "INTO destination [into-missing] does not exist" }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: into-missing

@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -101,6 +103,25 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         }
     }
 
+    /**
+     * An alias is something a bulk can write to. Whether it has a write index is not for this check to say: that fails later, at the
+     * checks of the write.
+     */
+    public void testAnAliasIsAnExistingDestination() throws Exception {
+        IndexMetadata aliased = IndexMetadata.builder(index(EXISTING)).putAlias(AliasMetadata.builder("an-alias").writeIndex(true)).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(aliased, true).build();
+
+        assertAnExistingDestination(project, "an-alias");
+    }
+
+    public void testADataStreamIsAnExistingDestination() throws Exception {
+        IndexMetadata backing = index(".ds-a-data-stream-000001");
+        DataStream dataStream = DataStream.builder("a-data-stream", List.of(backing.getIndex())).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(backing, true).put(dataStream).build();
+
+        assertAnExistingDestination(project, "a-data-stream");
+    }
+
     public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
         // A fixed date, as now/d could roll over to the next day between the name and the query
         String query = "ROW x = 1 | INTO \"<logs-{2026.01.01||/d}>\" WITH {\"refresh\": false}";
@@ -115,6 +136,11 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
             into.options(),
             equalTo(TEST_PARSER.parseQuery(query).collect(Into.class).getFirst().options())
         );
+    }
+
+    private void assertAnExistingDestination(ProjectMetadata project, String name) throws Exception {
+        authorize(grantingAuthorizer(), "ROW x = 1 | INTO " + name, true, project);
+        assertThat(asked, contains(name));
     }
 
     private IntoDestinationAuthorizer grantingAuthorizer() {

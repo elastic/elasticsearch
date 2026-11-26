@@ -15,21 +15,27 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.containsString;
@@ -61,6 +67,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         .feature(FeatureFlag.BATCH_INDEXING)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.audit.enabled", "true")
         .setting("indices.batch_indexing", "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", PASSWORD, "test-admin", true)
@@ -179,6 +186,28 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         assertThat(body, containsString("on indices [" + destination + "], this action is granted by the index privileges ["));
     }
 
+    /** A denied destination is audited as the write that it is: the action of the check, the destination, the caller, and who ran it for them. */
+    public void testDeniedDestinationIsAudited() throws Exception {
+        expectThrows(ResponseException.class, () -> intoDestination(READ_ONLY_USER, "into-audited"));
+
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                List<Map<String, Object>> denials = new ArrayList<>();
+                for (String line : Streams.readAllLines(auditLog)) {
+                    Map<String, Object> event = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
+                    if ("access_denied".equals(event.get("event.action"))
+                        && EsqlIntoDestinationAction.NAME.equals(event.get("action"))
+                        && READ_ONLY_USER.equals(event.get("user.name"))) {
+                        denials.add(event);
+                    }
+                }
+                assertThat(denials, hasSize(1));
+                assertThat(denials.getFirst().get("user.run_by.name"), equalTo("test-admin"));
+                assertThat(denials.getFirst().get("indices"), equalTo(List.of("into-audited")));
+            }
+        });
+    }
+
     /**
      * A writer passes the authorization without any read access to the destination, and may then be told what a bulk would tell
      * them: that the pipeline of the destination cannot be used. A missing destination is an error for them too, as INTO does not
@@ -221,6 +250,59 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    /** A data stream is a destination too, and has to get through the filter, which leaves data streams out of a request that says so. */
+    public void testWriterCanWriteToADataStream() throws IOException {
+        Request template = new Request("PUT", "_index_template/into-ds-template");
+        template.setJsonEntity("""
+            {
+              "index_patterns": ["into-ds"],
+              "data_stream": {},
+              "template": {
+                "settings": {"index.batch_indexing": true},
+                "mappings": {"properties": {"@timestamp": {"type": "date"}, "x": {"type": "long"}}}
+              }
+            }""");
+        assertOK(adminClient().performRequest(template));
+        assertOK(adminClient().performRequest(new Request("PUT", "_data_stream/into-ds")));
+
+        Response response = intoDestination(CREATE_DOC_USER, "ROW `@timestamp` = TO_DATETIME(\"2026-01-01T00:00:00Z\"), x = 1", "into-ds");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_OK));
+        assertThat(countOf("into-ds"), equalTo(1));
+    }
+
+    public void testWriterCanWriteToAnAliasWithAWriteIndex() throws IOException {
+        createIndex(
+            adminClient(),
+            "into-alias-index",
+            Settings.builder().put("index.batch_indexing", true).build(),
+            "\"properties\": {\"x\": {\"type\": \"long\"}}",
+            "\"into-alias\": {\"is_write_index\": true}"
+        );
+
+        assertThat(intoDestination(CREATE_DOC_USER, "into-alias").getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_OK));
+        assertThat(countOf("into-alias"), equalTo(1));
+    }
+
+    /** The alias exists, so the destination check passes. It has nowhere to write, which only the bulk finds out, as it would for a bulk. */
+    public void testAliasWithoutAWriteIndexFailsAtTheBulk() throws IOException {
+        createIndex(
+            adminClient(),
+            "into-nowrite-index",
+            Settings.builder().put("index.batch_indexing", true).build(),
+            "\"properties\": {\"x\": {\"type\": \"long\"}}",
+            "\"into-nowrite-alias\": {\"is_write_index\": false}"
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> intoDestination(CREATE_DOC_USER, "into-nowrite-alias"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("no write index is defined for alias"));
+    }
+
+    private static Object countOf(String index) throws IOException {
+        assertOK(adminClient().performRequest(new Request("POST", index + "/_refresh")));
+        return entityAsMap(adminClient().performRequest(new Request("GET", index + "/_count"))).get("count");
+    }
+
     private static void createDestinationWithPipeline() throws IOException {
         Request pipeline = new Request("PUT", "_ingest/pipeline/into-pipeline");
         pipeline.setJsonEntity("{\"processors\": []}");
@@ -230,8 +312,13 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
     /** Writes one row into the given destination as the given user. A user without {@code maintenance} also gets a refresh warning. */
     private static Response intoDestination(String user, String destination) throws IOException {
+        return intoDestination(user, "ROW x = 1", destination);
+    }
+
+    private static Response intoDestination(String user, String rows, String destination) throws IOException {
         Request request = new Request("POST", "_query");
-        request.setJsonEntity("{\"query\": \"ROW x = 1 | INTO " + destination + "\"}");
+        String query = rows + " | INTO " + destination;
+        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("query", query).endObject()));
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(WarningsHandler.PERMISSIVE)
         );

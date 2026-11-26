@@ -672,7 +672,7 @@ into_read_only:
 into_create_doc_only:
   cluster: []
   indices:
-    - names: [ 'into-existing', 'into-missing', 'into-plain' ]
+    - names: [ 'into-existing', 'into-missing', 'into-plain', 'into-ds', 'into-alias', 'into-nowrite-alias' ]
       privileges: [ 'create_doc' ]
     - names: [ 'into-unrelated' ]
       privileges: [ 'read' ]

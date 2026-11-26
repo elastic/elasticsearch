@@ -24,7 +24,11 @@ import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.Timeout;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -138,34 +142,77 @@ public class HttpClient implements Closeable {
 
     /**
      * Sends the request asynchronously.
+     * <p>
+     * The serialized request body is accounted against the inference circuit breaker from the moment the request is handed to the
+     * client until the exchange finishes (successfully, with a failure or cancelled). If the breaker trips the request is not sent and
+     * the listener is failed with an {@link EsRejectedExecutionException}.
      *
      * @return an action aborting the exchange. Aborting removes a request still waiting for a pooled connection from the pool's
      * pending queue, or tears down an exchange that is already in flight (the connection is then discarded instead of reused).
      * It is a no-op once the exchange has completed.
      */
     public Runnable send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) {
-        var exchange = client.execute(
-            SimpleRequestProducer.create(request.httpRequest()),
-            SimpleResponseConsumer.create(),
-            context,
-            new FutureCallback<>() {
-                @Override
-                public void completed(SimpleHttpResponse response) {
-                    respondUsingResponseThread(response, request, listener);
-                }
+        var requestBodyBytes = request.httpRequest().getBodyBytes();
+        var releaseRequestBytes = reserveBytes(requestBodyBytes == null ? 0L : requestBodyBytes.length, request, "request body", listener);
+        if (releaseRequestBytes == null) {
+            return () -> {};
+        }
 
-                @Override
-                public void failed(Exception ex) {
-                    failRequestUsingResponseThread(request, ex, listener);
-                }
+        try {
+            var exchange = client.execute(
+                SimpleRequestProducer.create(request.httpRequest()),
+                SimpleResponseConsumer.create(),
+                context,
+                new FutureCallback<>() {
+                    @Override
+                    public void completed(SimpleHttpResponse response) {
+                        releaseRequestBytes.close();
+                        respondUsingResponseThread(response, request, listener);
+                    }
 
-                @Override
-                public void cancelled() {
-                    cancelRequestUsingResponseThread(request, listener);
+                    @Override
+                    public void failed(Exception ex) {
+                        releaseRequestBytes.close();
+                        failRequestUsingResponseThread(request, ex, listener);
+                    }
+
+                    @Override
+                    public void cancelled() {
+                        releaseRequestBytes.close();
+                        cancelRequestUsingResponseThread(request, listener);
+                    }
                 }
-            }
-        );
-        return () -> FutureUtils.cancel(exchange);
+            );
+            return () -> FutureUtils.cancel(exchange);
+        } catch (Exception e) {
+            releaseRequestBytes.close();
+            throw e;
+        }
+    }
+
+    /**
+     * Accounts {@code bytes} against the circuit breaker.
+     *
+     * @return a releasable that gives the bytes back (idempotent), or {@code null} if the breaker tripped, in which case the
+     * listener has been failed and nothing was reserved.
+     */
+    private Releasable reserveBytes(long bytes, HttpRequest request, String what, ActionListener<?> listener) {
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, request.inferenceEntityId());
+        } catch (CircuitBreakingException e) {
+            listener.onFailure(
+                new EsRejectedExecutionException(
+                    format(
+                        "Failed to process the %s for inference id [%s] because too many inference requests are in-flight",
+                        what,
+                        request.inferenceEntityId()
+                    ),
+                    false
+                )
+            );
+            return null;
+        }
+        return Releasables.releaseOnce(() -> circuitBreaker.addWithoutBreaking(-bytes));
     }
 
     private void failRequestUsingResponseThread(HttpRequest request, Exception ex, ActionListener<?> listener) {
@@ -180,9 +227,26 @@ public class HttpClient implements Closeable {
         );
     }
 
+    /**
+     * The non-streaming consumer has already buffered the whole body when this is called, so the breaker cannot prevent that
+     * allocation. Accounting for it here still makes the response visible to every other request's admission check while it is
+     * being parsed, and fails this request instead of parsing it when the node is already over the limit.
+     */
     private void respondUsingResponseThread(SimpleHttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
         threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> {
-            try {
+            var responseBodyBytes = response.getBodyBytes();
+            var releaseResponseBytes = reserveBytes(
+                responseBodyBytes == null ? 0L : responseBodyBytes.length,
+                request,
+                "response",
+                listener
+            );
+            if (releaseResponseBytes == null) {
+                return;
+            }
+
+            // onResponse parses the body synchronously, so the bytes can be released once it returns
+            try (releaseResponseBytes) {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
                 throttlerManager.warn(

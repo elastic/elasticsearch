@@ -157,6 +157,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
     /**
      * A dense first page fills the observed limiter before K progress polls. Cap stays at 1
      * and parked producers never execute, even though the first unit has not EOFed.
+     * Overflow must be queued while remaining &gt; 0: charging first lets the producer discard
+     * the in-flight page and finish empty.
      */
     public void testFilteredLimitRampStaysParkedOnDenseFirstPage() throws Exception {
         int splitCount = 8;
@@ -181,8 +183,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            observed.tryAccumulateHits(1);
             waitForBufferedPage(operators.get(0));
+            observed.tryAccumulateHits(1);
             pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(executeCount.get(), equalTo(1));
@@ -223,8 +225,8 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
             CountDownLatch done = new CountDownLatch(drivers);
             List<SourceOperator> operators = startRampOperators(factory, drivers, firstEntered, done);
             pollQualifyingPages(operators.get(0), 1);
-            observed.tryAccumulateHits(1);
             waitForBufferedPage(operators.get(0));
+            observed.tryAccumulateHits(1);
             pollQualifyingPages(operators.get(0), 1);
             assertRampStayedAtOne(factory);
             assertThat(executeCount.get(), equalTo(1));
@@ -585,8 +587,17 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         assertThat("remaining==0 must skip every parked producer", factory.filteredLimitParkedCount(), equalTo(0));
     }
 
+    /**
+     * Wait until an overflow page is queued. Must not call {@link SourceOperator#isBlocked()} or
+     * {@link SourceOperator#getOutput()}: both fire the deferred ramp hook. Finished-empty is a
+     * failure, not success — charging remaining after that discards the in-flight page.
+     */
     private void waitForBufferedPage(SourceOperator operator) throws Exception {
-        assertBusy(() -> assertTrue(operator.isBlocked().listener().isDone()));
+        AsyncExternalSourceOperator source = (AsyncExternalSourceOperator) operator;
+        assertBusy(() -> {
+            assertFalse("source finished before overflow page was buffered", operator.isFinished());
+            assertTrue("expected a queued overflow page", source.hasQueuedPage());
+        });
     }
 
     private static void pollQualifyingPages(SourceOperator operator, int pages) {

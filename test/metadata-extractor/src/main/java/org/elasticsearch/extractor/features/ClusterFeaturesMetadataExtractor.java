@@ -24,9 +24,9 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.HashSet;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 public class ClusterFeaturesMetadataExtractor {
@@ -77,7 +77,9 @@ public class ClusterFeaturesMetadataExtractor {
     }
 
     void extractClusterFeaturesMetadata(CheckedConsumer<Set<String>, IOException> metadataConsumer) throws IOException {
-        Set<String> featureNames = new HashSet<>();
+        // Sorted so the generated file is reproducible: feature sets are usually Set.of(...), whose iteration order is
+        // randomized per JVM. The file is an input of REST/BWC test tasks, so a varying order would change their build cache keys.
+        Set<String> featureNames = new TreeSet<>();
         ServiceLoader<FeatureSpecification> featureSpecLoader = ServiceLoader.load(FeatureSpecification.class, classLoader);
         for (FeatureSpecification featureSpecification : featureSpecLoader) {
             Stream.concat(featureSpecification.getFeatures().stream(), featureSpecification.getTestFeatures().stream())

@@ -20,12 +20,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -51,6 +54,24 @@ public class ClusterFeaturesMetadataExtractorTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             Collection<String> featureNamesList = (Collection<String>) (parsedMap.get("feature_names"));
             assertThat(featureNamesList, containsInAnyOrder(featureNamesSet.toArray()));
+        }
+    }
+
+    /**
+     * The metadata file is an input of every REST/BWC test task that uses it. It must therefore be byte-for-byte reproducible:
+     * feature sets are typically {@code Set.of(...)}, whose iteration order changes with every JVM, so the names must be
+     * written sorted rather than in collection iteration order. Otherwise concurrent builds push differently ordered files
+     * under the same build cache key, which changes the cache keys of all downstream test tasks.
+     */
+    public void testMetadataFileIsSorted() throws IOException {
+        ClusterFeaturesMetadataExtractor extractor = new ClusterFeaturesMetadataExtractor(this.getClass().getClassLoader());
+        Path outputFile = temporaryFolder.newFile().toPath();
+        extractor.generateMetadataFile(outputFile);
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(EMPTY, Files.newInputStream(outputFile))) {
+            @SuppressWarnings("unchecked")
+            List<String> featureNamesList = (List<String>) parser.map().get("feature_names");
+            assertThat(featureNamesList.size(), greaterThan(1));
+            assertThat(featureNamesList, contains(featureNamesList.stream().sorted().toArray()));
         }
     }
 }

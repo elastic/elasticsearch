@@ -37,6 +37,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -405,5 +407,72 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         }
 
         assertThat(warnings, equalTo(MAX_WARNINGS_PER_WINDOW));
+    }
+
+    public void testWarnPermitIsTakenPerFailedDocumentWithinOneBatch() throws IllegalAccessException {
+        var listener = listenerWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
+        int failedDocs = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
+        List<Engine.IndexResult> results = new ArrayList<>();
+        for (int i = 0; i < failedDocs; i++) {
+            results.add(failedResult(new RuntimeException("test exception")));
+        }
+
+        List<Level> levels = levelsLoggedDuring(
+            () -> listener.postIndexBatch(ShardId.fromString("[index][123]"), primaryBatch(failedDocs), results)
+        );
+
+        assertThat(Collections.frequency(levels, Level.WARN), equalTo(MAX_WARNINGS_PER_WINDOW));
+        assertThat(Collections.frequency(levels, Level.DEBUG), equalTo(failedDocs - MAX_WARNINGS_PER_WINDOW));
+    }
+
+    public void testUserErrorsDoNotUseWarnPermits() throws IllegalAccessException {
+        var listener = listenerWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
+        int userErrors = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
+        int realErrors = MAX_WARNINGS_PER_WINDOW + randomIntBetween(0, 3);
+        List<Engine.IndexResult> results = new ArrayList<>();
+        for (int i = 0; i < userErrors; i++) {
+            results.add(failedResult(randomUserError()));
+        }
+        for (int i = 0; i < realErrors; i++) {
+            results.add(failedResult(new RuntimeException("test exception")));
+        }
+
+        List<Level> levels = levelsLoggedDuring(
+            () -> listener.postIndexBatch(ShardId.fromString("[index][123]"), primaryBatch(results.size()), results)
+        );
+
+        assertThat(Collections.frequency(levels, Level.WARN), equalTo(MAX_WARNINGS_PER_WINDOW));
+    }
+
+    private static List<Level> levelsLoggedDuring(Runnable action) throws IllegalAccessException {
+        var recorder = new LevelRecordingAppender();
+        recorder.start();
+        Loggers.addAppender(testLogger1, recorder);
+        try {
+            action.run();
+        } finally {
+            Loggers.removeAppender(testLogger1, recorder);
+            recorder.stop();
+            appender.getLastEventAndReset();
+        }
+        return recorder.levels;
+    }
+
+    /**
+     * {@link MockAppender} keeps only the last event, so counting the events logged by one call needs an appender that
+     * records every level.
+     */
+    private static final class LevelRecordingAppender extends MockAppender {
+        private final List<Level> levels = new ArrayList<>();
+
+        LevelRecordingAppender() throws IllegalAccessException {
+            super("level_recording_appender");
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            levels.add(event.getLevel());
+            super.append(event);
+        }
     }
 }

@@ -446,6 +446,39 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testDocValuesSkipperBytesReportedSeparately() throws Exception {
+        final CodecMode codecMode = randomFrom(CodecMode.values());
+        final int numDocs = between(500, 2000);
+        final long[] values = new long[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            values[i] = random().nextInt(1024);
+        }
+        final IndexDiskUsageStats.PerFieldDiskUsage withSkipper = analyzeNumericField(codecMode, values, true);
+        final IndexDiskUsageStats.PerFieldDiskUsage withoutSkipper = analyzeNumericField(codecMode, values, false);
+
+        assertThat(withoutSkipper.getDocValuesSkipperBytes(), equalTo(0L));
+        assertThat(withoutSkipper.getDocValuesBytes(), greaterThan(0L));
+        assertThat(withSkipper.getDocValuesSkipperBytes(), greaterThan(0L));
+        // every leaf interval has a record of at least a level byte plus max/min doc id, max/min value and doc count
+        final long minRecordBytes = 1 + 2 * Integer.BYTES + 2 * Long.BYTES + Integer.BYTES;
+        assertThat(withSkipper.getDocValuesSkipperBytes(), greaterThanOrEqualTo((numDocs / SMALL_SKIP_INTERVAL) * minRecordBytes));
+        // identical values must give the same doc values size whether or not the skipper exists
+        assertFieldStats("ndv", "doc values", withSkipper.getDocValuesBytes(), withoutSkipper.getDocValuesBytes(), 0.01, 2560);
+    }
+
+    private IndexDiskUsageStats.PerFieldDiskUsage analyzeNumericField(CodecMode codecMode, long[] values, boolean withSkipper)
+        throws Exception {
+        try (Directory dir = createNewDirectory()) {
+            final int[] next = { 0 };
+            indexRandomly(dir, new CodecWithSmallSkipInterval(codecMode.mode()), values.length, doc -> {
+                final long value = values[next[0]++];
+                doc.add(withSkipper ? NumericDocValuesField.indexedField("ndv", value) : new NumericDocValuesField("ndv", value));
+            });
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            return stats.getFields().get("ndv");
+        }
+    }
+
     public void testBloomFilter() throws Exception {
         final String bloomFilterField = "bloom_filter";
         // Between 32b and 64kb
@@ -969,6 +1002,22 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         @Override
         public BytesRef binaryValue() {
             return binaryValue;
+        }
+    }
+
+    static final int SMALL_SKIP_INTERVAL = 4;
+
+    // a tiny interval gives many skip index leaves, and several levels, from a few hundred documents
+    static class CodecWithSmallSkipInterval extends Lucene104Codec {
+        private final DocValuesFormat smallIntervalFormat = new Lucene90DocValuesFormat(SMALL_SKIP_INTERVAL);
+
+        CodecWithSmallSkipInterval(Mode mode) {
+            super(mode);
+        }
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return smallIntervalFormat;
         }
     }
 

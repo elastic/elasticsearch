@@ -298,19 +298,19 @@ final class IndexDiskUsageAnalyzer {
                 }
             }
             stats.addDocValues(field.name, directory.getBytesRead());
-            directory.resetBytesRead();
             switch (field.docValuesSkipIndexType()) {
                 case NONE -> {
                 }
                 case RANGE -> {
+                    directory.resetBytesRead();
                     var skipper = docValuesReader.getSkipper(field);
                     while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
                         skipper.advance(skipper.maxDocID(skipper.numLevels() - 1) + 1);
                     }
+                    stats.addDocValuesSkipper(field.name, directory.getBytesRead());
                 }
                 default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");
             }
-            stats.addDocValuesSkipper(field.name, directory.getBytesRead());
         }
     }
 

@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 167756
+summary: Report doc values skipper size separately in the disk usage API. `doc_values_in_bytes` no longer includes skipper bytes; they are reported as `doc_values_skipper_in_bytes`
+type: enhancement

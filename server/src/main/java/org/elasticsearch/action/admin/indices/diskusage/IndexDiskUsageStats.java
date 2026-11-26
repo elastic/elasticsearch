@@ -224,7 +224,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(invertedIndexBytes);
             out.writeVLong(storedFieldBytes);
-            out.writeVLong(docValuesBytes);
+            final boolean skipperSupported = out.getTransportVersion().supports(DOC_VALUES_SKIPPER_STATS_VERSION);
+            // older nodes have no skipper slot, so fold the skipper bytes into doc values
+            out.writeVLong(skipperSupported ? docValuesBytes : docValuesBytes + docValuesSkipperBytes);
             out.writeVLong(pointsBytes);
             out.writeVLong(normsBytes);
             out.writeVLong(termVectorsBytes);
@@ -232,7 +234,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             if (out.getTransportVersion().supports(BLOOM_FILTER_STATS_VERSION)) {
                 out.writeVLong(bloomFilterBytes);
             }
-            if (out.getTransportVersion().supports(DOC_VALUES_SKIPPER_STATS_VERSION)) {
+            if (skipperSupported) {
                 out.writeVLong(docValuesSkipperBytes);
             }
         }

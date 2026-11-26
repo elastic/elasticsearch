@@ -135,6 +135,9 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     // recent stats are computed per node from the difference with the previous stats.
     private DiscoveryNode statsNode;
     private StatsCycles statsCycles;
+    // The clock of a service that runs with stats cycles, so that the time between cycles doesn't depend on how fast the
+    // test runs. The scaler computes the request rate from that time.
+    private final AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
 
     @Before
     public void setup() throws Exception {
@@ -216,12 +219,13 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         boolean recentStartup,
         AssignmentState assignmentState
     ) {
+        Instant now = Instant.ofEpochMilli(currentTimeMillis.get());
         return getDeploymentStatsResponse(
             numAllocations,
             inferenceCount,
             latency,
-            Instant.now(),
-            recentStartup ? Instant.now() : Instant.now().minus(1, ChronoUnit.HOURS),
+            now,
+            recentStartup ? now : now.minus(1, ChronoUnit.HOURS),
             assignmentState
         );
     }
@@ -294,7 +298,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             true,
             ONE_SECOND,
             SIXTY_SECONDS,
-            SIXTY_THOUSAND_MILLISECONDS
+            SIXTY_THOUSAND_MILLISECONDS,
+            currentTimeMillis::get
         );
 
         service.start();
@@ -313,6 +318,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         statsCycles.continueScheduler();
 
         // Second cycle: 150 inference request with a latency of 10ms, so scale up to 2 allocations.
+        currentTimeMillis.addAndGet(1_000);
         statsCycles.run(() -> getDeploymentStatsResponse(1, 150, 10.0, false, AssignmentState.STARTED));
 
         verify(client, times(2)).threadPool();
@@ -331,6 +337,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         statsCycles.continueScheduler();
 
         // Third cycle: 0 inference requests, but keep 2 allocations, because of cooldown.
+        currentTimeMillis.addAndGet(1_000);
         statsCycles.run(() -> getDeploymentStatsResponse(2, 0, 9.0, false, AssignmentState.STARTED));
 
         verify(client, times(1)).threadPool();
@@ -354,7 +361,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             true,
             2 * ONE_SECOND,
             ATOMIC_SECOND,
-            TWO_THOUSAND_MILLISECONDS
+            TWO_THOUSAND_MILLISECONDS,
+            currentTimeMillis::get
         );
 
         service.start();
@@ -373,6 +381,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         statsCycles.continueScheduler();
 
         // Second cycle: 0 inference requests for 1 second, so scale down to 0 allocations.
+        currentTimeMillis.addAndGet(2_000);
         statsCycles.run(() -> getDeploymentStatsResponse(1, 0, 10.0, false, AssignmentState.STARTED));
 
         verify(client, times(2)).threadPool();
@@ -400,7 +409,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             true,
             ONE_SECOND,
             ATOMIC_SECOND,
-            TWO_THOUSAND_MILLISECONDS
+            TWO_THOUSAND_MILLISECONDS,
+            currentTimeMillis::get
         );
 
         service.start();
@@ -419,6 +429,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         statsCycles.continueScheduler();
 
         // Second cycle: again many inference requests
+        currentTimeMillis.addAndGet(1_000);
         statsCycles.run(() -> getDeploymentStatsResponse(1, 20000, 10.0, false, AssignmentState.STARTING));
 
         verify(client, times(1)).threadPool();
@@ -441,7 +452,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             true,
             ONE_SECOND,
             ATOMIC_SECOND,
-            TWO_THOUSAND_MILLISECONDS
+            TWO_THOUSAND_MILLISECONDS,
+            currentTimeMillis::get
         );
 
         service.start();
@@ -460,6 +472,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         statsCycles.continueScheduler();
 
         // Second cycle: 0 inference requests for 1 second, but a recent scale up by another node.
+        currentTimeMillis.addAndGet(1_000);
         statsCycles.run(() -> getDeploymentStatsResponse(1, 0, 10.0, true, AssignmentState.STARTED));
 
         verify(client, times(1)).threadPool();
@@ -469,6 +482,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         statsCycles.continueScheduler();
 
         // Third cycle: 0 inference requests for 1 second and no recent scale up, so scale down to 0 allocations.
+        currentTimeMillis.addAndGet(1_000);
         statsCycles.run(() -> getDeploymentStatsResponse(1, 0, 10.0, false, AssignmentState.STARTED));
 
         verify(client, times(2)).threadPool();

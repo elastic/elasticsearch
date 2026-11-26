@@ -35,11 +35,10 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests for nested fields on the columnar batch path (Phase 0 of elastic/elasticsearch#167077).
  * <p>
- * Today {@code ShardBatchMapper#resolveMappers} sends every batch to the sequential path when the mapping has a {@code nested}
- * mapper, so the batch path cannot be compared with x-content yet. The tests are in three groups:
+ * The tests are in three groups:
  * <ul>
- *   <li>Parity scenarios: for now they check the child counts on the sequential path and that the batch path refuses. Phase 1 changes
- *       {@link #assertNestedParity} to compare with x-content, using {@link #assertColumnarMatchesXContent}.</li>
+ *   <li>Parity scenarios: they check the child counts on the sequential path, and compare the blocks that the batch path maps, the
+ *       children and then the root, with x-content (see {@link #assertNestedParity}).</li>
  *   <li>Fallback pins: shapes that the batch path must refuse. They must still pass when the refusal moves into the nested shredder.</li>
  *   <li>Row path probes: what the sequential path does with shapes that are not decided yet.</li>
  * </ul>
@@ -132,8 +131,8 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
 
     /**
      * Runs {@code scenarios} in every strict columnar mode, with {@code columnar_stored} source where the mode supports it. The
-     * scenarios depend on the mode, because only some modes need {@code @timestamp}. For now this checks the child counts on the
-     * sequential path and that the batch path refuses; Phase 1 changes it to compare with x-content.
+     * scenarios depend on the mode, because only some modes need {@code @timestamp}. It pins the number of children that the sequential
+     * path indexes, and then compares the blocks of the batch path with those of x-content, for both encoders.
      */
     private void assertNestedParity(
         CheckedConsumer<XContentBuilder, IOException> fields,
@@ -143,34 +142,21 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         for (IndexMode mode : STRICT_COLUMNAR_MODES) {
             final Settings.Builder base = Settings.builder().put(settings(mode));
             extraSettings.forEach(base::put);
-            final List<Settings> variants = new ArrayList<>();
-            variants.add(base.build());
-            if (mode.supportedSourceModes().contains(SourceFieldMapper.Mode.COLUMNAR_STORED)) {
-                variants.add(
-                    Settings.builder()
-                        .put(base.build())
-                        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
-                        .build()
-                );
-            }
-            for (Settings variant : variants) {
-                final MapperService mapperService = createMapperService(variant, mappingFor(mode, fields));
-                for (NestedScenario scenario : scenarios.apply(mode)) {
-                    for (NestedDoc nestedDoc : scenario.docs()) {
-                        assertEquals(
-                            "mode [" + mode + "] scenario [" + scenario.name() + "] doc [" + nestedDoc.doc().id() + "]: children per path",
-                            nestedDoc.children().countByPath(),
-                            childCounts(mapperService, nestedDoc.doc())
-                        );
-                    }
-                    for (SourceEncoder encoder : SourceEncoder.available()) {
-                        assertBatchPathRefuses(
-                            mapperService,
-                            encoder,
-                            scenario.docs().stream().map(d -> d.doc().source()).toArray(String[]::new)
-                        );
-                    }
+            final Settings settings = base.build();
+            final MapperService mapperService = createMapperService(settings, mappingFor(mode, fields));
+            final List<NestedScenario> modeScenarios = scenarios.apply(mode);
+            for (NestedScenario scenario : modeScenarios) {
+                for (NestedDoc nestedDoc : scenario.docs()) {
+                    assertEquals(
+                        "mode [" + mode + "] scenario [" + scenario.name() + "] doc [" + nestedDoc.doc().id() + "]: children per path",
+                        nestedDoc.children().countByPath(),
+                        childCounts(mapperService, nestedDoc.doc())
+                    );
                 }
+            }
+            final Batch[] batches = modeScenarios.stream().map(NestedScenario::batch).toArray(Batch[]::new);
+            for (SourceEncoder encoder : SourceEncoder.available()) {
+                assertColumnarMatchesXContent(mappingFor(mode, fields), settings, encoder, batches);
             }
         }
     }
@@ -235,7 +221,10 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         );
     }
 
-    /** Scalar arrays inside the elements: a multi-valued keyword and a multi-valued long. */
+    /**
+     * Scalar arrays inside the elements: a multi-valued keyword and a multi-valued long. A numeric field is only mapped when its column
+     * is not a mix of arrays and scalars, see {@link #testMixedArrayAndScalarOnNumericChildFallsBack}.
+     */
     public void testScalarArraysInElements() throws IOException {
         assertNestedParity(b -> {
             b.startObject("n").field("type", "nested").startObject("properties");
@@ -247,7 +236,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
             mode -> List.of(
                 scenario(
                     "scalar arrays",
-                    nd("s1", 1L, src(mode, "\"n\":[{\"tags\":[\"a\",\"b\"],\"nums\":[1,2,3]},{\"tags\":\"c\",\"nums\":4}]"), "n", 2),
+                    nd("s1", 1L, src(mode, "\"n\":[{\"tags\":[\"a\",\"b\"],\"nums\":[1,2,3]},{\"tags\":\"c\",\"nums\":[4]}]"), "n", 2),
                     nd("s2", 2L, src(mode, "\"n\":[{\"tags\":[],\"nums\":[]}]"), "n", 1),
                     nd("s3", 3L, src(mode, "\"n\":[{\"tags\":[\"d\"]},{\"nums\":[5]}]"), "n", 2)
                 )
@@ -287,7 +276,10 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
                     nd(
                         "t2",
                         2L,
-                        src(mode, "\"n\":[{\"kw\":\"c\"},{\"lg\":3},{\"db\":4.5},{\"dt\":1700000000000},{\"ip\":\"192.168.1.1\"}]"),
+                        src(
+                            mode,
+                            "\"n\":[{\"kw\":\"c\"},{\"lg\":3},{\"db\":4.5},{\"dt\":\"2025-04-01T00:00:00Z\"},{\"ip\":\"192.168.1.1\"}]"
+                        ),
                         "n",
                         5
                     )
@@ -420,6 +412,93 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
                 )
             );
         }
+    }
+
+    /** The dotted value spelling {@code {"meta.comments":[...]}} is indexed like the object spelling on the sequential path. */
+    public void testDottedValueSpelling() throws IOException {
+        assertNestedParity(b -> {
+            b.startObject("meta").startObject("properties");
+            b.startObject("comments").field("type", "nested").startObject("properties");
+            b.startObject("text").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.endObject().endObject();
+        },
+            Map.of(),
+            mode -> List.of(
+                scenario(
+                    "dotted value spelling",
+                    nd("v1", 1L, src(mode, "\"meta.comments\":[{\"text\":\"a\"},{\"text\":\"b\"}]"), "meta.comments", 2),
+                    nd("v2", 2L, src(mode, "\"meta\":{\"comments\":[{\"text\":\"c\"}]}"), "meta.comments", 1),
+                    nd("v3", 3L, src(mode, "\"meta.comments\":{\"text\":\"d\"}"), "meta.comments", 1)
+                )
+            )
+        );
+    }
+
+    /** A dotted key inside an element is a field of the element: strict columnar does not expand it into objects. */
+    public void testDottedKeyInsideElement() throws IOException {
+        assertNestedParity(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("a.b").field("type", "keyword").endObject();
+            b.startObject("c").field("type", "long").endObject();
+            b.endObject().endObject();
+        },
+            Map.of(),
+            mode -> List.of(
+                scenario(
+                    "dotted key inside an element",
+                    nd("k1", 1L, src(mode, "\"n\":[{\"a.b\":\"x\",\"c\":1},{\"a.b\":\"y\"}]"), "n", 2),
+                    nd("k2", 2L, src(mode, "\"n\":{\"a.b\":\"z\"}"), "n", 1)
+                )
+            )
+        );
+    }
+
+    /**
+     * An explicit {@code null} in an element, and in the object spelling, which is an element with a null field. Only a keyword takes
+     * them: a numeric field with a null is a column of a mix of types, which its mapper does not take, as at the root.
+     */
+    public void testNullValuesInElements() throws IOException {
+        assertNestedParity(
+            hostAndN(),
+            Map.of(),
+            mode -> List.of(
+                scenario(
+                    "null values",
+                    nd("z1", 1L, src(mode, "\"n\":[{\"k\":null,\"v\":1},{\"k\":\"a\",\"v\":2}]"), "n", 2),
+                    nd("z2", 2L, src(mode, "\"n\":{\"k\":null}"), "n", 1),
+                    nd("z3", 3L, src(mode, "\"n\":{\"k\":\"b\",\"v\":2}"), "n", 1)
+                )
+            )
+        );
+    }
+
+    /** Boolean and date fields in elements, the types that go through other column kinds than the ones above. */
+    public void testBooleanAndDateChildren() throws IOException {
+        assertNestedParity(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("flag").field("type", "boolean").endObject();
+            b.startObject("at").field("type", "date").endObject();
+            b.endObject().endObject();
+        },
+            Map.of(),
+            mode -> List.of(
+                scenario(
+                    "boolean and date",
+                    nd(
+                        "b1",
+                        1L,
+                        src(
+                            mode,
+                            "\"n\":[{\"flag\":true,\"at\":\"2025-05-01T00:00:00Z\"},{\"flag\":false,\"at\":\"2025-05-02T00:00:00Z\"}]"
+                        ),
+                        "n",
+                        2
+                    ),
+                    nd("b2", 2L, src(mode, "\"n\":{\"flag\":true}"), "n", 1)
+                )
+            )
+        );
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -655,6 +734,38 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
             RowPath.ACCEPTS,
             mode -> new String[] { src(mode, "\"n\":[{\"k\":1.5}]"), src(mode, "\"n\":[{\"k\":2.50}]") }
         );
+    }
+
+    /**
+     * A numeric field in which the elements of one batch have both arrays and scalars is a column that its mapper does not take, as at
+     * the root.
+     */
+    public void testMixedArrayAndScalarOnNumericChildFallsBack() throws IOException {
+        assertRefusedInAllModes(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("nums").field("type", "long").endObject();
+            b.endObject().endObject();
+        }, Map.of(), RowPath.ACCEPTS, mode -> new String[] { src(mode, "\"n\":[{\"nums\":[1,2]},{\"nums\":3}]") });
+    }
+
+    /** A null element: the sequential path skips it, and the batch path leaves such documents to it. */
+    public void testNullElementFallsBack() throws IOException {
+        assertRefusedInAllModes(
+            hostAndN(),
+            Map.of(),
+            RowPath.ACCEPTS,
+            mode -> new String[] { src(mode, "\"n\":[null,{\"k\":\"a\"}]"), src(mode, "\"n\":[null]") }
+        );
+    }
+
+    /** A child field with {@code nullability: false} that no element of the batch has. */
+    public void testRequiredChildFieldMissingFromAllElementsFallsBack() throws IOException {
+        assertRefusedInAllModes(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("k").field("type", "keyword").field("nullability", false).endObject();
+            b.startObject("v").field("type", "long").endObject();
+            b.endObject().endObject();
+        }, Map.of(), RowPath.REJECTS, mode -> new String[] { src(mode, "\"n\":[{\"v\":1},{\"v\":2}]") });
     }
 
     /** A missing child value with {@code nullability: false} is a document error, which only the sequential path reports. */

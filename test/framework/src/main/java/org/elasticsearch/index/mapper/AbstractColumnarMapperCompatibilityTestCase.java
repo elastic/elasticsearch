@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.ColumnarPayloadColumn;
 import org.elasticsearch.escf.EscfBatch;
-import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -357,30 +356,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                             + describeRefusal(mappingLookup, indexSettings, escfBatch.schema())
                     );
                 }
-                // Drive every metadata mapper through its columnar hooks, mirroring the preParse-all / postParse-all ordering of the
-                // row-major path. resolveMappers has already refused the batch if any of them cannot take part.
-                final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-                for (MetadataFieldMapper m : metadataMappers) {
-                    m.preColumnarParse(ctx);
-                }
-                final FieldMapper[] columnMappers = resolution.columnMappers();
-                for (int c = 0; c < columnMappers.length; c++) {
-                    if (columnMappers[c] != null) {
-                        columnMappers[c].mapColumnBatch(ctx, escfBatch.column(c));
-                    }
-                }
-                for (ColumnGroupResolver.ColumnGroupResolution group : resolution.columnGroups()) {
-                    final int[] leafIndexes = group.leafIndexes();
-                    final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
-                    for (int i = 0; i < leafIndexes.length; i++) {
-                        groupColumns[i] = escfBatch.column(leafIndexes[i]);
-                    }
-                    group.mapper().mapColumnGroupBatch(ctx, groupColumns, group.relativeKeys());
-                }
-
-                for (MetadataFieldMapper m : metadataMappers) {
-                    m.postColumnarParse(ctx);
-                }
+                // Map the batch exactly as production does: the metadata mappers before and after the field mappers, the group mappers
+                // and the nested children. resolveMappers has already refused the batch if any of them cannot take part.
+                ShardBatchMapper.mapInto(ctx, escfBatch, resolution);
 
                 // Apply engine values to the backing byte arrays before reading via either cursor path.
                 final MappedColumns mc = ctx.columns();
@@ -421,13 +399,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     xcBlocks.add(toBlock(pd.docs(), indexVersionCreated));
                 }
 
-                // Compare the blocks that the row cursor hands to the engine's row write with x-content.
-                final MappedColumns.RowCursor rowCursor = mc.rowCursor();
+                // Compare the blocks that the block cursor hands to the engine's row write with x-content.
+                final MappedColumns.BlockCursor blockCursor = mc.blockCursor();
                 for (int i = 0; i < docCount; i++) {
                     assertBlocksEqual(
                         xcBlocks.get(i),
-                        actualBlock(rowCursor),
-                        "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs row-cursor"
+                        actualBlock(blockCursor, indexVersionCreated),
+                        "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs block cursor"
                     );
                 }
 
@@ -515,13 +493,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         return new DocBlock(children, toDescriptors(documents.getLast().getFields()));
     }
 
-    /**
-     * Reads the next document from the row cursor. For now a batch only has a root document, so the block has no children. Phase 1 of
-     * elastic/elasticsearch#167077 changes this when {@code MappedColumns} gets a block cursor.
-     */
-    private static DocBlock actualBlock(MappedColumns.RowCursor rowCursor) {
-        rowCursor.advance();
-        return new DocBlock(Map.of(), toDescriptors(rowCursor.fields()));
+    /** Reads the next block from the block cursor: the children of the document, then the document. */
+    private static DocBlock actualBlock(MappedColumns.BlockCursor blockCursor, IndexVersion indexVersionCreated) {
+        return toBlock(blockCursor.advance(), indexVersionCreated);
     }
 
     /** Asserts that two blocks have the same nested paths, the same children for each path in source order, and the same root. */
@@ -594,7 +568,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 resolution,
                 Engine.Operation.Origin.PRIMARY,
                 new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
-                DocumentParsingProvider.EMPTY_INSTANCE
+                DocumentParsingProvider.EMPTY_INSTANCE,
+                // map the nested values, so that the pins test the rules of the nested mapping and not the temporary refusal of them
+                true
             );
             if (mapped != null) {
                 mapped.close();

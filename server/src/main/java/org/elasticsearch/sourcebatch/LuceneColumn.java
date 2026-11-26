@@ -73,6 +73,15 @@ public interface LuceneColumn extends SliceableColumn {
     RowFieldCursor rowFieldCursor();
 
     /**
+     * Like {@link #rowFieldCursor()}, but each field that it emits stays valid after the cursor moves on, so that a caller can keep the
+     * fields of several rows at once, as the children of one nested block. The default is for a column whose cursor already emits a new
+     * field per value; a column that reuses one mutable field per cursor overrides it.
+     */
+    default RowFieldCursor independentRowFieldCursor() {
+        return rowFieldCursor();
+    }
+
+    /**
      * A forward-only cursor over one column's fields for the row/soft-update indexing path.
      *
      * @see LuceneColumn#rowFieldCursor()

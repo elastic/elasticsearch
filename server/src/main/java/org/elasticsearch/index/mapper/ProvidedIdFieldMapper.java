@@ -333,9 +333,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    public void postColumnarParse(BatchMappingContext context) throws IOException {
-        super.postColumnarParse(context);
-        // TODO: Need to implement the id propagation to non-root documents when we support nested fields.
+    public void postColumnarParseNested(BatchMappingContext nestedChildren) {
+        // Mirror createNestedContext and postParse: a nested document has the id as an indexed term, so that an update or a delete of
+        // the root document by _id reaches its children, and in columnar mode also as binary doc values, as Lucene needs the same
+        // fields in all the documents of a block.
+        nestedChildren.addColumn(MappedColumns.binaryColumn(nestedChildren.uids(), NAME, StringField.TYPE_NOT_STORED));
+        if (mode == Mode.COLUMNAR) {
+            nestedChildren.addColumn(MappedColumns.binaryColumn(nestedChildren.uids(), NAME, BinaryDocValuesField.TYPE));
+        }
     }
 
     @Override

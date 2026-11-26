@@ -159,9 +159,18 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
 
     @Override
     public LuceneColumn.RowFieldCursor rowFieldCursor() {
+        return rowFieldCursor(false);
+    }
+
+    @Override
+    public LuceneColumn.RowFieldCursor independentRowFieldCursor() {
+        return rowFieldCursor(true);
+    }
+
+    private LuceneColumn.RowFieldCursor rowFieldCursor(boolean independentFields) {
         // Use tuples() so that any active filter is applied transparently.
         final LongTupleCursor cursor = tuples();
-        if (data instanceof EscfArrayColumn) {
+        if (independentFields || data instanceof EscfArrayColumn) {
             // Multi-value: appendCurrentFields is called multiple times for the same row. Each call must
             // produce an independent field snapshot; reusing one mutable object would corrupt earlier
             // entries in the accumulation list when the value is updated for the next element.

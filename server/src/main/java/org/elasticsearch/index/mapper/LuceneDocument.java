@@ -59,6 +59,14 @@ public class LuceneDocument implements Iterable<IndexableField> {
         this.parent = null;
     }
 
+    /** A nested document that wraps {@code fields}, for the batch path, which assembles the fields of a document from columns. */
+    public LuceneDocument(String path, LuceneDocument parent, List<IndexableField> fields) {
+        this.fields = fields;
+        this.path = path;
+        this.prefix = path.isEmpty() ? "" : path + ".";
+        this.parent = parent;
+    }
+
     /**
      * Return the path associated with this document.
      */

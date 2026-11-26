@@ -14,9 +14,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public class KeyValueReaderTests extends ESTestCase {
 
@@ -224,5 +226,33 @@ public class KeyValueReaderTests extends ESTestCase {
         assertEquals("after", kv.key());
         assertEquals(2, kv.intValue());
         assertFalse(kv.next());
+    }
+
+    public void testUtf8ValueIsAViewOfThePackedBytes() throws IOException {
+        KeyValueReader kv = new KeyValueReader(kvPayload("{\"a\": \"h\u00e9llo\", \"b\": \"x\"}"));
+        assertTrue(kv.next());
+        assertEquals("h\u00e9llo", utf8(kv.utf8Value()));
+        assertEquals(kv.stringValue(), utf8(kv.utf8Value()));
+        assertTrue(kv.next());
+        assertEquals("x", utf8(kv.utf8Value()));
+    }
+
+    public void testValueBytesOfAnArrayCanBeReadAgainAsAnArray() throws IOException {
+        KeyValueReader kv = new KeyValueReader(kvPayload("{\"skip\": 1, \"tags\": [\"a\", \"bc\"]}"));
+        assertTrue(kv.next());
+        assertTrue(kv.next());
+        assertEquals("tags", kv.key());
+        final byte[] packed = kv.valueBytes();
+        assertEquals(kv.valueLength(), packed.length);
+        final InlineArrayReader array = new InlineArrayReader(packed, kv.type() == SourceValueType.FIXED_ARRAY);
+        assertTrue(array.next());
+        assertEquals("a", array.stringValue());
+        assertTrue(array.next());
+        assertEquals("bc", array.stringValue());
+        assertFalse(array.next());
+    }
+
+    private static String utf8(XContentString.UTF8Bytes bytes) {
+        return new String(bytes.bytes(), bytes.offset(), bytes.length(), StandardCharsets.UTF_8);
     }
 }

@@ -131,6 +131,14 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
+    public void postColumnarParseNested(BatchMappingContext nestedChildren) {
+        // Like postParse: a nested document has the version of its root document.
+        nestedChildren.addColumn(
+            MappedColumns.longColumn(nestedChildren.versions(), NAME, VERSION_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG)
+        );
+    }
+
+    @Override
     public void preColumnarParse(BatchMappingContext context) {
         // TODO: Look at moving this and the above to postColumnarParse
         // Engine-assigned: register an array-backed column over the context's mutable version

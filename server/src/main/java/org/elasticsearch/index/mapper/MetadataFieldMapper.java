@@ -286,6 +286,17 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     /**
+     * Called once for each nested path that has elements in the batch, after the field mappers have mapped the elements and before
+     * {@link #postColumnarParse} of the documents of the batch. Mirrors what {@link #postParse} does to the nested documents
+     * ({@code DocumentParserContext#nonRootDocuments}) on the row path: it adds the columns that the elements need to be indexed in the
+     * same block as their parent. {@code nestedChildren} is the child scope of the nested path ({@link
+     * BatchMappingContext#forNestedChildren}). Defaults to a no-op.
+     */
+    public void postColumnarParseNested(BatchMappingContext nestedChildren) throws IOException {
+        // do nothing
+    }
+
+    /**
      * Whether this metadata mapper can participate in the columnar bulk batch-mapping path.
      */
     public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {

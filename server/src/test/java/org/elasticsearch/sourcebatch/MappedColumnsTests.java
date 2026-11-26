@@ -42,6 +42,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -628,5 +629,120 @@ public class MappedColumnsTests extends ESTestCase {
         // neighbours must be untouched
         assertEquals(0L, ByteUtils.readLongLE(seqNos.bytes, 2 * 8));
         assertEquals(0L, ByteUtils.readLongLE(seqNos.bytes, 5 * 8));
+    }
+
+    /**
+     * Three parents with 2, 0 and 1 children: a root column of a long per parent, a child column of a binary value per child.
+     * The children's own buffers are 3 long.
+     */
+    private static MappedColumns threeParentsWithChildren(
+        BytesRef seqNos,
+        BytesRef versions,
+        BytesRef childSeqNos,
+        BytesRef childVersions
+    ) {
+        final BytesRef primaryTerms = new BytesRef(new byte[3 * 8]);
+        final List<LuceneColumn> rootColumns = List.of(
+            MappedColumns.longColumn(new BytesRef(longBytes(100L, 200L, 300L)), "root", LONG_FIELD_TYPE, LongColumn.NumericKind.LONG)
+        );
+        final BytesRef[] values = new BytesRef[] { new BytesRef("c0"), new BytesRef("c1"), new BytesRef("c2") };
+        final List<LuceneColumn> childColumns = List.of(MappedColumns.binaryColumn(values, "child", BINARY_FIELD_TYPE));
+        final MappedColumns children = new MappedColumns(0, 3, childSeqNos, new BytesRef(), childVersions, childColumns);
+        return new MappedColumns(
+            0,
+            3,
+            seqNos,
+            primaryTerms,
+            versions,
+            rootColumns,
+            List.of(new MappedColumns.NestedColumns("n", children, new int[] { 0, 2, 2, 3 }))
+        );
+    }
+
+    public void testBlockCursorYieldsTheChildrenBeforeTheRootWithFieldsOfTheirOwn() {
+        final MappedColumns columns = threeParentsWithChildren(
+            new BytesRef(new byte[3 * 8]),
+            new BytesRef(new byte[3 * 8]),
+            new BytesRef(new byte[3 * 8]),
+            new BytesRef(new byte[3 * 8])
+        );
+        assertTrue(columns.hasChildren());
+        assertEquals(2, columns.childCount(0));
+        assertEquals(0, columns.childCount(1));
+        assertEquals(1, columns.childCount(2));
+
+        final MappedColumns.BlockCursor cursor = columns.blockCursor();
+        final List<LuceneDocument> first = cursor.advance();
+        assertEquals(3, first.size());
+        final LuceneDocument root = first.get(2);
+        assertEquals("", root.getPath());
+        assertNull(root.getParent());
+        for (int c = 0; c < 2; c++) {
+            assertEquals("n", first.get(c).getPath());
+            assertSame("a child points at the root document of its block", root, first.get(c).getParent());
+        }
+        // The two children took a value from the same column: they must not share one mutable field.
+        final IndexableField firstChild = first.get(0).getFields().get(0);
+        final IndexableField secondChild = first.get(1).getFields().get(0);
+        assertNotSame(firstChild, secondChild);
+        assertEquals(new BytesRef("c0"), firstChild.binaryValue());
+        assertEquals(new BytesRef("c1"), secondChild.binaryValue());
+        assertEquals(100L, root.getFields().get(0).numericValue().longValue());
+
+        final List<LuceneDocument> second = cursor.advance();
+        assertEquals("a parent without children is a block of its own root", 1, second.size());
+        assertEquals(200L, second.get(0).getFields().get(0).numericValue().longValue());
+
+        final List<LuceneDocument> third = cursor.advance();
+        assertEquals(2, third.size());
+        assertEquals(new BytesRef("c2"), third.get(0).getFields().get(0).binaryValue());
+    }
+
+    public void testSeqNoAndVersionOfAParentAreSetOnItsChildren() {
+        final BytesRef childSeqNos = new BytesRef(new byte[3 * 8]);
+        final BytesRef childVersions = new BytesRef(new byte[3 * 8]);
+        final MappedColumns columns = threeParentsWithChildren(
+            new BytesRef(new byte[3 * 8]),
+            new BytesRef(new byte[3 * 8]),
+            childSeqNos,
+            childVersions
+        );
+        columns.setSeqNo(0, 7L);
+        columns.setSeqNo(1, 8L);
+        columns.setSeqNo(2, 9L);
+        columns.setVersion(0, 17L);
+        columns.setVersion(2, 19L);
+        assertEquals(7L, ByteUtils.readLongLE(childSeqNos.bytes, 0));
+        assertEquals(7L, ByteUtils.readLongLE(childSeqNos.bytes, 8));
+        assertEquals(9L, ByteUtils.readLongLE(childSeqNos.bytes, 16));
+        assertEquals(17L, ByteUtils.readLongLE(childVersions.bytes, 0));
+        assertEquals(17L, ByteUtils.readLongLE(childVersions.bytes, 8));
+        assertEquals(19L, ByteUtils.readLongLE(childVersions.bytes, 16));
+    }
+
+    public void testSliceOfAWindowWithChildrenSlicesTheChildrenAndSetsTheirValuesInPlace() {
+        final BytesRef childSeqNos = new BytesRef(new byte[3 * 8]);
+        final MappedColumns columns = threeParentsWithChildren(
+            new BytesRef(new byte[3 * 8]),
+            new BytesRef(new byte[3 * 8]),
+            childSeqNos,
+            new BytesRef(new byte[3 * 8])
+        );
+        // parents 1 and 2: no child, then one child, which is the third child of the batch
+        final MappedColumns slice = columns.slice(1, 3);
+        assertEquals(0, slice.childCount(0));
+        assertEquals(1, slice.childCount(1));
+        slice.setSeqNo(1, 42L);
+        assertEquals("the child of the slice is the third child of the batch", 42L, ByteUtils.readLongLE(childSeqNos.bytes, 16));
+        assertEquals(0L, ByteUtils.readLongLE(childSeqNos.bytes, 0));
+
+        final MappedColumns.BlockCursor cursor = slice.blockCursor();
+        assertEquals(1, cursor.advance().size());
+        final List<LuceneDocument> block = cursor.advance();
+        assertEquals(2, block.size());
+        assertEquals(new BytesRef("c2"), block.get(0).getFields().get(0).binaryValue());
+
+        // a slice without children has none
+        assertFalse(columns.slice(1, 2).hasChildren());
     }
 }

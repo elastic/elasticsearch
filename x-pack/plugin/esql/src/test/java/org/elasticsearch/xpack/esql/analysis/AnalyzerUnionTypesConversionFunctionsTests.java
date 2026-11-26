@@ -74,7 +74,10 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
         DataType.GEO_POINT,
         DataType.CARTESIAN_POINT,
         DataType.GEO_SHAPE,
-        DataType.CARTESIAN_SHAPE
+        DataType.CARTESIAN_SHAPE,
+        DataType.HISTOGRAM,
+        DataType.EXPONENTIAL_HISTOGRAM,
+        DataType.TDIGEST
     );
 
     /**
@@ -121,7 +124,6 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
     public void testEveryConversionFunctionResolvesUnionTypes() {
         int functionsTested = 0;
         List<String> failures = new ArrayList<>();
-        // Sorted, as the registry lists the functions in no particular order
         Set<String> functionsWithoutUnion = new TreeSet<>();
         for (FunctionDefinition definition : TEST_FUNCTION_REGISTRY.listFunctions()) {
             if (isConversionOfFields(definition) == false || NOT_CONVERTING_VALUES.containsKey(definition.name())) {
@@ -156,9 +158,9 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
         assertThat("some conversion functions should have been tested", functionsTested, not(equalTo(0)));
         assertThat(String.join("\n", failures), failures, empty());
         assertThat(
-            "conversion functions without two types to make a union of here. A new one should be tested, not added to this list",
+            "conversion functions that accept fewer than two of the types in UNIONABLE_TYPES, so they can't be tested over a union",
             functionsWithoutUnion,
-            equalTo(Set.of("to_exponential_histogram", "to_tdigest"))
+            empty()
         );
     }
 
@@ -199,9 +201,8 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
         assertNull(failure, failure);
     }
 
-    /** Why the function can't be used on the union of the two types, or {@code null} if it can. */
-    private String unionResolutionFailure(String function, String otherArguments, DataType first, DataType second) {
-        String description = function + "(value" + otherArguments + ") over a union of [" + first + ", " + second + "]";
+    /** Analyzes the function over a field mapped as the first type in one index and as the second type in another. */
+    private LogicalPlan analyze(String function, String otherArguments, DataType first, DataType second) {
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
                 fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", first.esType())),
@@ -209,10 +210,16 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
             ),
             List.of()
         );
+        return analyzer().addIndex(mergedResolution("foo,bar", caps))
+            .query("FROM foo, bar | EVAL x = " + function + "(value" + otherArguments + ")");
+    }
+
+    /** Why the function can't be used on the union of the two types, or {@code null} if it can. */
+    private String unionResolutionFailure(String function, String otherArguments, DataType first, DataType second) {
+        String description = function + "(value" + otherArguments + ") over a union of [" + first + ", " + second + "]";
         LogicalPlan plan;
         try {
-            plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
-                .query("FROM foo, bar | EVAL x = " + function + "(value" + otherArguments + ")");
+            plan = analyze(function, otherArguments, first, second);
         } catch (RuntimeException e) {
             return "failed to analyze " + description + ": " + e;
         }
@@ -247,14 +254,19 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
             && conversionOf(definition, DataType.KEYWORD) != null;
     }
 
-    /** The types a conversion function accepts and that can be in a union here, sorted by name. */
-    private static List<DataType> acceptedUnionableTypes(FunctionDefinition definition) {
-        ConvertFunction conversion = conversionOf(definition, DataType.KEYWORD);
-        // The small numeric types, like short, aren't listed as supported, but are widened to one that is
-        return UNIONABLE_TYPES.stream()
-            .filter(type -> conversion.supportedTypes().contains(type.widenSmallNumeric()))
-            .sorted(Comparator.comparing(DataType::typeName))
-            .toList();
+    /**
+     * The types a conversion function accepts and that can be in a union here, sorted by name. Found by analyzing the function over
+     * a field of each type, not by asking the function, so a type dropped by mistake from what it supports is noticed.
+     */
+    private List<DataType> acceptedUnionableTypes(FunctionDefinition definition) {
+        return UNIONABLE_TYPES.stream().filter(type -> {
+            try {
+                analyze(definition.name(), "", type, type);
+                return true;
+            } catch (RuntimeException e) {
+                return false;
+            }
+        }).sorted(Comparator.comparing(DataType::typeName)).toList();
     }
 
     /** The function applied to just a field of the type, or {@code null} if it doesn't accept that. */

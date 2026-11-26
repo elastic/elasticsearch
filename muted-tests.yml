@@ -1111,3 +1111,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testCancelWhileANodeLoadsTheWinners
   issue: https://github.com/elastic/elasticsearch/issues/167739
+- class: org.elasticsearch.xpack.stateless.commits.UploadQueueControllerServiceIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testDisableThrottlingUsingTheSetting
+  issue: https://github.com/elastic/elasticsearch/issues/163114

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.escf.EscfEncoder;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -25,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.hamcrest.Matchers.equalTo;
@@ -168,6 +171,34 @@ public class RoutingPathExtractorTests extends ESTestCase {
     }
 
     /**
+     * A float vector element at a midpoint between two floats makes the simdjson walk give up and the encoder parse the document
+     * again with Jackson. The routing fields before the vector were already reported to the extractor by the abandoned walk; they
+     * must not be hashed a second time, or the document is routed by the wrong hash without any error.
+     */
+    public void testSimdFallbackOnFloatMidpointDoesNotHashRoutingFieldsTwice() throws IOException {
+        assumeTrue("needs the simdjson walker", EscfEncoder.isSimdEnabled());
+        // a float midpoint: the walker's double rounds to the other float than the text, so the walker can't take it
+        String midpointText = "1.0000001788139343261718749";
+        BytesReference json = new BytesArray("{\"dim\":{\"host\":\"node-7\",\"region\":\"us-west-2\"},\"vec\":[0.5," + midpointText + "]}");
+        // many shards, so that a wrong hash can't route to the right shard by chance
+        int numberOfShards = 1024;
+
+        IndexRouting.ExtractFromSource.ForRoutingPath sourceStrategy = forRoutingPath("dim.*", numberOfShards);
+        IndexRequest sourceRequest = new IndexRequest("test").id("doc-1").source(json, XContentType.JSON);
+        sourceStrategy.preProcess(sourceRequest);
+        int expectedShardId = sourceStrategy.indexShard(sourceRequest);
+
+        IndexRouting.ExtractFromSource.ForRoutingPath extractorStrategy = forRoutingPath("dim.*", numberOfShards);
+        IndexRequest extractorRequest = new IndexRequest("test").id("doc-1").source(json, XContentType.JSON);
+        extractorStrategy.preProcess(extractorRequest);
+        RoutingPathExtractor extractor = new RoutingPathExtractor(extractorStrategy);
+        try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, true, Set.of("vec"))) {
+            encoder.parseToScratch(json, XContentType.JSON, extractor);
+        }
+        assertThat(extractor.computeShardId(extractorRequest), equalTo(expectedShardId));
+    }
+
+    /**
      * Asserts that the source-parser routing path and the ESCF-encoder routing extractor produce
      * the same shard id for the given document.
      */
@@ -197,12 +228,16 @@ public class RoutingPathExtractorTests extends ESTestCase {
     }
 
     private static IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath(String routingPath) {
+        return forRoutingPath(routingPath, 8);
+    }
+
+    private static IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath(String routingPath, int numberOfShards) {
         Settings settings = Settings.builder()
             .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .build();
-        IndexMetadata md = IndexMetadata.builder("test").settings(settings).numberOfShards(8).numberOfReplicas(0).build();
+        IndexMetadata md = IndexMetadata.builder("test").settings(settings).numberOfShards(numberOfShards).numberOfReplicas(0).build();
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);
         return (IndexRouting.ExtractFromSource.ForRoutingPath) routing;
     }

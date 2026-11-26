@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Bucket [search-aggregations-bucket]

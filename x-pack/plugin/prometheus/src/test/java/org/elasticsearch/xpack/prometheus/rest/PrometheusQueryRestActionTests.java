@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -32,6 +33,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.junit.After;
 import org.junit.Before;
@@ -92,6 +96,18 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
 
         assertThat(capturedIndexPattern(), equalTo(DEFAULT_PROMQL_INDEX_PATTERN));
         request.getHttpChannel().close();
+    }
+
+    /**
+     * The query is parsed where ES|QL parses a query string, once the query action has authorized the request, not before the
+     * action runs: an invalid one reaches the action, which is what refuses it.
+     */
+    public void testInstantQueryIsParsedByTheQueryAction() throws Exception {
+        assertParsedByTheQueryAction(new PrometheusInstantQueryRestAction(() -> NO_TIMEOUT), instantQueryRequest(Map.of("query", "up{")));
+    }
+
+    public void testQueryRangeIsParsedByTheQueryAction() throws Exception {
+        assertParsedByTheQueryAction(new PrometheusQueryRangeRestAction(() -> NO_TIMEOUT), rangeQueryRequest(Map.of("query", "up{")));
     }
 
     public void testInstantQueryTimesOut() throws Exception {
@@ -196,6 +212,20 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
         assertThat(body.evaluate("error"), equalTo(expectedError));
     }
 
+    private void assertParsedByTheQueryAction(BaseRestHandler action, RestRequest request) throws Exception {
+        FakeRestChannel channel = handle(action, request);
+        assertNotNull("the request reaches the query action", client.capturedRequest);
+        assertThat(sentResponses(channel), equalTo(0));
+        expectThrows(IllegalStateException.class, client.capturedRequest::statement);
+        expectThrows(ParsingException.class, () -> parse(client.capturedRequest));
+        request.getHttpChannel().close();
+    }
+
+    /** Parses the request as the query action does once it is authorized. */
+    private static EsqlStatement parse(PreparedEsqlQueryRequest request) {
+        return request.parse(null, new SettingsValidationContext(false, Build.current().isSnapshot()), null, null);
+    }
+
     private void assertQueryTimesOut(BaseRestHandler action, RestRequest request) throws Exception {
         FakeRestChannel channel = handle(action, request);
 
@@ -239,7 +269,7 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
 
     private String capturedIndexPattern() {
         assertNotNull(client.capturedRequest);
-        return client.capturedRequest.statement().plan().collect(UnresolvedRelation.class).getFirst().indexPattern().indexPattern();
+        return parse(client.capturedRequest).plan().collect(UnresolvedRelation.class).getFirst().indexPattern().indexPattern();
     }
 
     /**

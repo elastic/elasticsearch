@@ -56,7 +56,8 @@ class Clusters {
             .name("mixed-cluster")
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
-            .setting("node.roles", "[data,ingest,master,ml]")
+            // Datafeeds that search my_remote_cluster need remote_cluster_client on the nodes that validate and run them.
+            .setting("node.roles", "[data,ingest,master,ml,remote_cluster_client]")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.watcher.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")

@@ -20,7 +20,7 @@ move_to_layer() {
     layer=/layers/$1
     mkdir "$layer"
     moved=false
-    while read -r path; do
+    while IFS= read -r path; do
         mkdir -p "$layer/$(dirname "$path")"
         mv "$path" "$layer/$path"
         moved=true
@@ -41,18 +41,15 @@ jar_checksums() {
 check_no_jar_is_split() {
     split_checksums=$({
         for layer in /layers/*; do
-            jar_checksums "$layer"
+            # The status of a group is that of its last command, so a failure here would otherwise go unnoticed
+            jar_checksums "$layer" || exit 1
         done
         jar_checksums lib modules plugins
     } | sort | uniq -d)
     if [ -n "$split_checksums" ]; then
         echo >&2 "Jars with identical content would end up in different layers, listed by checksum and path:"
-        find /layers lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do
-            # Not `grep -q`: it can exit on an early match while echo is still writing, and the SIGPIPE then fails the pipeline
-            if echo "$split_checksums" | grep -xF "$sum" >/dev/null; then
-                echo >&2 "  $sum $path"
-            fi
-        done
+        # Each line of $split_checksums is a pattern, so this keeps the jars that have one of those checksums
+        find /layers lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | grep -F "$split_checksums" >&2
         exit 1
     fi
 }

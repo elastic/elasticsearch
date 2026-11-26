@@ -855,16 +855,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/166620
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  tasks:
-  - :qa:rolling-upgrade:bcUpgradeTest
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/167667
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  tasks:
-  - :qa:rolling-upgrade:bcUpgradeTest
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/167674
 - class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -875,11 +865,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testStopFetchesTheRowsSelectedSoFar
   issue: https://github.com/elastic/elasticsearch/issues/167692
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  tasks:
-  - :qa:rolling-upgrade:bcUpgradeTest
-  method: testIndexSortForNumericTypes {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/167695
 - class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactoryTests
   tasks:
   - :x-pack:plugin:esql:test

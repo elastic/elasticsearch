@@ -34,7 +34,7 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
         setupFixtureFiles()
 
         buildFile << """
-            import org.apache.tools.ant.filters.ReplaceTokens
+            import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens
             import org.gradle.api.tasks.bundling.Compression
 
             apply plugin: 'base'

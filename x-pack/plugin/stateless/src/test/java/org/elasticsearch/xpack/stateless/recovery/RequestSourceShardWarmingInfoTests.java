@@ -70,6 +70,7 @@ public class RequestSourceShardWarmingInfoTests extends ESTestCase {
     private final Client client = mock(Client.class);
     private final ClusterService clusterService = mock(ClusterService.class);
     private final Settings.Builder settings = Settings.builder()
+        .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
         .put(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING.getKey(), true);
     private volatile ClusterState state;
 
@@ -127,6 +128,12 @@ public class RequestSourceShardWarmingInfoTests extends ESTestCase {
         assertNotRequested(relocationTarget());
     }
 
+    public void testNoRequestWhenOfflineWarmingDisabled() {
+        settings.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
+        state = targetState(randomRemovalType(), TransportVersion.current(), true);
+        assertNotRequested(relocationTarget());
+    }
+
     public void testNoRequestWithoutReplicatedContent() {
         settings.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false);
         state = targetState(randomRemovalType(), TransportVersion.current(), true);
@@ -176,6 +183,7 @@ public class RequestSourceShardWarmingInfoTests extends ESTestCase {
                 Set.of(
                     SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
+                    SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
                     SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING
                 )
             )

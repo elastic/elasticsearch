@@ -126,6 +126,8 @@ esqlCsvSpecTests {
     specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
     packageName = 'org.elasticsearch.xpack.esql.qa.single_node'
     variant 'EsqlSpec', 'AbstractEsqlSpecIT'
+    // A class for every spec file, which runs the queries that set unmapped_fields="load", see AbstractEsqlSpecLoadAllIT
+    variant 'EsqlSpecLoadAll', 'AbstractEsqlSpecLoadAllIT'
     variant 'EsqlSpecApproximation', 'AbstractEsqlSpecApproximationIT'
     variant 'EsqlSpecForceStoredLoading', 'AbstractEsqlSpecForceStoredLoadingIT'
     variant 'EsqlSpecFork', 'AbstractEsqlSpecForkIT'

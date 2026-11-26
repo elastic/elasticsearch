@@ -50,6 +50,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.tasks.CancellableTask;
@@ -155,6 +156,14 @@ public abstract class SearchContext implements Releasable {
      */
     public DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture() {
         return DirectoryMetrics.Capture.NOOP;
+    }
+
+    /**
+     * Where the phase of this context is charged, or {@code null} if it reports no load.
+     */
+    @Nullable
+    public QueryLoad.Charging searchLoad() {
+        return null;
     }
 
     /**

@@ -2008,22 +2008,8 @@ public class MetadataIndexTemplateService {
         final String temporaryIndexName = "validate-template-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT) + ":" + templateName;
         Settings resolvedSettings = resolveSettings(template, project.componentTemplates());
 
-        // use the provided values, otherwise just pick valid dummy values
-        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(resolvedSettings);
-        int dummyShards = resolvedSettings.getAsInt(
-            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-            dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
-        );
-        int shardReplicas = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-
         // Create the final aggregate settings, which will be used to create the temporary index metadata to validate everything
-        Settings finalResolvedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(resolvedSettings)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+        Settings finalResolvedSettings = temporaryIndexSettings(resolvedSettings);
 
         // Validate index metadata (settings)
         final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(finalResolvedSettings).build();
@@ -2070,20 +2056,8 @@ public class MetadataIndexTemplateService {
         }
 
         final String temporaryIndexName = "validate-template-" + UUIDs.randomBase64UUID() + ":" + name;
-        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
-        int dummyShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
-        int shardReplicas = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-
         // create index service for parsing and validating "mappings"
-        Settings dummySettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(settings)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
-
-        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
+        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(temporaryIndexSettings(settings)).build();
 
         indicesService.withTempIndexService(tmpIndexMetadata, dummyIndexService -> {
             if (mappings != null) {
@@ -2091,6 +2065,24 @@ public class MetadataIndexTemplateService {
             }
             return null;
         });
+    }
+
+    /**
+     * Returns the given settings plus placeholder values for the rest, so a temporary index can be created to validate templates or
+     * mappings. A routing partition size above 1 needs more shards than the partition size, so the default shard count is derived from it.
+     */
+    public static Settings temporaryIndexSettings(Settings settings) {
+        int partitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(settings)
+            .put(
+                IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+                settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, partitionSize == 1 ? 1 : partitionSize + 1)
+            )
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
     }
 
     private void validate(String name, ComposableIndexTemplate template, @Nullable Settings systemProvided) {

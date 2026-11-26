@@ -16,7 +16,9 @@ import java.io.IOException;
 /// Represents a [BatchedCompoundCommit] blob stored in the object store.
 public record BccBlob(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Blob {
 
-    /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX], if the generation in the blob
+    public static final String PREFIX = "stateless_commit_";
+
+    /// @throws IllegalArgumentException if the blob name does not start with [BccBlob#PREFIX], if the generation in the blob
     /// name is not a number, or if it differs from the generation of the given term and generation
     public BccBlob {
         if (termAndGeneration.generation() != parseGenerationOrThrow(blobName)) {
@@ -24,12 +26,18 @@ public record BccBlob(String blobName, PrimaryTermAndGeneration termAndGeneratio
         }
     }
 
+    /// Creates the [BatchedCompoundCommit] blob identified by the given term and generation, the blob name being deduced from the
+    /// generation.
+    public BccBlob(PrimaryTermAndGeneration termAndGeneration) {
+        this(blobNameFromGeneration(termAndGeneration.generation()), termAndGeneration);
+    }
+
     /// Creates a [BatchedCompoundCommit] blob from its name and the primary term of the container it is stored in, the generation being
     /// deduced from the name.
     ///
-    /// @param blobName the name of the blob, which must start with [BatchedCompoundCommit#PREFIX]
+    /// @param blobName the name of the blob, which must start with [BccBlob#PREFIX]
     /// @param primaryTerm the primary term of the container the blob is stored in
-    /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX] or if the generation in the
+    /// @throws IllegalArgumentException if the blob name does not start with [BccBlob#PREFIX] or if the generation in the
     /// blob name is not a number
     public BccBlob(String blobName, long primaryTerm) {
         this(blobName, new PrimaryTermAndGeneration(primaryTerm, parseGenerationOrThrow(blobName)));
@@ -81,15 +89,15 @@ public record BccBlob(String blobName, PrimaryTermAndGeneration termAndGeneratio
     ///
     /// @param blobName the name of the blob
     /// @return the generation deduced from the blob name
-    /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX] or if the generation in the
+    /// @throws IllegalArgumentException if the blob name does not start with [BccBlob#PREFIX] or if the generation in the
     /// blob name is not a number
     private static long parseGenerationOrThrow(String blobName) {
-        if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false) {
+        if (startsWithBlobPrefix(blobName) == false) {
             throw new IllegalArgumentException("unrecognized blob name [" + blobName + ']');
         }
         final long generation;
         try {
-            generation = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
+            generation = parseGenerationFromBlobName(blobName);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("malformed blob name [" + blobName + "]: the generation is not a number", e);
         }
@@ -97,5 +105,19 @@ public record BccBlob(String blobName, PrimaryTermAndGeneration termAndGeneratio
             throw new IllegalArgumentException("malformed blob name [" + blobName + "]: the generation must be positive");
         }
         return generation;
+    }
+
+    public static boolean startsWithBlobPrefix(String name) {
+        return name.startsWith(PREFIX);
+    }
+
+    public static String blobNameFromGeneration(long generation) {
+        assert generation > 0 : generation;
+        return PREFIX + generation;
+    }
+
+    public static long parseGenerationFromBlobName(String name) {
+        assert startsWithBlobPrefix(name) : name;
+        return Long.parseLong(name.substring(PREFIX.length()));
     }
 }

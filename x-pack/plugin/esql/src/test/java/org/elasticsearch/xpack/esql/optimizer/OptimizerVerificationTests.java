@@ -52,7 +52,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.externalCommand;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -414,6 +413,123 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | WHERE match(title, "data")
             """));
         assertThat(err, containsString("[MATCH] function cannot be used after SORT and LIMIT when it targets an indexed field"));
+    }
+
+    /**
+     * The full-text filter of an aggregate function is evaluated by the aggregation. The optimizer has the final say on which
+     * filters remain there: one shared by all the aggregate functions becomes a WHERE that is pushed into the FORK branches.
+     */
+    /**
+     * A command that only runs on the coordinator takes the aggregation there. A filter shared by all the aggregate
+     * functions becomes a WHERE that is pushed below a LOOKUP JOIN, to the shards, so only the optimized plan can tell.
+     */
+    public void testFullTextInStatsFilterAfterCoordinatorCommands() {
+        String lookup = "FROM test | EVAL language_code = id | LOOKUP JOIN _coordinator:languages_lookup ON language_code";
+        String stats = " | STATS c = COUNT(*) WHERE match(title, \"Meditation\")";
+        optimize(fullTextAnalyzer().addLanguagesLookup().query(lookup + stats));
+        var err = error(fullTextAnalyzer().addLanguagesLookup().query(lookup + stats + ", d = COUNT(*)"));
+        assertThat(err, containsString("[MATCH] function cannot be used after LOOKUP when it targets an indexed field"));
+
+        // nothing is pushed below CHANGE_POINT
+        for (String aggs : List.of(stats, stats + ", d = COUNT(*)")) {
+            err = error(fullTextAnalyzer().query("FROM test | CHANGE_POINT id ON id" + aggs));
+            assertThat(aggs, err, containsString("[MATCH] function cannot be used after CHANGE_POINT when it targets an indexed field"));
+        }
+    }
+
+    /**
+     * A filter is pushed below an ENRICH that runs on the coordinator, to the shards, unless it needs the fields that
+     * the ENRICH adds. That goes for a WHERE and for the filter shared by all the aggregate functions of a STATS, which
+     * becomes one.
+     */
+    public void testFullTextAfterCoordinatorEnrich() {
+        String enrich = "FROM test | EVAL language_code = id | ENRICH _coordinator:languages ON language_code";
+        String match = "match(title, \"Meditation\")";
+        String both = match + " OR language_name == \"English\"";
+
+        optimize(coordinatorEnrichAnalyzer().query(enrich + " | WHERE " + match));
+        optimize(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + match));
+
+        if (EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled()) {
+            // the subquery runs on its own, its ENRICH doesn't take the rows of the main query to the coordinator
+            optimize(coordinatorEnrichAnalyzer().query("FROM test | WHERE id IN (" + enrich + " | KEEP id) | WHERE " + match));
+        }
+
+        String error = "[MATCH] function cannot be used in a filter that stays after ENRICH _coordinator:";
+        assertThat(error(coordinatorEnrichAnalyzer().query(enrich + " | WHERE " + both)), containsString(error));
+        assertThat(error(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + both)), containsString(error));
+        // not shared by all the aggregate functions, so it stays in the aggregation
+        assertThat(
+            error(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + match + ", d = COUNT(*)")),
+            containsString("[MATCH] function cannot be used after ENRICH when it targets an indexed field")
+        );
+    }
+
+    private TestAnalyzer coordinatorEnrichAnalyzer() {
+        return analyzer().addIndex("test", "mapping-full_text_search.json")
+            .addEnrichPolicy(Enrich.Mode.COORDINATOR, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+    }
+
+    public void testFullTextInStatsFilterAfterFork() {
+        String fork = "FROM test | FORK (WHERE id > 0) (WHERE id > 1) | STATS c = COUNT(*) WHERE ";
+        for (String ftf : List.of("kql(\"title: Meditation\")", "qstr(\"title: Meditation\")")) {
+            optimize(fullTextAnalyzer().query(fork + ftf));
+            optimize(fullTextAnalyzer().query(fork + ftf + ", d = MAX(id) WHERE " + ftf));
+
+            var err = error(fullTextAnalyzer().query(fork + ftf + ", d = COUNT(*)"));
+            assertThat(ftf, err, containsString(" function cannot be used after FORK"));
+        }
+    }
+
+    /**
+     * INLINE STATS keeps the rows tied to their documents. In the optimized plan its aggregation is on the right of a join,
+     * and must not be taken for the one of a STATS, nor the join for a command that runs on the coordinator.
+     */
+    public void testFullTextInStatsFilterAfterInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        for (String ftf : List.of("match(title, \"Meditation\")", "qstr(\"title: Meditation\")")) {
+            String stats = " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)";
+            optimize(fullTextAnalyzer().query("FROM test | INLINE STATS m = MAX(id)" + stats));
+            optimize(fullTextAnalyzer().query("FROM test | INLINE STATS m = MAX(id) + 1 BY category" + stats));
+        }
+    }
+
+    /**
+     * The subquery of {@code IN} runs as a query of its own, before the main one. Its LIMIT or STATS doesn't move the
+     * aggregation of the main query to the coordinator, unlike the same commands in the main query.
+     */
+    public void testFullTextInStatsFilterWithInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        for (String ftf : List.of("match(title, \"Meditation\")", "qstr(\"title: Meditation\")")) {
+            for (String subquery : List.of("(FROM test | SORT id | LIMIT 3 | KEEP id)", "(FROM test | STATS id = MAX(id))")) {
+                String in = "id IN " + subquery;
+                optimize(fullTextAnalyzer().query("FROM test | WHERE " + in + " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)"));
+                optimize(fullTextAnalyzer().query("FROM test | STATS c = COUNT(*) WHERE " + ftf + " AND " + in + ", d = COUNT(*)"));
+                optimize(fullTextAnalyzer().query("FROM test | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*) WHERE " + in));
+
+                // the same command in the main query is rejected, already by the analyzer. Below the join it tells that
+                // only the subquery is skipped, not both of its sides.
+                for (String limit : List.of("LIMIT 10 | WHERE " + in, "WHERE " + in + " | LIMIT 10")) {
+                    String query = "FROM test | " + limit + " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)";
+                    var e = expectThrows(VerificationException.class, () -> fullTextAnalyzer().query(query));
+                    assertThat(query, e.getMessage(), containsString(" function cannot be used after LIMIT"));
+                }
+            }
+        }
+    }
+
+    /**
+     * A column that is an alias of an indexed field looks like one to search row by row in the analyzed plan, but the
+     * optimizer replaces it with the field, making it a Lucene query that the aggregation can't evaluate after LIMIT.
+     */
+    public void testFullTextInStatsFilterOnAliasedField() {
+        String stats = " | STATS c = COUNT(*) WHERE match(t, \"Meditation\"), d = COUNT(*)";
+        for (String commands : List.of("RENAME title AS t | LIMIT 10", "LIMIT 10 | RENAME title AS t", "EVAL t = title | LIMIT 10")) {
+            var err = error(fullTextAnalyzer().query("FROM test | " + commands + stats));
+            assertThat(commands, err, containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field"));
+        }
+        optimize(fullTextAnalyzer().query("FROM test | RENAME title AS t" + stats));
+        optimize(fullTextAnalyzer().query("FROM test | EVAL t = title" + stats));
     }
 
     public void testRuntimeTextSearchRejectedAfterForkThroughCast() {
@@ -1277,42 +1393,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         return analyzer().addIndex("eql_test", "mapping-eql_test.json")
             .addLanguagesLookup()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
-    }
-
-    public void testEmbeddingLiteralValues() {
-        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
-
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
-
-        var err = error(testAnalyzer.query("""
-            from test
-            | EVAL embedding = EMBEDDING(first_name, "embedding-inference-id")
-            """));
-        assertThat(err, is("2:20: first argument for [EMBEDDING(first_name, \"embedding-inference-id\")] must be a constant string"));
-
-        err = error(testAnalyzer.query("""
-            from test
-            | EVAL embedding = EMBEDDING("my text", first_name)
-            """));
-        assertThat(err, is("2:20: second argument for [EMBEDDING(\"my text\", first_name)] must be a constant string"));
-    }
-
-    public void testEmbeddingFunctionInvalidQuery() {
-        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
-
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
-
-        var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(last_name, ?)", EMBEDDING_INFERENCE_ID));
-        assertThat(err, is("1:30: first argument for [EMBEDDING(last_name, ?)] must be a constant string"));
-    }
-
-    public void testEmbeddingFunctionInvalidInferenceId() {
-        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
-
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
-
-        var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(\"query\", last_name)", EMBEDDING_INFERENCE_ID));
-        assertThat(err, is("1:30: second argument for [EMBEDDING(\"query\", last_name)] must be a constant string"));
     }
 
     // Regression for #142026.

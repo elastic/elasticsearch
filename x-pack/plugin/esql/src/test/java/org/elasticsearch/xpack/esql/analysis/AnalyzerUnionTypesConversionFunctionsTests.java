@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -20,9 +21,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -81,18 +86,25 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
     );
 
     /**
-     * The conversion functions that need other arguments besides the field, with those arguments, and the pairs of types worth
-     * trying them with. Conversions that don't accept the field alone have to be here, so a new one can't be left untested.
+     * The conversion functions that take other arguments besides the field, with those arguments, the conversion each per-type leg of
+     * the union has to be, and the pairs of types worth trying them with. If the analyzer dropped the arguments, the legs would be
+     * a different conversion. Conversions with optional arguments have to be here, so a new one can't be left untested.
      */
-    private record WithOtherArguments(String function, String otherArguments, List<List<DataType>> unions) {}
+    private record WithOtherArguments(
+        String function,
+        String otherArguments,
+        Class<? extends Expression> conversion,
+        List<List<DataType>> unions
+    ) {}
 
     private static final List<WithOtherArguments> WITH_OTHER_ARGUMENTS = List.of(
-        new WithOtherArguments("to_long", "16", List.of(List.of(DataType.KEYWORD, DataType.TEXT))),
-        new WithOtherArguments("to_integer", "16", List.of(List.of(DataType.KEYWORD, DataType.TEXT))),
-        new WithOtherArguments("to_long", "8 + 8", List.of(List.of(DataType.KEYWORD, DataType.TEXT))),
+        new WithOtherArguments("to_long", "16", ToLongBase.class, List.of(List.of(DataType.KEYWORD, DataType.TEXT))),
+        new WithOtherArguments("to_integer", "16", ToIntegerBase.class, List.of(List.of(DataType.KEYWORD, DataType.TEXT))),
+        new WithOtherArguments("to_long", "8 + 8", ToLongBase.class, List.of(List.of(DataType.KEYWORD, DataType.TEXT))),
         new WithOtherArguments(
             "to_ip",
             "{\"leading_zeros\": \"octal\"}",
+            ToIpLeadingZerosOctal.class,
             List.of(List.of(DataType.IP, DataType.KEYWORD), List.of(DataType.KEYWORD, DataType.TEXT))
         )
     );
@@ -106,6 +118,12 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
         "the counter type depends on the input type, so the union of different types has no single output type",
         "to_gauge",
         "the output type is the input type, so the union of different types is a type conflict"
+    );
+
+    /** The conversion functions with optional arguments that aren't used on unions, and why. */
+    private static final Map<String, String> OPTIONAL_ARGUMENTS_NOT_ON_UNIONS = Map.of(
+        "to_text",
+        "its analyzer option is rejected on any index-mapped field, as it would re-analyze the values row by row, so it never applies to a union"
     );
 
     public AnalyzerUnionTypesConversionFunctionsTests(VersionMode versionMode) {
@@ -149,7 +167,7 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
                 }
             }
             for (List<DataType> union : unions) {
-                String failure = unionResolutionFailure(definition.name(), "", union.get(0), union.get(1));
+                String failure = unionResolutionFailure(definition.name(), "", null, union.get(0), union.get(1));
                 if (failure != null) {
                     failures.add(failure);
                 }
@@ -170,34 +188,49 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
     public void testConversionFunctionsWithOtherArgumentsResolveUnionTypes() {
         for (WithOtherArguments conversion : WITH_OTHER_ARGUMENTS) {
             for (List<DataType> union : conversion.unions()) {
-                assertUnionResolves(conversion.function(), ", " + conversion.otherArguments(), union.get(0), union.get(1));
-            }
-        }
-    }
-
-    /**
-     * The conversion functions that don't accept a field alone need the other arguments in {@link #WITH_OTHER_ARGUMENTS}, unless
-     * they can't take a field at all.
-     */
-    public void testConversionFunctionsNotTakingAFieldAloneHaveOtherArguments() {
-        Set<String> withOtherArguments = new TreeSet<>();
-        WITH_OTHER_ARGUMENTS.forEach(c -> withOtherArguments.add(c.function()));
-        for (FunctionDefinition definition : TEST_FUNCTION_REGISTRY.listFunctions()) {
-            if (ConvertFunction.class.isAssignableFrom(definition.clazz()) == false
-                || FoldablesConvertFunction.class.isAssignableFrom(definition.clazz())) {
-                continue;
-            }
-            if (conversionOf(definition, DataType.KEYWORD) == null) {
-                assertTrue(
-                    "[" + definition.name() + "] doesn't accept just a field, so it needs its other arguments in WITH_OTHER_ARGUMENTS",
-                    withOtherArguments.contains(definition.name())
+                assertUnionResolves(
+                    conversion.function(),
+                    ", " + conversion.otherArguments(),
+                    conversion.conversion(),
+                    union.get(0),
+                    union.get(1)
                 );
             }
         }
     }
 
-    private void assertUnionResolves(String function, String otherArguments, DataType first, DataType second) {
-        String failure = unionResolutionFailure(function, otherArguments, first, second);
+    /**
+     * The conversion functions with optional arguments need them in {@link #WITH_OTHER_ARGUMENTS}, so that a new one is tested with
+     * them, unless there is a reason why they can't be used on a union.
+     */
+    public void testConversionFunctionsWithOptionalArgumentsAreTestedWithThem() {
+        Set<String> tested = new TreeSet<>();
+        WITH_OTHER_ARGUMENTS.forEach(c -> tested.add(c.function()));
+        Set<String> withOptionalArguments = new TreeSet<>();
+        for (FunctionDefinition definition : TEST_FUNCTION_REGISTRY.listFunctions()) {
+            if (ConvertFunction.class.isAssignableFrom(definition.clazz())
+                && FoldablesConvertFunction.class.isAssignableFrom(definition.clazz()) == false
+                && OptionalArgument.class.isAssignableFrom(definition.clazz())) {
+                withOptionalArguments.add(definition.name());
+            }
+        }
+        Set<String> expected = new TreeSet<>(tested);
+        expected.addAll(OPTIONAL_ARGUMENTS_NOT_ON_UNIONS.keySet());
+        assertThat(
+            "conversion functions with optional arguments should be in WITH_OTHER_ARGUMENTS, or in OPTIONAL_ARGUMENTS_NOT_ON_UNIONS with a reason",
+            withOptionalArguments,
+            equalTo(expected)
+        );
+    }
+
+    private void assertUnionResolves(
+        String function,
+        String otherArguments,
+        Class<? extends Expression> expectedConversion,
+        DataType first,
+        DataType second
+    ) {
+        String failure = unionResolutionFailure(function, otherArguments, expectedConversion, first, second);
         assertNull(failure, failure);
     }
 
@@ -214,8 +247,17 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
             .query("FROM foo, bar | EVAL x = " + function + "(value" + otherArguments + ")");
     }
 
-    /** Why the function can't be used on the union of the two types, or {@code null} if it can. */
-    private String unionResolutionFailure(String function, String otherArguments, DataType first, DataType second) {
+    /**
+     * Why the function can't be used on the union of the two types, or {@code null} if it can. If given, every per-type conversion of
+     * the union has to be the expected one.
+     */
+    private String unionResolutionFailure(
+        String function,
+        String otherArguments,
+        @Nullable Class<? extends Expression> expectedConversion,
+        DataType first,
+        DataType second
+    ) {
         String description = function + "(value" + otherArguments + ") over a union of [" + first + ", " + second + "]";
         LogicalPlan plan;
         try {
@@ -232,9 +274,19 @@ public class AnalyzerUnionTypesConversionFunctionsTests extends AnalyzerTestCase
                 }
             }
         });
+        if (expectedConversion != null && unionFields.isEmpty()) {
+            return description + ": expected a union field converted by [" + expectedConversion.getSimpleName() + "], found none";
+        }
         // Some unions don't need a per-type conversion, as the types can be resolved on their own, like date and date_nanos
         for (UnionTypeEsField union : unionFields) {
             for (Expression conversion : union.getConversionExpressions()) {
+                if (expectedConversion != null && expectedConversion.isInstance(conversion) == false) {
+                    return description
+                        + ": expected the conversion to be ["
+                        + expectedConversion.getSimpleName()
+                        + "], found: "
+                        + conversion;
+                }
                 if (conversion instanceof OnlySurrogateExpression) {
                     return description + ": the conversion is a surrogate: " + conversion;
                 }

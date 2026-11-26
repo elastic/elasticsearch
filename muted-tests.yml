@@ -1091,3 +1091,28 @@ tests:
   - :qa:rolling-upgrade:bcUpgradeTest
   method: testIndexSortForNumericTypes {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/167695
+- class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactoryTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testFilteredLimitRampSkipsParkedWhenRemainingHitsZero
+  issue: https://github.com/elastic/elasticsearch/issues/167700
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelWhileAShardStillSearches
+  issue: https://github.com/elastic/elasticsearch/issues/167733
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelAtARandomMoment
+  issue: https://github.com/elastic/elasticsearch/issues/167735
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelBetweenTheQueryPhaseAndTheFetch
+  issue: https://github.com/elastic/elasticsearch/issues/167737
+- class: org.elasticsearch.xpack.esql.action.EsqlFetchCancellationIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancelWhileANodeLoadsTheWinners
+  issue: https://github.com/elastic/elasticsearch/issues/167739

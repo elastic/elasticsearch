@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -39,6 +38,9 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  * name; analysis binds the nested path and one column per child field.
  */
 public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPreserving {
+    /** Peers that can run {@code NESTED_EXPAND} over a dataset. */
+    public static final TransportVersion DATASET_VERSION = TransportVersion.fromName("esql_nested_dataset_collections");
+
     public static final TransportVersion VERSION = TransportVersion.fromName("esql_nested_expand");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -99,7 +101,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
      */
     public static void checkVersion(StreamOutput out, QueryPlan<?> child, String path) throws IOException {
         checkVersion(out);
-        if (out.getTransportVersion().supports(NestedPredicate.DATASET_VERSION) == false && carrier(child.output(), path) != null) {
+        if (out.getTransportVersion().supports(DATASET_VERSION) == false && carrier(child.output(), path) != null) {
             throw new IOException("NESTED_EXPAND over a dataset requires nested dataset collection transport support");
         }
     }

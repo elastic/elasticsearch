@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -103,25 +102,6 @@ public class FieldNameUtils {
         Set<String> names = new HashSet<>();
         parsed.forEachExpressionDown(UnresolvedAttribute.class, ua -> names.add(ua.name()));
         return names;
-    }
-
-    /**
-     * Whether {@code plan} names {@code NESTED_EXPAND} or {@code NESTED_ANY}, the only readers of a nested scope. Index and
-     * dataset resolution both build the scope only then, so a query that names neither sees the same columns it always did.
-     * Matches {@code NESTED_ANY} by name while it is still an unresolved function, and by class once it is resolved.
-     */
-    public static boolean namesNestedOperator(LogicalPlan plan) {
-        if (plan.anyMatch(NestedExpand.class::isInstance)) {
-            return true;
-        }
-        boolean[] found = { false };
-        plan.forEachExpressionDown(UnresolvedFunction.class, function -> {
-            if (function.name().equalsIgnoreCase("nested_any")) {
-                found[0] = true;
-            }
-        });
-        plan.forEachExpressionDown(NestedAny.class, function -> found[0] = true);
-        return found[0];
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {

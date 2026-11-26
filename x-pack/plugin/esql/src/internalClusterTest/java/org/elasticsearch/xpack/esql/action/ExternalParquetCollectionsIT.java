@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * {@code NESTED_EXPAND} and {@code NESTED_ANY} over Parquet collections, each a {@code LIST} of structures,
+ * {@code NESTED_EXPAND} over Parquet collections, each a {@code LIST} of structures,
  * running the queries of the collection representation specification over files written here, each against the table
  * the specification prints beneath it.
  */
@@ -110,9 +110,9 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
             answer(answers, null, "CNAME", 300L, null);
         }))), Map.of());
 
-        // Which queries got a CNAME with a short TTL?
+        // Which queries got a CNAME with a short TTL? Both conditions hold on the same answer, which is one row once expanded.
         assertRows(
-            "FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\" AND answers.ttl < 60) | KEEP question",
+            "FROM " + dns + " | NESTED_EXPAND answers | WHERE answers.type == \"CNAME\" AND answers.ttl < 60 | KEEP question",
             row("www.example.com")
         );
 
@@ -167,8 +167,8 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         // Which emails carry a large PDF? The element's structure gives further columns of the same relation.
         assertRows(Strings.format("""
             FROM %s
-            | WHERE NESTED_ANY(attachments, attachments.file.mime_type == "application/pdf"
-                                        AND attachments.file.size > 10000000)
+            | NESTED_EXPAND attachments
+            | WHERE attachments.file.mime_type == "application/pdf" AND attachments.file.size > 10000000
             | KEEP email.subject""", email), row("quarterly report"));
     }
 
@@ -194,22 +194,25 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
             () -> run(syncEsqlQueryRequest("FROM " + spans + " | NESTED_EXPAND attributes | KEEP span_id")).close()
         );
         assertThat(e.getMessage(), containsString("NESTED_EXPAND requires a mapped nested field, not [attributes]"));
+        // A map stays a column, unsupported and null, as an unsupported type does on an index
+        assertRows("FROM " + spans + " | KEEP span_id, attributes", row("s1", null));
     }
 
-    /** A collection operator with no KEEP after it returns the dataset's own columns, the collection unreadable as before. */
-    public void testNestedAnyWithoutKeep() throws Exception {
-        String dns = registerDataset("dns_nokeep", StoragePath.fileUri(write("dns", DNS, List.of(g -> {
+    /**
+     * A dataset's list of structures is not one of its columns, as an index's {@code nested} field is not: it is reached only
+     * through {@code NESTED_EXPAND}. {@code NESTED_ANY} does not read it.
+     */
+    public void testNestedColumnIsNotAColumn() throws Exception {
+        String dns = registerDataset("dns_hidden", StoragePath.fileUri(write("dns", DNS, List.of(g -> {
             g.add("question", "www.example.com");
             answer(g.addGroup("answers"), "www.example.com", "CNAME", 30L, "lb.example.net");
         }, g -> {
             g.add("question", "api.example.com");
             answer(g.addGroup("answers"), "api.example.com", "A", 60L, "93.184.1.2");
         }))), Map.of());
-        assertRows("FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\")", row("www.example.com", null));
-        assertRows(
-            "FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\") | KEEP question, answers",
-            row("www.example.com", null)
-        );
+        assertRows("FROM " + dns, row("www.example.com"), row("api.example.com"));
+        assertQueryFails("FROM " + dns + " | KEEP question, answers", "Unknown column [answers]");
+        assertQueryFails("FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\")", "Unknown column [answers.type]");
         assertRows(
             "FROM " + dns + " | NESTED_EXPAND answers | KEEP question, answers.type | SORT question",
             row("api.example.com", "A"),
@@ -254,11 +257,6 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
             row("qb", "x", "CNAME", 1L),
             row("qc", "x", "A", 2L)
         );
-        assertRows(
-            "FROM " + dataset + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\") | SORT question | LIMIT 2 | KEEP question, c1",
-            row("qb", "x"),
-            row("qd", "x")
-        );
     }
 
     /** A later file whose element field has another type is refused rather than read as the first file's type. */
@@ -289,7 +287,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         Exception e = expectThrows(
             Exception.class,
             () -> run(
-                syncEsqlQueryRequest("FROM " + dataset + " | WHERE NESTED_ANY(measurements, measurements.value >= 500) | KEEP span_id")
+                syncEsqlQueryRequest("FROM " + dataset + " | NESTED_EXPAND measurements | WHERE measurements.value >= 500 | KEEP span_id")
             ).close()
         );
         assertThat(e.getMessage(), containsString("[measurements.value]"));
@@ -302,7 +300,7 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
     public void testUnionByNameUnitesElementFields() throws Exception {
         Path dir = writeMeasurementFiles();
         String dataset = registerDataset("united", StoragePath.fileUri(dir) + "/*.parquet", Map.of("schema_resolution", "union_by_name"));
-        assertRows("FROM " + dataset + " | WHERE NESTED_ANY(measurements, measurements.unit == \"ms\") | KEEP span_id", row("s2"));
+        assertRows("FROM " + dataset + " | NESTED_EXPAND measurements | WHERE measurements.unit == \"ms\" | KEEP span_id", row("s2"));
         assertRows(
             "FROM " + dataset + " | NESTED_EXPAND measurements | KEEP span_id, measurements.name, measurements.unit",
             row("s1", "latency", null),
@@ -376,6 +374,11 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         }))), Map.of());
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM " + traces + " | NESTED_EXPAND hops")).close());
         assertThat(e.getMessage(), containsString("is a collection with more than one field inside each element of [hops]"));
+    }
+
+    private void assertQueryFails(String query, String message) {
+        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)).close());
+        assertThat(query, e.getMessage(), containsString(message));
     }
 
     private void assertRows(String query, List<?>... expected) {

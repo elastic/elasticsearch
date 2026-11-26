@@ -230,9 +230,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
 
     /** Whether a column of the query, not a private schema entry, has this name. */
     private static boolean replacedByColumn(List<Attribute> output, String name) {
-        // A dataset shows its collection as an unsupported column of the same name, which is the collection, not a replacement
-        return output.stream()
-            .anyMatch(column -> column.synthetic() == false && column.dataType() != DataType.UNSUPPORTED && column.name().equals(name));
+        return output.stream().anyMatch(column -> column.synthetic() == false && column.name().equals(name));
     }
 
     private static Attribute nestedField(UnresolvedAttribute attribute, List<Attribute> output, Set<String> assigned) {

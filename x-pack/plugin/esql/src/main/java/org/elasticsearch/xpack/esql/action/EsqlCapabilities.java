@@ -5052,6 +5052,13 @@ public class EsqlCapabilities {
         NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
+         * {@code NESTED_EXPAND} over a dataset, whose list-of-struct columns its schema discovery describes as nested. Such a
+         * column is not one of the dataset's columns, as an index's {@code nested} field is not. Snapshot-only with
+         * {@link #NESTED_EXPAND}.
+         */
+        NESTED_EXPAND_DATASET(Build.current().isSnapshot()),
+
+        /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.

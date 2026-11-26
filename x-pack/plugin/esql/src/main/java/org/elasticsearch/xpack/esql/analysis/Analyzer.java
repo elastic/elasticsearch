@@ -250,7 +250,6 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
@@ -986,18 +985,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            boolean nested = plan.anyMatch(NestedExpand.class::isInstance) || plan.anyMatch(NestedPredicate::usedBy);
-            Set<String> read = nested ? readCollections(plan) : Set.of();
-            Map<String, Attribute> carriers = new HashMap<>();
-            plan = plan.transformUp(ExternalRelation.class, relation -> carryCollections(relation, read, carriers));
-            if (nested == false) {
+            Set<String> read = readCollections(plan);
+            plan = plan.transformUp(ExternalRelation.class, relation -> carryCollections(relation, read));
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false && plan.anyMatch(NestedPredicate::usedBy) == false) {
                 return plan;
-            }
-            if (carriers.isEmpty() == false) {
-                plan = plan.transformExpressionsUp(NestedPredicate.class, predicate -> {
-                    Attribute carrier = carriers.get(predicate.path());
-                    return carrier == null ? predicate : predicate.withCarrier(carrier);
-                });
             }
             return plan.transformUp(EsRelation.class, relation -> {
                 List<Attribute> visible = relation.output().stream().filter(a -> isNestedScope(a) == false).toList();
@@ -1009,7 +1000,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
         }
 
-        /** The paths of the collections that a bound {@code NESTED_EXPAND} or {@code NESTED_ANY} reads. */
+        /** The paths of the collections that a bound {@code NESTED_EXPAND} reads. */
         private static Set<String> readCollections(LogicalPlan plan) {
             Set<String> paths = new HashSet<>();
             plan.forEachDown(NestedExpand.class, expand -> {
@@ -1017,7 +1008,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     paths.add(expand.path());
                 }
             });
-            plan.forEachDown(node -> node.forEachExpression(NestedPredicate.class, predicate -> paths.add(predicate.path())));
             return paths;
         }
 
@@ -1026,7 +1016,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * private schema with one column carrying its elements, named for the collection and replacing the column of that
          * name the dataset would otherwise show. Its properties are the leaves to carry, by name relative to the collection.
          */
-        private static ExternalRelation carryCollections(ExternalRelation relation, Set<String> read, Map<String, Attribute> carriers) {
+        private static ExternalRelation carryCollections(ExternalRelation relation, Set<String> read) {
             if (relation.output().stream().noneMatch(HideNestedScopeFields::isNestedScope)) {
                 return relation;
             }
@@ -1057,7 +1047,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 String name = path.substring(path.lastIndexOf('.') + 1);
                 EsField field = new EsField(name, DataType.SOURCE, collection.getValue(), false, EsField.TimeSeriesFieldType.NONE);
                 FieldAttribute carrier = new FieldAttribute(relation.source(), null, null, CollectionSchema.carrierName(path), field, true);
-                carriers.put(path, carrier);
                 output.add(carrier);
             }
             return relation.withAttributes(output);
@@ -1119,10 +1108,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
 
-        /** A dataset shows its nested scope only to a plan that names a nested operator, as an index does. */
+        /**
+         * A dataset shows its nested scope only to a plan that names {@code NESTED_EXPAND}, the one nested operator datasets
+         * support; {@code NESTED_ANY} over a dataset then finds no scope, as before datasets had one.
+         */
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            boolean nestedScope = FieldNameUtils.namesNestedOperator(plan);
+            boolean nestedScope = plan.anyMatch(NestedExpand.class::isInstance);
             return plan.transformUp(
                 UnresolvedExternalRelation.class,
                 relation -> relation.analyzed() || relation.resolved() ? relation : resolve(relation, context, nestedScope)
@@ -1131,7 +1123,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
-            return resolve(plan, context, FieldNameUtils.namesNestedOperator(plan));
+            return resolve(plan, context, false);
         }
 
         private LogicalPlan resolve(UnresolvedExternalRelation plan, AnalyzerContext context, boolean nestedScope) {
@@ -1153,13 +1145,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var metadata = resolvedSource.metadata();
             MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), context);
+            NestedColumns nested = NestedColumns.read(metadata.sourceMetadata());
             ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
                 metadata,
                 withCollectionScope(
-                    bindResult.schema(),
-                    nestedScope ? NestedColumns.read(metadata.sourceMetadata()) : NestedColumns.NONE,
+                    withoutNestedColumns(bindResult.schema(), nested),
+                    nestedScope ? nested : NestedColumns.NONE,
                     plan.source()
                 ),
                 resolvedSource.fileList(),
@@ -1172,8 +1165,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
+         * A dataset's nested column is not one of its columns, as an index's {@code nested} field is not: it is reached only
+         * through {@code NESTED_EXPAND}, which finds it in the nested scope.
+         */
+        private static List<Attribute> withoutNestedColumns(List<Attribute> schema, NestedColumns nested) {
+            if (nested.isEmpty()) {
+                return schema;
+            }
+            return schema.stream().filter(attribute -> nested.get(attribute.name()) == null).toList();
+        }
+
+        /**
          * Adds a dataset's nested columns, as its schema describes them, to its output as the private nested schema an index has
-         * for its {@code nested} fields, so {@code NESTED_EXPAND} and {@code NESTED_ANY} bind to them as they bind to an index's.
+         * for its {@code nested} fields, so {@code NESTED_EXPAND} binds to them as it binds to an index's.
          * The attributes are synthetic, and {@link HideNestedScopeFields} replaces them with the collections' carriers before the
          * plan runs.
          */
@@ -2101,9 +2105,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
                 );
             }
-            // A dataset shows its collection as an unsupported column of the same name, which is the collection, not a replacement
-            if (childrenOutput.stream()
-                .anyMatch(a -> a.synthetic() == false && a.dataType() != DataType.UNSUPPORTED && a.name().equals(path))) {
+            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))) {
                 throw nestedExpandError(target, "NESTED_EXPAND cannot use [" + path + "]: a column of that name replaces it here");
             }
             if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {

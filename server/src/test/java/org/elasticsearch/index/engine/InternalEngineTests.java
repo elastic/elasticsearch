@@ -557,6 +557,8 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testSegmentsStatsIncludingFileSizesWithSameExtensionInSegment() throws Exception {
         final String[] vectorFields = new String[] { "vector_1", "vector_2", "vector_3" };
+        // distinct dimensions give the same-extension files of a segment different sizes
+        final int[] vectorDims = new int[] { 3, 7, 17 };
         // a distinct format instance per field makes each field write its own .vec, .vex, ... files within the same segment
         final Map<String, KnnVectorsFormat> vectorFormats = new HashMap<>();
         for (String field : vectorFields) {
@@ -602,8 +604,12 @@ public class InternalEngineTests extends EngineTestCase {
                     final int numDocs = randomIntBetween(1, 10);
                     for (int i = 0; i < numDocs; i++) {
                         final LuceneDocument document = testDocumentWithTextField();
-                        for (String field : vectorFields) {
-                            document.add(new KnnFloatVectorField(field, new float[] { randomFloat(), randomFloat(), randomFloat() }));
+                        for (int f = 0; f < vectorFields.length; f++) {
+                            final float[] vector = new float[vectorDims[f]];
+                            for (int d = 0; d < vector.length; d++) {
+                                vector[d] = randomFloat();
+                            }
+                            document.add(new KnnFloatVectorField(vectorFields[f], vector));
                         }
                         indexDoc(engine, indexForDoc(testParsedDocument(segment + "_" + i, null, document, B_1)));
                     }
@@ -616,10 +622,15 @@ public class InternalEngineTests extends EngineTestCase {
                     for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
                         final SegmentReader segmentReader = Lucene.segmentReader(context.reader());
                         final Collection<String> segmentFiles = segmentReader.getSegmentInfo().files();
-                        assertThat(
-                            segmentFiles.stream().filter(file -> "vec".equals(IndexFileNames.getExtension(file))).count(),
-                            equalTo((long) vectorFields.length)
-                        );
+                        final List<String> vecFiles = segmentFiles.stream()
+                            .filter(file -> "vec".equals(IndexFileNames.getExtension(file)))
+                            .toList();
+                        assertThat(vecFiles, hasSize(vectorFields.length));
+                        final Set<Long> vecLengths = new HashSet<>();
+                        for (String file : vecFiles) {
+                            vecLengths.add(segmentReader.directory().fileLength(file));
+                        }
+                        assertThat(vecLengths, hasSize(vectorFields.length));
                         for (String file : segmentFiles) {
                             final String extension = IndexFileNames.getExtension(file);
                             if (extension != null) {

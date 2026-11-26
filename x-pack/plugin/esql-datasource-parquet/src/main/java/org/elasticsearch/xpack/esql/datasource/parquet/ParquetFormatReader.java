@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
@@ -2202,7 +2203,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget(),
-            counters
+            counters,
+            context.collections()
         );
     }
 
@@ -2224,6 +2226,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     @Override
     public String formatName() {
         return FormatNameResolver.FORMAT_PARQUET;
+    }
+
+    @Override
+    public CollectionReads collectionReads() {
+        return object -> {
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker(), ioWatermark);
+            try (ParquetFileReader reader = openParquetFileCached(object, adapter, readOptionsBuilder().build())) {
+                return ParquetCollections.describe(reader.getFileMetaData().getSchema());
+            }
+        };
     }
 
     /**
@@ -2721,7 +2733,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),
             context.sharedErrorBudget(),
-            counters
+            counters,
+            context.collections()
         );
     }
 
@@ -2781,7 +2794,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget,
-        @Nullable ParquetReaderCounters counters
+        @Nullable ParquetReaderCounters counters,
+        Map<String, List<String>> collections
     ) throws IOException {
         if (counters != null) {
             counters.setLateMaterializationEnabled(true);
@@ -2790,7 +2804,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
 
-            boolean useOptimized = optimizedReader && forceBaselinePath == false;
+            // A collection's carrier is decoded by the baseline iterator only, for now
+            boolean useOptimized = optimizedReader && forceBaselinePath == false && collections.isEmpty();
             FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
             if (filterPredicate != null) {
                 if (counters != null) {
@@ -2876,7 +2891,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 declaredTypeColumns,
                 errorPolicy,
                 warningSink,
-                sharedErrorBudget
+                sharedErrorBudget,
+                collections
             );
         } catch (Throwable t) {
             reader.close();
@@ -4123,7 +4139,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Applies Parquet's backward-compatibility rules for deciding whether the repeated type in a LIST
      * is itself the element or is the standard three-level wrapper around the element.
      */
-    private static boolean isListElementType(Type repeatedType, String parentName) {
+    static boolean isListElementType(Type repeatedType, String parentName) {
         if (repeatedType.isPrimitive()) {
             return true;
         }
@@ -4271,6 +4287,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         /** Per-attribute column metadata; null for attributes not present in the file. */
         private final ColumnInfo[] columnInfos;
+        /** Per-attribute decoder of a collection read as its carrier; null for every other attribute. */
+        private final ParquetCollections.Decoder[] collections;
         private final boolean hasListColumns;
         /**
          * File-global first-row offsets per row group; mirrors the field of the same name on
@@ -4395,10 +4413,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             Set<String> declaredTypeColumns,
             ErrorPolicy errorPolicy,
             @Nullable Consumer<String> warningSink,
-            @Nullable SharedErrorBudget sharedErrorBudget
+            @Nullable SharedErrorBudget sharedErrorBudget,
+            Map<String, List<String>> collections
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
+            this.collections = new ParquetCollections.Decoder[attributes.size()];
+            for (int i = 0; i < attributes.size(); i++) {
+                List<String> leaves = collections.get(attributes.get(i).name());
+                if (leaves != null) {
+                    this.collections[i] = ParquetCollections.Decoder.of(projectedSchema, attributes.get(i).name(), leaves);
+                }
+            }
             this.listCorruptionHandler = new ParquetColumnDecoding.ListCorruptionHandler(
                 errorPolicy,
                 fileLocation,
@@ -4609,6 +4635,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 listColumnReaders = null;
                 columnUncompressedBytes = null;
             }
+            ColumnReadStoreImpl collectionStore = null;
+            for (ParquetCollections.Decoder decoder : collections) {
+                if (decoder != null) {
+                    if (collectionStore == null) {
+                        collectionStore = new ColumnReadStoreImpl(
+                            rowGroup,
+                            new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
+                            projectedSchema,
+                            createdBy
+                        );
+                    }
+                    decoder.bind(collectionStore);
+                }
+            }
             if (rowsRemainingInGroup == 0 && validateListExhaustion) {
                 validateListColumnsExhausted();
             }
@@ -4641,7 +4681,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             try {
                 for (int col = 0; col < columnInfos.length; col++) {
                     ColumnInfo info = columnInfos[col];
-                    if (info == null) {
+                    if (collections[col] != null) {
+                        String name = attributes.get(col).name();
+                        blocks[col] = collections[col].read(
+                            rowsToRead,
+                            blockFactory,
+                            () -> nullListElementWarnings().addOnce(ParquetColumnDecoding.nullListElementsMessage(name))
+                        );
+                    } else if (info == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                     } else if (info.isRowPosition()) {
                         long base = rowGroupFirstRowGlobal[rowGroupOrdinal] + firstRowOfBatchInRG;

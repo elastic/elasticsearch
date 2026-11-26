@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -294,6 +295,11 @@ public class FileSourceFactoryTests extends ESTestCase {
 
     /** Stub reader: no-op {@code read}, claims the given format/extension so the factory registry resolves. */
     private static final class StubFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final String formatName;
         private final List<String> extensions;
         /** Set only by the harvest-scope test, which is the one case that drives a read. */

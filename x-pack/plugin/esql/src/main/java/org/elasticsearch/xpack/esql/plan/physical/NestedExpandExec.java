@@ -83,13 +83,17 @@ public final class NestedExpandExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        // The operator reads child documents through the parent _doc, which is not one of its output columns.
-        return NestedExpand.docAttributes(child().output());
+        // The operator reads child documents through the parent _doc, or a dataset's carrier, neither of them an output column
+        Attribute carrier = NestedExpand.carrier(child().output(), path);
+        AttributeSet docs = NestedExpand.docAttributes(child().output());
+        return carrier == null ? docs : docs.combine(AttributeSet.of(carrier));
     }
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(expanded, child().output());
+        Attribute carrier = NestedExpand.carrier(child().output(), path);
+        List<Attribute> parents = carrier == null ? child().output() : child().output().stream().filter(a -> a != carrier).toList();
+        return mergeOutputAttributes(expanded, parents);
     }
 
     @Override

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.NoCollectionsFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -62,7 +63,7 @@ import java.util.function.Consumer;
  * FormatReader implementation for NDJSON files.
  * Implements {@link SegmentableFormatReader} for intra-file parallel parsing.
  */
-public class NdJsonFormatReader implements SegmentableFormatReader {
+public class NdJsonFormatReader implements SegmentableFormatReader, NoCollectionsFormatReader {
 
     private static final Logger logger = LogManager.getLogger(NdJsonFormatReader.class);
     private static final NdJsonRecordSplitter DEFAULT_RECORD_SPLITTER = new NdJsonRecordSplitter(

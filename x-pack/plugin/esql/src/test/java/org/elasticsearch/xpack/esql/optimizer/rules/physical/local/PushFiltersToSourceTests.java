@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -630,6 +631,10 @@ public class PushFiltersToSourceTests extends ESTestCase {
      * pass is loud.
      */
     private static class StubReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
 
         @Override
         public FilterPushdownSupport filterPushdownSupport() {

@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -2694,8 +2695,29 @@ public class EsqlSession {
             specsRequiringStats,
             specsReadingNoRows,
             folderRanges.isEmpty() ? null : folderRanges,
-            listener.map(result::withExternalSourceResolution)
+            listener.map(
+                resolution -> result.withExternalSourceResolution(
+                    readsCollections(plan) ? externalSourceResolver.withCollections(resolution) : resolution
+                )
+            )
         );
+    }
+
+    /**
+     * Whether the query names a collection operator, the only reader of a dataset's collections. The plan is the parsed
+     * one, so {@code NESTED_ANY} is still an unresolved function, matched by name as {@link FieldNameUtils} does.
+     */
+    static boolean readsCollections(LogicalPlan plan) {
+        if (plan.anyMatch(NestedExpand.class::isInstance)) {
+            return true;
+        }
+        boolean[] found = { false };
+        plan.forEachExpressionDown(UnresolvedFunction.class, function -> {
+            if (function.name().equalsIgnoreCase("nested_any")) {
+                found[0] = true;
+            }
+        });
+        return found[0];
     }
 
     /**

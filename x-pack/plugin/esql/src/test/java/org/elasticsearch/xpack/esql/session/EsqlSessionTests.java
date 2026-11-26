@@ -547,6 +547,13 @@ public class EsqlSessionTests extends ESTestCase {
         );
     }
 
+    public void testReadsCollections() {
+        assertTrue(EsqlSession.readsCollections(TEST_PARSER.parseQuery("FROM d | NESTED_EXPAND answers | KEEP answers.type")));
+        assertTrue(EsqlSession.readsCollections(TEST_PARSER.parseQuery("FROM d | WHERE NESTED_ANY(answers, answers.ttl < 60)")));
+        assertTrue(EsqlSession.readsCollections(TEST_PARSER.parseQuery("FROM d | EVAL x = nested_any(answers, answers.ttl < 60)")));
+        assertFalse(EsqlSession.readsCollections(TEST_PARSER.parseQuery("FROM d | WHERE ttl < 60 | KEEP answers")));
+    }
+
     public void testComputeLookupJoinIndexScope() {
         {
             // joining to on a local cluster

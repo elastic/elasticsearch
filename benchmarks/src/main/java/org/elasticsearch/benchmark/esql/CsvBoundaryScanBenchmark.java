@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -118,6 +119,11 @@ public class CsvBoundaryScanBenchmark {
      * per-record scanner forward through the buffer.
      */
     private static final class CsvReaderInheritingDefault implements SegmentableFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

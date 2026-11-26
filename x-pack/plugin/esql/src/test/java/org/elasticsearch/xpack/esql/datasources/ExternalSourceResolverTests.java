@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
@@ -9295,6 +9296,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
             @Override
+            public CollectionReads collectionReads() {
+                return CollectionReads.NONE;
+            }
+
+            @Override
             public RowPositionStrategy rowPositionStrategy() {
                 return PassThroughRowPositionStrategy.INSTANCE;
             }
@@ -9395,6 +9401,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
             @Override
+            public CollectionReads collectionReads() {
+                return CollectionReads.NONE;
+            }
+
+            @Override
             public RowPositionStrategy rowPositionStrategy() {
                 return PassThroughRowPositionStrategy.INSTANCE;
             }
@@ -9483,6 +9494,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         String failOnPathSuffix
     ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
+            @Override
+            public CollectionReads collectionReads() {
+                return CollectionReads.NONE;
+            }
+
             @Override
             public RowPositionStrategy rowPositionStrategy() {
                 return PassThroughRowPositionStrategy.INSTANCE;
@@ -10114,6 +10130,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicReference<String> headerOnForeignThread = new AtomicReference<>();
         FormatReader reader = new NoConfigFormatReader() {
             @Override
+            public CollectionReads collectionReads() {
+                return CollectionReads.NONE;
+            }
+
+            @Override
             public void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
                 ioPool.execute(() -> {
                     headerOnForeignThread.set(threadContext.getHeader(headerName));
@@ -10345,6 +10366,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * read with an {@link IOException}.
      */
     private static class AsyncStubFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final Map<String, List<Attribute>> schemasByPath;
         private final ExecutorService readPool;
         private final CountDownLatch gate;
@@ -10431,6 +10457,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Stub implementations =====
 
     private static class StubFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -10542,6 +10573,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Used to test the aggregated stats path in multi-file resolution.
      */
     private static class StubFormatReaderWithStats implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -11581,6 +11617,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * surface the resolver reaches is forwarded: configuring, sharing the sample, and reading the metadata.
      */
     private static final class SampleRowsRecordingFormatReader implements FormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final FormatReader inner;
         private final List<Integer> sampledRowsPerFile;
 

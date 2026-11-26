@@ -318,7 +318,8 @@ public final class ColumnMapping implements Writeable {
             }
             DataType fileType = fileTypes.get(name);
             DataType queryType = queryAttr.dataType();
-            if (fileType != null && fileType != queryType) {
+            // A collection read by a collection operator arrives as its carrier, which the reader built for the query's type
+            if (fileType != null && fileType != queryType && queryType != DataType.SOURCE) {
                 if (DeclaredTypeCoercions.supports(fileType, queryType) == false) {
                     throw new IllegalArgumentException(
                         "Cannot align column ["

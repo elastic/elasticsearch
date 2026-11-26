@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -41,6 +42,14 @@ public interface ExternalSourceFactory {
     }
 
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
+
+    /**
+     * The collections of the schema at {@code location}, for {@code NESTED_EXPAND} and {@code NESTED_ANY}. A source whose
+     * rows hold none keeps the empty default.
+     */
+    default List<CollectionSchema> resolveCollections(String location, Map<String, Object> config) {
+        return List.of();
+    }
 
     /**
      * Asynchronously resolves metadata for the given location.

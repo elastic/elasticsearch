@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -227,6 +228,11 @@ public class ExternalSourceLimitTests extends ESTestCase {
     }
 
     private static class RowGeneratingFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

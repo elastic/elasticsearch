@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -961,6 +962,11 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     private static final class CountingReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final AggregatePushdownSupport support;
 
         CountingReader(AggregatePushdownSupport support) {
@@ -1002,6 +1008,11 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     private static final class ListingReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final Map<String, List<Attribute>> schemasByPath;
 
         ListingReader(Map<String, List<Attribute>> schemasByPath) {

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -482,6 +483,27 @@ final class FileSourceFactory implements ExternalSourceFactory {
         } catch (IOException e) {
             // The wrapper exists to type a storage/reader I/O failure as client-caused (400). It keeps the cause's
             // own diagnosis and never names the path.
+            throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
+        } finally {
+            FormatReaders.closeDistinctFrom(reader, prototype);
+            StorageProviderCache.closeLease(provider);
+        }
+    }
+
+    @Override
+    public List<CollectionSchema> resolveCollections(String location, Map<String, Object> config) {
+        StorageProvider provider = null;
+        FormatReader prototype = null;
+        FormatReader reader = null;
+        try {
+            StoragePath storagePath = StoragePath.of(location);
+            prototype = unwrappedDatasetReader(location, config);
+            reader = readerForListedObject(location, storagePath.objectName(), config);
+            provider = config != null && config.isEmpty() == false
+                ? storageRegistry.createProvider(storagePath.scheme(), settings, ExternalSourceResolver.storageConfig(config))
+                : storageRegistry.provider(storagePath);
+            return reader.collectionReads().collections(provider.newObject(storagePath));
+        } catch (IOException e) {
             throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
             FormatReaders.closeDistinctFrom(reader, prototype);

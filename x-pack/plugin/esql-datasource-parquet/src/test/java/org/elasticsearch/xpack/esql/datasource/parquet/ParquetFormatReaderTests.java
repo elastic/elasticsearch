@@ -63,9 +63,11 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -92,6 +94,8 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ChildRelationColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -9345,6 +9349,150 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         }
         return outputStream.toByteArray();
+    }
+
+    /**
+     * A {@code LIST} of structures and a {@code MAP} are collections, each with its element's leaves; a {@code LIST} of
+     * primitives is a multivalued column and is not one; a list inside an element is a multivalued leaf; a map inside an
+     * element would arrive unpaired, so its collection says why it cannot be read.
+     */
+    public void testCollectionsDescribedFromFooter() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group tags (LIST) { repeated group list { optional binary element (UTF8); } }
+              optional group answers (LIST) {
+                repeated group list { optional group element { optional binary type (UTF8); optional int64 ttl; } }
+              }
+              optional group headers (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional group value (LIST) { repeated group list { optional binary element (UTF8); } }
+                }
+              }
+              optional group by_host (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional group value (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+                }
+              }
+            }
+            """);
+        byte[] data = createParquetFile(schema, factory -> List.of(factory.newGroup().append("id", "a")));
+        List<CollectionSchema> collections = new ParquetFormatReader(blockFactory).collectionReads().collections(createStorageObject(data));
+        assertThat(
+            collections,
+            equalTo(
+                List.of(
+                    new CollectionSchema(
+                        "answers",
+                        null,
+                        List.of(new CollectionSchema.Leaf("ttl", DataType.LONG), new CollectionSchema.Leaf("type", DataType.KEYWORD)),
+                        null
+                    ),
+                    new CollectionSchema(
+                        "headers",
+                        "key",
+                        List.of(new CollectionSchema.Leaf("key", DataType.KEYWORD), new CollectionSchema.Leaf("value", DataType.KEYWORD)),
+                        null
+                    ),
+                    new CollectionSchema(
+                        "by_host",
+                        "key",
+                        List.of(new CollectionSchema.Leaf("key", DataType.KEYWORD)),
+                        "[by_host.value] is a collection with more than one field inside each element of [by_host], "
+                            + "which cannot be read yet"
+                    )
+                )
+            )
+        );
+    }
+
+    /**
+     * The carrier keeps each element's leaves together, a missing leaf null on the element that lacks it; a null element is
+     * dropped and an empty or absent list has no elements; a list inside the element is that leaf's multivalue.
+     */
+    public void testCollectionCarrierKeepsElementsAligned() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group answers (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary type (UTF8);
+                    optional int64 ttl;
+                    optional group tags (LIST) { repeated group list { optional binary element (UTF8); } }
+                  }
+                }
+              }
+            }
+            """);
+        byte[] data = createParquetFile(schema, factory -> {
+            Group r0 = factory.newGroup().append("id", 0L);
+            Group answers0 = r0.addGroup("answers");
+            Group e0 = answers0.addGroup("list").addGroup("element").append("type", "A").append("ttl", 10L);
+            e0.addGroup("tags").addGroup("list").append("element", "x");
+            answers0.addGroup("list"); // a null element
+            Group e2 = answers0.addGroup("list").addGroup("element").append("type", "CNAME");
+            Group tags2 = e2.addGroup("tags");
+            tags2.addGroup("list").append("element", "y");
+            tags2.addGroup("list").append("element", "z");
+            Group r1 = factory.newGroup().append("id", 1L);
+            r1.addGroup("answers");
+            Group r2 = factory.newGroup().append("id", 2L);
+            Group r3 = factory.newGroup().append("id", 3L);
+            r3.addGroup("answers").addGroup("list").addGroup("element").append("ttl", 5L);
+            return List.of(r0, r1, r2, r3);
+        });
+        FormatReadContext context = FormatReadContext.builder()
+            .projectedColumns(List.of("id", "answers"))
+            .batchSize(100)
+            .collections(Map.of("answers", List.of("tags", "ttl", "type")))
+            .build();
+        List<List<Object>> children = new ArrayList<>();
+        int parents = 0;
+        try (CloseableIterator<Page> pages = new ParquetFormatReader(blockFactory).read(createStorageObject(data), context)) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    int offset = parents;
+                    ChildRelationColumns.decode(
+                        page.getBlock(1),
+                        new ElementType[] { ElementType.BYTES_REF, ElementType.LONG, ElementType.BYTES_REF },
+                        new int[] { 0, 1, 2 },
+                        p -> true,
+                        p -> true,
+                        blockFactory,
+                        1024,
+                        loaded -> {
+                            IntBlock parent = loaded.getBlock(0);
+                            for (int c = 0; c < loaded.getPositionCount(); c++) {
+                                List<Object> row = new ArrayList<>();
+                                row.add((long) (offset + parent.getInt(c)));
+                                for (int b = 1; b < loaded.getBlockCount(); b++) {
+                                    row.add(BlockUtils.toJavaObject(loaded.getBlock(b), c));
+                                }
+                                children.add(row);
+                            }
+                        }
+                    );
+                    parents += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertThat(parents, equalTo(4));
+        assertThat(
+            children,
+            equalTo(
+                List.of(
+                    Arrays.asList(0L, new BytesRef("x"), 10L, new BytesRef("A")),
+                    Arrays.asList(0L, List.of(new BytesRef("y"), new BytesRef("z")), null, new BytesRef("CNAME")),
+                    Arrays.asList(3L, null, 5L, null)
+                )
+            )
+        );
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {

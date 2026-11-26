@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -34,12 +35,26 @@ public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> r
         this(resolved, List.of());
     }
 
+    /**
+     * @param collections the collections of the source's schema that {@code NESTED_EXPAND} and {@code NESTED_ANY} can read,
+     *                    as its first file's format describes them
+     */
     public record ResolvedSource(
         ExternalSourceMetadata metadata,
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
-        DeclaredReadSpec declaredReadSpec
+        DeclaredReadSpec declaredReadSpec,
+        List<CollectionSchema> collections
     ) {
+        public ResolvedSource(
+            ExternalSourceMetadata metadata,
+            FileList fileList,
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+            DeclaredReadSpec declaredReadSpec
+        ) {
+            this(metadata, fileList, schemaMap, declaredReadSpec, List.of());
+        }
+
         /** Compact overload defaulting {@link #declaredReadSpec} to {@link DeclaredReadSpec#NONE}. */
         public ResolvedSource(
             ExternalSourceMetadata metadata,
@@ -51,7 +66,12 @@ public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> r
 
         /** Returns a copy carrying the given declared read-instructions. */
         public ResolvedSource withDeclaredReadSpec(DeclaredReadSpec spec) {
-            return new ResolvedSource(metadata, fileList, schemaMap, spec);
+            return new ResolvedSource(metadata, fileList, schemaMap, spec, collections);
+        }
+
+        /** Returns a copy carrying the given collections. */
+        public ResolvedSource withCollections(List<CollectionSchema> collections) {
+            return new ResolvedSource(metadata, fileList, schemaMap, declaredReadSpec, List.copyOf(collections));
         }
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -138,7 +139,26 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
 
     @Override
     protected AttributeSet computeReferences() {
-        return docAttributes(child().output());
+        Attribute carrier = carrier(child().output(), path);
+        AttributeSet docs = docAttributes(child().output());
+        return carrier == null ? docs : docs.combine(AttributeSet.of(carrier));
+    }
+
+    /**
+     * The column carrying the elements of the collection at {@code path} when the rows come from a dataset, or {@code null}
+     * when they come from an index, whose rows find theirs through {@code _doc}.
+     */
+    @Nullable
+    public static Attribute carrier(List<Attribute> attributes, @Nullable String path) {
+        if (path == null) {
+            return null;
+        }
+        for (Attribute attribute : attributes) {
+            if (attribute.dataType() == DataType.SOURCE && attribute.synthetic() && attribute.name().equals(path)) {
+                return attribute;
+            }
+        }
+        return null;
     }
 
     public static AttributeSet docAttributes(List<Attribute> attributes) {
@@ -158,7 +178,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
             for (Attribute attribute : child().output()) {
                 // The expanded collection's child fields leave the private nested schema as ordinary columns. Other
                 // collections keep theirs, so a later NESTED_EXPAND can expand them.
-                if (expandedScope(attribute) == false) {
+                if (expandedScope(attribute) == false && (bound() == false || attribute != carrier(child().output(), path))) {
                     result.add(attribute);
                 }
             }

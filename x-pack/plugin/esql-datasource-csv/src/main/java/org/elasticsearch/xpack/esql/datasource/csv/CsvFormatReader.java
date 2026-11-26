@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
+import org.elasticsearch.xpack.esql.datasources.spi.NoCollectionsFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -272,7 +273,7 @@ import java.util.regex.Pattern;
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
  * (HTTP, S3, local filesystem).
  */
-public class CsvFormatReader implements SegmentableFormatReader {
+public class CsvFormatReader implements SegmentableFormatReader, NoCollectionsFormatReader {
 
     /**
      * The schema-sampling default this reader applies when the setting is absent, surfaced from

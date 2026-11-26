@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -51,6 +52,7 @@ public final class RangeReadContext {
      */
     @Nullable
     private Object fileContext;
+    private Map<String, List<String>> collections = Map.of();
 
     public RangeReadContext(
         List<String> projectedColumns,
@@ -223,6 +225,15 @@ public final class RangeReadContext {
     @Nullable
     public Object fileContext() {
         return fileContext;
+    }
+
+    /** As {@link FormatReadContext#collections()}. */
+    public Map<String, List<String>> collections() {
+        return collections;
+    }
+
+    public void setCollections(Map<String, List<String>> collections) {
+        this.collections = Map.copyOf(collections);
     }
 
     public void setFileContext(@Nullable Object fileContext) {

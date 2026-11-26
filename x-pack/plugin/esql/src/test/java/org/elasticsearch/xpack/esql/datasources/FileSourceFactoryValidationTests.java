@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -305,6 +306,11 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
      * close. Prototype and remint share the close counters.
      */
     private static final class RemintingReader implements FormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final AtomicInteger prototypeCloses;
         private final AtomicInteger remintCloses;
         private final boolean remint;
@@ -372,6 +378,11 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     /** Claims no config keys (like Parquet does for {@code schema_sample_size}); never actually reads. */
     private static class StubNoConfigReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

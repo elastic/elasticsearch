@@ -31,6 +31,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -1131,6 +1132,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link ColumnExtractor#ROW_POSITION_COLUMN}, which the deferred-extraction handshake
      * needs to find back in the projected channel layout (see {@link #rowPositionChannelIndex}).
      */
+    /**
+     * The projected columns that are collections a collection operator reads, which the reader emits as carriers. Only such a
+     * column has the {@link DataType#SOURCE} type in a dataset's output.
+     */
+    private Map<String, List<String>> collectionColumns() {
+        Map<String, List<String>> carriers = new HashMap<>();
+        for (Attribute attr : attributes) {
+            if (attr.dataType() == DataType.SOURCE && attr instanceof FieldAttribute field) {
+                carriers.put(attr.name(), field.field().getProperties().keySet().stream().sorted().toList());
+            }
+        }
+        return carriers;
+    }
+
     private List<String> dataProjectedColumns() {
         List<String> cols = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
@@ -2646,6 +2661,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     splitBudget,
                     state.formatCounters
                 );
+                rangeCtx.setCollections(collectionColumns());
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
                 }
@@ -2739,6 +2755,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 adapterOwnsRowCount = pages != null;
                 if (pages == null) {
                     FormatReadContext ctx = FormatReadContext.builder()
+                        .collections(collectionColumns())
                         .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
@@ -3005,6 +3022,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             boolean adapterOwnsRowCount = pages != null;
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
+                    .collections(collectionColumns())
                     .projectedColumns(PhysicalNames.translateNames(perFileCols, renames))
                     .batchSize(batchSize)
                     .rowLimit(sourceReaderRowLimit())
@@ -3114,6 +3132,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setSplitsTotal(1);
         buffer.setCurrentSplit(1);
         FormatReadContext ctx = FormatReadContext.builder()
+            .collections(collectionColumns())
             .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
             .batchSize(batchSize)
             .rowLimit(sourceReaderRowLimit())
@@ -3204,6 +3223,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     );
                     if (opened == null) {
                         FormatReadContext ctx = FormatReadContext.builder()
+                            .collections(collectionColumns())
                             .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
                             .batchSize(batchSize)
                             .rowLimit(sourceReaderRowLimit())

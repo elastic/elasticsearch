@@ -50,6 +50,8 @@ import java.util.Objects;
  */
 public final class NestedPredicate extends EsqlConfigurationFunction {
     public static final TransportVersion VERSION = TransportVersion.fromName("esql_nested_any");
+    /** Peers that read the carrier of a dataset's collection. */
+    public static final TransportVersion DATASET_VERSION = TransportVersion.fromName("esql_nested_dataset_collections");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "NestedPredicate",
@@ -68,6 +70,12 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
      */
     @Nullable
     private final QueryBuilder queryBuilder;
+    /**
+     * The column carrying each row's elements when the rows come from a dataset, or {@code null} when they come from an index,
+     * which finds them through {@code _doc}.
+     */
+    @Nullable
+    private final Attribute carrier;
 
     public NestedPredicate(
         Source source,
@@ -78,12 +86,26 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         @Nullable QueryBuilder queryBuilder,
         Configuration configuration
     ) {
+        this(source, path, body, inputs, relativePaths, queryBuilder, null, configuration);
+    }
+
+    public NestedPredicate(
+        Source source,
+        String path,
+        Expression body,
+        List<Attribute> inputs,
+        List<String> relativePaths,
+        @Nullable QueryBuilder queryBuilder,
+        @Nullable Attribute carrier,
+        Configuration configuration
+    ) {
         super(source, List.of(body), configuration);
         this.path = path;
         this.body = body;
         this.inputs = List.copyOf(inputs);
         this.relativePaths = List.copyOf(relativePaths);
         this.queryBuilder = queryBuilder;
+        this.carrier = carrier;
     }
 
     private NestedPredicate(StreamInput in) throws IOException {
@@ -94,6 +116,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
             null,
+            in.getTransportVersion().supports(DATASET_VERSION) ? in.readOptionalNamedWriteable(Attribute.class) : null,
             ((PlanStreamInput) in).configuration()
         );
     }
@@ -119,6 +142,11 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         out.writeNamedWriteable(body);
         out.writeNamedWriteableCollection(inputs);
         out.writeStringCollection(relativePaths);
+        if (out.getTransportVersion().supports(DATASET_VERSION)) {
+            out.writeOptionalNamedWriteable(carrier);
+        } else if (carrier != null) {
+            throw new IOException("NESTED_ANY over a dataset requires nested dataset collection transport support");
+        }
     }
 
     @Override
@@ -148,7 +176,16 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     }
 
     public NestedPredicate withQueryBuilder(QueryBuilder queryBuilder) {
-        return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, configuration());
+        return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, carrier, configuration());
+    }
+
+    @Nullable
+    public Attribute carrier() {
+        return carrier;
+    }
+
+    public NestedPredicate withCarrier(Attribute carrier) {
+        return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, carrier, configuration());
     }
 
     /** The full names of the child fields this predicate reads. */
@@ -200,18 +237,19 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     @Override
     protected NodeInfo<NestedPredicate> info() {
-        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, queryBuilder, configuration());
+        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, queryBuilder, carrier, configuration());
     }
 
     @Override
     public NestedPredicate replaceChildren(List<Expression> newChildren) {
-        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths, queryBuilder, configuration());
+        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths, queryBuilder, carrier, configuration());
     }
 
     /** The inputs are loaded from the child documents by {@link NestedChildren}, so they are not columns of the parent row. */
     @Override
     public AttributeSet references() {
-        return body.references().subtract(AttributeSet.of(inputs));
+        AttributeSet references = body.references().subtract(AttributeSet.of(inputs));
+        return carrier == null ? references : references.combine(AttributeSet.of(carrier));
     }
 
     @Override
@@ -222,12 +260,13 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             && body.equals(other.body)
             && inputs.equals(other.inputs)
             && relativePaths.equals(other.relativePaths)
-            && Objects.equals(queryBuilder, other.queryBuilder);
+            && Objects.equals(queryBuilder, other.queryBuilder)
+            && Objects.equals(carrier, other.carrier);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, queryBuilder);
+        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, queryBuilder, carrier);
     }
 
     @Override
@@ -240,15 +279,17 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         Layout layout = new Layout.Builder().append(inputs).build();
         ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluatorContext(layout, toEvaluator).apply(body);
         List<DataType> types = inputs.stream().map(Attribute::dataType).toList();
-        NestedChildren.Factory children = NestedChildren.factory(
-            toEvaluator.shardContexts(),
-            path,
-            relativePaths,
-            types,
-            inputs.stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
-            toEvaluator.plannerSettings(),
-            configuration()
-        );
+        ChildRows.Factory children = carrier != null
+            ? CarriedChildRows.factory(toEvaluator.apply(carrier), carrier, relativePaths)
+            : NestedChildren.factory(
+                toEvaluator.shardContexts(),
+                path,
+                relativePaths,
+                types,
+                inputs.stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
+                toEvaluator.plannerSettings(),
+                configuration()
+            ).rows(-1);
         int[] fieldChannels = new int[inputs.size()];
         for (int i = 0; i < fieldChannels.length; i++) {
             fieldChannels[i] = i + 1;
@@ -256,7 +297,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                NestedChildren read = children.get(context);
+                ChildRows read = children.get(context);
                 ExpressionEvaluator eval = predicate.get(context);
                 return new NestedPredicateEvaluator(context, read, eval, fieldChannels);
             }

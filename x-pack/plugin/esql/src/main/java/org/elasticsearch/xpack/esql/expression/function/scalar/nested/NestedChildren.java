@@ -13,6 +13,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -66,6 +67,27 @@ public final class NestedChildren implements Releasable {
 
     /** {@code reader} is {@code null} when no child field is read, and the children are only counted. */
     public record Factory(IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator.Factory reader) {
+        /**
+         * The children as a {@link ChildRows}, found through the parents' {@code _doc} at {@code docChannel}, or through the first
+         * {@code _doc} of the page when it is negative.
+         */
+        public ChildRows.Factory rows(int docChannel) {
+            return context -> {
+                NestedChildren children = get(context);
+                return new ChildRows() {
+                    @Override
+                    public void read(Page parents, IntPredicate included, IntPredicate keepReading, Consumer<Page> consumer) {
+                        children.read(docs(parents, docChannel), included, keepReading, consumer);
+                    }
+
+                    @Override
+                    public void close() {
+                        children.close();
+                    }
+                };
+            };
+        }
+
         public NestedChildren get(DriverContext context) {
             if (reader == null) {
                 return new NestedChildren(context, shards, null, 0);
@@ -346,6 +368,18 @@ public final class NestedChildren implements Releasable {
         } finally {
             Releasables.closeExpectNoException(shardVector, segmentVector, docVector, positionVector, children);
         }
+    }
+
+    private static DocVector docs(Page page, int docChannel) {
+        if (docChannel >= 0) {
+            return ((DocBlock) page.getBlock(docChannel)).asVector();
+        }
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            if (page.getBlock(i) instanceof DocBlock doc) {
+                return doc.asVector();
+            }
+        }
+        throw new IllegalStateException("reading nested documents needs the parent documents, which this page does not carry");
     }
 
     private static void accept(Page page, Consumer<Page> consumer) {

@@ -187,6 +187,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.CarriedChildRows;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.ChildRows;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -206,6 +208,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -3031,6 +3034,17 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(expand.child(), context);
+        List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
+        Attribute carrier = NestedExpand.carrier(expand.child().output(), expand.path());
+        ChildRows.Factory children;
+        Layout.Builder layout;
+        if (carrier != null) {
+            // A dataset's rows carry their elements in a column rather than finding them through _doc
+            children = CarriedChildRows.factory(EvalMapper.toEvaluator(context.foldCtx(), carrier, source.layout), carrier, expand.paths());
+            layout = source.layout.builder();
+            layout.append(expand.expanded());
+            return source.with(new NestedExpandOperator.Factory(children, expand.path(), types), layout.build());
+        }
         int docChannel = -1;
         for (Attribute attribute : expand.child().output()) {
             if (EsQueryExec.isDocAttribute(attribute)) {
@@ -3041,11 +3055,10 @@ public class LocalExecutionPlanner {
         if (docChannel < 0) {
             throw new IllegalStateException("NESTED_EXPAND requires [_doc]");
         }
-        Layout.Builder layout = source.layout.builder();
+        layout = source.layout.builder();
         layout.append(expand.expanded());
-        List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
         // Enumeration does not depend on how many child columns remain after pruning.
-        NestedChildren.Factory children = NestedChildren.factory(
+        children = NestedChildren.factory(
             context.shardContexts,
             expand.path(),
             expand.paths(),
@@ -3053,8 +3066,8 @@ public class LocalExecutionPlanner {
             expand.expanded().stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
             context.plannerSettings,
             configuration
-        );
-        return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
+        ).rows(docChannel);
+        return source.with(new NestedExpandOperator.Factory(children, expand.path(), types), layout.build());
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {

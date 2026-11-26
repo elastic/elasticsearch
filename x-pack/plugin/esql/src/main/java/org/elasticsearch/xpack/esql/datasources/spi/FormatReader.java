@@ -197,6 +197,13 @@ public interface FormatReader extends Closeable {
 
     String formatName();
 
+    /**
+     * Which collections this format's files hold, for {@code NESTED_EXPAND} and {@code NESTED_ANY}. Abstract on purpose: a
+     * format states that it reads none, through {@link NoCollectionsFormatReader} or {@link CollectionReads#NONE}, rather
+     * than inheriting the answer.
+     */
+    CollectionReads collectionReads();
+
     List<String> fileExtensions();
 
     /**

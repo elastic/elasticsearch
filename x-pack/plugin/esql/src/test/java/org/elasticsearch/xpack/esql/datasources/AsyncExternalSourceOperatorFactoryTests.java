@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -6679,6 +6680,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class LatchedPageReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final AtomicInteger readCount;
         private final CountDownLatch entered;
         @Nullable
@@ -6760,6 +6766,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * either wait on {@code laterProceed} or also stay open when {@code holdLaterOpen} is set.
      */
     private static class HeldOpenPageReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final AtomicInteger readCount;
         private final CountDownLatch firstEntered;
         @Nullable
@@ -6887,6 +6898,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * reader with remaining rows cannot reach N survivors.
      */
     private static class DroppingPageReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final List<Integer> seenRowLimits;
         private final int rawRows;
         private final int keepEvery;
@@ -6960,6 +6976,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * assert the range rail gets {@link FormatReader#NO_LIMIT}, not remaining().
      */
     private static class RecordingRangeReader implements RangeAwareFormatReader, NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final List<Integer> seenRowLimits;
         private final int rawRows;
 
@@ -7034,6 +7055,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * fills the park-with-page path once the first page occupies the buffer.
      */
     private static class TwoPageHugeReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         static final int ROWS = 80_000;
         private final AtomicInteger nextCalls;
         private final CountDownLatch enteredSecondNext;
@@ -7101,6 +7127,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * counts down. Used to park the AESOF producer without pinning the consumer thread.
      */
     private static final class ParkingReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final CountDownLatch allowPage;
         private final AtomicBoolean parked = new AtomicBoolean();
 
@@ -7192,6 +7223,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * thing that can end the park is the buffer's finish/failure wake (elastic/esql-planning#2271).
      */
     private static final class NeverReadyReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         final SubscribableListener<Void> ready = new SubscribableListener<>();
         final AtomicInteger parkedReturns = new AtomicInteger();
         final AtomicInteger tryAdvanceCalls = new AtomicInteger();
@@ -7277,6 +7313,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      */
     private static final class InlineCompletingReader implements NoConfigFormatReader {
         @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
+        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -7349,6 +7390,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      */
     private static class TrackingReader implements NoConfigFormatReader {
         @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
+        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -7409,6 +7455,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static final class BlockingAdvanceReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final CountDownLatch entered;
         private final CountDownLatch resume;
         private final AtomicInteger closes;
@@ -7488,6 +7539,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static final class PermitHoldingReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final CountDownLatch entered;
         private final CountDownLatch resume;
         private final AtomicInteger opens;
@@ -7552,6 +7608,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static final class ThrowingAfterSignalReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final CountDownLatch entered;
         private final CountDownLatch resume;
         private final AtomicInteger opens;
@@ -7810,6 +7871,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * is identity; this override is required or the pin would never be observed.
      */
     private static class CountingBindAndSplitReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         static final List<Attribute> INFERRED_SCHEMA = List.of(ref("inferred_a", DataType.KEYWORD), ref("inferred_b", DataType.LONG));
 
         private final AtomicInteger metadataCalls;
@@ -7924,6 +7990,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * the exact file-body page shape the factory adapts.
      */
     private static class SinglePageReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
 
         private final Supplier<Page> pageSupplier;
 
@@ -7981,6 +8051,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class PageCountingFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -8042,6 +8117,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * {@link PageCountingFormatReader}. Used to fail the first parallel operator during {@code get()}.
      */
     private static class FailOnFirstReadFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         private final AtomicInteger readCount = new AtomicInteger();
 
         @Override
@@ -8097,6 +8177,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class FailOnSecondFileFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -8275,6 +8360,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * was stripped before the inner reader ran.
      */
     private static class StreamPeekingFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         final List<Integer> peeked = new ArrayList<>();
 
         @Override
@@ -8330,6 +8420,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * split bytes are real received counts.
      */
     private static final class DrainingBindAndSplitReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             drain(object);
@@ -8584,6 +8679,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      */
     private static class TestSyncFormatReader implements NoConfigFormatReader {
         @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
+        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -8651,6 +8751,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
      */
     private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -8762,6 +8867,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that implements SegmentableFormatReader, NoConfigFormatReader and tracks which methods are called.
      */
     private static class TrackingSegmentableFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -9007,6 +9117,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      */
     private static class AlwaysFailFormatReader implements NoConfigFormatReader {
         @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
+        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -9039,6 +9154,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that returns multiple pages per read, for testing backpressure.
      */
     private static class MultiPageFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -9105,6 +9225,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      */
     private static class FailAfterNReadsFormatReader implements NoConfigFormatReader {
         @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
+        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -9165,6 +9290,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class TestAsyncFormatReader implements NoConfigFormatReader {
+        @Override
+        public CollectionReads collectionReads() {
+            return CollectionReads.NONE;
+        }
+
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.DocBlock;
-import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -26,11 +24,11 @@ import org.elasticsearch.core.Releasables;
  */
 final class NestedPredicateEvaluator implements ExpressionEvaluator {
     private final DriverContext context;
-    private final NestedChildren children;
+    private final ChildRows children;
     private final ExpressionEvaluator predicate;
     private final int[] fieldChannels;
 
-    NestedPredicateEvaluator(DriverContext context, NestedChildren children, ExpressionEvaluator predicate, int[] fieldChannels) {
+    NestedPredicateEvaluator(DriverContext context, ChildRows children, ExpressionEvaluator predicate, int[] fieldChannels) {
         this.context = context;
         this.children = children;
         this.predicate = predicate;
@@ -39,9 +37,8 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
 
     @Override
     public Block eval(Page page) {
-        DocVector docs = docs(page);
-        boolean[] matched = new boolean[docs.getPositionCount()];
-        children.read(docs, position -> true, position -> matched[position] == false, loaded -> accept(loaded, matched));
+        boolean[] matched = new boolean[page.getPositionCount()];
+        children.read(page, position -> true, position -> matched[position] == false, loaded -> accept(loaded, matched));
         BooleanBlock.Builder builder = context.blockFactory().newBooleanBlockBuilder(matched.length);
         Block result = null;
         try {
@@ -92,15 +89,6 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
             }
             fields.releaseBlocks();
         }
-    }
-
-    private static DocVector docs(Page page) {
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            if (page.getBlock(i) instanceof DocBlock doc) {
-                return doc.asVector();
-            }
-        }
-        throw new IllegalStateException("NESTED_ANY needs the parent documents, which this page does not carry");
     }
 
     @Override

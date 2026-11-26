@@ -1,0 +1,312 @@
+// GHCN-D by_year, the one frozen file in that tree: csv/by_year/1750.csv, 11.6 MB, 344,589 rows.
+// NOAA's readme-by_year.txt states the by_year files are "updated daily for the entire period of
+// record", and every other year confirms it (1763, 1800, 1850, 1950, 2024, 2025 all carry
+// yesterday's Last-Modified). 1750 is the exception: it is the bucket's implausible-date bucket --
+// 3,570 "stations", almost all Australian, reporting between 17500201 and 17500723, i.e. a century
+// before GHCN-D's period of record begins -- so the nightly rebuild skips it and it has not moved
+// since 2025-01-14. That makes it the only by_year object that can carry EXACT expected tables,
+// and it closes csv x SINGLE_FILE, which the MANY_SMALL ghcnd-usw3 corpus does not cover.
+//
+// Two variants hold PROVEN-identical rows (sha1 of the csv's post-header bytes equals the gunzipped
+// gz's): the uncompressed tree is headered, the csv.gz tree is headerless -- the same systematic
+// dialect drift the by_station trees show, carried per-variant via header_row false and positional
+// path mappings. Expected tables derived at authoring time by clickhouse local over the scratch
+// copy of the same pinned objects.
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+q01_y1750CountObservations
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | STATS count = COUNT(*);
+
+count:long
+344589
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ELEMENT = 'PRCP'
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+q02_y1750CountPrcp
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | WHERE ELEMENT == "PRCP" | STATS count = COUNT(*);
+
+count:long
+240925
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(DATA_VALUE), count(), avg(DATA_VALUE) FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ELEMENT = 'TMAX'
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+q03_y1750StatsTmax
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | WHERE ELEMENT == "TMAX" | STATS sum_value = SUM(DATA_VALUE), count = COUNT(*), avg_value = AVG(DATA_VALUE);
+
+sum_value:long | count:long | avg_value:double
+11577563       | 46155      | 250.8409273101506
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(ID) FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+q04_y1750DistinctStations
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | STATS BY ID | STATS u = COUNT(*);
+
+u:long
+3570
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(ELEMENT) FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+q05_y1750DistinctElements
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | STATS BY ELEMENT | STATS u = COUNT(*);
+
+u:long
+10
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(DATE), max(DATE) FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: 17500201..17500723: the file's dates are implausible for 1750, which is why it is a frozen leftover rather than part of NOAA's nightly rebuild
+q06_y1750MinMaxDate
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | STATS min_date = MIN(DATE), max_date = MAX(DATE);
+
+min_date:integer | max_date:integer
+17500201         | 17500723
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, ELEMENT FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY ELEMENT ORDER BY c DESC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+q07_y1750CountByElement
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | STATS c = COUNT(*) BY ELEMENT | SORT c DESC, ELEMENT ASC | LIMIT 10;
+
+c:long | ELEMENT:keyword
+240925 | PRCP
+46245  | TMIN
+46155  | TMAX
+2278   | DAPR
+2278   | MDPR
+1720   | DWPR
+1285   | DATX
+1285   | MDTX
+1209   | DATN
+1209   | MDTN
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, ID FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY ID ORDER BY c DESC, ID ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+q08_y1750CountByStation
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | STATS c = COUNT(*) BY ID | SORT c DESC, ID ASC | LIMIT 10;
+
+c:long | ID:keyword
+374    | ASN00009131
+363    | ASN00018069
+361    | ASN00075039
+355    | ASN00059140
+352    | ASN00009592
+344    | ASN00056032
+340    | ASN00025006
+338    | ASN00010111
+338    | ASN00072043
+337    | ASN00009842
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, Q_FLAG FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY Q_FLAG ORDER BY c DESC, Q_FLAG ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 10
+// note: the dominant group is the empty string (unflagged); CSV reads empty fields as empty strings, not nulls -- the opposite of the Parquet corpus
+q09_y1750CountByQFlag
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | STATS c = COUNT(*) BY Q_FLAG | SORT c DESC, Q_FLAG ASC | LIMIT 10;
+
+c:long | Q_FLAG:keyword
+343852 |
+709    | L
+17     | O
+5      | S
+4      | I
+2      | G
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ELEMENT = 'PRCP' AND DATA_VALUE > 2000
+// oracle-run: 2026-08-25
+// read-shape: scan
+// max-rows: 1
+// note: a full scan of the 11.6 MB object for a rare value (>200 mm of daily rain)
+q10_y1750ScanNeedle
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | WHERE ELEMENT == "PRCP" AND DATA_VALUE > 2000 | STATS c = COUNT(*);
+
+c:long
+39
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT ID, DATE, ELEMENT, DATA_VALUE FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') ORDER BY DATA_VALUE DESC, ID ASC, DATE ASC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+q11_y1750TopValues
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | SORT DATA_VALUE DESC NULLS LAST, ID ASC, DATE ASC, ELEMENT ASC | KEEP ID, DATE, ELEMENT, DATA_VALUE | LIMIT 10;
+
+ID:keyword  | DATE:integer | ELEMENT:keyword | DATA_VALUE:integer
+ASN00032042 | 17500324     | PRCP            | 4880
+ASN00032167 | 17500324     | PRCP            | 3510
+ASN00029069 | 17500302     | PRCP            | 3320
+ASN00032009 | 17500324     | PRCP            | 3028
+ASN00039186 | 17500508     | PRCP            | 2800
+ASN00002049 | 17500320     | PRCP            | 2600
+ASN00014729 | 17500421     | MDPR            | 2600
+ASN00068218 | 17500506     | PRCP            | 2570
+ASN00031036 | 17500516     | PRCP            | 2530
+ASN00032078 | 17500317     | MDPR            | 2526
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT ID FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') ORDER BY ID ASC, DATE ASC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 10
+q12_y1750SortStationsAsc
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | SORT ID ASC, DATE ASC, ELEMENT ASC | KEEP ID | LIMIT 10;
+
+ID:keyword
+ASN00001006
+ASN00001006
+ASN00001006
+ASN00001006
+ASN00001006
+ASN00001006
+ASN00001006
+ASN00001006
+ASN00001006
+ASN00001006
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, intDiv(DATE % 10000, 100) AS m FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY m ORDER BY m ASC LIMIT 12
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 12
+// sort-reviewed: m is the sole grouping key, so ascending m is already a total order
+q13_y1750MonthBuckets
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | EVAL m = DATE % 10000 / 100 | STATS c = COUNT(*) BY m | SORT m ASC | LIMIT 12;
+
+c:long | m:integer
+3200   | 2
+131261 | 3
+8771   | 4
+127612 | 5
+8479   | 6
+65266  | 7
+;
+
+// corpus: ghcnd-by-year-1750
+// reference-variant: ghcnd-by-year-1750-s3-csv-uncompressed-single
+// pinned: 1 object, 11608918 bytes (csv) / 1385743 (csv.gz), frozen since 2025-01-14
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT ID FROM file('1750.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ID = 'ASN00009131' LIMIT 10
+// oracle-run: 2026-08-25
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q14_y1750LimitNeedle
+required_capability: dataset_in_from_command
+dataset: ghcnd_1750: "{{corpus}}"
+FROM ghcnd_1750 | WHERE ID == "ASN00009131" | KEEP ID | LIMIT 10;
+
+ID:keyword
+ASN00009131
+ASN00009131
+ASN00009131
+ASN00009131
+ASN00009131
+ASN00009131
+ASN00009131
+ASN00009131
+ASN00009131
+ASN00009131
+;

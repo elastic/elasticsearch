@@ -160,10 +160,6 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
             return new Scenario(type, parameters, values, nullValue, canonical, false, batchedGroups, modes, singleValued);
         }
 
-        public Scenario withModes(IndexMode... modes) {
-            return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, List.of(modes), singleValued);
-        }
-
         public Scenario asSingleValued() {
             return new Scenario(type, parameters, values, nullValue, canonical, hasIndex, batchedGroups, modes, true);
         }

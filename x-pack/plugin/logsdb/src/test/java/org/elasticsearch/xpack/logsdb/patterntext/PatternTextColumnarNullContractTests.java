@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.AbstractColumnarNullContractTestCase;
 import org.elasticsearch.index.mapper.IndexingStrategy;
 import org.elasticsearch.plugins.Plugin;
@@ -27,7 +26,6 @@ public class PatternTextColumnarNullContractTests extends AbstractColumnarNullCo
 
     private static Scenario patternText() {
         return scenario("pattern_text", () -> randomAlphaOfLengthBetween(1, 8)).withoutIndex()
-            .withModes(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)
             .asSingleValued()
             .batchedGroups((configuration, shape) -> true);
     }

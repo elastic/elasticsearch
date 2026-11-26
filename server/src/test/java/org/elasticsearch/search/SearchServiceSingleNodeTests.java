@@ -45,6 +45,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -70,6 +71,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
@@ -82,6 +84,7 @@ import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -133,6 +136,7 @@ import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
@@ -525,6 +529,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         );
         assertEquals(activeContexts, service.getActiveContexts());
         assertEquals(activeRefs, indexShard.store().refCount());
+        assertThat(service.queryScheduler().queries(), equalTo(0));
     }
 
     public void testContextLeak() throws Exception {
@@ -977,6 +982,99 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(service.queryScheduler().queries(), equalTo(1));
         taskManager.unregister(task);
         assertThat(service.queryScheduler().queries(), equalTo(0));
+    }
+
+    public void testQueryIsTrackedDuringRewrite() throws Exception {
+        createIndex("rewrite-index");
+        prepareIndex("rewrite-index").setSource("field", 1).get();
+        indicesAdmin().prepareRefresh("rewrite-index").get();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+
+        // Coordinator rewrite runs on the thread that starts the search, so the search must not
+        // be started from this thread or we would deadlock on the pause.
+        PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
+        try (var pause = FailOnRewriteQueryBuilder.pauseCoordinatorRewrite()) {
+            Thread searchThread = new Thread(
+                () -> client().prepareSearch("rewrite-index")
+                    .setQuery(new FailOnRewriteQueryBuilder())
+                    .execute(ActionListener.wrap(response -> {
+                        response.incRef();
+                        future.onResponse(response);
+                    }, future::onFailure)),
+                "blocking-rewrite-search"
+            );
+            searchThread.start();
+            pause.awaitReached();
+            assertThat(searchService.queryScheduler().queries(), equalTo(1));
+        }
+        assertResponse(future, response -> assertHitCount(response, 1));
+        assertThat(searchService.queryScheduler().queries(), equalTo(0));
+    }
+
+    public void testRewriteFailureReleasesCoordination() {
+        createIndex("rewrite-fail-index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        expectThrows(Exception.class, () -> client().prepareSearch("rewrite-fail-index").setQuery(QueryBuilders.wrapperQuery("{")).get());
+        assertThat(searchService.queryScheduler().queries(), equalTo(0));
+    }
+
+    public void testMissingIndexReleasesCoordination() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("no-such-index").get());
+        assertThat(searchService.queryScheduler().queries(), equalTo(0));
+    }
+
+    public void testCanMatchFailureReleasesCoordination() {
+        // Two shards so pre-filter can-match runs; leave them unassigned so can-match fails on missing shards.
+        assertAcked(
+            indicesAdmin().prepareCreate("can-match-fail-index")
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.allocation.include._name", "no-such-node")
+                )
+        );
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        SearchPhaseExecutionException failure = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch("can-match-fail-index")
+                .setAllowPartialSearchResults(false)
+                .setPreFilterShardSize(1)
+                .setQuery(QueryBuilders.termQuery("field", "value"))
+                .get()
+        );
+        assertThat(failure.getPhaseName(), equalTo("can_match"));
+        assertThat(searchService.queryScheduler().queries(), equalTo(0));
+    }
+
+    public void testQueryPhaseFailureReleasesCoordination() {
+        createIndex("query-fail-index");
+        prepareIndex("query-fail-index").setSource("field", 1).get();
+        indicesAdmin().prepareRefresh("query-fail-index").get();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        expectThrows(
+            Exception.class,
+            () -> client().prepareSearch("query-fail-index")
+                .setAllowPartialSearchResults(false)
+                .setQuery(new ThrowingQueryBuilder(randomLong(), new IllegalStateException("boom"), 0))
+                .get()
+        );
+        assertThat(searchService.queryScheduler().queries(), equalTo(0));
+    }
+
+    public void testOpenPointInTimeDoesNotCoordinate() {
+        createIndex("pit-index");
+        var pitId = client().execute(
+            TransportOpenPointInTimeAction.TYPE,
+            new OpenPointInTimeRequest("pit-index").keepAlive(TimeValue.timeValueMinutes(1))
+        ).actionGet().getPointInTimeId();
+        try {
+            assertThat(getInstanceFromNode(SearchService.class).queryScheduler().queries(), equalTo(0));
+        } finally {
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
     }
 
     public void testRankFeaturePhaseUsingClient() {
@@ -1999,6 +2097,37 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     public static class FailOnRewriteQueryBuilder extends DummyQueryBuilder {
 
+        private static volatile Pause coordinatorRewritePause;
+
+        /**
+         * Parks coordinator rewrite until the pause is closed, then rewrites to match-all so the search can finish.
+         */
+        static Pause pauseCoordinatorRewrite() {
+            Pause opened = new Pause();
+            coordinatorRewritePause = opened;
+            return opened;
+        }
+
+        static final class Pause implements Releasable {
+            private final CountDownLatch reached = new CountDownLatch(1);
+            private final CountDownLatch closed = new CountDownLatch(1);
+
+            void awaitReached() {
+                safeAwait(reached);
+            }
+
+            private void hold() {
+                reached.countDown();
+                safeAwait(closed);
+            }
+
+            @Override
+            public void close() {
+                coordinatorRewritePause = null;
+                closed.countDown();
+            }
+        }
+
         public FailOnRewriteQueryBuilder(StreamInput in) throws IOException {
             super(in);
         }
@@ -2007,6 +2136,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+            Pause pause = coordinatorRewritePause;
+            if (pause != null && queryRewriteContext.convertToSearchExecutionContext() == null) {
+                pause.hold();
+                return new MatchAllQueryBuilder();
+            }
             if (queryRewriteContext.convertToSearchExecutionContext() != null) {
                 throw new IllegalStateException("Fail on rewrite phase");
             }

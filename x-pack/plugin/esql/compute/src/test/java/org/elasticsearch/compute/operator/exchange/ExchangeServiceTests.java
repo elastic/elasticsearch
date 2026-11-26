@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -1228,6 +1229,55 @@ public class ExchangeServiceTests extends ESTestCase {
                 assertFalse("the coordinator takes the sink as complete, and asks for nothing more", sourcesFinishedSent.get());
                 // a late compute request is told of the cancellation, not that the exchange finished or was never opened
                 expectThrows(TaskCancelledException.class, () -> exchange1.getSinkHandlerIfOpen("parked"));
+            } finally {
+                node0.getTaskManager().unregister(parent);
+            }
+        }
+    }
+
+    /**
+     * The coordinator closes an exchange whose sink a cancelled fetch has removed already. The close is recorded although it finds no
+     * sink: the coordinator has stopped reading, so a late compute request completes empty, as after any other close, and does not
+     * fail with the cancellation.
+     */
+    public void testCloseAfterCancelledFetchIsRemembered() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(farReaperSettings(), threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> opened = new PlainActionFuture<>();
+            ExchangeService.openExchange(node0, connection, "parked", randomExchangeBuffer(), threadPool.generic(), opened);
+            opened.actionGet(10, TimeUnit.SECONDS);
+
+            CancellableTask parent = (CancellableTask) node0.getTaskManager().register("transport", "test", new CancellableTestRequest());
+            try {
+                PlainActionFuture<Boolean> finished = new PlainActionFuture<>();
+                exchange0.newRemoteSink(parent, "parked", node0, connection)
+                    .fetchPageAsync(false, finished.map(ExchangeResponse::finished));
+                ExchangeSinkHandler sink = exchange1.getSinkHandler("parked");
+                assertBusy(() -> assertTrue(sink.hasListeners()));
+
+                node0.getTaskManager().cancelTaskAndDescendants(parent, "test", false, ActionListener.noop());
+                assertTrue(finished.get(10, TimeUnit.SECONDS));
+                assertBusy(() -> assertTrue(exchange1.isEmpty()));
+                expectThrows(TaskCancelledException.class, () -> exchange1.getSinkHandlerIfOpen("parked"));
+
+                // a remote sink of its own: the one that fetched takes the exchange as finished and would send no close
+                PlainActionFuture<Void> closed = new PlainActionFuture<>();
+                exchange0.newRemoteSink(parent, "parked", node0, connection).close(closed);
+                closed.actionGet(10, TimeUnit.SECONDS);
+                assertNull("the close is remembered", exchange1.getSinkHandlerIfOpen("parked"));
+
+                // a close for an exchange that is not remembered leaves nothing behind
+                PlainActionFuture<Void> closedUnknown = new PlainActionFuture<>();
+                exchange0.newRemoteSink(parent, "unknown", node0, connection).close(closedUnknown);
+                closedUnknown.actionGet(10, TimeUnit.SECONDS);
+                expectThrows(ResourceNotFoundException.class, () -> exchange1.getSinkHandlerIfOpen("unknown"));
             } finally {
                 node0.getTaskManager().unregister(parent);
             }

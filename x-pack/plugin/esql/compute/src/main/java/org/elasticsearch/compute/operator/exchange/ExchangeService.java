@@ -97,7 +97,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * Exchange ids removed because a fetch for them was cancelled. A compute request that has not yet resolved its sink fails with
      * the cancellation, as it would on the aborted sink. This is not the graceful end that {@link #sourcesFinishedSinks} records: a
      * fetch can be cancelled while its query goes on, and a compute request that completed empty would then report its shards as
-     * successful without any of their rows. Entries expire like those of {@link #sourcesFinishedSinks}.
+     * successful without any of their rows. A close that the coordinator sends afterwards is still recorded in
+     * {@link #sourcesFinishedSinks}, and that one wins. Entries expire like those of {@link #sourcesFinishedSinks}.
      */
     private final Map<String, Long> fetchCancelledSinks = ConcurrentCollections.newConcurrentMap();
     private static final long SOURCES_FINISHED_REMEMBER_NANOS = TimeUnit.MINUTES.toNanos(5);
@@ -217,7 +218,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * until it expires, so a transport retry of the same compute request also completes empty.
      * <p>
      * A sink that was removed because a fetch for it was cancelled throws {@link TaskCancelledException}, unless the coordinator
-     * also finished the exchange: the caller must fail its compute request, since the coordinator may still count on its results.
+     * also finished the exchange, before or after that: the caller must fail its compute request, since the coordinator may still
+     * count on its results.
      */
     @Nullable
     public ExchangeSinkHandler getSinkHandlerIfOpen(String exchangeId) {
@@ -372,6 +374,12 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             };
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
+                // A cancelled fetch may have removed the sink before this close. The coordinator has stopped reading, so the close is
+                // recorded as it is for a sink that is still there, and a late compute request completes empty. Only for an exchange
+                // that is remembered already: a close for any other id leaves nothing behind.
+                if (request.sourcesFinished() && fetchCancelledSinks.containsKey(exchangeId)) {
+                    rememberSourcesFinished(exchangeId);
+                }
                 listener.onResponse(new ExchangeResponse(null, true));
             } else {
                 final CancellableTask task = (CancellableTask) exchangeTask;

@@ -119,6 +119,8 @@ public final class Shapes {
         );
         add(shapes, metrics4());
         add(shapes, dateStrings());
+        add(shapes, nested("nested.novalues", false, Expect.COLUMN));
+        add(shapes, nested("nested.dense", true, Expect.COLUMN_ROWS));
         return Collections.unmodifiableMap(shapes);
     }
 
@@ -153,6 +155,35 @@ public final class Shapes {
             Expect.COLUMN,
             List.of()
         );
+    }
+
+    /**
+     * A keyword {@code host} and a nested {@code comments} of a keyword and a long. With {@code withComments} each document has one to
+     * four comments; without them the mapping is nested and no document uses it, which the batch path takes like a flat mapping.
+     */
+    private static BenchShape nested(String name, boolean withComments, Expect expect) {
+        try {
+            XContentBuilder b = JsonXContent.contentBuilder();
+            b.startObject().startObject("_doc").field("dynamic", false).startObject("properties");
+            b.startObject(TIMESTAMP).field("type", "date").endObject();
+            b.startObject("host").field("type", "keyword").endObject();
+            b.startObject("comments").field("type", "nested").startObject("properties");
+            b.startObject("author").field("type", "keyword").endObject();
+            b.startObject("votes").field("type", "long").endObject();
+            b.endObject().endObject();
+            b.endObject().endObject().endObject();
+            return new BenchShape(
+                name,
+                IndexMode.COLUMNAR,
+                Strings.toString(b),
+                new NestedDocs(withComments),
+                EnumSet.of(Feature.DENSE),
+                expect,
+                List.of()
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static String mapping(String[] names, String type, Map<String, Object> params) {
@@ -202,6 +233,8 @@ public final class Shapes {
 
     public enum Expect {
         COLUMN,
+        /** Maps through columns like {@link #COLUMN}, but has nested children, which are written as rows and not with addBatch. */
+        COLUMN_ROWS,
         FALLBACK_RESOLVE,
         FALLBACK_MAP
     }
@@ -417,6 +450,27 @@ public final class Shapes {
             b.field("bytes_in", r.nextInt(10_000_000));
             b.field("bytes_out", r.nextInt(10_000_000));
             b.field("latency", r.nextInt(100_000));
+        }
+    }
+
+    private record NestedDocs(boolean withComments) implements DocGenerator {
+
+        @Override
+        public JsonKind kind() {
+            return JsonKind.LONG;
+        }
+
+        @Override
+        public void write(XContentBuilder b, Random r, int doc) throws IOException {
+            b.field(TIMESTAMP, ValueDist.MONOTONIC_TS.nextLong(r, doc));
+            b.field("host", "host-" + r.nextInt(100));
+            if (withComments) {
+                b.startArray("comments");
+                for (int c = 1 + r.nextInt(4); c > 0; c--) {
+                    b.startObject().field("author", "author-" + r.nextInt(50)).field("votes", r.nextInt(100)).endObject();
+                }
+                b.endArray();
+            }
         }
     }
 

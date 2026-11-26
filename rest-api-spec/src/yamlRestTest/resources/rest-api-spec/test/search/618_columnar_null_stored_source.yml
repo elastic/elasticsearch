@@ -5,8 +5,8 @@ setup:
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
-      reason: "columnar index mode and bare null handling required"
+      cluster_features: [ "mapper.columnar.bare_null_is_absence", "mapper.columnar.doc_values_no_op" ]
+      reason: "columnar index mode, bare null handling and the index.batch_indexing setting required"
 
   - do:
       indices.create:

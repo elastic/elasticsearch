@@ -58,11 +58,17 @@ public final class TestIndexWriterBuilder {
 
     public static TestIndexWriterBuilder mapped(MapperService mapperService) {
         Objects.requireNonNull(mapperService);
-        return new TestIndexWriterBuilder(
+        final TestIndexWriterBuilder builder = new TestIndexWriterBuilder(
             productionCodec(mapperService),
             mapperService.getIndexSettings().getIndexVersionCreated(),
             productionIndexSort(mapperService)
         );
+        if (mapperService.getIndexSettings().useTimeSeriesSyntheticId()) {
+            // NOTE: the engine merges synthetic id segments through PruningMergePolicy, which unwraps the synthetic id stored fields
+            // reader. This builder does not reproduce that policy, and a plain merge trips the reader's merge thread assertion.
+            builder.disableMerges();
+        }
+        return builder;
     }
 
     /**

@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -249,6 +250,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
@@ -1117,8 +1119,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
 
+        /** A dataset shows its nested scope only to a plan that names a nested operator, as an index does. */
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            boolean nestedScope = FieldNameUtils.namesNestedOperator(plan);
+            return plan.transformUp(
+                UnresolvedExternalRelation.class,
+                relation -> relation.analyzed() || relation.resolved() ? relation : resolve(relation, context, nestedScope)
+            );
+        }
+
         @Override
         protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
+            return resolve(plan, context, FieldNameUtils.namesNestedOperator(plan));
+        }
+
+        private LogicalPlan resolve(UnresolvedExternalRelation plan, AnalyzerContext context, boolean nestedScope) {
             // Extract the table path from the expression
             String tablePath = extractTablePath(plan.tablePath());
             if (tablePath == null) {
@@ -1141,7 +1157,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.source(),
                 tablePath,
                 metadata,
-                withCollectionScope(bindResult.schema(), resolvedSource.collections(), plan.source()),
+                withCollectionScope(
+                    bindResult.schema(),
+                    nestedScope ? NestedColumns.read(metadata.sourceMetadata()) : NestedColumns.NONE,
+                    plan.source()
+                ),
                 resolvedSource.fileList(),
                 resolvedSource.schemaMap(),
                 plan.datasetName(),
@@ -1152,19 +1172,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Adds a dataset's collections to its output as the private nested schema an index has for its {@code nested} fields,
-         * so {@code NESTED_EXPAND} and {@code NESTED_ANY} bind to them as they bind to an index's. The attributes are synthetic,
-         * and {@link HideNestedScopeFields} replaces them with the collections' carriers before the plan runs.
+         * Adds a dataset's nested columns, as its schema describes them, to its output as the private nested schema an index has
+         * for its {@code nested} fields, so {@code NESTED_EXPAND} and {@code NESTED_ANY} bind to them as they bind to an index's.
+         * The attributes are synthetic, and {@link HideNestedScopeFields} replaces them with the collections' carriers before the
+         * plan runs.
          */
-        private static List<Attribute> withCollectionScope(List<Attribute> schema, List<CollectionSchema> collections, Source source) {
-            if (collections.isEmpty()) {
+        private static List<Attribute> withCollectionScope(List<Attribute> schema, NestedColumns nested, Source source) {
+            if (nested.isEmpty()) {
                 return schema;
             }
             Map<String, EsField> roots = new TreeMap<>();
-            for (CollectionSchema collection : collections) {
+            for (NestedColumns.NestedColumn collection : new TreeMap<>(nested.columns()).values()) {
                 Map<String, EsField> children = new TreeMap<>();
-                for (CollectionSchema.Leaf leaf : collection.leaves()) {
-                    String[] parts = leaf.name().split("\\.");
+                for (Map.Entry<String, DataType> leaf : collection.leaves().entrySet()) {
+                    String[] parts = leaf.getKey().split("\\.");
                     Map<String, EsField> parent = children;
                     for (int i = 0; i < parts.length - 1; i++) {
                         parent = parent.computeIfAbsent(
@@ -1173,10 +1194,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         ).getProperties();
                     }
                     String name = parts[parts.length - 1];
-                    EsField read = new EsField(name, leaf.type(), Map.of(), false, EsField.TimeSeriesFieldType.NONE);
+                    EsField read = new EsField(name, leaf.getValue(), Map.of(), false, EsField.TimeSeriesFieldType.NONE);
                     parent.put(
                         name,
-                        new NestedScopeField(name, leaf.type(), Map.of(), collection.path(), NestedScopeField.Kind.VALUE, null, read)
+                        new NestedScopeField(name, leaf.getValue(), Map.of(), collection.path(), NestedScopeField.Kind.VALUE, null, read)
                     );
                 }
                 String[] parts = collection.path().split("\\.");
@@ -1196,7 +1217,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         children,
                         collection.path(),
                         NestedScopeField.Kind.COLLECTION,
-                        collection.unsupported(),
+                        collection.conflict(),
                         null
                     )
                 );

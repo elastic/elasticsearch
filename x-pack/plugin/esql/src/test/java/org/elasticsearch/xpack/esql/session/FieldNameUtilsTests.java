@@ -69,6 +69,13 @@ public class FieldNameUtilsTests extends ESTestCase {
         this.includePrefixFields = includePrefixFields;
     }
 
+    public void testNamesNestedOperator() {
+        assertTrue(FieldNameUtils.namesNestedOperator(TEST_PARSER.parseQuery("FROM d | NESTED_EXPAND answers | KEEP answers.type")));
+        assertTrue(FieldNameUtils.namesNestedOperator(TEST_PARSER.parseQuery("FROM d | WHERE NESTED_ANY(answers, answers.ttl < 60)")));
+        assertTrue(FieldNameUtils.namesNestedOperator(TEST_PARSER.parseQuery("FROM d | EVAL x = nested_any(answers, answers.ttl < 60)")));
+        assertFalse(FieldNameUtils.namesNestedOperator(TEST_PARSER.parseQuery("FROM d | WHERE ttl < 60 | KEEP answers")));
+    }
+
     public void testBasicFromCommand() {
         assertFieldNames("from test", ALL_FIELDS);
     }

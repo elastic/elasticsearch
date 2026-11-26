@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -576,11 +575,6 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
      *  remaining {@link NoConfigFormatReader} methods stay unimplemented to make accidental use
      *  during a rule pass loud. */
     private static class StubReader implements NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -219,11 +218,6 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     private static class MockCsvFormatReader implements NoConfigFormatReader {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -264,11 +258,6 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock TSV format reader for testing.
      */
     private static class MockTsvFormatReader implements NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -431,11 +420,6 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

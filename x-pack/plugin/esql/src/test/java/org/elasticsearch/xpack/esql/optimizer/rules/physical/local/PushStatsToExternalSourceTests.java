@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -1037,11 +1036,6 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
      * Minimal FormatReader stub that provides aggregate pushdown support and optional filter pushability.
      */
     private static class StubFormatReader implements NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         private final AggregatePushdownSupport support;
         private final FilterPushdownSupport filterPushdownSupport;
 

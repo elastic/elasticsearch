@@ -13,7 +13,6 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -83,12 +82,6 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     @Override
     public String formatName() {
         return inner.formatName();
-    }
-
-    @Override
-    public CollectionReads collectionReads() {
-        // Decompression changes the bytes, not the schema
-        return inner.collectionReads();
     }
 
     @Override

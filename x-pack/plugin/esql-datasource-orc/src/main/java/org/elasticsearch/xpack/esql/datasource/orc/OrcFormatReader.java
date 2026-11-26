@@ -63,8 +63,6 @@ import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
@@ -364,31 +362,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             parsedFooters,
             footerBytes
         );
-    }
-
-    /**
-     * ORC's collections are a {@code LIST} of {@code STRUCT}, whose vectors already hold the offsets of
-     * {@code ChildRelationColumns}. They are described so a query naming one
-     * is refused with the reason, not told the field is unknown; the decode into a carrier is not written yet.
-     */
-    @Override
-    public CollectionReads collectionReads() {
-        return object -> {
-            OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
-            try (Reader reader = openReaderCached(fs, new Path(object.path().toString()))) {
-                List<CollectionSchema> collections = new ArrayList<>();
-                walkDottedLeaves(reader.getSchema(), (dottedPath, type, truncated) -> {
-                    boolean listOfStruct = type.getCategory() == TypeDescription.Category.LIST
-                        && type.getChildren().get(0).getCategory() == TypeDescription.Category.STRUCT;
-                    if (truncated == false && listOfStruct) {
-                        collections.add(
-                            new CollectionSchema(dottedPath, List.of(), "reading collections from ORC files is not implemented yet")
-                        );
-                    }
-                });
-                return collections;
-            }
-        };
     }
 
     @Override

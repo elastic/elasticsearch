@@ -60,11 +60,6 @@ public class NoConfigFormatReaderTests extends ESTestCase {
 
     private static class Stub implements NoConfigFormatReader {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -112,11 +107,6 @@ public class NoConfigFormatReaderTests extends ESTestCase {
     }
 
     private static class SegmentableStub implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

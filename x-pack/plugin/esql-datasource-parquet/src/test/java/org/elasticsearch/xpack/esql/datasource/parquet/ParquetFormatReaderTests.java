@@ -9390,10 +9390,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
               }
             }
             """);
-        byte[] data = createParquetFile(schema, factory -> List.of(factory.newGroup().append("id", "a")));
-        List<CollectionSchema> collections = new ParquetFormatReader(blockFactory).collectionReads().collections(createStorageObject(data));
         assertThat(
-            collections,
+            ParquetCollections.describe(schema),
             equalTo(
                 List.of(
                     new CollectionSchema(

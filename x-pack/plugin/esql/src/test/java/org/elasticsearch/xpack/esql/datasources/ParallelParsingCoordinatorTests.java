@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -2825,11 +2824,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      */
     private static class NewlineSegmentableReader implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -2893,11 +2887,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -3025,11 +3014,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      */
     private static class StripePieceLineReader implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -3119,11 +3103,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * observe whether parallel-parsing worker threads can reach a bound sink.
      */
     private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -3217,11 +3196,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      */
     private static class ContextRecordingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -3300,11 +3274,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

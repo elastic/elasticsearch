@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.CountingMtimeStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -1964,11 +1963,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * and the byte length of its buffer, so sibling chunks' pieces tile contiguously exactly as production's do.
      */
     private static class StripePieceLineReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -5939,11 +5933,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      */
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -6119,11 +6108,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * chunk stays gated.
      */
     private static final class GatedLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         private final LineFormatReader delegate;
         private final int gatedChunkIndex;
         private final CountDownLatch gate;
@@ -6213,11 +6197,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * pin all pool buffers in flight and park the segmentator in {@code waitForRecycledBuffer}.
      */
     private static final class AllChunksGatedLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         private final LineFormatReader delegate;
         private final CountDownLatch gate;
         private final AtomicInteger parsersAtGate;
@@ -6290,11 +6269,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * the shape of a declared read over a wide headered file: chunk 0 captures the header names and binds the schema.
      */
     private static final class WideHeaderLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         private final LineFormatReader delegate;
         private final int columns;
 
@@ -6400,11 +6374,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      */
     private static class NeverBoundaryFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -6480,11 +6449,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * key into the sink by a known string.
      */
     private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -6602,11 +6566,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -6697,11 +6656,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * logic but does not model full RFC 4180 quoting.
      */
     private static class QuoteAwareLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

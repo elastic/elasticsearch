@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -2242,16 +2241,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     @Override
     public String formatName() {
         return FormatNameResolver.FORMAT_PARQUET;
-    }
-
-    @Override
-    public CollectionReads collectionReads() {
-        return object -> {
-            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker(), ioWatermark);
-            try (ParquetFileReader reader = openParquetFileCached(object, adapter, readOptionsBuilder().build())) {
-                return ParquetCollections.describe(reader.getFileMetaData().getSchema());
-            }
-        };
     }
 
     /**

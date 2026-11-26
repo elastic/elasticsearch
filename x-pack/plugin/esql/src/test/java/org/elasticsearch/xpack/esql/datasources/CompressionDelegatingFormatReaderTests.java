@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -416,10 +415,6 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
 
     public void testFormatNameAndExtensionsDelegated() {
         FormatReader innerReader = new NoConfigFormatReader() {
-            @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
 
             @Override
             public SourceMetadata metadata(StorageObject object) {
@@ -575,11 +570,6 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     }
 
     private static class CapturingFormatReader implements NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -785,11 +775,6 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
 
     /** Records what the wrapper hands down, and returns a distinct instance so the wrapper must re-wrap. */
     private static class ReadConfigRecordingFormatReader implements NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         String lastReadConfig;
 
         @Override
@@ -831,11 +816,6 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
 
     /** Records the factory the wrapper hands down, and returns a distinct instance so the wrapper must re-wrap. */
     private static class BlockFactoryRecordingFormatReader implements NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         BlockFactory lastFactory;
 
         @Override

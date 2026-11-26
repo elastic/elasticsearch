@@ -295,6 +295,59 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("[measurements.value]"));
     }
 
+    /**
+     * Under {@code union_by_name} the element's fields are the union of every file's, so a field only a later file holds is
+     * readable, and is null on the elements of the files that lack it.
+     */
+    public void testUnionByNameUnitesElementFields() throws Exception {
+        Path dir = writeMeasurementFiles();
+        String dataset = registerDataset("united", StoragePath.fileUri(dir) + "/*.parquet", Map.of("schema_resolution", "union_by_name"));
+        assertRows("FROM " + dataset + " | WHERE NESTED_ANY(measurements, measurements.unit == \"ms\") | KEEP span_id", row("s2"));
+        assertRows(
+            "FROM " + dataset + " | NESTED_EXPAND measurements | KEEP span_id, measurements.name, measurements.unit",
+            row("s1", "latency", null),
+            row("s2", "latency", "ms")
+        );
+    }
+
+    /** Under {@code strict} every file must describe the same element fields. */
+    public void testStrictRefusesDifferentElementFields() throws Exception {
+        Path dir = writeMeasurementFiles();
+        String dataset = registerDataset("strict", StoragePath.fileUri(dir) + "/*.parquet", Map.of("schema_resolution", "strict"));
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM " + dataset + " | NESTED_EXPAND measurements | KEEP span_id")).close()
+        );
+        assertThat(e.getMessage(), containsString("has nested columns"));
+    }
+
+    /** Two files whose measurements differ in one field: the second also records the unit. */
+    private Path writeMeasurementFiles() throws IOException {
+        String template = """
+            message spans {
+              required binary span_id (UTF8);
+              optional group measurements (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary name (UTF8);
+                    %s
+                  }
+                }
+              }
+            }
+            """;
+        Path dir = createTempDir();
+        write(dir, "a", MessageTypeParser.parseMessageType(Strings.format(template, "")), List.of(g -> {
+            g.add("span_id", "s1");
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency");
+        }));
+        write(dir, "b", MessageTypeParser.parseMessageType(Strings.format(template, "optional binary unit (UTF8);")), List.of(g -> {
+            g.add("span_id", "s2");
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency").append("unit", "ms");
+        }));
+        return dir;
+    }
+
     public void testCollectionInsideElementIsRefused() throws Exception {
         MessageType schema = MessageTypeParser.parseMessageType("""
             message traces {

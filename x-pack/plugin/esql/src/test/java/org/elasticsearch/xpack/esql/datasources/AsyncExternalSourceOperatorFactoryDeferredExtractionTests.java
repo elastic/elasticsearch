@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
@@ -641,11 +640,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      */
     private static final class NonProducerAwareReader implements NoConfigFormatReader, ColumnExtractorAware {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -959,11 +953,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      * ({@code 0..rows-1}), in projection order — mirroring a real reader's emission contract.
      */
     private static final class ProjectionEchoReader implements NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         private final int rows;
 
         ProjectionEchoReader(int rows) {
@@ -1064,11 +1053,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      */
     private static final class RowPositionOnlyReader implements NoConfigFormatReader, ColumnExtractorAware {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -1156,11 +1140,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      */
     private static final class FailOnReadExtractorAwareReader implements NoConfigFormatReader, ColumnExtractorAware {
         @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
-        @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
         }
@@ -1197,11 +1176,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      * the assigned extractor id into the high bits before downstream operators see it.
      */
     private static final class FormatReader_RowPositionEmitting implements NoConfigFormatReader, ColumnExtractorAware {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;
@@ -1358,11 +1332,6 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
     /** Same shape as the row-position emitting reader minus the {@link ColumnExtractorAware} mixin. */
     private static final class PlainFormatReader implements NoConfigFormatReader {
-        @Override
-        public CollectionReads collectionReads() {
-            return CollectionReads.NONE;
-        }
-
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

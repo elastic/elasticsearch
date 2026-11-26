@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.CollectionReads;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -2400,11 +2399,6 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicBoolean sawScopeOnForeign = new AtomicBoolean();
         ExecutorService io = Executors.newSingleThreadExecutor();
         RangeAwareFormatReader reader = new RangeAwareFormatReader() {
-            @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
-
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
@@ -7130,10 +7124,6 @@ public class FileSplitProviderTests extends ESTestCase {
         SplitRange range3 = new SplitRange(4, 196, Map.of("_stats.row_count", 200L));
 
         RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
-            @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
 
             private int callCount = 0;
             private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
@@ -7240,11 +7230,6 @@ public class FileSplitProviderTests extends ESTestCase {
             List.of(new SplitRange(0, 300, high))
         );
         RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
-            @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
-
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
@@ -8240,11 +8225,6 @@ public class FileSplitProviderTests extends ESTestCase {
     private static RangeAwareFormatReader readerMissing(String objectName, AtomicBoolean missing, Condition condition) {
         return new RangeAwareFormatReader() {
             @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
-
-            @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
             }
@@ -8856,11 +8836,6 @@ public class FileSplitProviderTests extends ESTestCase {
         List<SplitRange> uncounted = List.of(new SplitRange(0, 2000));
         return new RangeAwareFormatReader() {
             @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
-
-            @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
             }
@@ -9099,11 +9074,6 @@ public class FileSplitProviderTests extends ESTestCase {
         DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         return new RangeAwareFormatReader() {
             @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
-
-            @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
             }
@@ -9210,11 +9180,6 @@ public class FileSplitProviderTests extends ESTestCase {
     ) {
         DirectBufferFactory factory = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
         return new RangeAwareFormatReader() {
-            @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
-
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
@@ -9338,10 +9303,6 @@ public class FileSplitProviderTests extends ESTestCase {
         boolean serveCachedRanges
     ) {
         return new RangeAwareFormatReader() {
-            @Override
-            public CollectionReads collectionReads() {
-                return CollectionReads.NONE;
-            }
 
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {

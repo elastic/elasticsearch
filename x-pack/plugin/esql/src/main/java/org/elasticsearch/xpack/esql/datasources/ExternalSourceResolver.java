@@ -1337,33 +1337,6 @@ public class ExternalSourceResolver {
         }
     }
 
-    /**
-     * The resolution with the collections each source's first file holds, for a query whose {@code NESTED_EXPAND} or
-     * {@code NESTED_ANY} reads them. Only such a query pays for describing them. A collection is described from one file, as a
-     * first-file-wins schema is; a file whose element lacks a leaf reads it as null.
-     */
-    public ExternalSourceResolution withCollections(ExternalSourceResolution resolution) {
-        Map<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> resolved = new HashMap<>(resolution.resolved());
-        resolved.replaceAll((spec, source) -> withCollections(source, spec.path(), spec.config()));
-        return new ExternalSourceResolution(resolved, resolution.warnings());
-    }
-
-    private ExternalSourceResolution.ResolvedSource withCollections(
-        ExternalSourceResolution.ResolvedSource resolved,
-        String path,
-        Map<String, Object> config
-    ) {
-        FileList files = resolved.fileList();
-        String first = files != null && files.fileCount() > 0 ? files.path(0).toString() : path;
-        for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
-            if (factory.canHandle(first, config)) {
-                // A failure to read the description is the query's failure: swallowed, it would read as a missing column
-                return resolved.withCollections(factory.resolveCollections(first, config));
-            }
-        }
-        return resolved;
-    }
-
     private void resolveSourceInner(
         String path,
         Map<String, Object> config,

@@ -38,7 +38,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -343,8 +342,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                     var converter = indexedColumn.converter();
 
                     Block block = page.getBlock(indexedColumn.blockIndex());
-                    converter.addFieldNodes(block, indexedColumn.asList(), nodes);
-                    converter.convert(block, indexedColumn.asList(), bufs, bufWriters, releasables);
+                    converter.convert(block, indexedColumn.asList(), nodes, bufs, bufWriters, releasables);
                 }
 
                 // Consistency check
@@ -394,30 +392,18 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         }
     }
 
-    private static final BlockArrowFormatter TO_BE_IMPLEMENTED_MARKER = new BlockArrowFormatter(DataType.UNSUPPORTED, MinorType.NULL) {
-        @Override
-        public void convert(Block block, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {}
-    };
-
     /**
      * Converters for every ES|QL type
      */
     static final EnumMap<DataType, BlockArrowFormatter> ESQL_FORMATTERS;
 
-    // DataTypes that don't have an Arrow formatter but should for completeness with other formats
-    // See https://github.com/elastic/elasticsearch/issues/146394
-    static final EnumSet<DataType> TO_BE_IMPLEMENTED_FORMATTERS;
-
     static {
         ESQL_FORMATTERS = new EnumMap<>(DataType.class);
-        TO_BE_IMPLEMENTED_FORMATTERS = EnumSet.noneOf(DataType.class);
         for (var type : DataType.values()) {
             var formatter = formatterForType(type);
             assert (formatter != null) == DataType.isRepresentableInOutput(type)
                 : "Unexpected Arrow formatter registration for [" + type + "]";
-            if (formatter == TO_BE_IMPLEMENTED_MARKER) {
-                TO_BE_IMPLEMENTED_FORMATTERS.add(type);
-            } else if (formatter != null) {
+            if (formatter != null) {
                 ESQL_FORMATTERS.put(type, formatter);
             }
         }
@@ -425,7 +411,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
     /**
      * Converters for every ES|QL response type. Returns null for types excluded by
-     * {@link DataType#isRepresentableInOutput(DataType)}, or {@link #TO_BE_IMPLEMENTED_MARKER} for pending formatters.
+     * {@link DataType#isRepresentableInOutput(DataType)}.
      */
     private static BlockArrowFormatter formatterForType(DataType type) {
         // Explicitly list every unsupported type so that compilation fails when we add a new type and must take care of it.
@@ -472,7 +458,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case DENSE_VECTOR -> new BlockArrowFormatter.AsDenseVector(type);
 
             case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
-            case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
+            case EXPONENTIAL_HISTOGRAM -> new BlockArrowFormatter.AsExponentialHistogram(type);
             case FLATTENED -> new BlockArrowFormatter.AsJson(type);
             // Geo grid cells don't fit in GeoArrow. Geohash and geohex are output as their long block value.
             // Geohash uses all 64 bits (60 bits of hash + 4 bits of level), so it's output as unsigned.
@@ -481,7 +467,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case GEOHASH -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
             case GEOHEX -> new BlockArrowFormatter.AsInt64(type);
             case GEOTILE -> new BlockArrowFormatter.AsGeoTile(type);
-            case HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
+            case HISTOGRAM -> new BlockArrowFormatter.AsHistogram(type);
             case TDIGEST -> new BlockArrowFormatter.AsTDigest(type);
 
             // Types that should not appear in ESQL outputs

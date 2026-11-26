@@ -13,6 +13,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Map;
@@ -111,6 +112,17 @@ public class SearchCaptureContext extends QueryCaptureContext {
 
     public boolean hasAggregations() {
         return response != null && response.hasAggregations();
+    }
+
+    /**
+     * The search load, CPU time and waiting of the search, or {@code null} if it reported none.
+     */
+    @Nullable
+    SearchLoadMetrics getSearchLoad() {
+        if (response == null) {
+            return null;
+        }
+        return response.getDirectoryMetrics().metrics(SearchLoadMetrics.NAME) instanceof SearchLoadMetrics metrics ? metrics : null;
     }
 
     @Override

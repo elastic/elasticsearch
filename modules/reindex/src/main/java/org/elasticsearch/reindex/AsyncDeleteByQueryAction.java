@@ -58,7 +58,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
             maxTaskShutdownGracePeriod,
             reindexSettings,
             requestBreaker,
-            "delete_by_query_bulk_batch"
+            "delete_by_query_bulk_batch",
+            "delete_by_query_search_hits"
         );
     }
 
@@ -85,7 +86,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
      */
     @Override
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
-        copyRouting(request, doc.getRouting());
+        copyRouting(request, doc);
         return request;
     }
 

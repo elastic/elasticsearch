@@ -1175,7 +1175,7 @@ public class TestAnalyzer {
             new EsIndex(
                 indexName,
                 EsqlTestUtils.loadMapping(resource),
-                Map.of(indexName, new IndexProperties(indexMode, 1, IndexVersion.current().id())),
+                Map.of(indexName, new IndexProperties(indexMode, 1, IndexVersion.current().id(), null)),
                 grouped,
                 grouped
             )

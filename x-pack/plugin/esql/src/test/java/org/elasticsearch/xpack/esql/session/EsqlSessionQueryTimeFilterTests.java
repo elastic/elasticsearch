@@ -507,12 +507,16 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
             indexFilters.add(indexFilter);
             List<FieldCapabilitiesIndexResponse> indices = new ArrayList<>();
             for (String index : matchingIndices.apply(indexFilter)) {
-                indices.add(new FieldCapabilitiesIndexResponse(index, index, mapping(index), true, IndexMode.STANDARD, 0, 0, 0, 0));
+                indices.add(new FieldCapabilitiesIndexResponse(index, index, mapping(index), true, IndexMode.STANDARD, 0, 0, 0, 0, null));
             }
             EsqlResolveFieldsResponse response = new EsqlResolveFieldsResponse(
                 FieldCapabilitiesResponse.builder()
                     .withIndexResponses(indices)
                     .withResolvedLocally(new ResolvedIndexExpressions(List.of(), null))
+                    // Every node is on the current version, as field caps reports for a cluster that is not being upgraded.
+                    // Without a version the session plans for the oldest node that it is compatible with, and warns that
+                    // such a node gets the request filter in the indices of a view rather than on its output.
+                    .withMinTransportVersion(TransportVersion.current())
                     .build()
             );
             fieldCapsThreadPool.executor(ThreadPool.Names.SEARCH_COORDINATION).execute(() -> listener.onResponse(response));

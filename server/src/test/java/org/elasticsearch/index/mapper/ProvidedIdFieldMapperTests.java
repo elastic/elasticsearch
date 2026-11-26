@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -318,7 +319,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         ProvidedIdFieldMapper mapper = (ProvidedIdFieldMapper) mapperService.documentMapper().mappers().getMapper(IdFieldMapper.NAME);
         assertNotNull(mapper);
-        assertTrue("supportsColumnarParse must be true for _id", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        assertTrue("supportsColumnarParse must be true for _id", mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("doc-1"), new IndexRequest("index").id("doc-2") };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);

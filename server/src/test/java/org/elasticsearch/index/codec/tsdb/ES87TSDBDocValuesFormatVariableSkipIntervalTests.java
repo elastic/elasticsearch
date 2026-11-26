@@ -30,12 +30,15 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.LongSupplier;
 
 /** Tests ES87TSDBDocValuesFormat with custom skipper interval size. */
+@RunWith(ESRandomizedRunner.class)
 public class ES87TSDBDocValuesFormatVariableSkipIntervalTests extends BaseDocValuesFormatTestCase {
 
     @Override

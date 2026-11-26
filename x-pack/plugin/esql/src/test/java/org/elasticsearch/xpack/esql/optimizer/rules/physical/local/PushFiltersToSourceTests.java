@@ -339,6 +339,34 @@ public class PushFiltersToSourceTests extends ESTestCase {
         );
     }
 
+    /**
+     * N5: an expanded column of a scan that reads a collection at element grain is no column of the file, so a conjunct
+     * on it stays in the FilterExec, over the expanded rows, while one on a parent column is pushed as usual. The stub
+     * reader would accept both, so only the rule holds the element conjunct back.
+     */
+    public void testElementColumnPredicateStaysAboveExpandingScan() {
+        FieldAttribute id = fieldAttr("id", DataType.INTEGER);
+        FieldAttribute qty = fieldAttr("items.qty", DataType.INTEGER);
+        ExternalSourceExec scan = parquetSourceWithSplits(List.of(id)).withExpansion(
+            new ExternalSourceExec.Expansion("items", List.of(qty), List.of("qty"), FormatReader.NO_LIMIT)
+        );
+        Expression onParent = new Equals(SRC, id, intLiteral(1));
+        Expression onElement = new Equals(SRC, qty, intLiteral(5));
+        FilterExec filterExec = new FilterExec(SRC, scan, new And(SRC, onParent, onElement));
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        FilterExec kept = as(result, FilterExec.class);
+        assertEquals(onElement, kept.condition());
+        ExternalSourceExec pushed = as(kept.child(), ExternalSourceExec.class);
+        assertEquals(List.of(onParent), pushed.pushedExpressions());
+        assertEquals(scan.expansion(), pushed.expansion());
+
+        // Positive control: the same conjunct over a scan that does not expand is pushed whole
+        FilterExec plain = new FilterExec(SRC, parquetSourceWithSplits(List.of(id, qty)), onElement);
+        assertThat(applyRule(plain, registry(true)), instanceOf(ExternalSourceExec.class));
+    }
+
     /** A whole-file split stamped with no read schema, as an older coordinator (or a file with no schema entry) sends. */
     private static FileSplit unstampedSplit(String fileName) {
         return new FileSplit("parquet", StoragePath.of("file:///data/" + fileName), 0, 1, "parquet", Map.of(), Map.of());

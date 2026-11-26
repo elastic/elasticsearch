@@ -997,6 +997,84 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
     }
 
     /**
+     * W2/W4, an expanding read: the page carries the element column and the parent ordinals after the file's columns.
+     * Parent 0 has three element rows and a timestamp the merged type cannot hold, parent 1 one row and a good one. The
+     * trailing blocks are carried through and filtered with the dropped rows, and the budget is charged once per parent:
+     * with {@code max_errors: 1}, charging the three rows would fail the read.
+     */
+    public void testSkipRowOnExpandedRowsCarriesTrailingBlocksAndChargesPerParent() {
+        List<Attribute> schema = List.of(attr("ts", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long year3000Millis = 32_503_680_000_000L;
+        Page inputPage = new Page(
+            blockFactory.newLongArrayVector(new long[] { year3000Millis, year3000Millis, year3000Millis, 1_000L }, 4).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 10, 11, 12, 20 }, 4).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 0, 0, 0, 1 }, 4).asBlock()
+        );
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1L, 1.0, false);
+        SharedErrorBudget budget = SharedErrorBudget.forPolicy(skipRow, "test.parquet");
+        budget.addReaderBatch(2, 0);
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                new DataType[] { DataType.DATETIME },
+                w -> {},
+                ColumnarRowDropHelper.forSharedBudget(budget),
+                2
+            )
+        ) {
+            Page result = iter.next();
+            try {
+                assertThat(result.getPositionCount(), equalTo(1));
+                assertThat(result.getBlockCount(), equalTo(3));
+                assertThat(((LongBlock) result.getBlock(0)).getLong(0), equalTo(1_000_000_000L));
+                assertThat(((LongBlock) result.getBlock(1)).getLong(0), equalTo(20L));
+                assertThat(((IntBlock) result.getBlock(2)).getInt(0), equalTo(1));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+        assertThat("one parent dropped, one error", budget.errorCount(), equalTo(1L));
+        assertThat("the reader owns the row count", budget.rowCount(), equalTo(2L));
+    }
+
+    /** Without a drop, an expanding read's trailing blocks follow the mapped columns as they are, even for an identity mapping. */
+    public void testTrailingBlocksFollowAnIdentityMapping() {
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, null);
+        Page inputPage = new Page(
+            blockFactory.newLongArrayVector(new long[] { 1, 1 }, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 10, 11 }, 2).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 0, 0 }, 2).asBlock()
+        );
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(inputPage),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                null,
+                null,
+                null,
+                2
+            )
+        ) {
+            Page result = iter.next();
+            try {
+                assertThat(result.getBlockCount(), equalTo(3));
+                assertThat(((LongBlock) result.getBlock(1)).getLong(1), equalTo(11L));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+    }
+
+    /**
      * Under {@code error_mode: null_field}, a failed reconciliation cast still null-fills the cell
      * and keeps the row (unchanged behavior — not affected by this fix).
      */

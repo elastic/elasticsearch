@@ -419,9 +419,16 @@ public final class ExternalSourceAggregatePushdown {
      *   <li>{@code FilterExec -> EvalExec -> ExternalSourceExec}</li>
      *   <li>{@code FilterExec -> ProjectExec -> ExternalSourceExec}</li>
      * </ul>
-     * Returns null if the subtree doesn't match any recognized pattern.
+     * Returns null if the subtree doesn't match any recognized pattern, or if the source reads a collection at element
+     * grain ({@link ExternalSourceExec#expansion()}): its rows are elements, so neither the file statistics nor the file
+     * row counts describe them.
      */
     static ExternalSourceInfo extractExternalSource(PhysicalPlan child) {
+        ExternalSourceInfo info = extractExternalSourceShape(child);
+        return info == null || info.externalExec().expansion() != null ? null : info;
+    }
+
+    private static ExternalSourceInfo extractExternalSourceShape(PhysicalPlan child) {
         if (child instanceof ExternalSourceExec ext) {
             if (ext.pushedFilter() != null) {
                 return null;

@@ -26,13 +26,17 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.CollectionSchema;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 import org.elasticsearch.xpack.esql.datasources.spi.ExpandedRows;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -42,6 +46,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -61,6 +66,7 @@ import java.util.function.Supplier;
  * file lacks is null on every element, and a list inside the element is that leaf's multivalue.
  */
 final class ParquetExpansion {
+    private static final Logger logger = LogManager.getLogger(ParquetExpansion.class);
 
     /**
      * What one file's read of an {@link ExpandRead} needs before an iterator exists: the collection's shape, taken from
@@ -71,9 +77,10 @@ final class ParquetExpansion {
      * list of that one primitive. Levels do not depend on sibling fields, so the shape stays valid for the projection.
      *
      * @param shape         the collection's shape in the file, or {@code null} when the file has no such collection
-     * @param nulled        requested leaves this file stores at a type that cannot be converted, read as null under
-     *                      {@code null_field}
-     * @param dropReason    under {@code skip_row}, why every row of the file is dropped; {@code null} otherwise
+     * @param nulled        requested leaves this file stores at a type that does not widen to the requested one, read as
+     *                      null under every error policy
+     * @param absent        the dotted names of what the read asks for and this file lacks, the collection itself or some
+     *                      of its leaves: they read as null and are announced as an absent column is
      * @param parentColumns the leading blocks of the iterator's page that are the projection; any after them are the
      *                      pushed filter's own columns and are not part of the output
      * @param rowBudget     the rows one batch may expand to, the read's batch size
@@ -82,7 +89,7 @@ final class ParquetExpansion {
         ExpandRead read,
         @Nullable ParquetCollections.Shape shape,
         Set<String> nulled,
-        @Nullable String dropReason,
+        List<String> absent,
         int parentColumns,
         int rowBudget,
         String fileLocation,
@@ -91,11 +98,13 @@ final class ParquetExpansion {
     ) {
 
         /**
-         * Resolves {@code read} against {@code fileSchema}. A leaf whose type in the file cannot be converted to the
-         * requested type is decided by the read's error policy as a declared column is
-         * ({@link DeclaredTypeCoercions#onUncoercibleColumn}): {@code fail_fast} fails the read, {@code null_field}
-         * reads the leaf as null, and {@code skip_row} drops every row of the file, which the caller does when
-         * {@link #dropReason} is set.
+         * Resolves {@code read} against {@code fileSchema}. A leaf's requested type is the one schema discovery merged
+         * across the files ({@link TypeWidening#join}): an inferred type, not a declared one. So a leaf is handled as an
+         * inferred column is ({@code ParquetFormatReader#validatePlannerTypesAgainstFile}), together with the
+         * reconciliation cast that merge implies ({@code ColumnMapping#alignToQuery}): a file storing a type that widens
+         * to the requested one converts each value, and a file storing any other type reads the leaf as null, with a
+         * warning, under every error policy. A value the widening cannot represent is the error policy's; see
+         * {@link #expand}.
          */
         static Spec of(
             MessageType fileSchema,
@@ -108,35 +117,35 @@ final class ParquetExpansion {
         ) {
             ParquetCollections.Shape shape = ParquetCollections.shape(fileSchema, read.path());
             Set<String> nulled = new HashSet<>();
-            String dropReason = null;
-            if (shape != null) {
+            List<String> absent = new ArrayList<>();
+            if (shape == null) {
+                absent.add(read.path());
+            } else {
                 if (shape.collection().unsupported() != null) {
                     throw new IllegalArgumentException(shape.collection().unsupported());
                 }
                 List<String> nullDetails = new ArrayList<>();
-                SkipWarnings dropWarnings = null;
                 for (ExpandRead.Leaf wanted : read.leaves()) {
+                    String name = read.path() + "." + wanted.name();
                     CollectionSchema.Leaf inFile = shape.leaf(wanted.name());
-                    if (inFile == null || inFile.type() == wanted.type() || DeclaredTypeCoercions.supports(inFile.type(), wanted.type())) {
+                    if (inFile == null) {
+                        absent.add(name);
                         continue;
                     }
-                    String name = read.path() + "." + wanted.name();
-                    if (errorPolicy.isStrict()) {
-                        DeclaredTypeCoercions.onUncoercibleColumn(name, fileLocation, inFile.type(), wanted.type(), null);
-                    } else if (errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
-                        if (dropWarnings == null) {
-                            dropWarnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsDropSummary(fileLocation), warningSink);
-                        }
-                        DeclaredTypeCoercions.onUncoercibleColumn(name, fileLocation, inFile.type(), wanted.type(), dropWarnings);
-                        if (dropReason == null) {
-                            dropReason = DeclaredTypeCoercions.uncoercibleColumnDetail(name, inFile.type(), wanted.type());
-                        }
-                    } else {
-                        nullDetails.add(DeclaredTypeCoercions.uncoercibleColumnDetail(name, inFile.type(), wanted.type()));
+                    if (widens(inFile.type(), wanted.type())) {
+                        continue;
                     }
+                    nullDetails.add(DeclaredTypeCoercions.uncoercibleColumnDetail(name, inFile.type(), wanted.type()));
+                    logger.warn(
+                        "Column [{}] in [{}] is [{}] in the file, [{}] in the query; returning null",
+                        name,
+                        fileLocation,
+                        inFile.type().typeName(),
+                        wanted.type().typeName()
+                    );
                     nulled.add(wanted.name());
                 }
-                if (nullDetails.isEmpty() == false && dropReason == null) {
+                if (nullDetails.isEmpty() == false) {
                     SkipWarnings nullWarnings = new SkipWarnings(
                         DeclaredTypeCoercions.uncoercibleColumnsNullSummary(fileLocation),
                         warningSink
@@ -144,7 +153,26 @@ final class ParquetExpansion {
                     nullDetails.forEach(nullWarnings::add);
                 }
             }
-            return new Spec(read, shape, Set.copyOf(nulled), dropReason, parentColumns, rowBudget, fileLocation, errorPolicy, warningSink);
+            return new Spec(
+                read,
+                shape,
+                Set.copyOf(nulled),
+                List.copyOf(absent),
+                parentColumns,
+                rowBudget,
+                fileLocation,
+                errorPolicy,
+                warningSink
+            );
+        }
+
+        /**
+         * Whether a leaf the file stores as {@code inFile} reads as {@code wanted}: the same type, or a widening the merge
+         * across files produces, which a reconciliation cast converts value by value. A narrowing or an unrelated type
+         * is not what discovery merged for a file storing it, so the leaf reads as null, as an inferred column does.
+         */
+        static boolean widens(DataType inFile, DataType wanted) {
+            return inFile == wanted || (TypeWidening.join(inFile, wanted) == wanted && DeclaredTypeCoercions.supports(inFile, wanted));
         }
 
         /**
@@ -188,6 +216,8 @@ final class ParquetExpansion {
     private SkipWarnings castWarnings;
     /** The rows of the batch {@link #decodeBatch} decoded and {@link #expand} has not yet joined; {@code -1} for none. */
     private int batchRows = -1;
+    /** The parents the last {@link #expand} dropped for an element value it could not convert, under {@code skip_row}. */
+    private int lastDroppedParents;
 
     private ParquetExpansion(
         Spec spec,
@@ -328,12 +358,20 @@ final class ParquetExpansion {
     /**
      * Joins the batch {@link #decodeBatch} decoded to {@code parents}, the rows of that batch the iterator kept, and
      * returns the expanded page. Takes ownership of {@code parents}, releasing it whether or not this succeeds.
+     * <p>
+     * Under {@code skip_row}, an element value that cannot be converted to its leaf's type drops the element's parent,
+     * every row it would expand to, as a column value that cannot be converted drops its row. The iterator's row limit
+     * counted the batch's parents before this drop, so it gives them back by {@link #lastDroppedParents()}, and charges
+     * them, one error per parent, with {@link #chargeDroppedParents} outside its failure wrapping: a spent budget is a
+     * fault of the client's data, not a failure to read the file.
      *
      * @param survivors the batch positions {@code parents} holds, ascending, or {@code null} when it holds them all
+     * @param skipRow   whether the read's policy is {@code skip_row}
      */
-    Page expand(Page parents, @Nullable int[] survivors) {
+    Page expand(Page parents, @Nullable int[] survivors, boolean skipRow) {
         int rows = batchRows;
         batchRows = -1;
+        lastDroppedParents = 0;
         IntVector elementParents = null;
         Block[] values = new Block[leaves.length];
         Page projected = null;
@@ -341,17 +379,29 @@ final class ParquetExpansion {
             if (rows < 0) {
                 throw new IllegalStateException("no elements of [" + path() + "] were decoded for this batch");
             }
-            projected = projection(parents);
+            // Owned by the projection from here, so the failure path below cannot release it twice
+            Page input = parents;
             parents = null;
+            projected = projection(input);
             if (primary == null) {
                 elementParents = blockFactory.newConstantIntVector(0, 0);
             } else {
                 elementParents = primary.finishParents();
             }
+            FailedElements failed = skipRow ? new FailedElements(elementParents.getPositionCount()) : null;
             for (int l = 0; l < leaves.length; l++) {
                 if (leaves[l] != null) {
-                    values[l] = leaves[l].finishValues(this::castWarnings);
+                    values[l] = leaves[l].finishValues(this::castWarnings, failed);
                 }
+            }
+            if (failed != null && failed.any()) {
+                int[] kept = keptParents(failed, elementParents, survivors, rows, projected.getPositionCount());
+                int dropped = projected.getPositionCount() - kept.length;
+                Page narrowed = projected.filter(false, keptPositionsInPage(failed, elementParents, survivors, rows));
+                projected.releaseBlocks();
+                projected = narrowed;
+                survivors = kept;
+                lastDroppedParents = dropped;
             }
         } catch (RuntimeException e) {
             discardBatch();
@@ -365,31 +415,123 @@ final class ParquetExpansion {
             }
             throw e;
         }
-        return ExpandedRows.expand(projected, survivors, rows, elementParents, values, blockFactory);
+        return ExpandedRows.expand(projected, survivors, rows, elementParents, values, spec.read().parentOrdinals(), blockFactory);
     }
 
-    /** {@code page} without the trailing blocks of the pushed filter's own columns, which are not part of the output. */
+    /**
+     * Charges the parents the last {@link #expand} dropped to {@code dropHelper}'s budget, one error each, and fails the
+     * read when that spends it. Releases {@code page}, the expanded page, when it fails.
+     */
+    void chargeDroppedParents(@Nullable ColumnarRowDropHelper dropHelper, Page page) {
+        if (lastDroppedParents == 0 || dropHelper == null) {
+            return;
+        }
+        try {
+            dropHelper.addToTotals(0, lastDroppedParents);
+            dropHelper.checkBudget();
+        } catch (RuntimeException e) {
+            page.releaseBlocks();
+            throw e;
+        }
+    }
+
+    /** The parents the last {@link #expand} dropped under {@code skip_row} for an element value it could not convert. */
+    int lastDroppedParents() {
+        return lastDroppedParents;
+    }
+
+    /** The batch positions whose parent survives the batch's earlier drops and has no element that failed to convert. */
+    private static int[] keptParents(FailedElements failed, IntVector elementParents, @Nullable int[] survivors, int rows, int parents) {
+        boolean[] failedParent = failedParents(failed, elementParents, rows);
+        int[] kept = new int[parents];
+        int k = 0;
+        for (int p = 0; p < parents; p++) {
+            int batchPosition = survivors == null ? p : survivors[p];
+            if (failedParent[batchPosition] == false) {
+                kept[k++] = batchPosition;
+            }
+        }
+        return Arrays.copyOf(kept, k);
+    }
+
+    /** The positions, in the page of surviving parents, of the parents {@link #keptParents} keeps. */
+    private static int[] keptPositionsInPage(FailedElements failed, IntVector elementParents, @Nullable int[] survivors, int rows) {
+        boolean[] failedParent = failedParents(failed, elementParents, rows);
+        int parents = survivors == null ? rows : survivors.length;
+        int[] kept = new int[parents];
+        int k = 0;
+        for (int p = 0; p < parents; p++) {
+            int batchPosition = survivors == null ? p : survivors[p];
+            if (failedParent[batchPosition] == false) {
+                kept[k++] = p;
+            }
+        }
+        return Arrays.copyOf(kept, k);
+    }
+
+    private static boolean[] failedParents(FailedElements failed, IntVector elementParents, int rows) {
+        boolean[] failedParent = new boolean[rows];
+        for (int e = 0; e < elementParents.getPositionCount(); e++) {
+            if (failed.at(e)) {
+                failedParent[elementParents.getInt(e)] = true;
+            }
+        }
+        return failedParent;
+    }
+
+    /** The elements of a batch whose value of some leaf could not be converted, under {@code skip_row}. */
+    private static final class FailedElements implements IntConsumer {
+        private final boolean[] failed;
+        private boolean any;
+
+        FailedElements(int elements) {
+            this.failed = new boolean[elements];
+        }
+
+        @Override
+        public void accept(int element) {
+            failed[element] = true;
+            any = true;
+        }
+
+        boolean any() {
+            return any;
+        }
+
+        boolean at(int element) {
+            return failed[element];
+        }
+    }
+
+    /**
+     * {@code page} without the trailing blocks of the pushed filter's own columns, which are not part of the output.
+     * Takes ownership of {@code page}: the trailing blocks are released only once the page they leave is built, and
+     * that release cannot throw, so no block is released twice.
+     */
     private Page projection(Page page) {
         int keep = spec.parentColumns();
         if (page.getBlockCount() == keep) {
             return page;
         }
         Block[] kept = new Block[keep];
+        Block[] extra = new Block[page.getBlockCount() - keep];
         for (int b = 0; b < page.getBlockCount(); b++) {
             if (b < keep) {
                 kept[b] = page.getBlock(b);
             } else {
-                page.getBlock(b).close();
+                extra[b - keep] = page.getBlock(b);
             }
         }
-        return new Page(page.getPositionCount(), kept);
+        Page projected = new Page(page.getPositionCount(), kept);
+        Releasables.closeExpectNoException(extra);
+        return projected;
     }
 
     /**
      * The sink for values of a leaf that cannot be converted to the requested type, or {@code null} under a strict
-     * policy, which fails the read instead. Its own sink rather than the iterator's: the iterator's says the rows are
-     * skipped under {@code skip_row}, but a failed element value is nulled under every lenient policy and its row kept,
-     * and dropping the parent instead would be decided only after the parent row had been read.
+     * policy, which fails the read instead. Its own sink rather than the iterator's, which names the file's columns:
+     * this one names the collection. Under {@code skip_row} the parent of such a value is dropped ({@link #expand});
+     * under any other lenient policy the value is null and its row kept.
      */
     @Nullable
     private SkipWarnings castWarnings() {
@@ -397,9 +539,9 @@ final class ParquetExpansion {
             return null;
         }
         if (castWarnings == null) {
-            String prefix = "Some values of [" + path() + "] in [" + spec.fileLocation() + "] cannot be read as their declared type; ";
+            String prefix = "Some values of [" + path() + "] in [" + spec.fileLocation() + "] cannot be read as their merged type; ";
             castWarnings = new SkipWarnings(
-                prefix + "returning null",
+                spec.errorPolicy().mode() == ErrorPolicy.Mode.SKIP_ROW ? prefix + "skipping their rows" : prefix + "returning null",
                 prefix + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 spec.warningSink()
             );
@@ -667,8 +809,11 @@ final class ParquetExpansion {
             }
         }
 
-        /** The values of every element of the batch at the requested type; the caller owns the block. */
-        Block finishValues(Supplier<SkipWarnings> castWarnings) {
+        /**
+         * The values of every element of the batch at the requested type; the caller owns the block. A value the cast
+         * cannot represent is null, and its element is told to {@code failed} when one is given.
+         */
+        Block finishValues(Supplier<SkipWarnings> castWarnings, @Nullable IntConsumer failed) {
             Block.Builder values = builder;
             builder = null;
             if (values == null) {
@@ -682,7 +827,16 @@ final class ParquetExpansion {
                 return physical;
             }
             try (physical) {
-                return DeclaredTypeCoercions.castBlock(physical, fileType, emitType, null, blockFactory, columnName, castWarnings.get());
+                return DeclaredTypeCoercions.castBlock(
+                    physical,
+                    fileType,
+                    emitType,
+                    null,
+                    blockFactory,
+                    columnName,
+                    castWarnings.get(),
+                    failed
+                );
             }
         }
 

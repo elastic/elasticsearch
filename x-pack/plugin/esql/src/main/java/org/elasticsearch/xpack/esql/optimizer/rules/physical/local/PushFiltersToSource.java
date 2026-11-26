@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware.FinishedTransl
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -320,16 +321,24 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // row through. A YES conjunct would then never be re-checked and the query would keep every row of
         // the widened file; retaining it in the FilterExec re-checks it on the cast page. RECHECK and NO
         // conjuncts already end up in the remainder, so this only adds the YES ones.
+        //
+        // Conjuncts on an expanded column of a scan that reads a collection at element grain are held back the same
+        // way: such a column is no column of the file, and a predicate the reader applied to it as one would be applied
+        // to the parents, before they are expanded, or not at all. On the parents' own columns a conjunct is pushed as
+        // usual, since filtering parents before the expansion filters the rows they expand to.
         Set<String> partitionColumnNames = externalExec.partitionColumnNames();
         Set<String> castColumnNames = externalExec.reconciliationCastColumnNames(referencedColumnNames(filters, partitionColumnNames));
+        AttributeSet elementColumns = externalExec.expansion() == null
+            ? AttributeSet.EMPTY
+            : AttributeSet.of(externalExec.expansion().attributes());
         List<Expression> partitionConjuncts = new ArrayList<>();
         List<Expression> castConjuncts = new ArrayList<>();
         List<Expression> pushableCandidates = new ArrayList<>();
-        if (partitionColumnNames.isEmpty() && castColumnNames.isEmpty()) {
+        if (partitionColumnNames.isEmpty() && castColumnNames.isEmpty() && elementColumns.isEmpty()) {
             pushableCandidates = filters;
         } else {
             for (Expression filter : filters) {
-                if (referencesAnyColumn(filter, partitionColumnNames)) {
+                if (referencesAnyColumn(filter, partitionColumnNames) || filter.references().stream().anyMatch(elementColumns::contains)) {
                     partitionConjuncts.add(filter);
                 } else {
                     pushableCandidates.add(filter);

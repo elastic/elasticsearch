@@ -4012,12 +4012,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 ? lateMaterializationSurvivors
                 : (rowDropHelper != null && rowDropHelper.hasFailures() ? rowDropHelper.survivorPositions() : null);
             try {
-                result = expansion.expand(result, survivors);
+                result = expansion.expand(result, survivors, rowDropHelper != null);
+                parentRows -= expansion.lastDroppedParents();
             } catch (CircuitBreakingException e) {
                 throw e;
             } catch (Exception e) {
                 throw ParquetReadFailures.wrap(e, expansionFailureContext());
             }
+            expansion.chargeDroppedParents(rowDropHelper, result);
         }
 
         pageBatchIndexInRowGroup++;

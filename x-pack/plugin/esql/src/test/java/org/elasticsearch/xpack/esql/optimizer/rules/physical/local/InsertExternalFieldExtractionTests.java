@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -95,6 +96,21 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         // shape with no extract operator downstream, where deferred mode would create a
         // SourceExtractors registry nothing ever closes.
         assertTrue("narrowed source must carry the deferred-extraction flag", narrowed.deferredExtraction());
+    }
+
+    /**
+     * A deferred column is re-read by row position, which addresses a file row; a scan that reads a collection at
+     * element grain emits elements, so the plan the happy path above rewrites is left alone once the scan expands.
+     */
+    public void testNoOpWhenSourceExpands() {
+        List<Attribute> schema = sixColumnSchema();
+        FieldAttribute qty = field("items.qty", DataType.LONG);
+        ExternalSourceExec source = parquetSource(schema, /* pushedFilter = */ null).withExpansion(
+            new ExternalSourceExec.Expansion("items", List.of(qty), List.of("qty"), FormatReader.NO_LIMIT)
+        );
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        assertEquals(topN, applyRule(topN, columnExtractorAwareRegistry()));
     }
 
     /**

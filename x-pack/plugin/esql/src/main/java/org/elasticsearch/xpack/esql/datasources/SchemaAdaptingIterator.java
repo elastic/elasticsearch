@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
@@ -132,6 +133,13 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
      */
     @Nullable
     private String[] pendingAbsentColumnNames;
+    /**
+     * Blocks at the end of the delegate's page that are no column of the file, carried as they are after the mapped
+     * columns: the element columns and parent ordinals of an expanding read (see {@code ExpandRead}). {@code 0} for any
+     * other read. When rows are dropped they are dropped from these blocks too, and the error budget is charged once per
+     * parent, read from the last of them, since every row of a parent carries the same failing parent value.
+     */
+    private final int trailingBlocks;
 
     private SkipWarnings castWarnings() {
         if (castWarnings == null) {
@@ -199,6 +207,33 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         @Nullable Consumer<String> informationalWarningSink,
         @Nullable ColumnarRowDropHelper dropHelper
     ) {
+        this(
+            delegate,
+            outputSchema,
+            mapping,
+            blockFactory,
+            rowPositionInputIndex,
+            perFileColumnTypes,
+            informationalWarningSink,
+            dropHelper,
+            0
+        );
+    }
+
+    SchemaAdaptingIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> outputSchema,
+        ColumnMapping mapping,
+        BlockFactory blockFactory,
+        int rowPositionInputIndex,
+        @Nullable DataType[] perFileColumnTypes,
+        @Nullable Consumer<String> informationalWarningSink,
+        @Nullable ColumnarRowDropHelper dropHelper,
+        int trailingBlocks
+    ) {
+        if (trailingBlocks > 0 && rowPositionInputIndex >= 0) {
+            throw new IllegalArgumentException("a read with trailing blocks carries no row positions");
+        }
         if (outputSchema.size() != mapping.width()) {
             throw new IllegalArgumentException(
                 "output schema size ["
@@ -216,6 +251,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         this.perFileColumnTypes = perFileColumnTypes;
         this.informationalWarningSink = informationalWarningSink;
         this.dropHelper = dropHelper;
+        this.trailingBlocks = trailingBlocks;
         this.outputColumnNames = outputSchema.stream().map(Attribute::name).toArray(String[]::new);
         this.expectedElementTypes = outputSchema.stream()
             .map(a -> DeclaredTypeCoercions.elementTypeFor(a.dataType()))
@@ -288,7 +324,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         // already in the correct shape. Validate types in-place and return without mapPage's
         // per-block incRef/alloc overhead (O(columns) atomics saved per page on wide schemas).
         // emitAbsentColumnWarningsOnce is inside the guard so filePage is released if it throws.
-        if (mapping.isIdentity() && rowPositionInputIndex < 0) {
+        if (mapping.isIdentity() && rowPositionInputIndex < 0 && trailingBlocks == 0) {
             try {
                 validateOutputTypes(filePage);
                 // Emit only after validation: if the page has wrong types the query fails hard;
@@ -327,7 +363,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                     // included here so its count stays consistent with the filtered schema blocks.
                     int schemaWidth = schemaAdapted.getBlockCount();
                     boolean hasRowPos = rowPositionInputIndex >= 0;
-                    int totalWidth = hasRowPos ? schemaWidth + 1 : schemaWidth;
+                    int totalWidth = schemaWidth + (hasRowPos ? 1 : 0) + trailingBlocks;
                     Block[] filtered = new Block[totalWidth];
                     boolean schemaReleased = false;
                     try {
@@ -339,10 +375,21 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                             filtered[schemaWidth] = filePage.getBlock(rowPositionInputIndex);
                             filtered[schemaWidth].incRef();
                         }
+                        int firstTrailing = filePage.getBlockCount() - trailingBlocks;
+                        for (int t = 0; t < trailingBlocks; t++) {
+                            filtered[schemaWidth + t] = filePage.getBlock(firstTrailing + t);
+                            filtered[schemaWidth + t].incRef();
+                        }
+                        // Counted before the filter: once dropped, a row's parent is gone from the ordinals too
+                        int[] errorsAndRows = trailingBlocks > 0 ? droppedParents(filePage) : null;
                         schemaAdapted.releaseBlocks();
                         schemaReleased = true;
                         filtered = dropHelper.filterBlocks(filtered, blockFactory);
-                        dropHelper.addToTotals(originalPositions, dropped);
+                        if (errorsAndRows != null) {
+                            dropHelper.addToTotals(errorsAndRows[1], errorsAndRows[0]);
+                        } else {
+                            dropHelper.addToTotals(originalPositions, dropped);
+                        }
                         dropHelper.checkBudget();
                         return new Page(originalPositions - dropped, filtered);
                     } catch (Throwable e) {
@@ -358,6 +405,9 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
                 // No failures this page: update row totals only. addToTotals with zero errors
                 // cannot trip the budget (error count is unchanged), so checkBudget is elided.
                 dropHelper.addToTotals(originalPositions, 0);
+            }
+            if (trailingBlocks > 0) {
+                return withTrailingBlocks(schemaAdapted, filePage);
             }
             if (rowPositionInputIndex < 0) {
                 return schemaAdapted;
@@ -393,6 +443,72 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
             }
         } finally {
             filePage.releaseBlocks();
+        }
+    }
+
+    /**
+     * For an expanding read, the parents of {@code filePage} that this page's drops remove, as
+     * {@code [dropped parents, parents]}: every row of a parent carries the same parent values, so a failing value drops
+     * all of them, and the budget counts file rows, as the reader that owns its row count does. The parents are read from
+     * the last trailing block, the parent ordinals, which number the page's parents from {@code 0} in row order.
+     */
+    private int[] droppedParents(Page filePage) {
+        IntBlock ordinals = filePage.getBlock(filePage.getBlockCount() - 1);
+        int[] survivors = dropHelper.survivorPositions();
+        boolean[] survives = new boolean[filePage.getPositionCount()];
+        for (int position : survivors) {
+            survives[position] = true;
+        }
+        int parents = 0;
+        int dropped = 0;
+        int lastParent = -1;
+        boolean lastDropped = false;
+        for (int row = 0; row < filePage.getPositionCount(); row++) {
+            int parent = ordinals.getInt(ordinals.getFirstValueIndex(row));
+            if (parent != lastParent) {
+                parents++;
+                lastParent = parent;
+                lastDropped = false;
+            }
+            if (survives[row] == false && lastDropped == false) {
+                dropped++;
+                lastDropped = true;
+            }
+        }
+        return new int[] { dropped, parents };
+    }
+
+    /** {@code schemaAdapted} followed by the trailing blocks of {@code filePage}; releases {@code schemaAdapted}. */
+    private Page withTrailingBlocks(Page schemaAdapted, Page filePage) {
+        int width = schemaAdapted.getBlockCount();
+        Block[] blocks = new Block[width + trailingBlocks];
+        boolean schemaAdaptedReleased = false;
+        try {
+            for (int i = 0; i < width; i++) {
+                blocks[i] = schemaAdapted.getBlock(i);
+                blocks[i].incRef();
+            }
+            int firstTrailing = filePage.getBlockCount() - trailingBlocks;
+            for (int t = 0; t < trailingBlocks; t++) {
+                blocks[width + t] = filePage.getBlock(firstTrailing + t);
+                blocks[width + t].incRef();
+            }
+            int positions = schemaAdapted.getPositionCount();
+            schemaAdapted.releaseBlocks();
+            schemaAdaptedReleased = true;
+            return new Page(positions, blocks);
+        } catch (Throwable e) {
+            Releasables.closeExpectNoException(blocks);
+            if (schemaAdaptedReleased == false) {
+                schemaAdapted.releaseBlocks();
+            }
+            if (e instanceof RuntimeException r) {
+                throw r;
+            }
+            if (e instanceof Error err) {
+                throw err;
+            }
+            throw new RuntimeException("Failed to adapt page", e);
         }
     }
 

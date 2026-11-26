@@ -50,8 +50,25 @@ public final class ExpandedRows {
         Block[] elements,
         BlockFactory blockFactory
     ) {
+        return expand(parents, survivors, batchRows, elementParents, elements, false, blockFactory);
+    }
+
+    /**
+     * As {@link #expand(Page, int[], int, IntVector, Block[], BlockFactory)}, and with {@code parentOrdinals} the page ends
+     * with the {@link ExpandRead#parentOrdinals() parent-ordinal} block: per row, the position in {@code parents} of the
+     * row it repeats.
+     */
+    public static Page expand(
+        Page parents,
+        @Nullable int[] survivors,
+        int batchRows,
+        IntVector elementParents,
+        Block[] elements,
+        boolean parentOrdinals,
+        BlockFactory blockFactory
+    ) {
         long reserved = 0;
-        Block[] columns = new Block[elements.length];
+        Block[] columns = new Block[elements.length + (parentOrdinals ? 1 : 0)];
         Page repeated = null;
         try {
             int parentCount = parents.getPositionCount();
@@ -87,6 +104,9 @@ public final class ExpandedRows {
                 } else {
                     columns[c] = select(block, elementPositions, blockFactory);
                 }
+            }
+            if (parentOrdinals) {
+                columns[elements.length] = blockFactory.newIntArrayVector(parentPositions, rows).asBlock();
             }
             Page out = repeated.appendBlocks(columns);
             if (repeated == parents) {

@@ -49,6 +49,11 @@ public class InjectRowPositionForRecordRef extends PhysicalOptimizerRules.Parame
 
     @Override
     protected ExternalSourceExec rule(ExternalSourceExec source, LocalPhysicalOptimizerContext ctx) {
+        if (source.expansion() != null) {
+            // A row position addresses a file row, and an expanding scan's rows are elements; PushNestedExpandToExternalSource
+            // refuses a record reference over one, so there is nothing to inject
+            return source;
+        }
         boolean positionRequested = false;
         boolean rowPositionPresent = false;
         for (Attribute a : source.output()) {

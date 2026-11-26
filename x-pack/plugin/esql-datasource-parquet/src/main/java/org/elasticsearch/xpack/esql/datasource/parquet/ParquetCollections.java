@@ -102,6 +102,11 @@ final class ParquetCollections {
      */
     private static void leaves(GroupType group, String prefix, String path, List<CollectionSchema.Leaf> out, String[] unsupported) {
         for (Type child : group.getFields()) {
+            if (child.getName().indexOf('.') >= 0) {
+                // A leaf is named by its dotted path inside the element, so a field whose own name holds a dot would
+                // resolve to another field, or to none; it is not offered, as a map or a variant is not
+                continue;
+            }
             String name = prefix + child.getName();
             if (child.isPrimitive()) {
                 DataType type = leafType(child.asPrimitiveType());

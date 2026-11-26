@@ -25,6 +25,7 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -51,8 +52,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
@@ -280,16 +286,22 @@ public class ParquetExpansionTests extends ESTestCase {
             both.rows,
             equalTo(List.of(Arrays.asList(0L, ref("a"), null), Arrays.asList(0L, null, null), Arrays.asList(1L, null, null)))
         );
-        Expanded alone = read(data, context(List.of("id"), leaf("color", DataType.KEYWORD)));
+        List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        Expanded alone = read(data, context(List.of("id"), leaf("color", DataType.KEYWORD)).informationalWarningSink(warnings::add));
         assertThat(alone.rows, equalTo(List.of(Arrays.asList(0L, null), Arrays.asList(0L, null), Arrays.asList(1L, null))));
+        // S3: announced as an absent column is
+        assertThat(warnings, equalTo(List.of(SkipWarnings.absentColumnMessage("items.color"))));
     }
 
     /** A file without the collection keeps every parent as one null row. */
     public void testFileWithoutCollection() throws Exception {
         MessageType flat = MessageTypeParser.parseMessageType("message t { required int64 id; }");
         byte[] data = write(flat, factory -> List.of(factory.newGroup().append("id", 0L), factory.newGroup().append("id", 1L)));
-        Expanded read = read(data, context(List.of("id"), leaf("sku", DataType.KEYWORD)));
+        List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        Expanded read = read(data, context(List.of("id"), leaf("sku", DataType.KEYWORD)).informationalWarningSink(warnings::add));
         assertThat(read.rows, equalTo(List.of(Arrays.asList(0L, null), Arrays.asList(1L, null))));
+        // S3: announced as an absent column is
+        assertThat(warnings, equalTo(List.of(SkipWarnings.absentColumnMessage("items"))));
     }
 
     /** A leaf the file stores as another type is converted to the requested one when that conversion exists. */
@@ -306,69 +318,160 @@ public class ParquetExpansionTests extends ESTestCase {
     }
 
     /**
-     * An element value that cannot be converted is nulled under a lenient policy and its row kept, and the warning says
-     * so rather than that rows were skipped; a strict policy fails the read.
+     * S2: a leaf's type is inferred, so a file storing a type that does not widen to it reads the leaf as null, with a
+     * warning, under every error policy, as an inferred column does ({@code validatePlannerTypesAgainstFile}). Neither a
+     * narrowing (a long read as an integer) nor an unrelated type (a long read as a boolean) fails the read or drops its
+     * rows, and the leaves the file can supply still read.
      */
-    public void testCastFailureNullsTheValueTruthfully() throws Exception {
+    public void testLeafThatDoesNotWidenReadsAsNullUnderEveryPolicy() throws Exception {
         byte[] data = write(SCHEMA, factory -> {
             Group r0 = factory.newGroup().append("id", 0L);
             Group items = r0.addGroup("items");
-            items.addGroup("list").addGroup("element").append("pid", 1L << 40);
-            items.addGroup("list").addGroup("element").append("pid", 5L);
-            return List.of(r0);
+            items.addGroup("list").addGroup("element").append("pid", 1L << 40).append("sku", "a");
+            items.addGroup("list").addGroup("element").append("pid", 5L).append("sku", "b");
+            return List.of(r0, factory.newGroup().append("id", 1L));
         });
-        for (ErrorPolicy.Mode mode : List.of(ErrorPolicy.Mode.SKIP_ROW, ErrorPolicy.Mode.NULL_FIELD)) {
-            List<String> warnings = new ArrayList<>();
-            Expanded read = read(
-                data,
-                context(List.of("id"), leaf("pid", DataType.INTEGER)).errorPolicy(new ErrorPolicy(mode, Long.MAX_VALUE, 0.0, false))
-                    .informationalWarningSink(warnings::add)
-            );
-            assertThat(mode.toString(), read.rows, equalTo(List.of(Arrays.asList(0L, null), Arrays.asList(0L, 5))));
-            assertThat(warnings, hasItem(containsString("cannot be read as their declared type; returning null")));
-            for (String warning : warnings) {
-                assertFalse(warning, warning.contains("skipping"));
+        for (ErrorPolicy policy : List.of(
+            ErrorPolicy.STRICT,
+            ErrorPolicy.PERMISSIVE,
+            new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false)
+        )) {
+            for (DataType type : List.of(DataType.INTEGER, DataType.BOOLEAN)) {
+                List<String> warnings = new ArrayList<>();
+                Expanded read = read(
+                    data,
+                    context(List.of("id"), leaf("pid", type), leaf("sku", DataType.KEYWORD)).errorPolicy(policy)
+                        .informationalWarningSink(warnings::add)
+                );
+                String what = policy.mode() + " " + type;
+                assertThat(
+                    what,
+                    read.rows,
+                    equalTo(List.of(Arrays.asList(0L, null, ref("a")), Arrays.asList(0L, null, ref("b")), Arrays.asList(1L, null, null)))
+                );
+                assertThat(
+                    what,
+                    warnings,
+                    hasItem(containsString("column [items.pid]: [long] in the file, [" + type.typeName() + "] in the query"))
+                );
             }
         }
-        Exception e = expectThrows(
-            Exception.class,
-            () -> read(data, context(List.of("id"), leaf("pid", DataType.INTEGER)).errorPolicy(ErrorPolicy.STRICT))
-        );
-        assertThat(causeMessages(e), containsString("out of range for an integer"));
     }
 
     /**
-     * A leaf whose type in the file cannot be converted at all is decided as a declared column is: {@code fail_fast}
-     * fails, {@code null_field} reads it as null, and {@code skip_row} drops every row of the file.
+     * S1: under {@code skip_row}, an element value the widening cast cannot represent drops its parent, every row of it,
+     * as a column value drops its row, and charges the read's budget once for that parent; {@code null_field} nulls the
+     * value and keeps the row; {@code fail_fast} fails the read. A millisecond timestamp past 2262 has no nanosecond value.
      */
-    public void testUnconvertibleLeafFollowsTheColumnPrecedent() throws Exception {
-        byte[] data = write(SCHEMA, factory -> {
-            Group r0 = factory.newGroup().append("id", 0L);
-            r0.addGroup("items").addGroup("list").addGroup("element").append("pid", 0L).append("sku", "a");
-            return List.of(r0, factory.newGroup().append("id", 1L));
+    public void testElementCastFailureDropsTheParentUnderSkipRow() throws Exception {
+        MessageType millis = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int64 at (TIMESTAMP(MILLIS, true));
+                  }
+                }
+              }
+            }
+            """);
+        long year3000 = 32_503_680_000_000L;
+        byte[] data = write(millis, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (long r = 0; r < 4; r++) {
+                Group g = factory.newGroup().append("id", r);
+                Group items = g.addGroup("items");
+                items.addGroup("list").addGroup("element").append("at", 1_000L);
+                items.addGroup("list").addGroup("element").append("at", r == 1 ? year3000 : 2_000L);
+                items.addGroup("list").addGroup("element").append("at", r == 1 ? year3000 : 3_000L);
+                groups.add(g);
+            }
+            return groups;
         });
-        ExpandRead.Leaf bad = leaf("pid", DataType.BOOLEAN);
-        Exception e = expectThrows(Exception.class, () -> read(data, context(List.of("id"), bad).errorPolicy(ErrorPolicy.STRICT)));
-        assertThat(causeMessages(e), containsString("column [items.pid] in ["));
-        assertThat(causeMessages(e), containsString("is [long] in the file and cannot be read as its declared type [boolean]"));
-
-        List<String> nullWarnings = new ArrayList<>();
-        Expanded nulled = read(
-            data,
-            context(List.of("id"), bad, leaf("sku", DataType.KEYWORD)).errorPolicy(ErrorPolicy.PERMISSIVE)
-                .informationalWarningSink(nullWarnings::add)
-        );
-        assertThat(nulled.rows, equalTo(List.of(Arrays.asList(0L, null, ref("a")), Arrays.asList(1L, null, null))));
-        assertThat(nullWarnings, hasItem(containsString("column [items.pid]: [long] in the file, [boolean] in the query")));
-
-        List<String> dropWarnings = new ArrayList<>();
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        SharedErrorBudget budget = SharedErrorBudget.forPolicy(skipRow, "memory://expand.parquet");
+        List<String> warnings = new ArrayList<>();
         Expanded dropped = read(
             data,
-            context(List.of("id"), bad).errorPolicy(new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 0.0, false))
-                .informationalWarningSink(dropWarnings::add)
+            context(List.of("id"), leaf("at", DataType.DATE_NANOS)).errorPolicy(skipRow)
+                .sharedErrorBudget(budget)
+                .informationalWarningSink(warnings::add)
         );
-        assertThat(dropped.rows, equalTo(List.of()));
-        assertThat(dropWarnings, hasItem(containsString("skipping the file's rows")));
+        assertThat(dropped.rows.stream().map(row -> row.get(0)).distinct().toList(), equalTo(List.of(0L, 2L, 3L)));
+        assertThat(dropped.rows.size(), equalTo(9));
+        assertThat("one parent, one error", budget.errorCount(), equalTo(1L));
+        assertThat(warnings, hasItem(containsString("cannot be read as their merged type; skipping their rows")));
+
+        Expanded nulled = read(
+            data,
+            context(List.of("id"), leaf("at", DataType.DATE_NANOS)).errorPolicy(ErrorPolicy.PERMISSIVE).informationalWarningSink(w -> {})
+        );
+        assertThat(nulled.rows.size(), equalTo(12));
+        assertThat(nulled.rows.get(4).get(1), equalTo(null));
+        assertThat(nulled.rows.get(3).get(1), equalTo(1_000_000_000L));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> read(data, context(List.of("id"), leaf("at", DataType.DATE_NANOS)).errorPolicy(ErrorPolicy.STRICT))
+        );
+        assertThat(causeMessages(e), containsString("column [items.at]: cannot read [datetime] as [date_nanos]"));
+    }
+
+    /**
+     * S1 against a finite budget: the dropped parents are charged one error each, across batches, so a budget of one
+     * error passes one dropped parent and fails at the second, whatever the number of their elements.
+     */
+    public void testElementCastFailuresAcrossBatchesSpendTheBudgetPerParent() throws Exception {
+        MessageType millis = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int64 at (TIMESTAMP(MILLIS, true));
+                  }
+                }
+              }
+            }
+            """);
+        long year3000 = 32_503_680_000_000L;
+        Function<Set<Long>, byte[]> fixture = bad -> {
+            try {
+                return write(millis, factory -> {
+                    List<Group> groups = new ArrayList<>();
+                    for (long r = 0; r < 20; r++) {
+                        Group g = factory.newGroup().append("id", r);
+                        Group items = g.addGroup("items");
+                        for (int e = 0; e < 5; e++) {
+                            items.addGroup("list").addGroup("element").append("at", bad.contains(r) ? year3000 : 1_000L);
+                        }
+                        groups.add(g);
+                    }
+                    return groups;
+                }, 7, 0);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        ErrorPolicy oneError = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 1.0, false);
+        Expanded read = read(
+            fixture.apply(Set.of(9L)),
+            context(List.of("id"), leaf("at", DataType.DATE_NANOS)).batchSize(10).errorPolicy(oneError).informationalWarningSink(w -> {})
+        );
+        assertThat(read.rows.size(), equalTo(19 * 5));
+        assertThat("the batches cut through the file", read.pageRows.size(), greaterThan(2));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> read(
+                fixture.apply(Set.of(3L, 15L)),
+                context(List.of("id"), leaf("at", DataType.DATE_NANOS)).batchSize(10)
+                    .errorPolicy(oneError)
+                    .informationalWarningSink(w -> {})
+            )
+        );
+        assertThat(causeMessages(e), containsString("dropped rows"));
     }
 
     /** The projection holds the requested leaves of the element and none of its other leaves. */
@@ -584,9 +687,11 @@ public class ParquetExpansionTests extends ESTestCase {
         assertThat("the limit spans several batches", read.pageRows.size(), greaterThan(1));
     }
 
-    /** A row position addresses a file row, so a read that expands refuses to carry one. */
-    public void testRowPositionsRefused() throws Exception {
-        byte[] data = write(SCHEMA, factory -> List.of(factory.newGroup().append("id", 0L)));
+    /**
+     * A row position addresses a file row, so a read that expands refuses to carry one. Both read contexts refuse it
+     * when they are built, which is the reader's only way in, so the reader keeps no check of its own.
+     */
+    public void testRowPositionsRefused() {
         ExpandRead expand = new ExpandRead("items", List.of(leaf("pid", DataType.LONG)));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -597,16 +702,85 @@ public class ParquetExpansionTests extends ESTestCase {
                 .build()
         );
         assertThat(e.getMessage(), containsString("cannot carry [" + ColumnExtractor.ROW_POSITION_COLUMN + "]"));
-        assertNotNull(data);
+        RangeReadContext range = new RangeReadContext(
+            List.of("id", ColumnExtractor.ROW_POSITION_COLUMN),
+            10,
+            0,
+            1,
+            List.of(),
+            ErrorPolicy.STRICT
+        );
+        e = expectThrows(IllegalArgumentException.class, () -> range.setExpandRead(expand));
+        assertThat(e.getMessage(), containsString("cannot carry [" + ColumnExtractor.ROW_POSITION_COLUMN + "]"));
     }
 
     /**
      * Every block is charged to the read's breaker and released by the time the read is closed, whether the read
      * finished or a breaker trip at any point of it failed it. The limits span reads that cannot start to reads that
-     * finish, so trips land in the decode, the parent columns and the join.
+     * finish.
      */
     public void testBreakerReleasedOnSuccessAndFailure() throws Exception {
-        byte[] data = write(SCHEMA, factory -> {
+        byte[] data = breakerFixture();
+        int tripped = 0;
+        int finished = 0;
+        for (long limit = 1024; limit <= 8 * 1024 * 1024; limit *= 2) {
+            LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(limit));
+            blockFactory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
+            try {
+                Expanded read = read(data, breakerContext());
+                assertThat(read.rows.size(), equalTo(48 * 40 + 12));
+                finished++;
+            } catch (CircuitBreakingException e) {
+                tripped++;
+            }
+            assertThat("breaker at limit " + limit, breaker.getUsed(), equalTo(0L));
+        }
+        assertThat("some limit must trip the breaker", tripped, greaterThan(0));
+        assertThat("some limit must let the read finish", finished, greaterThan(0));
+    }
+
+    /**
+     * S4: where a trip lands. A breaker that trips on the n-th charge of one label fails the read exactly there: in the
+     * join's position arrays ({@code expand_read}) or in a block the decode or the parent columns build. Either way the
+     * read fails with the trip and leaves the breaker at zero.
+     */
+    public void testBreakerTripInTheJoinOrInABlockReleasesEverything() throws Exception {
+        byte[] data = breakerFixture();
+        for (String label : List.of("expand_read", "<esql_block_factory>")) {
+            for (int nth : new int[] { 1, 3, 10 }) {
+                TrippingBreaker breaker = new TrippingBreaker(label, nth);
+                blockFactory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
+                expectThrows(CircuitBreakingException.class, () -> read(data, breakerContext()));
+                assertThat(label + " #" + nth, breaker.tripped, equalTo(true));
+                assertThat(label + " #" + nth, breaker.getUsed(), equalTo(0L));
+            }
+        }
+    }
+
+    /** Trips on the {@code nth} charge labelled {@code label}, and charges everything else without a limit. */
+    private static final class TrippingBreaker extends LimitedBreaker {
+        private final String label;
+        private int remaining;
+        private boolean tripped;
+
+        TrippingBreaker(String label, int nth) {
+            super("test", ByteSizeValue.ofGb(1));
+            this.label = label;
+            this.remaining = nth;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String chargeLabel) {
+            if (tripped == false && label.equals(chargeLabel) && bytes > 0 && --remaining == 0) {
+                tripped = true;
+                throw new CircuitBreakingException("tripped on [" + chargeLabel + "]", bytes, 0, CircuitBreaker.Durability.TRANSIENT);
+            }
+            super.addEstimateBytesAndMaybeBreak(bytes, chargeLabel);
+        }
+    }
+
+    private static byte[] breakerFixture() throws IOException {
+        return write(SCHEMA, factory -> {
             List<Group> groups = new ArrayList<>();
             for (int r = 0; r < 60; r++) {
                 Group g = factory.newGroup().append("id", (long) r).append("label", "label" + r);
@@ -620,26 +794,11 @@ public class ParquetExpansionTests extends ESTestCase {
             }
             return groups;
         });
-        int tripped = 0;
-        int finished = 0;
-        for (long limit = 1024; limit <= 8 * 1024 * 1024; limit *= 2) {
-            LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(limit));
-            blockFactory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
-            try {
-                Expanded read = read(
-                    data,
-                    context(List.of("id", "label"), leaf("pid", DataType.LONG), leaf("sku", DataType.KEYWORD), leaf("qty", DataType.LONG))
-                        .batchSize(64)
-                );
-                assertThat(read.rows.size(), equalTo(48 * 40 + 12));
-                finished++;
-            } catch (CircuitBreakingException e) {
-                tripped++;
-            }
-            assertThat("breaker at limit " + limit, breaker.getUsed(), equalTo(0L));
-        }
-        assertThat("some limit must trip the breaker", tripped, greaterThan(0));
-        assertThat("some limit must let the read finish", finished, greaterThan(0));
+    }
+
+    private static FormatReadContext.Builder breakerContext() {
+        return context(List.of("id", "label"), leaf("pid", DataType.LONG), leaf("sku", DataType.KEYWORD), leaf("qty", DataType.LONG))
+            .batchSize(64);
     }
 
     /**
@@ -820,6 +979,142 @@ public class ParquetExpansionTests extends ESTestCase {
         assertThat(read.rows.size(), equalTo(50));
         for (List<Object> row : read.rows) {
             assertThat(row.get(2), equalTo(row.get(0)));
+        }
+    }
+
+    /**
+     * S4: {@code readRange} expands as {@code read} does, and the parent ordinals an operator factory asks for end each
+     * page, numbering its parents from {@code 0}.
+     */
+    public void testReadRangeExpandsWithParentOrdinals() throws Exception {
+        byte[] data = write(SCHEMA, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (long r = 0; r < 3; r++) {
+                Group g = factory.newGroup().append("id", r);
+                if (r != 1) {
+                    Group items = g.addGroup("items");
+                    items.addGroup("list").addGroup("element").append("pid", r);
+                    items.addGroup("list").addGroup("element").append("pid", r);
+                }
+                groups.add(g);
+            }
+            return groups;
+        });
+        RangeReadContext range = new RangeReadContext(
+            List.of("id"),
+            1000,
+            0,
+            data.length,
+            List.of(new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG)),
+            ErrorPolicy.STRICT
+        );
+        range.setExpandRead(new ExpandRead("items", List.of(leaf("pid", DataType.LONG)), true));
+        ParquetFormatReader reader = reader();
+        reader.clearFooterCachesForTests();
+        List<List<Object>> rows = new ArrayList<>();
+        try (CloseableIterator<Page> pages = reader.readRange(storage(data, false, new AtomicLong()), range)) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        List<Object> row = new ArrayList<>();
+                        for (int b = 0; b < page.getBlockCount(); b++) {
+                            row.add(BlockUtils.toJavaObject(page.getBlock(b), p));
+                        }
+                        rows.add(row);
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertThat(
+            rows,
+            equalTo(
+                List.of(
+                    Arrays.asList(0L, 0L, 0),
+                    Arrays.asList(0L, 0L, 0),
+                    Arrays.asList(1L, null, 1),
+                    Arrays.asList(2L, 2L, 2),
+                    Arrays.asList(2L, 2L, 2)
+                )
+            )
+        );
+    }
+
+    /**
+     * S4: page-index row ranges skip pages of the parent columns, and the element leaves, repeated columns synchronised
+     * through their offset index, skip with them, so every element row still sits beside its own parent.
+     */
+    public void testPageIndexRowRangesKeepElementsWithTheirParents() throws Exception {
+        byte[] data = write(SCHEMA, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (long r = 0; r < 40; r++) {
+                Group g = factory.newGroup().append("id", r);
+                Group items = g.addGroup("items");
+                for (int e = 0; e < 1 + r % 3; e++) {
+                    items.addGroup("list").addGroup("element").append("pid", r).append("sku", "s" + r);
+                }
+                groups.add(g);
+            }
+            return groups;
+        }, 0, 4);
+        ReferenceAttribute id = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new GreaterThanOrEqual(Source.EMPTY, id, new Literal(Source.EMPTY, 30L, DataType.LONG), null);
+        Expanded read = read(
+            data,
+            context(List.of("id"), leaf("pid", DataType.LONG), leaf("sku", DataType.KEYWORD)).batchSize(8),
+            r -> r.withPushedFilter(new ParquetPushedExpressions(List.of(filter)))
+        );
+        long expected = 0;
+        for (long r = 30; r < 40; r++) {
+            expected += 1 + r % 3;
+        }
+        for (List<Object> row : read.rows) {
+            assertThat(row.get(1), equalTo(row.get(0)));
+            assertThat(row.get(2), equalTo(ref("s" + row.get(0))));
+        }
+        if (optimized) {
+            // The baseline iterator's record filter is parquet-mr's, which may leave rows for the FilterExec above
+            assertThat(read.rows.size(), equalTo((int) expected));
+        }
+    }
+
+    /**
+     * S4: late materialization over a batch that keeps every parent, followed by one whose survivors interleave with
+     * dropped parents: the survivors of each batch, and only they, are expanded, beside their own elements.
+     */
+    public void testLateMaterializationFullBatchThenInterleavedSurvivors() throws Exception {
+        byte[] data = write(SCHEMA, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (long r = 0; r < 20; r++) {
+                Group g = factory.newGroup().append("id", r).append("n", r < 5 || r % 2 == 1 ? 1L : 0L);
+                Group items = g.addGroup("items");
+                items.addGroup("list").addGroup("element").append("pid", r);
+                items.addGroup("list").addGroup("element").append("pid", r);
+                groups.add(g);
+            }
+            return groups;
+        });
+        ReferenceAttribute n = new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG);
+        Expression filter = new Equals(Source.EMPTY, n, new Literal(Source.EMPTY, 1L, DataType.LONG), null);
+        Expanded read = read(
+            data,
+            context(List.of("id", "n"), leaf("pid", DataType.LONG)).batchSize(10),
+            r -> r.withPushedFilter(new ParquetPushedExpressions(List.of(filter)))
+        );
+        for (List<Object> row : read.rows) {
+            assertThat(row.get(2), equalTo(row.get(0)));
+        }
+        if (optimized) {
+            List<Long> ids = new ArrayList<>();
+            for (long r = 0; r < 20; r++) {
+                if (r < 5 || r % 2 == 1) {
+                    ids.add(r);
+                    ids.add(r);
+                }
+            }
+            assertThat(read.rows.stream().map(row -> row.get(0)).toList(), equalTo(ids));
         }
     }
 

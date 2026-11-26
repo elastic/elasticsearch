@@ -79,6 +79,74 @@ public class ExpandedRowsTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    /**
+     * S4: a multivalued element value keeps its values through the selection that copies elements around a null row,
+     * and through the in-place path, which hands over the element block itself when every element is a row in order.
+     */
+    public void testMultivaluedElementsSelectedAndInPlace() {
+        LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3);
+        builder.beginPositionEntry().appendLong(1).appendLong(2).endPositionEntry();
+        builder.appendLong(3);
+        builder.beginPositionEntry().appendLong(4).appendLong(5).endPositionEntry();
+        LongBlock multivalued = builder.build();
+        builder.close();
+        Page selected = ExpandedRows.expand(parents(10, 11, 12), null, 3, positions(0, 0, 2), new Block[] { multivalued }, blockFactory);
+        assertThat(
+            rows(selected),
+            equalTo(
+                List.of(
+                    Arrays.asList(10L, List.of(1L, 2L)),
+                    Arrays.asList(10L, 3L),
+                    Arrays.asList(11L, null),
+                    Arrays.asList(12L, List.of(4L, 5L))
+                )
+            )
+        );
+
+        LongBlock.Builder again = blockFactory.newLongBlockBuilder(2);
+        again.beginPositionEntry().appendLong(1).appendLong(2).endPositionEntry();
+        again.appendLong(3);
+        LongBlock inPlace = again.build();
+        again.close();
+        Page out = ExpandedRows.expand(parents(10, 11), null, 2, positions(0, 1), new Block[] { inPlace }, blockFactory);
+        try {
+            assertSame("every element is a row in order, so the element block is used as it is", inPlace, out.getBlock(1));
+        } finally {
+            out.releaseBlocks();
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** S4: a batch whose every parent was dropped expands to an empty page, and releases everything it was handed. */
+    public void testZeroSurvivors() {
+        Page out = ExpandedRows.expand(parents(), new int[0], 3, positions(0, 1, 2), new Block[] { longs(1, 2, 3) }, true, blockFactory);
+        try {
+            assertThat(out.getPositionCount(), equalTo(0));
+            assertThat(out.getBlockCount(), equalTo(3));
+        } finally {
+            out.releaseBlocks();
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** The parent ordinals number the page's parents from 0, a null row included, one value per row. */
+    public void testParentOrdinals() {
+        Page out = ExpandedRows.expand(
+            parents(10, 11, 12),
+            null,
+            3,
+            positions(0, 0, 2),
+            new Block[] { longs(1, 2, 3) },
+            true,
+            blockFactory
+        );
+        assertThat(
+            rows(out),
+            equalTo(List.of(Arrays.asList(10L, 1L, 0), Arrays.asList(10L, 2L, 0), Arrays.asList(11L, null, 1), Arrays.asList(12L, 3L, 2)))
+        );
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     /** A column no element of the batch has is null on every row, null rows included. */
     public void testMissingColumnIsNull() {
         Page out = ExpandedRows.expand(parents(10, 11), null, 2, positions(0, 0), new Block[] { null, longs(1, 2) }, blockFactory);

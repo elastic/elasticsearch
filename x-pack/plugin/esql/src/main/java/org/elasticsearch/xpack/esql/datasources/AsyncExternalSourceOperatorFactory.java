@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -346,6 +348,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final boolean deferredExtraction;
 
     /**
+     * The collection every read reads at element grain ({@code NESTED_EXPAND} over a dataset), or {@code null}. With one,
+     * {@link #attributes} are the scan's own columns, and every page the reader emits carries, after them, one block per
+     * leaf and then the {@link ExpandRead#parentOrdinals() parent ordinals}: the wrappers above the reader carry those
+     * trailing blocks through (and filter them with any row they drop), and {@link #deliverPage} removes the ordinals
+     * before the page leaves the source.
+     */
+    @Nullable
+    private final ExpandRead expandRead;
+    /**
+     * The most file rows (parents) an expanding read needs, or {@link FormatReader#NO_LIMIT}: a copy of a limit above the
+     * expansion, handed to the reader as its row limit and to nothing else. {@link #sourceLimiter} is separate: it counts
+     * the rows this source emits, which are elements.
+     */
+    private final int expandParentLimit;
+
+    /**
      * Per-driver source-extractor registries. Lazily created the first time
      * {@link #sourceExtractorsFor} is called for a given driver, so the registry is shared
      * between this factory's source operator and the {@link ExternalFieldExtractOperator}'s
@@ -392,7 +410,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable Closeable onClose,
         int parallelism,
         boolean deferredExtraction,
-        ExternalSourceMetrics externalSourceMetrics
+        ExternalSourceMetrics externalSourceMetrics,
+        @Nullable ExpandRead expandRead,
+        int expandParentLimit
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -475,7 +495,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
         this.statsStripeSize = statsStripeSize;
-        this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+        // An expanding read's rows are elements: statistics or row counts harvested from them would be published as the file's
+        this.statsColumnScope = expandRead != null ? StripeColumnScope.NONE
+            : statsColumnScope != null ? statsColumnScope
+            : StripeColumnScope.PROJECTED;
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.maxRecordBytes = maxRecordBytes;
         this.streamingSegmentatorAdmission = streamingSegmentatorAdmission;
@@ -499,7 +522,24 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
         // Batch-read reads multiple files in a single iterator and would not let us register
         // one ColumnExtractor per file. Disable when deferred extraction is enabled.
+        if (expandRead != null) {
+            if (formatReader.supportsExpandRead() == false) {
+                throw new IllegalArgumentException(
+                    "NESTED_EXPAND over a dataset is not supported for the [" + formatReader.formatName() + "] format"
+                );
+            }
+            if (deferredExtraction) {
+                // A deferred column is re-read by row position, which addresses a file row, not an element
+                throw new IllegalArgumentException("a read that expands [" + expandRead.path() + "] cannot defer extraction");
+            }
+            if (expandRead.parentOrdinals() == false) {
+                throw new IllegalArgumentException("a read that expands [" + expandRead.path() + "] must carry parent ordinals");
+            }
+        }
+        this.expandRead = expandRead;
+        this.expandParentLimit = expandParentLimit;
         this.batchReadCapable = deferredExtraction == false
+            && expandRead == null
             && formatReader instanceof RangeAwareFormatReader rr
             && rr.supportsBatchRead()
             && this.partitionColumnNames.isEmpty();
@@ -567,6 +607,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private int parallelism = 1;
         private boolean deferredExtraction = false;
         private ExternalSourceMetrics externalSourceMetrics = ExternalSourceMetrics.NOOP;
+        @Nullable
+        private ExpandRead expandRead;
+        private int expandParentLimit = FormatReader.NO_LIMIT;
 
         private Builder(
             StorageProvider storageProvider,
@@ -741,6 +784,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * The collection every read reads at element grain, and the most file rows the reads need to expand; see
+         * {@link AsyncExternalSourceOperatorFactory#expandRead}. The reader must support it, and the read must carry
+         * parent ordinals, which {@link #build} verifies.
+         */
+        public Builder expandRead(@Nullable ExpandRead expandRead, int parentLimit) {
+            this.expandRead = expandRead;
+            this.expandParentLimit = parentLimit;
+            return this;
+        }
+
         /** Node telemetry sink for object-store read metrics; defaults to {@link ExternalSourceMetrics#NOOP}. */
         public Builder externalSourceMetrics(ExternalSourceMetrics externalSourceMetrics) {
             this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
@@ -808,7 +862,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 onClose,
                 parallelism,
                 deferredExtraction,
-                externalSourceMetrics
+                externalSourceMetrics,
+                expandRead,
+                expandParentLimit
             );
         }
     }
@@ -1241,7 +1297,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (partitionColumnNames.isEmpty() || attributes.isEmpty()) {
             return pages;
         }
-        return new VirtualColumnIterator(pages, attributes, partitionColumnNames, partitionValuesForFile, producerFactory);
+        return new VirtualColumnIterator(
+            pages,
+            attributes,
+            partitionColumnNames,
+            partitionValuesForFile,
+            producerFactory,
+            expandRead == null ? 0 : expandRead.trailingBlocks()
+        );
     }
 
     @Nullable
@@ -1505,7 +1568,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             rowPositionInputIndex,
             perFileColumnTypes,
             informationalWarningSink,
-            dropHelper
+            dropHelper,
+            expandRead == null ? 0 : expandRead.trailingBlocks()
         );
     }
 
@@ -1702,6 +1766,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * text/CSV path keeps {@link FormatReader#NO_LIMIT} regardless.
      */
     int sourceReaderRowLimit() {
+        if (expandRead != null) {
+            // The reader counts parents, and the source limiter the element rows this source emits, so its remaining rows
+            // are no bound on the parents to read. The parent limit is; but a skip_row drop above the reader can remove
+            // parents after it, so, as for a pushed LIMIT, a non-strict read is not cut at the reader.
+            return errorPolicy.isStrict() ? expandParentLimit : FormatReader.NO_LIMIT;
+        }
         if (sourceLimiter == null || errorPolicy.isStrict() == false) {
             return FormatReader.NO_LIMIT;
         }
@@ -2526,6 +2596,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void deliverPage(Page page, AsyncExternalSourceBuffer buffer) {
+        if (expandRead != null) {
+            page = withoutParentOrdinals(page);
+        }
         boolean consumed = false;
         try {
             if (sourceLimiter != null) {
@@ -2543,6 +2616,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 page.releaseBlocks();
             }
         }
+    }
+
+    /**
+     * An expanding read's page without its last block, the parent ordinals, which only the wrappers above the reader
+     * read. Takes ownership of {@code page}.
+     */
+    private static Page withoutParentOrdinals(Page page) {
+        if (page.getBlockCount() == 0) {
+            // A read that produced no rows at all, such as a file whose every row group was pruned
+            return page;
+        }
+        int keep = page.getBlockCount() - 1;
+        Block[] kept = new Block[keep];
+        for (int b = 0; b < keep; b++) {
+            kept[b] = page.getBlock(b);
+        }
+        Block ordinals = page.getBlock(keep);
+        Page trimmed = new Page(page.getPositionCount(), kept);
+        ordinals.close();
+        return trimmed;
     }
 
     /**
@@ -2676,6 +2769,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     state.formatCounters
                 );
                 rangeCtx.setCollections(collectionColumns());
+                rangeCtx.setExpandRead(expandRead);
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
                 }
@@ -2770,9 +2864,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 if (pages == null) {
                     FormatReadContext ctx = FormatReadContext.builder()
                         .collections(collectionColumns())
+                        .expandRead(expandRead)
                         .projectedColumns(PhysicalNames.translateNames(readerCols, renames))
                         .batchSize(batchSize)
-                        .rowLimit(FormatReader.NO_LIMIT)
+                        .rowLimit(expandRead != null ? sourceReaderRowLimit() : FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
                         .lastSplit(splitIsFileFinal)
@@ -3037,6 +3132,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .collections(collectionColumns())
+                    .expandRead(expandRead)
                     .projectedColumns(PhysicalNames.translateNames(perFileCols, renames))
                     .batchSize(batchSize)
                     .rowLimit(sourceReaderRowLimit())
@@ -3147,6 +3243,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setCurrentSplit(1);
         FormatReadContext ctx = FormatReadContext.builder()
             .collections(collectionColumns())
+            .expandRead(expandRead)
             .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
             .batchSize(batchSize)
             .rowLimit(sourceReaderRowLimit())
@@ -3238,6 +3335,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     if (opened == null) {
                         FormatReadContext ctx = FormatReadContext.builder()
                             .collections(collectionColumns())
+                            .expandRead(expandRead)
                             .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
                             .batchSize(batchSize)
                             .rowLimit(sourceReaderRowLimit())
@@ -3612,6 +3710,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         @Nullable List<String> fileHeaderColumns
     ) throws IOException {
+        if (expandRead != null) {
+            // The parallel parsers take no expand read; the reader that expands reads the file on its own
+            return null;
+        }
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             // LIMIT and p<=1 never enter SPPC, so they take no streaming floor / extra
             // NodeByteBudget charges. The single-thread reader owns its own buffers.

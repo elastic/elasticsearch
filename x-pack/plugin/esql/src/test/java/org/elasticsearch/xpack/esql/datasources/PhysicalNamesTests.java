@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 
 import java.util.List;
@@ -42,16 +41,6 @@ public class PhysicalNamesTests extends ESTestCase {
         List<String> names = List.of("a", "b");
         assertSame(names, PhysicalNames.translateNames(names, Map.of())); // returns the input unchanged, no copy
         assertTrue(PhysicalNames.inverse(Map.of()).isEmpty());
-    }
-
-    /** An expand read's collection is renamed like a projected column; its leaves, inside the element, are not. */
-    public void testTranslateExpandRead() {
-        List<ExpandRead.Leaf> leaves = List.of(new ExpandRead.Leaf("id", DataType.LONG));
-        ExpandRead renamed = PhysicalNames.translate(new ExpandRead("id", leaves), RENAMES);
-        assertEquals(new ExpandRead("emp_no", leaves), renamed);
-        ExpandRead kept = new ExpandRead("items", leaves);
-        assertSame(kept, PhysicalNames.translate(kept, RENAMES));
-        assertNull(PhysicalNames.translate((ExpandRead) null, RENAMES));
     }
 
     public void testTranslateNamesPreservesOrderAndCardinality() {

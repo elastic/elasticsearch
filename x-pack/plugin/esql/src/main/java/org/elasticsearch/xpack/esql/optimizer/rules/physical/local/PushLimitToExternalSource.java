@@ -22,7 +22,9 @@ public class PushLimitToExternalSource extends PhysicalOptimizerRules.Parameteri
     @Override
     protected PhysicalPlan rule(LimitExec limitExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan child = limitExec.child();
-        if (child instanceof ExternalSourceExec ext) {
+        // An expanding scan's pushed limit would be read as a cap on file rows by the planner's split and driver sizing,
+        // which count file rows; the LimitExec above it bounds the element rows on its own
+        if (child instanceof ExternalSourceExec ext && ext.expansion() == null) {
             int limit = (int) limitExec.limit().fold(ctx.foldCtx());
             return limitExec.replaceChild(ext.withPushedLimit(limit));
         }

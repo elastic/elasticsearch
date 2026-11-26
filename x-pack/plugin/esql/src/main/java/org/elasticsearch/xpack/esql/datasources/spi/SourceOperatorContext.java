@@ -44,6 +44,9 @@ import java.util.concurrent.Executor;
  * immediately by the operator factory in the same JVM.
  *
  * <p>{@link #queryId()} is the coordinator task of the query, or {@code null} when the planner did not supply one.
+ * <p>{@link #expandRead()} is the collection the scan reads at element grain ({@code NESTED_EXPAND} over a dataset), or
+ * {@code null}; {@link #expandParentLimit()} then bounds the file rows it expands, and {@link #attributes()} are the
+ * scan's own columns, which the expanded ones follow.
  */
 public record SourceOperatorContext(
     String sourceType,
@@ -72,7 +75,9 @@ public record SourceOperatorContext(
     boolean deferredExtraction,
     DeclaredReadSpec declaredReadSpec,
     TransportVersion minTransportVersion,
-    @Nullable TaskId queryId
+    @Nullable TaskId queryId,
+    @Nullable ExpandRead expandRead,
+    int expandParentLimit
 ) {
     /**
      * Datasources-side fallback for {@code external_max_concurrent_open_segments} when the planner did not
@@ -153,7 +158,9 @@ public record SourceOperatorContext(
             false,
             DeclaredReadSpec.NONE,
             TransportVersion.current(),
-            null
+            null,
+            null,
+            FormatReader.NO_LIMIT
         );
     }
 
@@ -197,7 +204,9 @@ public record SourceOperatorContext(
             false,
             DeclaredReadSpec.NONE,
             TransportVersion.current(),
-            null
+            null,
+            null,
+            FormatReader.NO_LIMIT
         );
     }
 
@@ -240,7 +249,9 @@ public record SourceOperatorContext(
             false,
             DeclaredReadSpec.NONE,
             TransportVersion.current(),
-            null
+            null,
+            null,
+            FormatReader.NO_LIMIT
         );
     }
 
@@ -281,7 +292,9 @@ public record SourceOperatorContext(
             false,
             DeclaredReadSpec.NONE,
             TransportVersion.current(),
-            null
+            null,
+            null,
+            FormatReader.NO_LIMIT
         );
     }
 
@@ -322,6 +335,9 @@ public record SourceOperatorContext(
         private TransportVersion minTransportVersion = TransportVersion.current();
         @Nullable
         private TaskId queryId;
+        @Nullable
+        private ExpandRead expandRead;
+        private int expandParentLimit = FormatReader.NO_LIMIT;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -489,6 +505,13 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /** The collection the scan reads at element grain, and the most file rows it needs to expand; see {@link ExpandRead}. */
+        public Builder expandRead(@Nullable ExpandRead expandRead, int parentLimit) {
+            this.expandRead = expandRead;
+            this.expandParentLimit = parentLimit;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -517,7 +540,9 @@ public record SourceOperatorContext(
                 deferredExtraction,
                 declaredReadSpec,
                 minTransportVersion,
-                queryId
+                queryId,
+                expandRead,
+                expandParentLimit
             );
         }
     }

@@ -43,6 +43,21 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
         assertEquals(10, resultExt.pushedLimit());
     }
 
+    /**
+     * The planner sizes drivers and splits by a pushed limit, counting file rows, while an expanding scan's rows are
+     * elements; the LimitExec above it bounds them on its own, so nothing is pushed.
+     */
+    public void testLimitNotPushedToExpandingSource() {
+        ReferenceAttribute qty = new ReferenceAttribute(Source.EMPTY, "items.qty", DataType.LONG);
+        ExternalSourceExec ext = externalSource().withExpansion(
+            new ExternalSourceExec.Expansion("items", List.of(qty), List.of("qty"), FormatReader.NO_LIMIT)
+        );
+        LimitExec limitExec = new LimitExec(Source.EMPTY, ext, literal(10), null);
+
+        LimitExec result = (LimitExec) applyRule(limitExec);
+        assertEquals(FormatReader.NO_LIMIT, ((ExternalSourceExec) result.child()).pushedLimit());
+    }
+
     public void testLimitNotPushedToNonExternalSource() {
         ExternalSourceExec ext = externalSource();
         LimitExec innerLimit = new LimitExec(Source.EMPTY, ext, literal(100), null);

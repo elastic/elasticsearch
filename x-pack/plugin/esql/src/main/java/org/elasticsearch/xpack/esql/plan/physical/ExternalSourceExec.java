@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -155,6 +157,49 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * create a SourceExtractors registry that nothing ever closes).
      */
     private final boolean deferredExtraction;
+    /**
+     * The collection this scan reads at element grain, set by {@code PushNestedExpandToExternalSource} when a
+     * {@code NESTED_EXPAND} over a dataset folds into the scan; {@code null} for a scan that emits one row per file row.
+     * A local-execution hint like {@link #pushedFilter}: decided per node, never serialized. It is in {@link #info()}
+     * so a reflection rebuild keeps it, but its attributes sit inside a record that attribute-rewriting rules do not
+     * descend into, which is why the rule that sets it runs after every rule that rewrites attributes.
+     */
+    @Nullable
+    private final Expansion expansion;
+
+    /**
+     * A dataset's {@code NESTED_EXPAND}, done inside the scan: the reader emits, after the scan's own columns, one row per
+     * element of the collection at {@code path}, with the leaves named by {@code leaves} as {@code attributes}.
+     *
+     * @param path        the collection, by its name in the files
+     * @param attributes  the expanded columns the scan adds to its output, in output order
+     * @param leaves      per attribute, the leaf it reads, by name relative to {@code path}
+     * @param parentLimit the most file rows (parents) to expand, or {@link FormatReader#NO_LIMIT}. It is the copy of a
+     *                    {@code LIMIT} above the expansion that sat right on the scan, so it bounds the parents a read
+     *                    needs, never the rows the query returns
+     */
+    public record Expansion(String path, List<Attribute> attributes, List<String> leaves, int parentLimit) {
+        public Expansion {
+            attributes = List.copyOf(attributes);
+            leaves = List.copyOf(leaves);
+            if (attributes.size() != leaves.size()) {
+                throw new IllegalArgumentException("[" + attributes.size() + "] expanded columns for [" + leaves.size() + "] leaves");
+            }
+        }
+
+        public Expansion withParentLimit(int newParentLimit) {
+            return new Expansion(path, attributes, leaves, newParentLimit);
+        }
+
+        /** The read that asks the reader for these leaves, at the types of their columns. */
+        public ExpandRead toExpandRead(boolean parentOrdinals) {
+            List<ExpandRead.Leaf> read = new ArrayList<>(leaves.size());
+            for (int i = 0; i < leaves.size(); i++) {
+                read.add(new ExpandRead.Leaf(leaves.get(i), attributes.get(i).dataType()));
+            }
+            return new ExpandRead(path, read, parentOrdinals);
+        }
+    }
 
     /**
      * Public 13-arg ctor used by {@link #info()} (via constructor reference) and by tree tests.
@@ -202,8 +247,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * {@code datasetName} on a generic rewrite would drop it from the wire, and a 9.5 data node reads that slot to
      * compose {@code _index}; losing {@code declaredReadSpec} would
      * silently drop the declared renames (the same reflection safety they had while riding the
-     * reflected {@code config} map). This is the longest public ctor — {@code EsqlNodeSubclassTests} keys the required
-     * {@link #info()} arity off it. Passes {@code null} for {@code pushedTopN} / {@code unifiedSchema}; those are
+     * reflected {@code config} map). Passes {@code null} for {@code pushedTopN} / {@code unifiedSchema}; those are
      * transient hints carried via their {@code with*} methods.
      */
     public ExternalSourceExec(
@@ -233,6 +277,48 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedFilter,
             pushedExpressions,
             pushedLimit,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            splits,
+            datasetName,
+            declaredReadSpec,
+            null
+        );
+    }
+
+    /**
+     * The 15-arg shape above plus the node-local {@link Expansion}, so a node-reflection rebuild keeps it. This is the
+     * longest public ctor — {@code EsqlNodeSubclassTests} keys the required {@link #info()} arity off it.
+     */
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        Integer estimatedRowSize,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        List<ExternalSplit> splits,
+        @Nullable String datasetName,
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable Expansion expansion
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
             null,
             estimatedRowSize,
             fileList,
@@ -241,7 +327,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             false,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -287,7 +374,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             null,
             false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            null
         );
     }
 
@@ -309,7 +397,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         List<ExternalSplit> splits,
         @Nullable String datasetName,
         boolean deferredExtraction,
-        DeclaredReadSpec declaredReadSpec
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable Expansion expansion
     ) {
         super(source);
         if (sourcePath == null) {
@@ -338,6 +427,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.datasetName = datasetName;
         this.deferredExtraction = deferredExtraction;
         this.declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
+        this.expansion = expansion;
     }
 
     /**
@@ -435,12 +525,18 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             false,
-            declaredReadSpec
+            declaredReadSpec,
+            null
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (expansion != null) {
+            // The other local hints are re-derived where the scan runs, but the expansion replaced the NestedExpandExec
+            // above the scan: dropped on the wire, it would return the parents unexpanded
+            throw new IllegalStateException("a scan that expands [" + expansion.path() + "] runs where it was planned");
+        }
         Source.EMPTY.writeTo(out);
         out.writeString(sourcePath);
         out.writeString(sourceType);
@@ -482,9 +578,52 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return sourceType;
     }
 
+    /** The scan's own columns, followed, when it {@link #expansion() expands}, by the expanded columns. */
     @Override
     public List<Attribute> output() {
+        if (expansion == null) {
+            return attributes;
+        }
+        List<Attribute> output = new ArrayList<>(attributes.size() + expansion.attributes().size());
+        output.addAll(attributes);
+        output.addAll(expansion.attributes());
+        return output;
+    }
+
+    /** The scan's own columns, read from the files: {@link #output()} without the {@link #expansion() expanded} ones. */
+    public List<Attribute> attributes() {
         return attributes;
+    }
+
+    /** The collection this scan reads at element grain, or {@code null}; see the field. */
+    @Nullable
+    public Expansion expansion() {
+        return expansion;
+    }
+
+    /** Returns a copy of this source that expands {@code newExpansion}; see {@link #expansion()}. */
+    public ExternalSourceExec withExpansion(@Nullable Expansion newExpansion) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits,
+            datasetName,
+            deferredExtraction,
+            declaredReadSpec,
+            newExpansion
+        );
     }
 
     public Map<String, Object> config() {
@@ -663,7 +802,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newSplits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -691,7 +831,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -719,7 +860,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -742,7 +884,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -765,7 +908,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -788,7 +932,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -823,7 +968,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -849,7 +995,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -888,7 +1035,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -931,7 +1079,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             true,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -960,7 +1109,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             newDatasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -989,7 +1139,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -1025,14 +1176,15 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            newDeclaredReadSpec
+            newDeclaredReadSpec,
+            expansion
         );
     }
 
     @Override
     public PhysicalPlan estimateRowSize(EstimatesRowSize.State state) {
         int size = state.consumeAllFields(false);
-        state.add(false, attributes);
+        state.add(false, output());
         return Objects.equals(this.estimatedRowSize, size) ? this : withEstimatedRowSize(size);
     }
 
@@ -1055,7 +1207,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -1081,6 +1234,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // deferredExtraction: excluded — transient local-execution signal like pushedTopN, set by
         // InsertExternalFieldExtraction after every reflection-driven rewrite has run; preserved
         // via withDeferredExtraction().
+        // expansion: INCLUDED — unlike the other local hints it changes what the scan outputs, so a reflection
+        // rebuild that dropped it would return the parents unexpanded. Its attributes are not rewritten through it.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -1097,7 +1252,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             splits,
             datasetName,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -1120,7 +1276,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             splits,
             datasetName,
             deferredExtraction,
-            declaredReadSpec
+            declaredReadSpec,
+            expansion
         );
     }
 
@@ -1151,7 +1308,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(splits, other.splits)
             && Objects.equals(datasetName, other.datasetName)
             && deferredExtraction == other.deferredExtraction
-            && Objects.equals(declaredReadSpec, other.declaredReadSpec);
+            && Objects.equals(declaredReadSpec, other.declaredReadSpec)
+            && Objects.equals(expansion, other.expansion);
     }
 
     @Override
@@ -1195,7 +1353,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (datasetName != null) {
             sb.append("[dataset=").append(mapper.location(datasetName)).append("]");
         }
-        NodeUtils.toString(sb, attributes, format, mapper);
+        if (expansion != null) {
+            sb.append("[expand=").append(expansion.path());
+            if (expansion.parentLimit() != FormatReader.NO_LIMIT) {
+                sb.append(",parentLimit=").append(expansion.parentLimit());
+            }
+            sb.append("]");
+        }
+        NodeUtils.toString(sb, output(), format, mapper);
     }
 
 }

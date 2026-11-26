@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,17 +52,6 @@ public final class PhysicalNames {
             out.add(translate(name, renames));
         }
         return out;
-    }
-
-    /**
-     * Physicalize an {@link ExpandRead}: its collection path is a name of the file like any projected column, and
-     * goes through the same rename. Its leaves need none: they are named relative to the element, inside the file's
-     * own structure, which a rename of the dataset's columns does not reach. The reader hands back no names at all,
-     * only positions, so nothing has to be translated back.
-     */
-    @Nullable
-    public static ExpandRead translate(@Nullable ExpandRead read, Map<String, String> renames) {
-        return read == null ? null : read.withPath(translate(read.path(), renames));
     }
 
     /**

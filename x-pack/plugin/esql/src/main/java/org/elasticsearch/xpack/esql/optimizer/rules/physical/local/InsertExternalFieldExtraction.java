@@ -101,7 +101,8 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         }
 
         ExternalSourceExec externalSource = findExternalSource(topN.child());
-        if (externalSource == null) {
+        // A deferred column is re-read by row position, which addresses a file row; an expanding scan's rows are elements
+        if (externalSource == null || externalSource.expansion() != null) {
             return topN;
         }
 

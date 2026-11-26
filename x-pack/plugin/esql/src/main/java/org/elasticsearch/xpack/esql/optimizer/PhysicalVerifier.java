@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.HashSet;
@@ -61,6 +63,12 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                         p.nodeName()
                     )
                 );
+            }
+
+            // A dataset has no child documents for NestedExpandOperator to find the elements through: only the scan reads
+            // them, so PushNestedExpandToExternalSource must have folded every expansion of a dataset into it
+            if (isLocal && p instanceof NestedExpandExec expand && expand.child().anyMatch(ExternalSourceExec.class::isInstance)) {
+                failures.add(fail(expand, "[{}] over a dataset must be read by its scan", expand.nodeString()));
             }
 
             if (p instanceof FetchExec fetch && EsQueryExec.isDocAttribute(fetch.doc()) == false) {

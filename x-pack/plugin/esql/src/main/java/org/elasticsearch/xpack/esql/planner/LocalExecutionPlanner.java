@@ -1270,7 +1270,12 @@ public class LocalExecutionPlanner {
             return null;
         }
         // The sort key must be a column the source reads straight from the file (matched by id), so
-        // the published bound and the reader's column statistics speak about the same values.
+        // the published bound and the reader's column statistics speak about the same values. An
+        // expanded column is not one; an expanding scan publishes no bound, which costs only the
+        // row-group skipping the bound would have bought.
+        if (externalSource.expansion() != null) {
+            return null;
+        }
         boolean sortIsSourceColumn = false;
         for (Attribute attribute : externalSource.output()) {
             if (attribute.id().equals(sortAttribute.id())) {
@@ -2512,8 +2517,9 @@ public class LocalExecutionPlanner {
         }
 
         StoragePath path = StoragePath.of(externalSource.sourcePath());
+        // The scan's own columns; an expanding scan's element columns follow them on the page, read by the ExpandRead
         List<String> projectedColumns = new ArrayList<>();
-        for (Attribute attr : externalSource.output()) {
+        for (Attribute attr : externalSource.attributes()) {
             projectedColumns.add(attr.name());
         }
 
@@ -2569,7 +2575,7 @@ public class LocalExecutionPlanner {
             .sourceType(externalSource.sourceType())
             .path(path)
             .projectedColumns(projectedColumns)
-            .attributes(externalSource.output())
+            .attributes(externalSource.attributes())
             // Projection-independent, unlike attributes(): a read-configuration identity must not vary with what the query
             // selects, or a coordinator and a data node would derive different identities for the same read.
             .unifiedSchema(externalSource.unifiedSchema())
@@ -2593,6 +2599,10 @@ public class LocalExecutionPlanner {
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .deferredExtraction(externalSource.deferredExtraction())
+            .expandRead(
+                externalSource.expansion() == null ? null : externalSource.expansion().toExpandRead(true),
+                externalSource.expansion() == null ? FormatReader.NO_LIMIT : externalSource.expansion().parentLimit()
+            )
             .minTransportVersion(minTransportVersion)
             .build();
 

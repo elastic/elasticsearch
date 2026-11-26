@@ -34,10 +34,12 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -51,12 +53,14 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.Tencen
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudTextEmbeddingServiceSettings;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
@@ -376,23 +380,31 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
     }
 
     public void testChunkedInfer_EmbeddingTask_SplitsBatchesByModalityLimits() throws IOException {
-        var batchResponse = new StringBuilder("{\"data\": {\"image_embeddings\": [");
-        for (int i = 0; i < 8; i++) {
-            batchResponse.append(i == 0 ? "" : ",").append("{\"embedding\": [").append(i).append(".0], \"index\": ").append(i).append("}");
-        }
-        batchResponse.append("]}}");
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(batchResponse.toString()));
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(batchResponse.toString()));
+        // Each response returns one embedding per image URL of the request that produced it, keyed by the index in the URL
+        Function<MockRequest, String> bodyGenerator = request -> {
+            var urls = imageUrls(request);
+            var embeddings = new StringBuilder();
+            for (int i = 0; i < urls.size(); i++) {
+                embeddings.append(i == 0 ? "" : ",")
+                    .append("{\"embedding\": [")
+                    .append(imageIndex(urls.get(i)))
+                    .append(".0, ")
+                    .append(imageIndex(urls.get(i)))
+                    .append(".5], \"index\": ")
+                    .append(i)
+                    .append("}");
+            }
+            return "{\"data\": {\"image_embeddings\": [" + embeddings + "]}}";
+        };
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(bodyGenerator));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(bodyGenerator));
 
         var inputs = IntStream.range(0, 10)
-            .mapToObj(
-                i -> new ChunkInferenceInput(
-                    new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.URL, IMAGE_URL + "?i=" + i)),
-                    null
-                )
-            )
+            .mapToObj(i -> IMAGE_URL + "?i=" + i)
+            .map(url -> new ChunkInferenceInput(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.URL, url)), null))
             .toList();
 
+        List<ChunkedInference> results;
         try (var service = createService()) {
             var listener = new PlainActionFuture<List<ChunkedInference>>();
             service.chunkedInfer(
@@ -403,11 +415,35 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
                 TEST_REQUEST_TIMEOUT,
                 listener
             );
-            assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT), hasSize(10));
+            results = listener.actionGet(TEST_REQUEST_TIMEOUT);
         }
+
         assertThat(webServer.requests(), hasSize(2));
-        assertThat((List<?>) entityAsMap(webServer.requests().get(0).getBody()).get("image_url"), hasSize(8));
-        assertThat((List<?>) entityAsMap(webServer.requests().get(1).getBody()).get("image_url"), hasSize(2));
+        var batchSizes = webServer.requests().stream().map(request -> imageUrls(request).size()).sorted().toList();
+        assertThat(batchSizes, is(List.of(2, 8)));
+
+        // The batches are sent concurrently, so the embeddings are checked per input against the vector derived from its own URL
+        assertThat(results, hasSize(inputs.size()));
+        for (int i = 0; i < inputs.size(); i++) {
+            var url = inputs.get(i).input().value().value();
+            assertThat(results.get(i), instanceOf(ChunkedInferenceEmbedding.class));
+            var chunk = ((ChunkedInferenceEmbedding) results.get(i)).chunks().getFirst();
+            assertThat(chunk.offset(), is(new ChunkedInference.TextOffset(0, url.length())));
+            assertThat(chunk.embedding(), is(EmbeddingFloatResults.Embedding.of(List.of((float) imageIndex(url), imageIndex(url) + 0.5F))));
+        }
+    }
+
+    private static List<String> imageUrls(MockRequest request) {
+        try {
+            var body = entityAsMap(request.getBody());
+            return body.containsKey("image_url") ? ((List<?>) body.get("image_url")).stream().map(Object::toString).toList() : List.of();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static int imageIndex(String url) {
+        return Integer.parseInt(url.substring(url.indexOf("?i=") + 3));
     }
 
     public void testChunkedInfer_EmbeddingTask_RejectsUnsupportedInputs() throws IOException {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.action.search.TimeRangeBucket;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -68,10 +69,12 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         // A short range a week ago reads old data.
         Instant weekAgo = START.minus(Duration.ofDays(7));
         assertTimeRangeFilterFrom(new TimestampBounds(weekAgo, weekAgo.plusSeconds(60)), "7_days");
-        // Ages at a threshold land in the bucket named after it.
+        // Ages at a threshold, or up to the tolerance past it, land in the bucket named after it.
         Instant fifteenMinutesAgo = START.minus(Duration.ofMinutes(15));
+        Instant atTolerance = fifteenMinutesAgo.minusMillis(TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis());
         assertTimeRangeFilterFrom(new TimestampBounds(fifteenMinutesAgo, START), "15_minutes");
-        assertTimeRangeFilterFrom(new TimestampBounds(fifteenMinutesAgo.minusMillis(1), START), "1_hour");
+        assertTimeRangeFilterFrom(new TimestampBounds(atTolerance, START), "15_minutes");
+        assertTimeRangeFilterFrom(new TimestampBounds(atTolerance.minusMillis(1), START), "1_hour");
         // A range in the future, and one far outside the epoch millisecond range, land in the first and last bucket.
         assertTimeRangeFilterFrom(new TimestampBounds(START.plus(Duration.ofDays(1)), START.plus(Duration.ofDays(2))), "15_minutes");
         assertTimeRangeFilterFrom(new TimestampBounds(Instant.MIN, START), "older_than_14_days");

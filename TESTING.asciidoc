@@ -413,12 +413,12 @@ flag to the testing task and connect a debugger on the default port of `5005`.
 ---------------------------------------------------------------------------
 
 For REST tests, if you'd like to debug the Elasticsearch server itself, and
-not your test code, use the `--debug-server-jvm` flag and use the
+not your test code, pass `-Dtests.cluster.debug.enabled=true` and use the
 "Debug Elasticsearch" run configuration in IntelliJ to listen on the default
 port of `5007`.
 
 ---------------------------------------------------------------------------
-./gradlew :rest-api-spec:yamlRestTest --debug-server-jvm
+./gradlew :rest-api-spec:yamlRestTest -Dtests.cluster.debug.enabled=true
 ---------------------------------------------------------------------------
 
 NOTE: In the case of test clusters using multiple nodes, multiple debuggers
@@ -427,12 +427,17 @@ cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening
 debugger. You can use the "Debug Elasticsearch (node 2)" and "(node 3)" run
 configurations should you need to debug a multi-node cluster.
 
-You can also use a combination of both flags to debug both tests and server.
+You can also combine both to debug both tests and server.
 This is only applicable to Java REST tests.
 
 ---------------------------------------------------------------------------
-./gradlew :modules:kibana:javaRestTest --debug-jvm --debug-server-jvm
+./gradlew :modules:kibana:javaRestTest --debug-jvm -Dtests.cluster.debug.enabled=true
 ---------------------------------------------------------------------------
+
+NOTE: The `--debug-server-jvm` task option only exists on the legacy
+`StandaloneRestIntegTestTask` type used by the `testClusters` DSL (for example
+in `plugins/examples`). REST test tasks using JUnit rule based test clusters
+are plain `Test` tasks and reject it.
 
 == Testing the REST layer
 

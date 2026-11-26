@@ -86,6 +86,18 @@ class RestIntegTestsExtensionSpec extends Specification {
         !restTasks.contains("unitTest")
     }
 
+    def "registered plain Test tasks are cacheable like StandaloneRestIntegTestTask"() {
+        when:
+        extension.register("cachedRestTest") {}
+        Test task = project.tasks.getByName("cachedRestTest") as Test
+
+        then:
+        // Migrating tasks off StandaloneRestIntegTestTask relies on Gradle's Test being a @CacheableTask itself.
+        // TaskOutputsInternal is Gradle internal API; it is the only way to inspect the specs without running a build.
+        task.outputs.cacheIfSpecs*.displayName == ["Annotated with @CacheableTask"]
+        task.outputs.doNotCacheIfSpecs.isEmpty()
+    }
+
     def "action registered via configureEach before register() still fires for that task"() {
         given:
         List<String> order = []

@@ -153,7 +153,8 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
                 projectResolver.getProjectId(),
                 escfBulkService,
                 breaker,
-                options
+                options,
+                esqlRequest.keepAlive() == null ? EsqlQueryRequest.DEFAULT_KEEP_ALIVE : esqlRequest.keepAlive()
             );
             EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(
                 esqlRequest,

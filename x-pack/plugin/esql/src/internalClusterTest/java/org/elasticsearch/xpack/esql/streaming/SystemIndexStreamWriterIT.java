@@ -160,7 +160,13 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
     public void testFailedItemFailsTheWriter() {
         PlainActionFuture<Exception> failure = new PlainActionFuture<>();
         var writer = newWriter(client(), TransportVersion.current(), failure::onResponse);
-        writer.createStarted(new TaskId(randomIdentifier(), randomNonNegativeLong()), null, List.of(), Map.of(), List.of());
+        writer.createStarted(
+            new TaskId(randomIdentifier(), randomNonNegativeLong()),
+            Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600)),
+            List.of(),
+            Map.of(),
+            List.of()
+        );
         try (Page page = new Page(TestBlockFactory.getNonBreakingInstance().newConstantIntBlockWith(1, 3))) {
             writer.appendPage(1, 0, page);
             writer.appendPage(1, 0, page); // storing the same page twice is causing a conflict on non-metadata document
@@ -183,7 +189,13 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         };
         PlainActionFuture<Exception> failure = new PlainActionFuture<>();
         var writer = newWriter(failingClient, TransportVersion.current(), failure::onResponse);
-        writer.createStarted(new TaskId(randomIdentifier(), randomNonNegativeLong()), null, List.of(), Map.of(), List.of());
+        writer.createStarted(
+            new TaskId(randomIdentifier(), randomNonNegativeLong()),
+            Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600)),
+            List.of(),
+            Map.of(),
+            List.of()
+        );
 
         assertThat(safeGet(failure), instanceOf(RuntimeException.class));
         awaitCapacity(writer);

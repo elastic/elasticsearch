@@ -243,6 +243,11 @@ final class RequestXContent {
         );
         parser.declareField((p, request, options) -> options.maxRows(p.longValue(false)), MAX_ROWS_FIELD, ObjectParser.ValueType.LONG);
         parser.declareField((p, request, options) -> options.maxBytes(parseMaxBytes(p)), MAX_BYTES_FIELD, ObjectParser.ValueType.VALUE);
+        parser.declareField(
+            (p, request, options) -> request.keepAlive(TimeValue.parseTimeValue(p.text(), KEEP_ALIVE.getPreferredName())),
+            KEEP_ALIVE,
+            ObjectParser.ValueType.VALUE
+        );
         return parser;
     }
 

@@ -229,9 +229,7 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             stringField(row, STREAM_ID_FIELD, streamId);
             row.longField(PAGE_SEQ_FIELD, -1);
             stringField(row, STREAM_TASK, metadata.taskId().toString());
-            if (metadata.expiration() != null) {
-                row.longField(STREAM_EXPIRATION_TIME_FIELD, metadata.expiration().toEpochMilli());
-            }
+            row.longField(STREAM_EXPIRATION_TIME_FIELD, metadata.expiration().toEpochMilli());
             stringField(row, STREAM_STATUS, metadata.status().name());
             jsonField(row, STREAM_COLUMNS, json -> {
                 json.startArray();

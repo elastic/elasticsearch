@@ -256,8 +256,8 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 ### Documents and syncs [es-connectors-ms-sql-client-documents-syncs]
 
 * Tables with no primary key defined are skipped.
-* The document `_id` is derived from the table's primary key, so re-syncing a changed row updates the existing document instead of creating a duplicate.
-* A full sync deletes documents whose rows no longer exist in the table.
+* The document `_id` is derived from the table's primary key (or from `id_columns` in an advanced sync rule). As long as these values don't change, re-syncing a changed row updates the existing document instead of creating a duplicate.
+* A full sync deletes documents whose rows are no longer included in the sync, for example because they were deleted from the table or no longer match an advanced sync rule.
 * If the `last_user_update` of `sys.dm_db_index_usage_stats` table is not available for a specific table and database then all data in that table will be synced.
 
 ::::{note}

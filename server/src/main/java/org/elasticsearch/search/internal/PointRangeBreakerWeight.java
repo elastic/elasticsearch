@@ -61,13 +61,13 @@ final class PointRangeBreakerWeight extends Weight {
             return inner;
         }
         final int leafMaxDoc = context.reader().maxDoc();
-        final boolean singleValued = values.size() == values.getDocCount();
         final boolean matchAll = coversAllValues(values);
         final long cost = inner.cost();
         final long charge = PointRangeQueryCostEstimator.executionBytesForLeaf(
             cost,
             leafMaxDoc,
-            singleValued,
+            values.size(),
+            values.getDocCount(),
             matchAll,
             pointRangeQuery.getNumDims(),
             pointRangeQuery.getBytesPerDim()

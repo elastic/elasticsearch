@@ -1501,7 +1501,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<Expression> anyParams = expression.collect(AnyParam.class::isInstance);
             if (anyParams.isEmpty() == false) {
                 AnyParam any = (AnyParam) anyParams.getFirst();
-                throw anyParamError(context.params(), any.source(), any.parameterText(), "in a LOOKUP JOIN condition");
+                throw anyParamError(anyParamValue(), any.source(), any.parameterText(), "in a LOOKUP JOIN condition");
             }
         }
 
@@ -2211,7 +2211,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source, "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
-            rejectAnyParam(context.params(), param, source, ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            rejectAnyParam(context.params(), anyParamValue(), param, source, ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             if (param.value() instanceof String s) {
                 promqlQuery = s;
             } else {
@@ -2254,6 +2254,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             promqlStartLine,
             promqlStartColumn,
             context.params(),
+            anyParamValue(),
             context.viewName()
         );
 
@@ -2449,7 +2450,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
-            rejectAnyParam(context.params(), param, source(ctx), ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            rejectAnyParam(context.params(), anyParamValue(), param, source(ctx), ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             return param.value().toString();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
@@ -2474,7 +2475,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
-            rejectAnyParam(context.params(), param, source(ctx), ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            rejectAnyParam(context.params(), anyParamValue(), param, source(ctx), ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             if (param.value() instanceof String s) {
                 return new IndexPattern(source(ctx), s);
             }

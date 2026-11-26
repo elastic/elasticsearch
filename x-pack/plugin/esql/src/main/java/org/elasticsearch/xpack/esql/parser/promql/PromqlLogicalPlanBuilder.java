@@ -87,8 +87,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
     public static final Duration IMPLICIT_RANGE_PLACEHOLDER = Duration.ofMillis(-1);
 
-    PromqlLogicalPlanBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
-        super(start, end, params, viewName);
+    PromqlLogicalPlanBuilder(Literal start, Literal end, QueryParams params, @Nullable String anyParamValue, @Nullable String viewName) {
+        super(start, end, params, anyParamValue, viewName);
     }
 
     /**
@@ -291,7 +291,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     if (param == null) {
                         throw new ParsingException(valueSource, "Parameter [{}] value not found", paramName);
                     }
-                    ExpressionBuilder.rejectAnyParam(params(), param, valueSource, paramName);
+                    ExpressionBuilder.rejectAnyParam(params(), anyParamValue(), param, valueSource, paramName);
 
                     var v = param.value();
                     if (v == null) {

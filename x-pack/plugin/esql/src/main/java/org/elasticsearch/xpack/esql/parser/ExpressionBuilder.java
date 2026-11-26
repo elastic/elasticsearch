@@ -170,24 +170,29 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
-    ExpressionBuilder(ParsingContext context) {
-        this.context = context;
-        context.params().anyParamValue(context.anyParamValue());
-    }
-
     /**
-     * The value of {@code param_any_value} that applies to the statement being built: the one in the {@link ParsingContext}, or
-     * the one a {@code SET} in the statement set, which {@code LogicalPlanBuilder#visitStatements} applies before it visits
-     * the query. {@code null} when no reserved value is recognized. It is kept in the {@link QueryParams}, so that the PromQL
-     * parser, which only has them, recognizes it too.
+     * The value of {@code param_any_value} that applies to the statement being built: it starts as the one in the
+     * {@link ParsingContext}, and a {@code SET param_any_value} in the statement replaces it, which
+     * {@code LogicalPlanBuilder#visitStatements} does before it visits the query. It belongs to this builder, which only builds one
+     * statement, and not to the {@link QueryParams}, which are shared with the parsing of other statements of the same request, such
+     * as the views.
      */
     @Nullable
+    private String anyParamValue;
+
+    ExpressionBuilder(ParsingContext context) {
+        this.context = context;
+        this.anyParamValue = context.anyParamValue();
+    }
+
+    /** The value of {@code param_any_value} that applies to the statement being built, or {@code null} if none is recognized. */
+    @Nullable
     String anyParamValue() {
-        return context.params().anyParamValue();
+        return anyParamValue;
     }
 
     void anyParamValue(@Nullable String anyParamValue) {
-        context.params().anyParamValue(anyParamValue);
+        this.anyParamValue = anyParamValue;
     }
 
     /**
@@ -195,14 +200,24 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      *
      * @param where what to say about the position, such as {@code "in this position"}
      */
-    static ParsingException anyParamError(QueryParams params, Source source, String parameterText, String where) {
-        return new ParsingException(source, AnyParam.errorMessage(parameterText, params.anyParamValue(), where));
+    static ParsingException anyParamError(String anyParamValue, Source source, String parameterText, String where) {
+        return new ParsingException(source, AnyParam.errorMessage(parameterText, anyParamValue, where));
     }
 
-    /** Rejects {@code param} if it stands for "Any", where only a normal value makes sense, like in a PromQL query. */
-    public static void rejectAnyParam(QueryParams params, @Nullable QueryParam param, Source source, String parameterText) {
-        if (params.isAny(param)) {
-            throw anyParamError(params, source, parameterText, "in a PromQL query");
+    /**
+     * Rejects {@code param} if it stands for "Any", where only a normal value makes sense, like in a PromQL query.
+     *
+     * @param anyParamValue the reserved value of the statement being parsed, or {@code null} if none is recognized
+     */
+    public static void rejectAnyParam(
+        QueryParams params,
+        @Nullable String anyParamValue,
+        @Nullable QueryParam param,
+        Source source,
+        String parameterText
+    ) {
+        if (params.isAny(param, anyParamValue)) {
+            throw anyParamError(anyParamValue, source, parameterText, "in a PromQL query");
         }
     }
 
@@ -216,13 +231,24 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             && constant.getParent() instanceof EsqlBaseParser.ConstantDefaultContext;
     }
 
+    /**
+     * Whether the parameter is the value of a {@code SET}. The reserved value is not recognized there: the value that applies is
+     * the one after all the {@code SET}s of the statement, and a {@code SET} value is decided before the later ones are known, so
+     * recognizing it would depend on the order of the {@code SET}s. It is a plain value instead, which the settings validation
+     * accepts or rejects as for any other value, so a setting that can't take it fails with its usual error.
+     */
+    private static boolean isSetValue(EsqlBaseParser.ParameterContext ctx) {
+        return ctx.getParent() instanceof EsqlBaseParser.InputParameterContext constant
+            && constant.getParent() instanceof EsqlBaseParser.SetFieldContext;
+    }
+
     private Expression visitParameter(EsqlBaseParser.ParameterContext ctx, QueryParam param) {
         Source source = source(ctx);
-        if (context.params().isAny(param)) {
+        if (isSetValue(ctx) == false && context.params().isAny(param, anyParamValue)) {
             if (isExpressionPosition(ctx) == false) {
                 boolean name = ctx.getParent() instanceof EsqlBaseParser.IdentifierPatternContext
                     || ctx.getParent() instanceof EsqlBaseParser.IdentifierOrParameterContext;
-                throw anyParamError(context.params(), source, source.text(), name ? "as an identifier or pattern" : "in this position");
+                throw anyParamError(anyParamValue, source, source.text(), name ? "as an identifier or pattern" : "in this position");
             }
             return new AnyParam(source, source.text(), anyParamValue(), param.classification() == IDENTIFIER);
         }
@@ -955,7 +981,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private Expression castOperand(ParseTree parseTree) {
         Expression operand = expression(parseTree);
         if (operand instanceof AnyParam any) {
-            throw anyParamError(context.params(), any.source(), any.parameterText(), "in a cast");
+            throw anyParamError(anyParamValue, any.source(), any.parameterText(), "in a cast");
         }
         return operand;
     }
@@ -1045,7 +1071,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(valueExpr);
         Expression right = expression(patternCtx);
         if (right instanceof AnyParam any) {
-            throw anyParamError(context.params(), source, any.parameterText(), "as a pattern");
+            throw anyParamError(anyParamValue, source, any.parameterText(), "as a pattern");
         }
         // Fast path: single-value string literal known at parse time → validate and build concrete pattern immediately
         if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && (lit.value() instanceof List<?>) == false) {
@@ -1195,8 +1221,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             } else {
                 throw new ParsingException(expressionSource, "Unsupported parameter context");
             }
-            if (context.params().isAny(param)) {
-                throw anyParamError(context.params(), expressionSource, parameterSource.text(), "as a pattern");
+            if (context.params().isAny(param, anyParamValue)) {
+                throw anyParamError(anyParamValue, expressionSource, parameterSource.text(), "as a pattern");
             }
         }
 
@@ -1302,7 +1328,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         ParseTree doubleParamsCtx = ctx.doubleParameter();
         Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
         if (exp instanceof AnyParam any) {
-            throw anyParamError(context.params(), src, any.parameterText(), "as an identifier or pattern");
+            throw anyParamError(anyParamValue, src, any.parameterText(), "as an identifier or pattern");
         }
         if (exp instanceof Literal lit) {
             if (lit.value() != null) {
@@ -1533,7 +1559,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 ctx.getText(),
                 "[" + up.name() + "] declared as a pattern"
             );
-            case AnyParam any -> throw anyParamError(context.params(), source(ctx), any.parameterText(), "as an identifier or pattern");
+            case AnyParam any -> throw anyParamError(anyParamValue, source(ctx), any.parameterText(), "as an identifier or pattern");
             case UnresolvedAttribute ua -> {
                 if (ua.name() != null) {
                     return ua.name();
@@ -1568,7 +1594,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * is returned regardless how the param is specified in the request.
      */
     private Expression visitDoubleParam(EsqlBaseParser.DoubleParameterContext ctx, QueryParam param) {
-        if (context.params().isAny(param)) {
+        if (context.params().isAny(param, anyParamValue)) {
             // Where it is not an expression, the code that reads the name of the identifier rejects it
             Source source = source(ctx);
             return new AnyParam(source, source.text(), anyParamValue(), true);

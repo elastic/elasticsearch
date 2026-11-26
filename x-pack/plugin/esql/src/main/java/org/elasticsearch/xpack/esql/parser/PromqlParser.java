@@ -77,11 +77,14 @@ public class PromqlParser {
      * at line 1, column 0.
      */
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
-        return createStatement(query, start, end, startLine, startColumn, params, null);
+        return createStatement(query, start, end, startLine, startColumn, params, null, null);
     }
 
     /**
      * Parses a PromQL expression embedded in an ES|QL query or, when {@code viewName} is not {@code null}, in that view's definition.
+     *
+     * @param anyParamValue the reserved value of the enclosing query, or {@code null} if none is recognized. A parameter with that
+     *                      value is rejected where PromQL reads it, as it can't stand for "Any" there.
      */
     public LogicalPlan createStatement(
         String query,
@@ -90,6 +93,7 @@ public class PromqlParser {
         int startLine,
         int startColumn,
         QueryParams params,
+        @Nullable String anyParamValue,
         @Nullable String viewName
     ) {
         if (log.isDebugEnabled()) {
@@ -103,6 +107,7 @@ public class PromqlParser {
             startLine,
             startColumn,
             params,
+            anyParamValue,
             viewName,
             PromqlBaseParser::singleStatement,
             PromqlAstBuilder::plan
@@ -117,6 +122,7 @@ public class PromqlParser {
         int startLine,
         int startColumn,
         QueryParams params,
+        @Nullable String anyParamValue,
         @Nullable String viewName,
         Function<PromqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<PromqlAstBuilder, ParserRuleContext, T> visitor
@@ -165,7 +171,7 @@ public class PromqlParser {
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
-            return visitor.apply(new PromqlAstBuilder(start, end, params, viewName), tree);
+            return visitor.apply(new PromqlAstBuilder(start, end, params, anyParamValue, viewName), tree);
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException(
                 "PromQL statement is too large, causing stack overflow when generating the parsing tree: [{}]",

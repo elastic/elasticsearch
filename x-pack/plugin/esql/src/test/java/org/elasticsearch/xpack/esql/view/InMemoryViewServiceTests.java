@@ -827,6 +827,28 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         parse("FROM idx", "v");
     }
 
+    /**
+     * A view definition is validated without query parameters, so it can't contain any, and it is never parsed with the parameters of
+     * a caller's request. The reserved value of {@code param_any_value}, which a parameter holds to stand for "Any", relies on that:
+     * views have no reserved value, as they have no parameters to apply it to. If views get parameters, decide first what
+     * {@code param_any_value} means inside a view, and what it means for a view called with a different value.
+     */
+    public void testViewDefinitionCannotHaveParameters() {
+        Map<String, String> queryToError = Map.of(
+            "FROM idx | WHERE a == ?x",
+            "Unknown query parameter [x]",
+            "FROM idx | KEEP ??x",
+            "Unknown query parameter [x]",
+            "FROM idx | WHERE a == ?",
+            "Not enough actual parameters 0"
+        );
+        queryToError.forEach((query, error) -> {
+            RuntimeException e = expectThrows(RuntimeException.class, () -> addView("v", query));
+            assertThat(query, e.getCause(), instanceOf(ParsingException.class));
+            assertThat(query, e.getCause().getMessage(), containsString(error));
+        });
+    }
+
     public void testMixedViewAndIndexMergedUnresolvedRelation() {
         addView("view1", "FROM emp");
         addIndex("index1");

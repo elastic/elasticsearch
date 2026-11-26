@@ -150,7 +150,7 @@ public class EsqlParser {
             null,
             QueryPragmas.EMPTY,
             EsqlFlags.DEFAULTS,
-            Map.of()
+            anyParamValue(Map.of())
         );
     }
 
@@ -197,7 +197,7 @@ public class EsqlParser {
         EsqlFlags flags,
         Map<QuerySettingDef<?>, Object> requestSettings
     ) {
-        var parsed = createStatement(query, params, inferenceSettings, null, pragmas, flags, requestSettings);
+        var parsed = createStatement(query, params, inferenceSettings, null, pragmas, flags, anyParamValue(requestSettings));
         if (log.isDebugEnabled()) {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -214,6 +214,9 @@ public class EsqlParser {
      * setting is rejected with a {@link ParsingException} — see {@link ViewQuerySettings#validate}. A setting the
      * definition does not {@code SET} takes its cluster default, such as {@code esql.query.settings.unmapped_fields}, as it
      * would in a query run on its own; see {@link ViewQuerySettings}.
+     * <p>
+     * A view has no reserved value for {@link QuerySettings#PARAM_ANY_VALUE}: it can't take parameters, as they are not part of its
+     * definition, so there is nothing to recognize, and the value of the caller doesn't apply inside it.
      */
     public EsqlStatement parseView(
         String query,
@@ -223,7 +226,7 @@ public class EsqlParser {
         QueryPragmas pragmas,
         EsqlFlags flags
     ) {
-        var parsed = createStatement(query, params, inferenceSettings, viewName, pragmas, flags, Map.of());
+        var parsed = createStatement(query, params, inferenceSettings, viewName, pragmas, flags, null);
         if (log.isDebugEnabled()) {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -242,7 +245,7 @@ public class EsqlParser {
         String viewName,
         QueryPragmas pragmas,
         EsqlFlags flags,
-        Map<QuerySettingDef<?>, Object> requestSettings
+        @Nullable String anyParamValue
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
@@ -254,7 +257,7 @@ public class EsqlParser {
             viewName,
             pragmas,
             flags,
-            anyParamValue(requestSettings),
+            anyParamValue,
             EsqlBaseParser::statements,
             AstBuilder::statement
         );

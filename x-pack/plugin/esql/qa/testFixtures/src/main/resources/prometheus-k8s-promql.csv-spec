@@ -2747,3 +2747,43 @@ result:double | _timeseries:keyword
 448.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
 472.0         | "{""labels"":{""__name__"":""network.eth0.tx"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
 ;
+
+// limit_ratio over a without samples the groups by their label set.
+limit_ratio_over_without_region
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_topk
+required_capability: promql_limit_ratio
+required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(limit_ratio(0.5, sum without (region) (last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+361.0         | "{""labels"":{""cluster"":""prod"",""pod"":""three""}}"
+298.0         | "{""labels"":{""cluster"":""prod"",""pod"":""two""}}"
+346.0         | "{""labels"":{""cluster"":""staging"",""pod"":""one""}}"
+472.0         | "{""labels"":{""cluster"":""staging"",""pod"":""two""}}"
+;
+
+// A topk without keeping every series ranks the sample of limit_ratio_over_without_region; it keeps the same groups.
+topk_without_keeps_the_limit_ratio_sample
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_topk
+required_capability: promql_limit_ratio
+required_capability: promql_reduction_without
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (100, limit_ratio(0.5, sum without (region) (last_over_time(network.eth0.tx[5m])))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+361.0         | "{""labels"":{""cluster"":""prod"",""pod"":""three""}}"
+298.0         | "{""labels"":{""cluster"":""prod"",""pod"":""two""}}"
+346.0         | "{""labels"":{""cluster"":""staging"",""pod"":""one""}}"
+472.0         | "{""labels"":{""cluster"":""staging"",""pod"":""two""}}"
+;

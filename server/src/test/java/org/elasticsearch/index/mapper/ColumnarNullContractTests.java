@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -63,6 +64,12 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         "boolean",
         "ip"
     );
+    private static final List<String> STRINGS = List.of("keyword", "text");
+    private static final List<String> DOCUMENT_TYPES = Stream.concat(BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG.stream(), Stream.of("binary"))
+        .toList();
+    private static final List<String> ORDERED_DOCUMENT_TYPES = Stream.concat(STRINGS.stream(), DOCUMENT_TYPES.stream()).toList();
+    private static final List<String> ORDERED_BATCH_TYPES = Stream.concat(STRINGS.stream(), BATCHABLE_WITHOUT_NULL_ELEMENTS_BUG.stream())
+        .toList();
     private static final Map<String, Object> NULL_VALUES = Map.ofEntries(
         Map.entry("keyword", "NA"),
         Map.entry("long", 7),
@@ -245,20 +252,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     }
 
     public void testExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
-        for (final String type : List.of(
-            "long",
-            "integer",
-            "short",
-            "byte",
-            "double",
-            "float",
-            "half_float",
-            "date",
-            "date_nanos",
-            "boolean",
-            "ip",
-            "binary"
-        )) {
+        for (final String type : DOCUMENT_TYPES) {
             assertExistsMatchesOnlyDocumentsWithValue(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
@@ -270,20 +264,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     }
 
     public void testExistsCountAgreesWithHitsDocument() throws IOException {
-        for (final String type : List.of(
-            "long",
-            "integer",
-            "short",
-            "byte",
-            "double",
-            "float",
-            "half_float",
-            "date",
-            "date_nanos",
-            "boolean",
-            "ip",
-            "binary"
-        )) {
+        for (final String type : DOCUMENT_TYPES) {
             assertExistsCountAgreesWithHits(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
@@ -307,42 +288,13 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
     }
 
     public void testRemainingValuesKeepTheirOrderDocument() throws IOException {
-        for (final String type : List.of(
-            "keyword",
-            "text",
-            "long",
-            "integer",
-            "short",
-            "byte",
-            "double",
-            "float",
-            "half_float",
-            "date",
-            "date_nanos",
-            "boolean",
-            "ip",
-            "binary"
-        )) {
+        for (final String type : ORDERED_DOCUMENT_TYPES) {
             assertSourceKeepsTheOrderOfTheRemainingValues(plain(type), IndexingStrategy.DOCUMENT);
         }
     }
 
     public void testRemainingValuesKeepTheirOrderBatch() throws IOException {
-        for (final String type : List.of(
-            "keyword",
-            "text",
-            "long",
-            "integer",
-            "short",
-            "byte",
-            "double",
-            "float",
-            "half_float",
-            "date",
-            "date_nanos",
-            "boolean",
-            "ip"
-        )) {
+        for (final String type : ORDERED_BATCH_TYPES) {
             assertSourceKeepsTheOrderOfTheRemainingValues(plain(type), IndexingStrategy.BATCH);
         }
     }

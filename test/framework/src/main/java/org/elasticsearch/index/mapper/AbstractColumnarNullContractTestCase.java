@@ -533,6 +533,7 @@ public abstract class AbstractColumnarNullContractTestCase extends MapperService
 
     // NOTE: with ordered set, a null the source still holds is left out of the comparison. Whether nulls are dropped is the null
     // contract and is checked by the unordered comparison, and the two must fail for their own reasons.
+    // The unordered comparison is a check of the distinct values. It does not count repeated values, which #166868 owns.
     private static void assertSourceHoldsOnly(Scenario scenario, List<Object> expected, String source, boolean ordered) throws IOException {
         final Map<String, Object> parsed = XContentHelper.convertToMap(JsonXContent.jsonXContent, source, false);
         if (expected.isEmpty()) {

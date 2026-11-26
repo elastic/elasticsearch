@@ -222,7 +222,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             QuerySetting setting = visitSetCommand(setCommandContext);
             settings.add(setting);
             if (anyParamValue() != null && setting.name().equals(QuerySettings.PARAM_ANY_VALUE.name())) {
-                applyAnyParamValueSetting(setCommandContext, setting);
+                applyAnyParamValueSetting(setting);
             }
         }
 
@@ -242,13 +242,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /**
      * Makes a {@code SET param_any_value} the value of the statement's reserved parameter value, so the last one wins, as it does
-     * when {@link QuerySettings#resolve} folds the settings. Parameters are decided with this value, so it can't come from one.
+     * when {@link QuerySettings#resolve} folds the settings. The value can come from a parameter: parameters in {@code SET} values are
+     * never taken for the reserved value, so there is no dependency between the two.
      * A value of another type or an empty one is left as it is: the settings validation rejects it right after the parsing.
      */
-    private void applyAnyParamValueSetting(EsqlBaseParser.SetCommandContext ctx, QuerySetting setting) {
-        if (ctx.setField().constant() instanceof EsqlBaseParser.InputParameterContext) {
-            throw new ParsingException(setting.source(), "Setting [{}] can't be set with a parameter", setting.name());
-        }
+    private void applyAnyParamValueSetting(QuerySetting setting) {
         // a list of strings is a keyword literal too
         if (setting.value() instanceof Literal literal
             && literal.dataType() == DataType.KEYWORD

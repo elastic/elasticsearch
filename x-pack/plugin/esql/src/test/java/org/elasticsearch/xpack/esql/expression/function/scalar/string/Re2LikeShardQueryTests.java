@@ -103,6 +103,21 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         assertThat(query("_index", "\\Q" + index + "\\Ex", context), instanceOf(MatchNoDocsQuery.class));
     }
 
+    /** A runtime field refuses it before the automaton is built, with the error it gives a {@code regexp} query. */
+    public void testRuntimeFieldRefusesWhenExpensiveQueriesAreNotAllowed() throws IOException {
+        MapperService mapperService = createMapperService(runtimeMapping(b -> b.startObject("label").field("type", "keyword").endObject()));
+        LabelTrackingCircuitBreaker breaker = new LabelTrackingCircuitBreaker();
+        SearchExecutionContext context = noExpensiveQueries(
+            new SearchExecutionContext(createSearchExecutionContext(mapperService), breaker)
+        );
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> query("a.*", context));
+        assertThat(
+            e.getMessage(),
+            equalTo("queries cannot be executed against runtime fields while [search.allow_expensive_queries] is set to [false].")
+        );
+        assertThat("nothing is built", breaker.firstCharge, equalTo(-1L));
+    }
+
     /** A wildcard field runs a {@code regexp} query whatever the setting, so it runs the match too. */
     public void testWildcardFieldRunsWhenExpensiveQueriesAreNotAllowed() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> b.startObject("label").field("type", "wildcard").endObject()));
@@ -222,7 +237,11 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
      * setting is read through this method.
      */
     private SearchExecutionContext noExpensiveQueries(MapperService mapperService) {
-        return new SearchExecutionContext(createSearchExecutionContext(mapperService)) {
+        return noExpensiveQueries(createSearchExecutionContext(mapperService));
+    }
+
+    private static SearchExecutionContext noExpensiveQueries(SearchExecutionContext context) {
+        return new SearchExecutionContext(context) {
             @Override
             public boolean allowExpensiveQueries() {
                 return false;

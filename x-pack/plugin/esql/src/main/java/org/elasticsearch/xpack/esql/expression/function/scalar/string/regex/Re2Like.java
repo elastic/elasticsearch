@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -120,12 +121,19 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
                     + "] index level setting."
             );
         }
-        // on the string fields that refuse a regexp query, whether or not they have a terms index; a constant field tests its
-        // one value and a wildcard field runs a regexp query whatever the setting, and a runtime field refuses the automaton itself
-        if (context.allowExpensiveQueries() == false && fieldType instanceof StringFieldType) {
-            throw new ElasticsearchException(
-                "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
-            );
+        // refused before the automaton is built, as a regexp query is: on a runtime field, and on a string field whether or not
+        // it has a terms index; a constant field tests its one value and a wildcard field runs a regexp query whatever the setting
+        if (context.allowExpensiveQueries() == false) {
+            if (fieldType instanceof AbstractScriptFieldType<?>) {
+                throw new ElasticsearchException(
+                    "queries cannot be executed against runtime fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
+                );
+            }
+            if (fieldType instanceof StringFieldType) {
+                throw new ElasticsearchException(
+                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
         }
         // accounted on the breaker of the shard, as a regexp query's automaton is
         CircuitBreaker circuitBreaker = context.getCircuitBreaker();

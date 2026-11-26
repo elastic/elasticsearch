@@ -234,8 +234,8 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDistributionChange() throws IOException {
-        // Use a fixed seed. About 0.2% of random series like this are classified as a step change or as non-stationary,
-        // so the detector is tested statistically in EventDetectorTests#testReportsMostVarianceIncreasesAsADistributionChange.
+        // Use a fixed seed. About 0.8% of random series like this are classified as something other than a distribution
+        // change, so the detector is tested statistically in EventDetectorTests#testReportsMostVarianceIncreasesAsADistributionChange.
         Random random = new Random(42);
         NormalDistribution first = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0, 1);
         NormalDistribution second = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0, 5);
@@ -243,22 +243,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             DoubleStream.generate(first::sample).limit(50),
             DoubleStream.generate(second::sample).limit(50)
         ).toArray();
-        testChangeType(
-            bucketValues,
-            (changeType, msg) -> assertThat(
-                msg,
-                changeType,
-                anyOf(
-                    // Due to the random nature of the values generated, any of these could be detected
-                    // Distribution change is a "catch anything weird" if previous checks didn't find anything
-                    instanceOf(ChangeType.DistributionChange.class),
-                    instanceOf(ChangeType.Stationary.class),
-                    instanceOf(ChangeType.Spike.class),
-                    instanceOf(ChangeType.Dip.class),
-                    instanceOf(ChangeType.TrendChange.class)
-                )
-            )
-        );
+        testChangeType(bucketValues, (changeType, msg) -> assertThat(msg, changeType, instanceOf(ChangeType.DistributionChange.class)));
     }
 
     public void testZeroDeviation() throws IOException {

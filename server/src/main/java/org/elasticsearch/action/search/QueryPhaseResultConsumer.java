@@ -246,6 +246,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (aggsList != null) {
                 // Add an estimate of the final reduce size
                 breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(breakerSize));
+                // a merge result without aggregations (its shards all failed or were skipped) adds nothing to aggsList,
+                // so it doesn't count toward aggsCount
+                final int aggsCount = buffer.size() + aggsList.size();
                 aggs = aggregate(buffer.iterator(), new Iterator<>() {
                     @Override
                     public boolean hasNext() {
@@ -257,7 +260,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         return aggsList.pollFirst();
                     }
                 },
-                    resultSize,
+                    aggsCount,
                     performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
                 );
             } else {
@@ -365,13 +368,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             // we have to merge here in the same way we collect on a shard
             newTopDocs = topDocsList == null ? null : mergeTopDocs(topDocsList, topNSize, 0);
+            final boolean hasLocalPartialAggs = lastMerge != null && lastMerge.reducedAggs != null;
+            Iterator<InternalAggregations> localPartials = hasLocalPartialAggs
+                ? Iterators.single(lastMerge.reducedAggs)
+                : Collections.emptyIterator();
+            final int aggsCount = toConsume.size() + (hasLocalPartialAggs ? 1 : 0);
             newAggs = hasAggs
-                ? aggregate(
-                    toConsume.iterator(),
-                    lastMerge == null ? Collections.emptyIterator() : Iterators.single(lastMerge.reducedAggs),
-                    resultSetSize,
-                    aggReduceContextBuilder.forPartialReduction()
-                )
+                ? aggregate(toConsume.iterator(), localPartials, aggsCount, aggReduceContextBuilder.forPartialReduction())
                 : null;
             for (QuerySearchResult querySearchResult : toConsume) {
                 querySearchResult.markAsPartiallyReduced();
@@ -391,10 +394,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return new MergeResult(processedShards, newTopDocs, newAggs, newAggs != null ? DelayableWriteable.getSerializedSize(newAggs) : 0);
     }
 
+    /**
+     * Reduces shard and partial aggregation results.
+     *
+     * @param aggsCount the number of aggregations the two iterators yield together, which
+     *                  {@link InternalAggregations#topLevelReduce(Iterator, int, AggregationReduceContext)} needs to be exact
+     */
     private static InternalAggregations aggregate(
         Iterator<QuerySearchResult> toConsume,
         Iterator<InternalAggregations> partialResults,
-        int resultSetSize,
+        int aggsCount,
         AggregationReduceContext reduceContext
     ) {
         interface ReleasableIterator extends Iterator<InternalAggregations>, Releasable {}
@@ -422,7 +431,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }) {
             return InternalAggregations.topLevelReduce(
                 partialResults.hasNext() ? Iterators.concat(partialResults, aggsIter) : aggsIter,
-                resultSetSize,
+                aggsCount,
                 reduceContext
             );
         } finally {
@@ -661,6 +670,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
+    /**
+     * The result of a partial reduce, either built on this node or sent by a data node with the batched query phase.
+     *
+     * @param reducedAggs the partially reduced aggregations. Null when the request has no aggregations, or when no shard result reached
+     *                    the reduce, as on a data node whose shards all failed or were skipped. A later reduce must not count such a
+     *                    result, since it adds no aggregations.
+     */
     record MergeResult(
         List<SearchShard> processedShards,
         @Nullable TopDocs reducedTopDocs,

@@ -109,6 +109,8 @@ dependencies {
   testImplementation project(path: xpackModule('inference'))
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
+  // Re2LikeShardQueryTests builds the match on a wildcard field
+  testImplementation project(path: xpackModule('wildcard'))
   // Unit tests reference the mapper-version Version type directly; provide it on the (flat) test classpath.
   testImplementation project(path: xpackModule('mapper-version'))
   // Unit tests run on a flat classpath (no plugin classloader chain), so the EQL command's compileOnly

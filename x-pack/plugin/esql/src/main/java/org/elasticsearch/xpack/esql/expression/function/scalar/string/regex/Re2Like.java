@@ -22,8 +22,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
@@ -120,8 +120,9 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
                     + "] index level setting."
             );
         }
-        // whatever the field, as a regexp query is refused on any field type, but a constant one, which tests its one value
-        if (context.allowExpensiveQueries() == false && fieldType instanceof ConstantFieldType == false) {
+        // on the string fields that refuse a regexp query, whether or not they have a terms index; a constant field tests its
+        // one value and a wildcard field runs a regexp query whatever the setting, and a runtime field refuses the automaton itself
+        if (context.allowExpensiveQueries() == false && fieldType instanceof StringFieldType) {
             throw new ElasticsearchException(
                 "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
             );

@@ -192,8 +192,17 @@ public class LabelMatcher implements NodeStringRenderable {
             // The DFA is not minimized. Everything read from it (isTotal, isEmpty, run and getSingleton) needs a deterministic
             // automaton without dead states, which determinize and complement both produce, and a matcher does not outlive
             // the planning of its query, so the smaller automaton would not be worth a step whose memory can only be guessed.
-            result = CircuitBreakingOperations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
-            held += hold(result, breaker);
+            Automaton dfa = CircuitBreakingOperations.determinize(
+                result,
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                breaker,
+                BREAKER_LABEL
+            );
+            // an automaton that is deterministic already, such as a single regex's, comes back as it is and is held once
+            if (dfa != result) {
+                held += hold(dfa, breaker);
+            }
+            result = dfa;
             // negate if needed
             if (matcher == NEQ || matcher == NREG) {
                 result = CircuitBreakingOperations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);

@@ -23,13 +23,17 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2RegExp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,6 +52,11 @@ import static org.hamcrest.Matchers.notNullValue;
  * builds the automaton against the shard's circuit breaker.
  */
 public class Re2LikeShardQueryTests extends MapperServiceTestCase {
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new Wildcard());
+    }
 
     public void testRefusesPatternLongerThanTheIndexAllows() throws IOException {
         MapperService mapperService = createMapperService(
@@ -92,6 +101,12 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         String index = context.getFullyQualifiedIndex().getName();
         assertThat(query("_index", "\\Q" + index + "\\E", context), equalTo(Queries.ALL_DOCS_INSTANCE));
         assertThat(query("_index", "\\Q" + index + "\\Ex", context), instanceOf(MatchNoDocsQuery.class));
+    }
+
+    /** A wildcard field runs a {@code regexp} query whatever the setting, so it runs the match too. */
+    public void testWildcardFieldRunsWhenExpensiveQueriesAreNotAllowed() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b.startObject("label").field("type", "wildcard").endObject()));
+        assertThat(query("prod-[0-9]+", noExpensiveQueries(mapperService)), notNullValue());
     }
 
     public void testAutomatonIsChargedToTheShardBreaker() throws IOException {

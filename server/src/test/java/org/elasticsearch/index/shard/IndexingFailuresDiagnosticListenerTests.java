@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -33,114 +34,227 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
 
-    private static final TimeValue WARN_WINDOW = TimeValue.timeValueHours(1);
-    private static final long WINDOW_NANOS = TimeValue.timeValueHours(1).nanos();
     private static final int MAX_WARNINGS_PER_WINDOW = 5;
-
-    static MockAppender appender;
-    static Logger testLogger1 = LogManager.getLogger(IndexingFailuresDiagnosticListener.class);
-    static Level origLogLevel = testLogger1.getLevel();
+    private static final TimeValue WARN_WINDOW = TimeValue.timeValueHours(1);
+    private static final ShardId SHARD_ID = ShardId.fromString("[index][123]");
+    private static final Logger LOGGER = LogManager.getLogger(IndexingFailuresDiagnosticListener.class);
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
         Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build()
     );
 
-    @BeforeClass
-    public static void init() throws IllegalAccessException {
-        appender = new MockAppender("mock_appender");
+    /** The three ways a single failed document reaches the listener. */
+    private enum FailurePath {
+        INDEX_RESULT,
+        INDEX_EXCEPTION,
+        BATCH_RESULT
+    }
+
+    private final ShardRouting shardRouting = TestShardRouting.newShardRouting(SHARD_ID, "node-id", true, ShardRoutingState.STARTED);
+    private final AtomicLong clock = new AtomicLong(
+        randomLongBetween(-1000, 1000) * WARN_WINDOW.nanos() + randomLongBetween(0, WARN_WINDOW.nanos() - 1)
+    );
+    private final WindowedRateLimiter sharedLimiter = newLimiter();
+    private EventRecordingAppender appender;
+    private Level originalLevel;
+
+    @Before
+    public void addAppender() throws IllegalAccessException {
+        originalLevel = LOGGER.getLevel();
+        appender = new EventRecordingAppender();
         appender.start();
-        Loggers.addAppender(testLogger1, appender);
-        Loggers.setLevel(testLogger1, randomBoolean() ? Level.DEBUG : Level.TRACE);
+        Loggers.addAppender(LOGGER, appender);
     }
 
-    @AfterClass
-    public static void cleanup() {
-        Loggers.removeAppender(testLogger1, appender);
+    @After
+    public void removeAppender() {
+        Loggers.removeAppender(LOGGER, appender);
         appender.stop();
-
-        Loggers.setLevel(testLogger1, origLogLevel);
+        Loggers.setLevel(LOGGER, originalLevel);
     }
 
-    private static long randomWindowIndex() {
-        return randomLongBetween(-1000, 1000);
+    public void testLevelAndMessageForEveryPathErrorTypeAndLogLevel() {
+        for (FailurePath path : FailurePath.values()) {
+            for (Level level : List.of(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN)) {
+                for (boolean userError : new boolean[] { true, false }) {
+                    Loggers.setLevel(LOGGER, level);
+                    appender.events.clear();
+                    logFailure(listener(newLimiter()), path, userError ? randomUserError() : randomRealError());
+                    String docId = path == FailurePath.BATCH_RESULT ? "doc-0" : "1";
+                    String context = path + " " + level + " userError=" + userError;
+                    if (userError == false) {
+                        assertSingleEvent(context, Level.WARN, expectedMessage("real-index-fail [" + docId + "] seq# [-2]"));
+                    } else if (level == Level.TRACE) {
+                        assertSingleEvent(context, Level.TRACE, expectedMessage("index-fail [" + docId + "] seq# [-2]"));
+                    } else {
+                        assertThat(context, appender.events, empty());
+                    }
+                }
+            }
+        }
     }
 
-    private static Engine.IndexResult failedResult(Exception failure) {
-        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
-        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
-        when(indexResult.getFailure()).thenReturn(failure);
-        return indexResult;
+    public void testSuccessIsNotLogged() {
+        Loggers.setLevel(LOGGER, Level.TRACE);
+        var listener = listener(sharedLimiter);
+        listener.postIndex(SHARD_ID, singleDocIndex(), successResult());
+        listener.postIndexBatch(SHARD_ID, primaryBatch(1), List.of(successResult()));
+        assertThat(appender.events, empty());
+    }
+
+    public void testBatchEngineExceptionLoggedAsOneLine() {
+        Loggers.setLevel(LOGGER, randomFrom(Level.TRACE, Level.DEBUG));
+        int docCount = randomIntBetween(1, 8);
+        listener(sharedLimiter).postIndexBatch(SHARD_ID, primaryBatch(docCount), new RuntimeException("test exception"));
+        assertSingleEvent(
+            "engine exception",
+            Level.DEBUG,
+            expectedMessage("index-fail batch docCount [" + docCount + "] startingSeqNo [-2]")
+        );
+    }
+
+    /**
+     * Real failures from all paths and from many listeners share one limit: WARN up to the limit, then DEBUG if enabled,
+     * with a fresh limit in each window. Successes in between must not use permits.
+     */
+    public void testWarnLimitIsSharedAndResetsEachWindow() {
+        boolean debugEnabled = randomBoolean();
+        Loggers.setLevel(LOGGER, debugEnabled ? randomFrom(Level.TRACE, Level.DEBUG) : randomFrom(Level.INFO, Level.WARN));
+        FailurePath[] paths = FailurePath.values();
+        int windows = randomIntBetween(1, 4);
+        for (int w = 0; w < windows; w++) {
+            appender.events.clear();
+            List<Level> expected = new ArrayList<>();
+            int failures = MAX_WARNINGS_PER_WINDOW + randomIntBetween(1, 10);
+            for (int i = 0; i < failures; i++) {
+                var listener = listener(sharedLimiter);
+                if (randomBoolean()) {
+                    listener.postIndex(SHARD_ID, singleDocIndex(), successResult());
+                } else {
+                    listener.postIndexBatch(SHARD_ID, primaryBatch(1), List.of(successResult()));
+                }
+                logFailure(listener, paths[i % paths.length], randomRealError());
+                if (i < MAX_WARNINGS_PER_WINDOW) {
+                    expected.add(Level.WARN);
+                } else if (debugEnabled) {
+                    expected.add(Level.DEBUG);
+                }
+            }
+            assertThat("window " + w, levels(), equalTo(expected));
+            clock.addAndGet(WARN_WINDOW.nanos() * randomLongBetween(1, 100));
+        }
+    }
+
+    public void testBatchTakesOnePermitPerRealFailureAndUserErrorsTakeNone() {
+        Loggers.setLevel(LOGGER, Level.DEBUG);
+        FailurePath[] paths = FailurePath.values();
+        int userErrors = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 20);
+        for (int i = 0; i < userErrors; i++) {
+            logFailure(listener(sharedLimiter), paths[i % paths.length], randomUserError());
+        }
+        int realErrors = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
+        List<Engine.IndexResult> results = new ArrayList<>();
+        for (int i = 0; i < realErrors; i++) {
+            results.add(failedResult(randomRealError()));
+        }
+
+        listener(sharedLimiter).postIndexBatch(SHARD_ID, primaryBatch(realErrors), results);
+
+        List<Level> expected = new ArrayList<>(Collections.nCopies(MAX_WARNINGS_PER_WINDOW, Level.WARN));
+        expected.addAll(Collections.nCopies(realErrors - MAX_WARNINGS_PER_WINDOW, Level.DEBUG));
+        assertThat(levels(), equalTo(expected));
+    }
+
+    private void logFailure(IndexingFailuresDiagnosticListener listener, FailurePath path, Exception failure) {
+        switch (path) {
+            case INDEX_RESULT -> listener.postIndex(SHARD_ID, singleDocIndex(), failedResult(failure));
+            case INDEX_EXCEPTION -> listener.postIndex(SHARD_ID, singleDocIndex(), failure);
+            case BATCH_RESULT -> listener.postIndexBatch(SHARD_ID, primaryBatch(1), List.of(failedResult(failure)));
+        }
     }
 
     /**
      * The shard is mocked because a real {@link IndexShard} needs a full node environment, and the listener only reads
      * its routing entry, primary term and index settings.
      */
-    private static IndexingFailuresDiagnosticListener listenerWithLimiter(WindowedRateLimiter limiter) {
-        var shardId = ShardId.fromString("[index][123]");
-        var mockShard = mock(IndexShard.class);
-        when(mockShard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED));
-        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        return new IndexingFailuresDiagnosticListener(mockShard, limiter);
+    private IndexingFailuresDiagnosticListener listener(WindowedRateLimiter limiter) {
+        var shard = mock(IndexShard.class);
+        when(shard.routingEntry()).thenReturn(shardRouting);
+        when(shard.getOperationPrimaryTerm()).thenReturn(1L);
+        when(shard.indexSettings()).thenReturn(INDEX_SETTINGS);
+        return new IndexingFailuresDiagnosticListener(shard, limiter);
     }
 
-    private static IndexingFailuresDiagnosticListener listenerWithClock(AtomicLong clock) {
-        return listenerWithLimiter(limiterWithClock(clock));
-    }
-
-    private static WindowedRateLimiter limiterWithClock(AtomicLong clock) {
+    private WindowedRateLimiter newLimiter() {
         return new WindowedRateLimiter(MAX_WARNINGS_PER_WINDOW, WARN_WINDOW, clock::get);
     }
 
-    private static WindowedRateLimiter newLimiter() {
-        return new WindowedRateLimiter(MAX_WARNINGS_PER_WINDOW, WARN_WINDOW, System::nanoTime);
+    private String expectedMessage(String operationPart) {
+        return operationPart
+            + " allocation-id ["
+            + shardRouting.allocationId()
+            + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]";
+    }
+
+    private void assertSingleEvent(String context, Level level, String message) {
+        assertThat(context, appender.events, hasSize(1));
+        assertThat(context, appender.events.get(0).getLevel(), equalTo(level));
+        assertThat(context, appender.events.get(0).getMessage().getFormattedMessage(), equalTo(message));
+    }
+
+    private List<Level> levels() {
+        return appender.events.stream().map(LogEvent::getLevel).toList();
+    }
+
+    private static Engine.IndexResult failedResult(Exception failure) {
+        Engine.IndexResult result = mock(Engine.IndexResult.class);
+        when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(result.getFailure()).thenReturn(failure);
+        return result;
+    }
+
+    /** The failure is set so that the test fails if the listener reads it without checking the result type. */
+    private static Engine.IndexResult successResult() {
+        Engine.IndexResult result = mock(Engine.IndexResult.class);
+        when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
+        when(result.getFailure()).thenReturn(new RuntimeException("test exception"));
+        return result;
     }
 
     private static Exception randomUserError() {
-        var shardId = ShardId.fromString("[index][123]");
         return randomFrom(
-            new DocumentMissingException(shardId, "doc-0"),
-            new VersionConflictEngineException(shardId, "[doc-0]", "explanation"),
+            new DocumentMissingException(SHARD_ID, "doc-0"),
+            new VersionConflictEngineException(SHARD_ID, "[doc-0]", "explanation"),
             new IllegalArgumentException("Number of documents in the shard cannot exceed [1]; for more information, see [url]")
         );
     }
 
-    private static LogEvent postIndexBatchFailure(Level level, Exception failure) {
-        var previousLevel = testLogger1.getLevel();
-        try {
-            Loggers.setLevel(testLogger1, level);
-            var shardId = ShardId.fromString("[index][123]");
-            var mockShard = mock(IndexShard.class);
-            var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
-            when(mockShard.routingEntry()).thenReturn(shardRouting);
-            when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-            when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-            Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
-            when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
-            when(indexResult.getFailure()).thenReturn(failure);
-            appender.getLastEventAndReset();
-            new IndexingFailuresDiagnosticListener(mockShard, newLimiter()).postIndexBatch(shardId, primaryBatch(1), List.of(indexResult));
-            return appender.getLastEventAndReset();
-        } finally {
-            Loggers.setLevel(testLogger1, previousLevel);
-        }
+    private static Exception randomRealError() {
+        return randomFrom(
+            new RuntimeException("test exception"),
+            new IllegalArgumentException("other message"),
+            new IllegalArgumentException()
+        );
+    }
+
+    private static Engine.Index singleDocIndex() {
+        return new Engine.Index(Uid.encodeId("doc_id"), 1, EngineTestCase.createParsedDoc("1", null));
     }
 
     private static IndexOperationBatch primaryBatch(int docCount) {
@@ -164,352 +278,17 @@ public class IndexingFailuresDiagnosticListenerTests extends ESTestCase {
         );
     }
 
-    private static Engine.Index singleDocIndex() {
-        return new Engine.Index(Uid.encodeId("doc_id"), 1, EngineTestCase.createParsedDoc("1", null));
-    }
+    /** {@link MockAppender} keeps only the last event, but these tests check every event that one call logs. */
+    private static final class EventRecordingAppender extends MockAppender {
+        private final List<LogEvent> events = new ArrayList<>();
 
-    private static LogEvent postIndexFailure(Level level, Exception failure, boolean asResult) {
-        var previousLevel = testLogger1.getLevel();
-        try {
-            Loggers.setLevel(testLogger1, level);
-            appender.getLastEventAndReset();
-            var listener = listenerWithLimiter(newLimiter());
-            var shardId = ShardId.fromString("[index][123]");
-            if (asResult) {
-                listener.postIndex(shardId, singleDocIndex(), failedResult(failure));
-            } else {
-                listener.postIndex(shardId, singleDocIndex(), failure);
-            }
-            return appender.getLastEventAndReset();
-        } finally {
-            Loggers.setLevel(testLogger1, previousLevel);
-        }
-    }
-
-    public void testPostIndexException() {
-        var shardId = ShardId.fromString("[index][123]");
-        var mockShard = mock(IndexShard.class);
-        var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
-        when(mockShard.routingEntry()).thenReturn(shardRouting);
-        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        var listener = new IndexingFailuresDiagnosticListener(mockShard, newLimiter());
-
-        listener.postIndex(shardId, singleDocIndex(), new RuntimeException("test exception"));
-        String message = appender.getLastEventAndReset().getMessage().getFormattedMessage();
-        assertThat(
-            message,
-            equalTo(
-                "real-index-fail [1] seq# [-2] allocation-id ["
-                    + shardRouting.allocationId()
-                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]"
-            )
-        );
-    }
-
-    public void testPostIndexRealErrorLoggedAtWarnEvenWhenDebugDisabled() {
-        Level level = randomFrom(Level.INFO, Level.WARN);
-        LogEvent event = postIndexFailure(level, new RuntimeException("test exception"), randomBoolean());
-        assertThat(event.getLevel(), equalTo(Level.WARN));
-        assertThat(event.getMessage().getFormattedMessage(), startsWith("real-index-fail [1]"));
-    }
-
-    public void testPostIndexUserErrorLoggedAtTraceOnly() {
-        Exception userError = randomUserError();
-        boolean asResult = randomBoolean();
-        LogEvent traceEvent = postIndexFailure(Level.TRACE, userError, asResult);
-        assertThat(traceEvent.getLevel(), equalTo(Level.TRACE));
-        assertThat(traceEvent.getMessage().getFormattedMessage(), startsWith("index-fail [1]"));
-        assertThat(postIndexFailure(randomFrom(Level.DEBUG, Level.INFO), userError, asResult), nullValue());
-    }
-
-    public void testPostIndexFailureResult() {
-        var shardId = ShardId.fromString("[index][123]");
-        var mockShard = mock(IndexShard.class);
-        var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
-        when(mockShard.routingEntry()).thenReturn(shardRouting);
-        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        var listener = new IndexingFailuresDiagnosticListener(mockShard, newLimiter());
-
-        listener.postIndex(shardId, singleDocIndex(), failedResult(new RuntimeException("test exception")));
-        String message = appender.getLastEventAndReset().getMessage().getFormattedMessage();
-        assertThat(
-            message,
-            equalTo(
-                "real-index-fail [1] seq# [-2] allocation-id ["
-                    + shardRouting.allocationId()
-                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]"
-            )
-        );
-    }
-
-    public void testPostIndex() {
-        var listener = listenerWithLimiter(newLimiter());
-        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
-        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
-        when(indexResult.getFailure()).thenReturn(new RuntimeException("test exception"));
-        listener.postIndex(ShardId.fromString("[index][123]"), singleDocIndex(), indexResult);
-        assertThat(appender.getLastEventAndReset(), nullValue());
-    }
-
-    public void testPerDocumentRealErrorsLoggedAtWarnUpToLimitThenDebugWithinWindow() {
-        var clock = new AtomicLong(randomWindowIndex() * WINDOW_NANOS + randomLongBetween(0, WINDOW_NANOS - 1));
-        var listener = listenerWithClock(clock);
-        var shardId = ShardId.fromString("[index][123]");
-        boolean asResult = randomBoolean();
-
-        int failures = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
-        for (int i = 0; i < failures; i++) {
-            appender.getLastEventAndReset();
-            if (asResult) {
-                listener.postIndex(shardId, singleDocIndex(), failedResult(new RuntimeException("test exception")));
-            } else {
-                listener.postIndex(shardId, singleDocIndex(), new RuntimeException("test exception"));
-            }
-            Level expected = i < MAX_WARNINGS_PER_WINDOW ? Level.WARN : Level.DEBUG;
-            assertThat("failure " + i, appender.getLastEventAndReset().getLevel(), equalTo(expected));
-        }
-    }
-
-    public void testWarnLimitIsSharedBetweenPerDocumentAndBatchFailures() throws IllegalAccessException {
-        var listener = listenerWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
-        var shardId = ShardId.fromString("[index][123]");
-        int failures = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
-
-        List<Level> levels = levelsLoggedDuring(() -> {
-            for (int i = 0; i < failures; i++) {
-                if (randomBoolean()) {
-                    listener.postIndex(shardId, singleDocIndex(), new RuntimeException("test exception"));
-                } else {
-                    listener.postIndexBatch(shardId, primaryBatch(1), List.of(failedResult(new RuntimeException("test exception"))));
-                }
-            }
-        });
-
-        assertThat(Collections.frequency(levels, Level.WARN), equalTo(MAX_WARNINGS_PER_WINDOW));
-    }
-
-    public void testPostIndexBatchFailure() {
-        var shardId = ShardId.fromString("[index][123]");
-        var mockShard = mock(IndexShard.class);
-        var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
-        when(mockShard.routingEntry()).thenReturn(shardRouting);
-        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDiagnosticListener listener = new IndexingFailuresDiagnosticListener(mockShard, newLimiter());
-
-        IndexOperationBatch batch = primaryBatch(1);
-        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
-        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
-        when(indexResult.getFailure()).thenReturn(new RuntimeException("test exception"));
-        listener.postIndexBatch(shardId, batch, List.of(indexResult));
-        String message = appender.getLastEventAndReset().getMessage().getFormattedMessage();
-        assertThat(
-            message,
-            equalTo(
-                "real-index-fail [doc-0] seq# [-2] allocation-id ["
-                    + shardRouting.allocationId()
-                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]"
-            )
-        );
-    }
-
-    public void testPostIndexBatchEngineException() {
-        var shardId = ShardId.fromString("[index][123]");
-        var mockShard = mock(IndexShard.class);
-        var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
-        when(mockShard.routingEntry()).thenReturn(shardRouting);
-        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDiagnosticListener listener = new IndexingFailuresDiagnosticListener(mockShard);
-
-        final int docCount = randomIntBetween(1, 8);
-        IndexOperationBatch batch = primaryBatch(docCount);
-        listener.postIndexBatch(shardId, batch, new RuntimeException("test exception"));
-        // engine-level failure: one line summarises the whole batch, not one line per doc
-        String message = appender.getLastEventAndReset().getMessage().getFormattedMessage();
-        assertThat(
-            message,
-            equalTo(
-                "index-fail batch docCount ["
-                    + docCount
-                    + "] startingSeqNo [-2] allocation-id ["
-                    + shardRouting.allocationId()
-                    + "] primaryTerm [1] operationPrimaryTerm [1] origin [PRIMARY] index [index] index-mode [logsdb]"
-            )
-        );
-    }
-
-    public void testPostIndexBatchSuccessNotLogged() {
-        var shardId = ShardId.fromString("[index][123]");
-        var mockShard = mock(IndexShard.class);
-        var shardRouting = TestShardRouting.newShardRouting(shardId, "node-id", true, ShardRoutingState.STARTED);
-        when(mockShard.routingEntry()).thenReturn(shardRouting);
-        when(mockShard.getOperationPrimaryTerm()).thenReturn(1L);
-        when(mockShard.indexSettings()).thenReturn(INDEX_SETTINGS);
-        IndexingFailuresDiagnosticListener listener = new IndexingFailuresDiagnosticListener(mockShard);
-
-        IndexOperationBatch batch = primaryBatch(1);
-        Engine.IndexResult indexResult = mock(Engine.IndexResult.class);
-        when(indexResult.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
-        listener.postIndexBatch(shardId, batch, List.of(indexResult));
-        assertThat(appender.getLastEventAndReset(), nullValue());
-    }
-
-    public void testPostIndexBatchUserErrorLoggedAtTrace() {
-        LogEvent event = postIndexBatchFailure(Level.TRACE, randomUserError());
-        assertThat(event.getLevel(), equalTo(Level.TRACE));
-        assertThat(event.getMessage().getFormattedMessage(), startsWith("index-fail [doc-0]"));
-    }
-
-    public void testPostIndexBatchUserErrorNotLoggedAtDebug() {
-        assertThat(postIndexBatchFailure(Level.DEBUG, randomUserError()), nullValue());
-    }
-
-    public void testPostIndexBatchRealErrorLoggedAtWarnWhenWithinRateLimit() {
-        Exception realError = randomFrom(
-            new RuntimeException("test exception"),
-            new IllegalArgumentException("other message"),
-            new IllegalArgumentException()
-        );
-        LogEvent event = postIndexBatchFailure(Level.TRACE, realError);
-        assertThat(event.getLevel(), equalTo(Level.WARN));
-        assertThat(event.getMessage().getFormattedMessage(), startsWith("real-index-fail [doc-0]"));
-    }
-
-    public void testRealErrorsLoggedAtWarnUpToLimitThenDebugWithinWindow() {
-        var clock = new AtomicLong(randomWindowIndex() * WINDOW_NANOS + randomLongBetween(0, WINDOW_NANOS - 1));
-        var listener = listenerWithClock(clock);
-        var shardId = ShardId.fromString("[index][123]");
-        var result = failedResult(new RuntimeException("test exception"));
-
-        int failures = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
-        for (int i = 0; i < failures; i++) {
-            appender.getLastEventAndReset();
-            listener.postIndexBatch(shardId, primaryBatch(1), List.of(result));
-            Level expected = i < MAX_WARNINGS_PER_WINDOW ? Level.WARN : Level.DEBUG;
-            assertThat("failure " + i, appender.getLastEventAndReset().getLevel(), equalTo(expected));
-        }
-    }
-
-    public void testRealErrorsLoggedAtWarnInEachWindowWhenDebugDisabled() {
-        var previousLevel = testLogger1.getLevel();
-        try {
-            Loggers.setLevel(testLogger1, randomFrom(Level.INFO, Level.WARN));
-            var clock = new AtomicLong(randomWindowIndex() * WINDOW_NANOS);
-            var listener = listenerWithClock(clock);
-            var shardId = ShardId.fromString("[index][123]");
-            var failure = failedResult(new RuntimeException("test exception"));
-            var success = mock(Engine.IndexResult.class);
-            when(success.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
-
-            int windows = randomIntBetween(2, 5);
-            for (int w = 0; w < windows; w++) {
-                int successfulBatches = randomIntBetween(0, 10);
-                for (int i = 0; i < successfulBatches; i++) {
-                    listener.postIndexBatch(shardId, primaryBatch(1), List.of(success));
-                }
-                int failures = MAX_WARNINGS_PER_WINDOW + randomIntBetween(1, 10);
-                for (int i = 0; i < failures; i++) {
-                    appender.getLastEventAndReset();
-                    listener.postIndexBatch(shardId, primaryBatch(1), List.of(failure));
-                    LogEvent event = appender.getLastEventAndReset();
-                    if (i < MAX_WARNINGS_PER_WINDOW) {
-                        assertThat("window " + w + " failure " + i, event.getLevel(), equalTo(Level.WARN));
-                    } else {
-                        assertThat("window " + w + " failure " + i, event, nullValue());
-                    }
-                }
-                clock.addAndGet(WINDOW_NANOS * randomLongBetween(1, 100));
-            }
-        } finally {
-            Loggers.setLevel(testLogger1, previousLevel);
-        }
-    }
-
-    public void testLimitIsSharedAcrossListeners() {
-        var limiter = limiterWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
-        var shardId = ShardId.fromString("[index][123]");
-        var result = failedResult(new RuntimeException("test exception"));
-        int listeners = randomIntBetween(2, 8);
-
-        int warnings = 0;
-        for (int i = 0; i < listeners * MAX_WARNINGS_PER_WINDOW; i++) {
-            appender.getLastEventAndReset();
-            listenerWithLimiter(limiter).postIndexBatch(shardId, primaryBatch(1), List.of(result));
-            if (appender.getLastEventAndReset().getLevel() == Level.WARN) {
-                warnings++;
-            }
-        }
-
-        assertThat(warnings, equalTo(MAX_WARNINGS_PER_WINDOW));
-    }
-
-    public void testWarnPermitIsTakenPerFailedDocumentWithinOneBatch() throws IllegalAccessException {
-        var listener = listenerWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
-        int failedDocs = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
-        List<Engine.IndexResult> results = new ArrayList<>();
-        for (int i = 0; i < failedDocs; i++) {
-            results.add(failedResult(new RuntimeException("test exception")));
-        }
-
-        List<Level> levels = levelsLoggedDuring(
-            () -> listener.postIndexBatch(ShardId.fromString("[index][123]"), primaryBatch(failedDocs), results)
-        );
-
-        assertThat(Collections.frequency(levels, Level.WARN), equalTo(MAX_WARNINGS_PER_WINDOW));
-        assertThat(Collections.frequency(levels, Level.DEBUG), equalTo(failedDocs - MAX_WARNINGS_PER_WINDOW));
-    }
-
-    public void testUserErrorsDoNotUseWarnPermits() throws IllegalAccessException {
-        var listener = listenerWithClock(new AtomicLong(randomWindowIndex() * WINDOW_NANOS));
-        int userErrors = randomIntBetween(MAX_WARNINGS_PER_WINDOW + 1, 50);
-        int realErrors = MAX_WARNINGS_PER_WINDOW + randomIntBetween(0, 3);
-        List<Engine.IndexResult> results = new ArrayList<>();
-        for (int i = 0; i < userErrors; i++) {
-            results.add(failedResult(randomUserError()));
-        }
-        for (int i = 0; i < realErrors; i++) {
-            results.add(failedResult(new RuntimeException("test exception")));
-        }
-
-        List<Level> levels = levelsLoggedDuring(
-            () -> listener.postIndexBatch(ShardId.fromString("[index][123]"), primaryBatch(results.size()), results)
-        );
-
-        assertThat(Collections.frequency(levels, Level.WARN), equalTo(MAX_WARNINGS_PER_WINDOW));
-    }
-
-    private static List<Level> levelsLoggedDuring(Runnable action) throws IllegalAccessException {
-        var recorder = new LevelRecordingAppender();
-        recorder.start();
-        Loggers.addAppender(testLogger1, recorder);
-        try {
-            action.run();
-        } finally {
-            Loggers.removeAppender(testLogger1, recorder);
-            recorder.stop();
-            appender.getLastEventAndReset();
-        }
-        return recorder.levels;
-    }
-
-    /**
-     * {@link MockAppender} keeps only the last event, so counting the events logged by one call needs an appender that
-     * records every level.
-     */
-    private static final class LevelRecordingAppender extends MockAppender {
-        private final List<Level> levels = new ArrayList<>();
-
-        LevelRecordingAppender() throws IllegalAccessException {
-            super("level_recording_appender");
+        EventRecordingAppender() throws IllegalAccessException {
+            super("event_recording_appender");
         }
 
         @Override
         public void append(LogEvent event) {
-            levels.add(event.getLevel());
-            super.append(event);
+            events.add(event.toImmutable());
         }
     }
 }

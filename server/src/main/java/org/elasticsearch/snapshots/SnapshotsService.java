@@ -2163,7 +2163,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final var projectState = currentState.projectState(snapshot.getProjectId());
             SnapshotsServiceUtils.ensureRepositoryExists(repositoryName, projectState.metadata());
             final Repository repository = createSnapshotTask.repository;
-            // Match by UUID: retries can carry a different resolved name (date-math) for the same create.
+            // Create is re-submitted after cluster-state publish failures; by then this UUID may already be in SnapshotsInProgress.
             final SnapshotsInProgress.Entry existingInProgress = findInProgressByUuid(
                 snapshotsInProgress,
                 snapshot.getProjectId(),

@@ -77,6 +77,27 @@ public class ModuleInfoAugmenterTests extends TestCase {
     }
 
     /**
+     * Providers handed to augment (sorted, as read from the generated services file) must end up in the
+     * {@code provides} {@code with} list in that same order, so the module-info is reproducible.
+     */
+    public void testAugmentPreservesProviderOrder() {
+        byte[] original = buildModuleInfo("test.mod", builder -> {});
+
+        byte[] augmented = ModuleInfoAugmenter.augment(original, List.of("test.Alpha$Provider", "test.Mid$Provider", "test.Zeta$Provider"));
+
+        ModuleAttribute attr = readModuleAttribute(augmented);
+        List<ModuleProvideInfo> libraryProvides = attr.provides()
+            .stream()
+            .filter(p -> p.provides().asSymbol().equals(LIBRARY_PROVIDER))
+            .toList();
+        assertEquals(1, libraryProvides.size());
+        assertEquals(
+            List.of(ClassDesc.of("test.Alpha$Provider"), ClassDesc.of("test.Mid$Provider"), ClassDesc.of("test.Zeta$Provider")),
+            libraryProvides.get(0).providesWith().stream().map(e -> e.asSymbol()).toList()
+        );
+    }
+
+    /**
      * Augmenting must not disturb other {@code provides} directives for different service types.
      */
     public void testAugmentPreservesOtherProvides() {

@@ -18,12 +18,15 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
@@ -223,6 +226,112 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id"));
             assertColumnTypes(resp.columns(), List.of("integer"));
             assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
+    }
+
+    /**
+     * The filter of an aggregate function is evaluated against the Lucene document of each row. When it is not shared by all
+     * the aggregate functions it stays in the aggregation, so the query has to be rejected when the aggregation runs on rows
+     * that are no longer tied to a document, instead of failing while it executes.
+     */
+    public void testMatchInStatsFilterAfterCommands() {
+        String stats = " | STATS c = count(*) WHERE match(content, \"fox\"), d = count(*)";
+
+        for (String commands : List.of(
+            "LIMIT 10",
+            "SORT id | LIMIT 10",
+            "STATS m = max(id) BY content",
+            "CHANGE_POINT id ON id",
+            // the optimizer replaces the alias with the indexed field
+            "RENAME content AS c2 | LIMIT 10 | EVAL content = c2"
+        )) {
+            var error = expectThrows(VerificationException.class, () -> run("FROM test | " + commands + stats));
+            assertThat(commands, error.getMessage(), containsString("[MATCH] function cannot be used after "));
+        }
+
+        // these keep the rows tied to their documents
+        List<String> allowed = new ArrayList<>(List.of("MV_EXPAND id", "EVAL x = id + 1", "KEEP content, id", "WHERE id > 0", "SORT id"));
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
+            // the optimized plan is the one to accept these, with the aggregation of INLINE STATS on the right of a join
+            allowed.add("INLINE STATS m = max(id)");
+            allowed.add("INLINE STATS m = max(id) BY id");
+        }
+        for (String commands : allowed) {
+            try (var resp = run("FROM test | " + commands + stats)) {
+                assertColumnNames(resp.columns(), List.of("c", "d"));
+                assertValues(resp.values(), List.of(List.of(2L, 6L)));
+            }
+        }
+    }
+
+    /**
+     * The subquery of IN runs as a query of its own: its LIMIT or STATS doesn't detach the rows of the main query from their
+     * documents.
+     */
+    public void testMatchInStatsFilterWithInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String limited = "id IN (FROM test_keyword | SORT id | LIMIT 3 | KEEP id)";
+        String max = "id IN (FROM test_keyword | STATS id = max(id))";
+        String match = "match(content, \"fox\")";
+        Map<String, List<Object>> queries = Map.of(
+            "WHERE " + limited + " | STATS c = count(*) WHERE " + match + ", d = count(*)",
+            List.of(1L, 3L),
+            "WHERE " + max + " | STATS c = count(*) WHERE " + match + ", d = count(*)",
+            List.of(1L, 1L),
+            "STATS c = count(*) WHERE " + match + " AND " + limited + ", d = count(*)",
+            List.of(1L, 6L),
+            "STATS c = count(*) WHERE " + match + ", d = count(*) WHERE " + limited,
+            List.of(2L, 3L),
+            "STATS c = count(*) WHERE " + match + ", d = count(*) WHERE " + max,
+            List.of(2L, 1L),
+            "WHERE " + limited + " | WHERE " + match + " | STATS c = count(*), d = count(*)",
+            List.of(1L, 1L)
+        );
+        for (var query : queries.entrySet()) {
+            try (var resp = run("FROM test | " + query.getKey())) {
+                assertColumnNames(resp.columns(), List.of("c", "d"));
+                assertValues(resp.values(), List.of(query.getValue()));
+            }
+        }
+
+        // the same command in the main query takes the aggregation away from the documents
+        for (String limit : List.of("LIMIT 10 | WHERE " + limited, "WHERE " + limited + " | LIMIT 10")) {
+            String query = "FROM test | " + limit + " | STATS c = count(*) WHERE qstr(\"content:fox\"), d = count(*)";
+            var error = expectThrows(VerificationException.class, () -> run(query).close());
+            assertThat(limit, error.getMessage(), containsString("[QSTR] function cannot be used after LIMIT"));
+        }
+    }
+
+    /**
+     * When the subquery of IN returns nothing, the source of the main query is replaced with an empty one on the coordinator,
+     * where there are no shards to run a Lucene query against, nor rows to run it for.
+     */
+    public void testFullTextAfterEmptyInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String empty = "id IN (FROM test_keyword | WHERE id > 100 | SORT id | LIMIT 3 | KEEP id)";
+        for (String search : List.of("match(content, \"fox\")", "match(id, 1)", "match_phrase(content, \"brown fox\")")) {
+            String where = "FROM test | WHERE " + empty + " | WHERE " + search + " | STATS c = count(*), d = count(*)";
+            try (var resp = run(where)) {
+                assertThat(where, getValuesList(resp), equalTo(List.of(List.of(0L, 0L))));
+            }
+        }
+        for (String search : List.of("match(content, \"fox\")", "match_phrase(content, \"brown fox\")", "qstr(\"content:fox\")")) {
+            String stats = "FROM test | WHERE " + empty + " | STATS c = count(*) WHERE " + search + ", d = count(*)";
+            try (var resp = run(stats)) {
+                assertThat(stats, getValuesList(resp), equalTo(List.of(List.of(0L, 0L))));
+            }
+        }
+        // the scores of the search need the shards too
+        for (String scored : List.of(
+            "WHERE match(content, \"fox\") | KEEP id, _score",
+            // the search of a column scores without shards, which keeps the filter scoring, the indexed search with it
+            "EVAL c2 = CONCAT(content, \"\") | WHERE match(content, \"fox\") OR match(c2, \"fox\") | KEEP id, _score",
+            "WHERE match(content, \"fox\") | EVAL s = score(match(content, \"dog\")) | KEEP id, s"
+        )) {
+            String query = "FROM test METADATA _score | WHERE " + empty + " | " + scored;
+            try (var resp = run(query)) {
+                assertThat(query, getValuesList(resp), equalTo(List.of()));
+            }
         }
     }
 

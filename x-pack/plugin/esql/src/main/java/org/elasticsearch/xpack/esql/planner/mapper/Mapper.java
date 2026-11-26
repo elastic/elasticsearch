@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -102,6 +103,7 @@ public class Mapper {
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        SubqueryJoin.rejectUntilSupported(versionedPlan.inner());
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
         return mapInner(versionedPlan.inner());
@@ -255,7 +257,15 @@ public class Mapper {
             PhysicalPlan write = mappedChild instanceof FragmentExec
                 ? addExchangeForFragment(into, mappedChild)
                 : MapperUtils.mapIntoWrite(into, mappedChild);
-            return new IntoExec(into.source(), write, into.destination(), List.of(), into.output(), IntoExec.Mode.MERGE_STATS);
+            return new IntoExec(
+                into.source(),
+                write,
+                into.destination(),
+                into.options(),
+                List.of(),
+                into.output(),
+                IntoExec.Mode.MERGE_STATS
+            );
         }
 
         //
@@ -266,7 +276,16 @@ public class Mapper {
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof HashJoin hashJoin) {
+            if (hashJoin.unique() && hashJoin.repeatedKeys()) {
+                // A unique join matches a probe row to at most one build row, which only holds while the lookup table rejects
+                // repeated build keys.
+                throw new EsqlIllegalArgumentException("a unique hash join cannot allow repeated keys");
+            }
             PhysicalPlan left = mapInner(bp.left());
+            if (left instanceof FragmentExec) {
+                // The join runs on the coordinator: bring the left side's rows here, as for a coordinator LOOKUP JOIN.
+                left = new ExchangeExec(left.source(), left);
+            }
             PhysicalPlan right = mapInner(bp.right());
             if (right instanceof LocalSourceExec localData) {
                 var marker = newJoinMarker(hashJoin.source());
@@ -278,7 +297,8 @@ public class Mapper {
                     localData,
                     hashJoin.leftFields(),
                     hashJoin.rightFields(),
-                    addedFields
+                    addedFields,
+                    hashJoin.repeatedKeys()
                 );
                 // `INNER` tells operator to filter out non-matched outputs
                 if (hashJoin.config().type() == JoinTypes.INNER) {
@@ -327,7 +347,8 @@ public class Mapper {
                     localData,
                     config.leftFields(),
                     config.rightFields(),
-                    join.rightOutputFields()
+                    join.rightOutputFields(),
+                    false
                 );
             }
             if (right instanceof FragmentExec fragment) {

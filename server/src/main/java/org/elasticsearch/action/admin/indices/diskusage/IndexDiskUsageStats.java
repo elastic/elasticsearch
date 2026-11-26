@@ -35,6 +35,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String STORED_FIELDS_IN_BYTES = "stored_fields_in_bytes";
     public static final String DOC_VALUES = "doc_values";
     public static final String DOC_VALUES_IN_BYTES = "doc_values_in_bytes";
+    public static final String DOC_VALUES_SKIPPER = "doc_values_skipper";
+    public static final String DOC_VALUES_SKIPPER_IN_BYTES = "doc_values_skipper_in_bytes";
     public static final String POINTS = "points";
     public static final String POINTS_IN_BYTES = "points_in_bytes";
     public static final String NORMS = "norms";
@@ -110,6 +112,11 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         getOrAdd(fieldName).docValuesBytes += bytes;
     }
 
+    public void addDocValuesSkipper(String fieldName, long bytes) {
+        checkByteSize(bytes);
+        getOrAdd(fieldName).docValuesSkipperBytes += bytes;
+    }
+
     public void addPoints(String fieldName, long bytes) {
         checkByteSize(bytes);
         getOrAdd(fieldName).pointsBytes += bytes;
@@ -179,10 +186,14 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
      */
     public static final class PerFieldDiskUsage implements ToXContentFragment, Writeable {
         private static final TransportVersion BLOOM_FILTER_STATS_VERSION = TransportVersion.fromName("disk_usage_stats_bloom_filter");
+        private static final TransportVersion DOC_VALUES_SKIPPER_STATS_VERSION = TransportVersion.fromName(
+            "disk_usage_stats_doc_values_skipper"
+        );
 
         private long invertedIndexBytes;
         private long storedFieldBytes;
         private long docValuesBytes;
+        private long docValuesSkipperBytes;
         private long pointsBytes;
         private long normsBytes;
         private long termVectorsBytes;
@@ -204,6 +215,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             if (in.getTransportVersion().supports(BLOOM_FILTER_STATS_VERSION)) {
                 bloomFilterBytes = in.readVLong();
             }
+            if (in.getTransportVersion().supports(DOC_VALUES_SKIPPER_STATS_VERSION)) {
+                docValuesSkipperBytes = in.readVLong();
+            }
         }
 
         @Override
@@ -218,12 +232,16 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             if (out.getTransportVersion().supports(BLOOM_FILTER_STATS_VERSION)) {
                 out.writeVLong(bloomFilterBytes);
             }
+            if (out.getTransportVersion().supports(DOC_VALUES_SKIPPER_STATS_VERSION)) {
+                out.writeVLong(docValuesSkipperBytes);
+            }
         }
 
         private void add(PerFieldDiskUsage other) {
             invertedIndexBytes += other.invertedIndexBytes;
             storedFieldBytes += other.storedFieldBytes;
             docValuesBytes += other.docValuesBytes;
+            docValuesSkipperBytes += other.docValuesSkipperBytes;
             pointsBytes += other.pointsBytes;
             normsBytes += other.normsBytes;
             termVectorsBytes += other.termVectorsBytes;
@@ -241,6 +259,10 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
         public long getDocValuesBytes() {
             return docValuesBytes;
+        }
+
+        public long getDocValuesSkipperBytes() {
+            return docValuesSkipperBytes;
         }
 
         public long getPointsBytes() {
@@ -264,8 +286,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         }
 
         long totalBytes() {
-            return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes + knnVectorsBytes
-                + bloomFilterBytes;
+            return invertedIndexBytes + storedFieldBytes + docValuesBytes + docValuesSkipperBytes + pointsBytes + normsBytes
+                + termVectorsBytes + knnVectorsBytes + bloomFilterBytes;
         }
 
         @Override
@@ -284,6 +306,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
             builder.field(DOC_VALUES, ByteSizeValue.ofBytes(docValuesBytes));
             builder.field(DOC_VALUES_IN_BYTES, docValuesBytes);
+
+            builder.field(DOC_VALUES_SKIPPER, ByteSizeValue.ofBytes(docValuesSkipperBytes));
+            builder.field(DOC_VALUES_SKIPPER_IN_BYTES, docValuesSkipperBytes);
 
             builder.field(POINTS, ByteSizeValue.ofBytes(pointsBytes));
             builder.field(POINTS_IN_BYTES, pointsBytes);

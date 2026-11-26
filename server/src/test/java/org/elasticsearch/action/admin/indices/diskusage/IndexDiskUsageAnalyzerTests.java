@@ -435,6 +435,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             var codecMode = randomFrom(CodecMode.values());
             indexRandomly(dir, codecMode, between(100, 1000), doc -> addRandomDocValuesField(doc, true));
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            assertThat(stats.total().getDocValuesSkipperBytes(), greaterThan(0L));
             logger.info("--> stats {}", stats);
             try (Directory perFieldDir = createNewDirectory()) {
                 rewriteIndexWithPerFieldCodec(dir, codecMode, perFieldDir);
@@ -816,11 +817,19 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             IndexDiskUsageStats.PerFieldDiskUsage expectedField = perFieldStats.getFields().get(field);
             if (expectedField == null) {
                 assertThat(actualField.getDocValuesBytes(), equalTo(0L));
+                assertThat(actualField.getDocValuesSkipperBytes(), equalTo(0L));
                 assertThat(actualField.getInvertedIndexBytes(), equalTo(0L));
                 continue;
             }
             // Allow difference up to 2.5KB as we can load up to 256 long values in the table for numeric docValues
-            assertFieldStats(field, "doc values", actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
+            assertFieldStats(
+                field,
+                "doc values and skippers",
+                actualField.getDocValuesBytes() + actualField.getDocValuesSkipperBytes(),
+                expectedField.getDocValuesBytes() + expectedField.getDocValuesSkipperBytes(),
+                0.01,
+                2560
+            );
             assertFieldStats(
                 field,
                 "inverted index",

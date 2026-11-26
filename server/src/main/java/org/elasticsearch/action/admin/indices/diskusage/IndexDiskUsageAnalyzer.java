@@ -297,6 +297,8 @@ final class IndexDiskUsageAnalyzer {
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
                 }
             }
+            stats.addDocValues(field.name, directory.getBytesRead());
+            directory.resetBytesRead();
             switch (field.docValuesSkipIndexType()) {
                 case NONE -> {
                 }
@@ -308,7 +310,7 @@ final class IndexDiskUsageAnalyzer {
                 }
                 default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");
             }
-            stats.addDocValues(field.name, directory.getBytesRead());
+            stats.addDocValuesSkipper(field.name, directory.getBytesRead());
         }
     }
 

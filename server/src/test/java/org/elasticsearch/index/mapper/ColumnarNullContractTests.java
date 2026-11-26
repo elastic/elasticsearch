@@ -138,9 +138,8 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
             .batchedGroups((configuration, shape) -> false);
     }
 
-    // NOTE: the BATCH strategy has no test for this scenario. DateFieldMapper#doMapColumnBatch does not apply ignore_malformed: it throws
-    // an IllegalArgumentException for a malformed value and relies on the engine falling back after logging it. That is not the
-    // UnsupportedOperationException that asks for the fallback, so the strategy reports it as a mapper failure.
+    // NOTE: DateFieldMapper#doMapColumnBatch does not apply ignore_malformed and throws for a malformed value, which IndexingStrategy
+    // accepts as a fallback for this one exception. A column with a malformed value falls back to the rows of the batch.
     private static Scenario dateIgnoreMalformed() {
         final int[] calls = new int[1];
         final Supplier<Object> dates = values("date");
@@ -364,13 +363,26 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         assertExistsMatchesOnlyDocumentsWithValue(dateIgnoreMalformed(), IndexingStrategy.DOCUMENT);
     }
 
+    public void testDateIgnoreMalformedExistsBatch() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithValue(dateIgnoreMalformed(), IndexingStrategy.BATCH);
+    }
+
     public void testDateIgnoreMalformedKeepsTheIgnoredValuesDocument() throws IOException {
         assertSourceHoldsTheValues(dateIgnoreMalformed(), IndexingStrategy.DOCUMENT);
+    }
+
+    public void testDateIgnoreMalformedKeepsTheIgnoredValuesBatch() throws IOException {
+        assertSourceHoldsTheValues(dateIgnoreMalformed(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
     public void testDateIgnoreMalformedSourceDocument() throws IOException {
         assertSourceDropsNullElements(dateIgnoreMalformed(), IndexingStrategy.DOCUMENT);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = NULL_ELEMENTS_KEPT)
+    public void testDateIgnoreMalformedSourceBatch() throws IOException {
+        assertSourceDropsNullElements(dateIgnoreMalformed(), IndexingStrategy.BATCH);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = NULL_ONLY_MATCHES_EXISTS)

@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -129,7 +130,7 @@ public enum IndexingStrategy {
                 }
             }
             if (engineBatch == null) {
-                if (failure.thrown instanceof UnsupportedOperationException) {
+                if (failure.thrown instanceof UnsupportedOperationException || isIgnoredMalformedDateFallback(lookup, failure.thrown)) {
                     return indexRows(mapperService, indexWriter, escfBatch, firstSeqNo, String.valueOf(failure.thrown.getMessage()));
                 }
                 throw new AssertionError("the mappers failed to map a batch, which is not a request to fall back", failure.thrown);
@@ -145,6 +146,28 @@ public enum IndexingStrategy {
             }
             return new Outcome(true, null);
         }
+    }
+
+    // NOTE: DateFieldMapper#doMapColumnBatch does not apply ignore_malformed. It throws the parse failure of a malformed value and relies
+    // on the engine falling back after logging it. That one exception is accepted as a fallback, and only when the mapping holds a date
+    // field with ignore_malformed and the exception is the date parse failure. Any other exception still fails the test.
+    private static boolean isIgnoredMalformedDateFallback(MappingLookup lookup, Throwable thrown) {
+        if (thrown instanceof IllegalArgumentException == false) {
+            return false;
+        }
+        boolean parseFailure = false;
+        for (Throwable cause = thrown; cause != null && parseFailure == false; cause = cause.getCause()) {
+            parseFailure = cause instanceof DateTimeParseException;
+        }
+        if (parseFailure == false) {
+            return false;
+        }
+        for (final Mapper mapper : lookup.fieldMappers()) {
+            if (mapper instanceof DateFieldMapper date && date.ignoreMalformed()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Outcome indexRows(

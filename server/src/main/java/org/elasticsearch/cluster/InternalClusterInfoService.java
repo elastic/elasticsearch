@@ -277,13 +277,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void maybeFetchNodesUsageStatsForThreadPools(boolean shouldFetch) {
             if (shouldFetch) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
-                        client,
-                        clusterStateSupplier.get(),
-                        // Per-shard write loads from this action are only needed when the write loads are not fetched via the indices
-                        // stats.
-                        writeLoadDeciderShardWriteLoadType == WriteLoadDeciderShardWriteLoadType.AVERAGE,
-                        ActionListener.releaseAfter(new ActionListener<>() {
+                    final ActionListener<NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats> listener = ActionListener.releaseAfter(
+                        new ActionListener<>() {
                             @Override
                             public void onResponse(NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats stats) {
                                 nodeThreadPoolUsageStatsPerNode = stats.nodeUsageStats();
@@ -296,7 +291,21 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 nodeThreadPoolUsageStatsPerNode = Map.of();
                                 averageShardWriteLoads = Map.of();
                             }
-                        }, fetchRefs.acquire())
+                        },
+                        fetchRefs.acquire()
+                    );
+                    // An Exception before the collector notifies its listener is forwarded to onFailure, which releases the refresh ref.
+                    // A normal return keeps that ref until the listener runs, including when the collector completes it later.
+                    ActionListener.run(
+                        listener,
+                        l -> nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
+                            client,
+                            clusterStateSupplier.get(),
+                            // Per-shard write loads from this action are only needed when the write loads are not fetched via the indices
+                            // stats.
+                            writeLoadDeciderShardWriteLoadType == WriteLoadDeciderShardWriteLoadType.AVERAGE,
+                            l
+                        )
                     );
                 }
             } else {
@@ -307,64 +316,69 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchCacheUsageAndCommitments() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                final ClusterState clusterState = clusterStateSupplier.get();
-                cacheSizesAndCommitmentCollector.collectCacheSizesAndCommitmentStats(
-                    clusterState,
-                    ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
-                            final CacheSizesAndCommitmentStats adjusted = adjustCacheSizesAndCommitmentStats(cacheSizesAndCommitmentStats);
-                            shardCacheRequirements = adjusted.shardCacheRequirements();
-                            nodeCacheSizeAndCommitments = adjusted.nodeCacheSizeAndCommitments();
-                        }
+                final ActionListener<CacheSizesAndCommitmentStats> listener = ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
+                        final CacheSizesAndCommitmentStats adjusted = adjustCacheSizesAndCommitmentStats(cacheSizesAndCommitmentStats);
+                        shardCacheRequirements = adjusted.shardCacheRequirements();
+                        nodeCacheSizeAndCommitments = adjusted.nodeCacheSizeAndCommitments();
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("failed to fetch cache sizes and commitment stats", e);
-                            shardCacheRequirements = Map.of();
-                            nodeCacheSizeAndCommitments = Map.of();
-                        }
-                    }, fetchRefs.acquire())
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to fetch cache sizes and commitment stats", e);
+                        shardCacheRequirements = Map.of();
+                        nodeCacheSizeAndCommitments = Map.of();
+                    }
+                }, fetchRefs.acquire());
+                // An Exception before the collector notifies its listener is forwarded to onFailure, which releases the refresh ref.
+                // A normal return keeps that ref until the listener runs, including when the collector completes it later.
+                ActionListener.run(
+                    listener,
+                    l -> cacheSizesAndCommitmentCollector.collectCacheSizesAndCommitmentStats(clusterStateSupplier.get(), l)
                 );
             }
         }
 
         private void fetchPartitionSizes() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                partitionSizeCollector.collectHostedShardsPartitionSizes(
-                    clusterStateSupplier.get(),
-                    ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(Map<String, Long> partitionSizes) {
-                            hostedShardsPartitionSizeByNodeId = partitionSizes;
-                        }
+                final ActionListener<Map<String, Long>> listener = ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Map<String, Long> partitionSizes) {
+                        hostedShardsPartitionSizeByNodeId = partitionSizes;
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("failed to fetch partition sizes", e);
-                            hostedShardsPartitionSizeByNodeId = Map.of();
-                        }
-                    }, fetchRefs.acquire())
-                );
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to fetch partition sizes", e);
+                        hostedShardsPartitionSizeByNodeId = Map.of();
+                    }
+                }, fetchRefs.acquire());
+                // An Exception before the collector notifies its listener is forwarded to onFailure, which releases the refresh ref.
+                // A normal return keeps that ref until the listener runs, including when the collector completes it later.
+                ActionListener.run(listener, l -> partitionSizeCollector.collectHostedShardsPartitionSizes(clusterStateSupplier.get(), l));
             }
         }
 
         private void fetchSearchLaneRequirements() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                searchLaneRequirementsCollector.collectSearchLaneRequirements(
-                    clusterStateSupplier.get(),
-                    ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(Map<ShardId, Double> laneRequirements) {
-                            shardSearchLaneRequirements = laneRequirements;
-                        }
+                final ActionListener<Map<ShardId, Double>> listener = ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Map<ShardId, Double> laneRequirements) {
+                        shardSearchLaneRequirements = laneRequirements;
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("failed to fetch search lane requirements", e);
-                            shardSearchLaneRequirements = Map.of();
-                        }
-                    }, fetchRefs.acquire())
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to fetch search lane requirements", e);
+                        shardSearchLaneRequirements = Map.of();
+                    }
+                }, fetchRefs.acquire());
+                // An Exception before the collector notifies its listener is forwarded to onFailure, which releases the refresh ref.
+                // A normal return keeps that ref until the listener runs, including when the collector completes it later.
+                ActionListener.run(
+                    listener,
+                    l -> searchLaneRequirementsCollector.collectSearchLaneRequirements(clusterStateSupplier.get(), l)
                 );
             }
         }
@@ -393,7 +407,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchEstimatedHeapUsage() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                estimatedHeapUsageCollector.collectEstimatedHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+                final ActionListener<EstimatedHeapUsageStats> listener = ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(EstimatedHeapUsageStats estimatedHeapUsageStats) {
                         nodeHeapEstimates = estimatedHeapUsageStats.nodeHeapEstimates();
@@ -406,7 +420,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         nodeHeapEstimates = Map.of();
                         estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
                     }
-                }, fetchRefs.acquire()));
+                }, fetchRefs.acquire());
+                // An Exception before the collector notifies its listener is forwarded to onFailure, which releases the refresh ref.
+                // A normal return keeps that ref until the listener runs, including when the collector completes it later.
+                ActionListener.run(listener, estimatedHeapUsageCollector::collectEstimatedHeapUsage);
             }
         }
 
@@ -425,95 +442,91 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsRequest.search(true);
             indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
             indicesStatsRequest.timeout(fetchTimeout);
-            client.admin()
-                .indices()
-                .stats(
-                    indicesStatsRequest,
-                    new ThreadedActionListener<>(
-                        threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                        ActionListener.releaseAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                                logger.trace("received indices stats response");
+            final ActionListener<IndicesStatsResponse> listener = ActionListener.releaseAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                    logger.trace("received indices stats response");
 
-                                if (indicesStatsResponse.getShardFailures().isEmpty() == false) {
-                                    final Set<String> failedNodeIds = new HashSet<>();
-                                    for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
-                                        if (shardFailure.getCause() instanceof final FailedNodeException failedNodeException) {
-                                            if (failedNodeIds.add(failedNodeException.nodeId())) {
-                                                logger.warn(
-                                                    () -> format(
-                                                        "failed to retrieve shard stats from node [%s]",
-                                                        failedNodeException.nodeId()
-                                                    ),
-                                                    failedNodeException.getCause()
-                                                );
-                                            }
-                                            logger.trace(
-                                                () -> format(
-                                                    "failed to retrieve stats for shard [%s][%s]",
-                                                    shardFailure.index(),
-                                                    shardFailure.shardId()
-                                                ),
-                                                shardFailure.getCause()
-                                            );
-                                        } else {
-                                            logger.warn(
-                                                () -> format(
-                                                    "failed to retrieve stats for shard [%s][%s]",
-                                                    shardFailure.index(),
-                                                    shardFailure.shardId()
-                                                ),
-                                                shardFailure.getCause()
-                                            );
-                                        }
-                                    }
+                    if (indicesStatsResponse.getShardFailures().isEmpty() == false) {
+                        final Set<String> failedNodeIds = new HashSet<>();
+                        for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
+                            if (shardFailure.getCause() instanceof final FailedNodeException failedNodeException) {
+                                if (failedNodeIds.add(failedNodeException.nodeId())) {
+                                    logger.warn(
+                                        () -> format("failed to retrieve shard stats from node [%s]", failedNodeException.nodeId()),
+                                        failedNodeException.getCause()
+                                    );
                                 }
-
-                                final ShardStats[] stats = indicesStatsResponse.getShards();
-                                final Map<ShardId, Double> shardWriteLoadByIdentifierBuilder = new HashMap<>();
-                                final Map<ShardId, Double> shardSearchLoadBuilder = new HashMap<>();
-                                final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
-                                final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
-                                final Map<ClusterInfo.NodeAndShard, String> dataPath = new HashMap<>();
-                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders =
-                                    new HashMap<>();
-                                buildShardLevelInfo(
-                                    adjustShardStats(stats),
-                                    shardWriteLoadByIdentifierBuilder,
-                                    shardSearchLoadBuilder,
-                                    shardSizeByIdentifierBuilder,
-                                    shardDataSetSizeBuilder,
-                                    dataPath,
-                                    reservedSpaceBuilders,
-                                    writeLoadDeciderShardWriteLoadType
+                                logger.trace(
+                                    () -> format(
+                                        "failed to retrieve stats for shard [%s][%s]",
+                                        shardFailure.index(),
+                                        shardFailure.shardId()
+                                    ),
+                                    shardFailure.getCause()
                                 );
-
-                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new HashMap<>();
-                                reservedSpaceBuilders.forEach((nodeAndPath, builder) -> reservedSpace.put(nodeAndPath, builder.build()));
-
-                                indicesStatsSummary = new IndicesStatsSummary(
-                                    Map.copyOf(shardSizeByIdentifierBuilder),
-                                    Map.copyOf(shardDataSetSizeBuilder),
-                                    Map.copyOf(dataPath),
-                                    Map.copyOf(reservedSpace),
-                                    Map.copyOf(shardWriteLoadByIdentifierBuilder),
-                                    Map.copyOf(shardSearchLoadBuilder)
+                            } else {
+                                logger.warn(
+                                    () -> format(
+                                        "failed to retrieve stats for shard [%s][%s]",
+                                        shardFailure.index(),
+                                        shardFailure.shardId()
+                                    ),
+                                    shardFailure.getCause()
                                 );
                             }
+                        }
+                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (e instanceof ClusterBlockException) {
-                                    logger.trace("failed to retrieve indices stats", e);
-                                } else {
-                                    logger.warn("failed to retrieve indices stats", e);
-                                }
-                                indicesStatsSummary = IndicesStatsSummary.EMPTY;
-                            }
-                        }, fetchRefs.acquire())
-                    )
-                );
+                    final ShardStats[] stats = indicesStatsResponse.getShards();
+                    final Map<ShardId, Double> shardWriteLoadByIdentifierBuilder = new HashMap<>();
+                    final Map<ShardId, Double> shardSearchLoadBuilder = new HashMap<>();
+                    final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
+                    final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
+                    final Map<ClusterInfo.NodeAndShard, String> dataPath = new HashMap<>();
+                    final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
+                    buildShardLevelInfo(
+                        adjustShardStats(stats),
+                        shardWriteLoadByIdentifierBuilder,
+                        shardSearchLoadBuilder,
+                        shardSizeByIdentifierBuilder,
+                        shardDataSetSizeBuilder,
+                        dataPath,
+                        reservedSpaceBuilders,
+                        writeLoadDeciderShardWriteLoadType
+                    );
+
+                    final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new HashMap<>();
+                    reservedSpaceBuilders.forEach((nodeAndPath, builder) -> reservedSpace.put(nodeAndPath, builder.build()));
+
+                    indicesStatsSummary = new IndicesStatsSummary(
+                        Map.copyOf(shardSizeByIdentifierBuilder),
+                        Map.copyOf(shardDataSetSizeBuilder),
+                        Map.copyOf(dataPath),
+                        Map.copyOf(reservedSpace),
+                        Map.copyOf(shardWriteLoadByIdentifierBuilder),
+                        Map.copyOf(shardSearchLoadBuilder)
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ClusterBlockException) {
+                        logger.trace("failed to retrieve indices stats", e);
+                    } else {
+                        logger.warn("failed to retrieve indices stats", e);
+                    }
+                    indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                }
+            }, fetchRefs.acquire());
+            // An Exception before the client notifies its listener is forwarded to onFailure, which releases the refresh ref.
+            // A normal return keeps that ref until the listener runs, including when the client completes it later.
+            ActionListener.run(
+                listener,
+                l -> client.admin()
+                    .indices()
+                    .stats(indicesStatsRequest, new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), l))
+            );
         }
 
         private void fetchNodeStats(boolean fetchFsStats) {
@@ -526,7 +539,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 }
                 nodesStatsRequest.addMetric(NodesStatsRequestParameters.Metric.JVM);
                 nodesStatsRequest.setTimeout(fetchTimeout);
-                client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.releaseAfter(new ActionListener<>() {
+                final ActionListener<NodesStatsResponse> listener = ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(NodesStatsResponse nodesStatsResponse) {
                         logger.trace("received node stats response");
@@ -561,7 +574,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         mostAvailableSpaceUsages = Map.of();
                         maxHeapPerNode = Map.of();
                     }
-                }, fetchRefs.acquire()));
+                }, fetchRefs.acquire());
+                // An Exception before the client notifies its listener is forwarded to onFailure, which releases the refresh ref.
+                // A normal return keeps that ref until the listener runs, including when the client completes it later.
+                ActionListener.run(listener, l -> client.admin().cluster().nodesStats(nodesStatsRequest, l));
             }
         }
 

@@ -117,7 +117,7 @@ public class S3WorkloadIdentityCredentialsProviderTests extends ESTestCase {
             }
         });
         S3Configuration config = S3Configuration.fromFederatedFields(ROLE_ARN, null, JWT_AUDIENCE, null, null, null, null);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new S3StorageProvider(config));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new S3StorageProvider(config));
         assertThat(e.getMessage(), containsString("workload-identity"));
     }
 

@@ -116,7 +116,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() throws Exception {
-        int invalidTotalShardsPerNode = randomIntBetween(-100, 0);
+        int invalidTotalShardsPerNode = randomBoolean() ? 0 : randomIntBetween(-100, -2);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -130,7 +130,53 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 0
             )
         );
-        assertEquals("[total_shards_per_node] must be >= 1", exception.getMessage());
+        assertEquals("[total_shards_per_node] must be >= 1 or -1", exception.getMessage());
+    }
+
+    public void testUnboundedTotalShardsPerNodeOverridesInheritedLimitInColdPhase() throws Exception {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        Map<String, String> ilmCustom = new HashMap<>();
+        String snapshotName = indexName + "-" + policyName;
+        ilmCustom.put("snapshot_name", snapshotName);
+        String repository = "repository";
+        ilmCustom.put("snapshot_repository", repository);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+                    .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+            )
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+
+        try (var threadPool = createThreadPool()) {
+            final var client = getRestoreSnapshotRequestAssertingClient(
+                threadPool,
+                repository,
+                snapshotName,
+                indexName,
+                RESTORED_INDEX_PREFIX,
+                indexName,
+                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                -1,
+                0
+            );
+            MountSnapshotStep step = new MountSnapshotStep(
+                new StepKey(TimeseriesLifecycleType.COLD_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
+                randomStepKey(),
+                client,
+                RESTORED_INDEX_PREFIX,
+                randomStorageType(),
+                -1,
+                0
+            );
+            performActionAndWait(step, indexMetadata, state, null);
+        }
     }
 
     public void testPerformActionFailure() {

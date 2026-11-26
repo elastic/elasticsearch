@@ -69,7 +69,7 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, FloatBlock fieldBlockBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendDouble(Knn.runtimeScore(p, fieldBlockBlock, this.queryVector, this.similarityMetric, this.boost, this.scratchVector));

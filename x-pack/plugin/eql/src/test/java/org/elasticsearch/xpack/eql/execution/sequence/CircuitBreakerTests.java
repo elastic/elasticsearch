@@ -574,6 +574,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 0,
                 0,
                 List.of(),
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 searchRequest.pointInTimeBuilder().getEncodedId(),
                 null,
@@ -634,6 +635,7 @@ public class CircuitBreakerTests extends ESTestCase {
                             0,
                             0,
                             List.of(),
+                            List.of(),
                             SearchResponse.Clusters.EMPTY,
                             searchRequest.pointInTimeBuilder().getEncodedId(),
                             null,
@@ -654,9 +656,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
                 if (randomBoolean()) {
                     // simulate an all shards exception - SearchPhaseExecutionException
-                    listener.onFailure(
-                        new SearchPhaseExecutionException("search", "all shards failed", failures.toArray(ShardSearchFailure.EMPTY_ARRAY))
-                    );
+                    listener.onFailure(new SearchPhaseExecutionException("search", "all shards failed", failures));
                 } else {
                     // or a partial shard failure
                     // this should still be caught and the exception handled properly and circuit breaker cleared
@@ -682,6 +682,7 @@ public class CircuitBreakerTests extends ESTestCase {
                                 0,
                                 0,
                                 failures,
+                                List.of(),
                                 SearchResponse.Clusters.EMPTY,
                                 searchRequest.pointInTimeBuilder().getEncodedId(),
                                 null,

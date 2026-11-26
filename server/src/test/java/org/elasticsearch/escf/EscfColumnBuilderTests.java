@@ -13,7 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Unit tests for {@link EscfColumnBuilder}, covering both {@link CollisionPolicy}s: the
@@ -76,6 +79,82 @@ public class EscfColumnBuilderTests extends ESTestCase {
         EscfColumn col = EscfColumn.from(data);
         assertEquals("alpha", col.getStringValue(0).string());
         assertEquals("gamma", col.getStringValue(1).string());
+    }
+
+    public void testUtf8ValueStringKind() {
+        EscfColumnBuilder b = builder();
+        b.addUtf8String(utf8Value("alpha"));
+        b.addAbsent();
+        b.addUtf8String(utf8Value(""));
+        b.addUtf8String(utf8Value("gamma"));
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals("alpha", col.getStringValue(0).string());
+        assertTrue(col.isAbsent(1));
+        assertEquals("", col.getStringValue(2).string());
+        assertEquals("gamma", col.getStringValue(3).string());
+    }
+
+    /** Enough strings to fill several stream pages, so that some of them do not fit in the page they start in. */
+    public void testUtf8ValueStringsAcrossPages() {
+        EscfColumnBuilder b = builder();
+        List<String> expected = new ArrayList<>();
+        int totalBytes = 0;
+        while (totalBytes < 5 * PageCacheRecycler.BYTE_PAGE_SIZE) {
+            String value = randomRealisticUnicodeOfLengthBetween(0, 3000);
+            expected.add(value);
+            totalBytes += value.getBytes(StandardCharsets.UTF_8).length;
+            b.addUtf8String(utf8Value(value));
+        }
+        EscfColumnData data = b.finish(expected.size());
+        assertEquals(EscfColumnKind.STRING, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        for (int i = 0; i < expected.size(); i++) {
+            assertEquals("row " + i, expected.get(i), col.getStringValue(i).string());
+        }
+    }
+
+    /**
+     * A value larger than a page always goes through the scratch buffer. Written as raw bytes, the same value leaves the
+     * same pages and offsets but no scratch buffer, so the difference in memory is the scratch buffer alone.
+     */
+    public void testRamBytesUsedCountsStringScratch() {
+        String value = randomAlphaOfLength(2 * PageCacheRecycler.BYTE_PAGE_SIZE);
+        try (EscfColumnBuilder viaScratch = builder(); EscfColumnBuilder direct = builder()) {
+            viaScratch.addUtf8String(utf8Value(value));
+            direct.addString(utf8(value));
+            assertThat(viaScratch.ramBytesUsed() - direct.ramBytesUsed(), greaterThanOrEqualTo((long) value.length()));
+        }
+    }
+
+    public void testUtf8ValuePromotesToUnion() {
+        EscfColumnBuilder b = builder();
+        b.addLong(7);
+        b.addUtf8String(utf8Value("text"));
+        b.addDouble(2.5);
+        b.addUtf8String(utf8Value("more"));
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(7L, col.getLongValue(0));
+        assertEquals(SourceValueType.STRING, col.getTypeByte(1));
+        assertEquals("text", col.getStringValue(1).string());
+        assertEquals(2.5, col.getDoubleValue(2), 0.0);
+        assertEquals(SourceValueType.STRING, col.getTypeByte(3));
+        assertEquals("more", col.getStringValue(3).string());
+    }
+
+    public void testUtf8ValueMergesIntoStringArrayColumn() {
+        EscfColumnBuilder b = mergeBuilder();
+        b.setString(0, bytesRef("x"));
+        b.setString(0, bytesRef("y")); // second element for doc 0 → ARRAY
+        b.addUtf8String(utf8Value("z"));
+        EscfColumnData data = b.finish(2);
+        assertEquals(EscfColumnKind.ARRAY, data.kind());
+        assertEquals(2, elemCount(data, 0));
+        assertEquals(1, elemCount(data, 1));
+        assertEquals("z", readArrayElem(data, 1, 0));
     }
 
     public void testBoolKind() {
@@ -831,6 +910,56 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertEquals(List.of(1L, 2L, 3L), unionArrayLongs(col, 1));
     }
 
+    // A double's stored spelling (#163555) lives in the dense DOUBLE column's sidecar. Part 1 keeps it only there:
+    // a column that is promoted to a union drops its spellings, pinned below until part 2 carries them in union rows.
+
+    public void testPromotionToUnionDropsTheSpelling() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.SPLIT);
+        b.addDouble(1.9, utf8("1.90"));
+        b.addDouble(2.5);
+        b.addAbsent();
+        b.addString(utf8("x"));
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        assertNull("a union has no spellings sidecar", data.lexicalForms());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(0));
+        assertEquals(1.9, col.getDoubleValue(0), 0.0);
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(1));
+        assertEquals(2.5, col.getDoubleValue(1), 0.0);
+        assertTrue(col.isAbsent(2));
+        assertEquals("x", col.getStringValue(3).string());
+    }
+
+    public void testDoubleColumnWithSpellingStaysDouble() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.SPLIT);
+        b.addAbsent();
+        b.addDouble(2.5);
+        b.addDouble(1.9, utf8("1.90"));
+        b.addAbsent();
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.DOUBLE, data.kind());
+        assertNotNull(data.lexicalForms());
+        EscfColumn col = EscfColumn.from(data);
+        assertTrue(col.isAbsent(0));
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(1));
+        assertEquals("2.5", col.getStringValue(1).string());
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(2));
+        assertEquals("1.90", col.getStringValue(2).string());
+        assertEquals(1.9, col.getDoubleValue(2), 0.0);
+        assertTrue(col.isAbsent(3));
+    }
+
+    public void testRawFixed64CarriesTheSpelling() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.SPLIT);
+        b.setRawFixed64(0, EscfColumnKind.DOUBLE, Double.doubleToRawLongBits(1.9), bytesRef("1.90"));
+        b.setRawFixed64(1, EscfColumnKind.DOUBLE, Double.doubleToRawLongBits(2.5), null);
+        EscfColumn col = EscfColumn.from(b.finish(2));
+        assertEquals(EscfColumnKind.DOUBLE, col.kind());
+        assertEquals("1.90", col.getStringValue(0).string());
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(1));
+    }
+
     private static List<Long> unionArrayLongs(EscfColumn col, int row) {
         ArrayReader r = col.getArrayValue(row);
         List<Long> out = new ArrayList<>();
@@ -838,6 +967,25 @@ public class EscfColumnBuilderTests extends ESTestCase {
             out.add(r.type() == SourceValueType.INT ? (long) r.intValue() : r.longValue());
         }
         return out;
+    }
+
+    public void testRepeatLastRowKeepsSpellings() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.SPLIT);
+        b.addDouble(1.9, utf8("1.90"));
+        b.repeatLastRow(2);
+        b.addDouble(2.5);
+        b.repeatLastRow(1);
+        EscfColumnData data = b.finish(5);
+        assertEquals(EscfColumnKind.DOUBLE, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        for (int r = 0; r < 3; r++) {
+            assertEquals("row " + r, "1.90", col.getStringValue(r).string());
+            assertEquals("row " + r, 1.9, col.getDoubleValue(r), 0.0);
+        }
+        for (int r = 3; r < 5; r++) {
+            assertEquals("row " + r, "2.5", col.getStringValue(r).string());
+            assertEquals("row " + r, 2.5, col.getDoubleValue(r), 0.0);
+        }
     }
 
     public void testRepeatLastRowLong() {
@@ -1364,5 +1512,13 @@ public class EscfColumnBuilderTests extends ESTestCase {
     private static XContentString.UTF8Bytes utf8(String s) {
         byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
         return new XContentString.UTF8Bytes(bytes, 0, bytes.length);
+    }
+
+    /** A value in the middle of a larger array, so that the offset is exercised. */
+    private static Utf8Value utf8Value(String s) {
+        byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+        byte[] padded = new byte[bytes.length + 7];
+        System.arraycopy(bytes, 0, padded, 3, bytes.length);
+        return Utf8Value.of(padded, 3, bytes.length);
     }
 }

@@ -59,6 +59,16 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Whether this node serves reads from the external-source cache. With it off, a read planned while it is off
+     * neither reads the cache nor collects statistics for it in the formats that harvest them, and planning pays
+     * more: the schema and file-metadata loaders run on every resolve, not only on a miss. A scan already
+     * running keeps the scope it was built with, so turning this off does not stop its collection.
+     * <p>
+     * Off also clears the cache, so switching it back on leaves the node cold. Node-scoped, so a node left off
+     * harvests nothing and the coordinator never warms for its files. The Parquet and ORC footer caches are
+     * separate, with their own budgets: this setting neither clears nor bypasses them.
+     */
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
         "esql.external.cache.enabled",
         CACHE_ENABLED_OLD,
@@ -197,7 +207,7 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * This is a <em>working-set</em> LRU, not a function of
      * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#MAX_DISCOVERED_FILES}
-     * (25k default, up to 1M allowed). The
+     * (heap-derived default, up to 10M allowed). The
      * weigher is {@code byte[].length} only — a few KiB of uncounted object overhead per entry at
      * capacity is fine; do not size this so the cache would admit on the order of a million
      * entries. 0.5% of an 8 GB heap is ~41 MiB, enough for a typical working set of tiny-file

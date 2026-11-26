@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -42,14 +43,22 @@ import java.util.List;
 class PromqlQueryPlanBuilder {
 
     private static final Duration DEFAULT_SCRAPE_INTERVAL = Duration.ofMinutes(1);
+    // https://github.com/prometheus/prometheus/blob/ad8f26eed18a6aabfd9729bb281c6a3e53beabe9/web/api/v1/api.go#L1235-L1237
+    static final long MAX_POINTS_PER_SERIES = 11_000;
 
     /**
-     * The statement to run and the Prometheus result type of its response. A string literal query has no statement: its
-     * response is the literal itself ({@code stringValue}), which Prometheus renders as {@code [<unix_time>, "<string>"]}.
+     * The statement to run and the Prometheus result type of its response. The response to a string literal query is the
+     * literal itself ({@code stringValue}), which Prometheus renders as {@code [<unix_time>, "<string>"]}; its statement is a
+     * {@code ROW} of it, which reads no index but still runs as a query, so that it is only answered to who may run one.
      */
     record PromqlStatementResult(EsqlStatement esqlStatement, String resultType, String stringValue) {
         PromqlStatementResult(EsqlStatement esqlStatement, String resultType) {
             this(esqlStatement, resultType, null);
+        }
+
+        /** The statement of an endpoint whose response has no Prometheus result type, such as {@code series}. */
+        PromqlStatementResult(EsqlStatement esqlStatement) {
+            this(esqlStatement, null);
         }
     }
 
@@ -80,10 +89,27 @@ class PromqlQueryPlanBuilder {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
         Duration stepDuration = parseDuration(stepStr);
+        if (stepDuration.isPositive() && exceedsMaxPointsPerSeries(Duration.between(startInstant, endInstant), stepDuration)) {
+            throw new IllegalArgumentException(
+                "exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)"
+            );
+        }
         Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
         return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, limit, mode);
+    }
+
+    /**
+     * Whether a range query over {@code range} with a positive {@code step} has more than {@link #MAX_POINTS_PER_SERIES} points
+     * per series. A point count that does not fit in a {@code long} exceeds it too.
+     */
+    private static boolean exceedsMaxPointsPerSeries(Duration range, Duration step) {
+        try {
+            return range.dividedBy(step) > MAX_POINTS_PER_SERIES;
+        } catch (ArithmeticException e) {
+            return range.isPositive();
+        }
     }
 
     static PromqlStatementResult buildStatement(
@@ -126,14 +152,24 @@ class PromqlQueryPlanBuilder {
         );
 
         PromqlParser promqlParser = new PromqlParser();
-        LogicalPlan promqlPlan = promqlParser.createStatement(query, startLiteral, endLiteral, 0, 0);
+        LogicalPlan promqlPlan = promqlParser.createStatement(query, startLiteral, endLiteral, 1, 0);
         // A string literal is a result of its own type: an instant query returns it as is, a range query rejects it
         // (Prometheus: "invalid expression type "string" for range query"); no statement runs for it.
         if (promqlPlan instanceof LiteralSelector literal && DataType.isString(literal.literal().dataType())) {
             if (mode == QueryMode.RANGE) {
                 throw new IllegalArgumentException("invalid expression type \"string\" for range query, must be Scalar or instant Vector");
             }
-            return new PromqlStatementResult(null, "string", BytesRefs.toString(literal.literal().value()));
+            // limited, as ES|QL warns about a query without a limit
+            LogicalPlan row = new Limit(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, 1, DataType.INTEGER),
+                new Row(Source.EMPTY, List.of(new Alias(Source.EMPTY, PrometheusQueryResponseListener.VALUE_COLUMN, literal.literal())))
+            );
+            return new PromqlStatementResult(
+                new EsqlStatement(row, PrometheusPlanBuilderUtils.QUERY_SETTINGS),
+                "string",
+                BytesRefs.toString(literal.literal().value())
+            );
         }
 
         PromqlCommand promqlCommand = new PromqlCommand(

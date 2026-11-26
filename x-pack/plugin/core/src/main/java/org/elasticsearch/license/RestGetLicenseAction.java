@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -37,6 +38,17 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetLicenseAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetLicenseAction.class);
+
+    private static final String ACCEPT_ENTERPRISE_PARAM = "accept_enterprise";
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local",
+        ACCEPT_ENTERPRISE_PARAM
+    );
+
+    // accept_enterprise is only read when it is present, so it is declared as a response parameter to count it as consumed on all requests
+    private static final Set<String> RESPONSE_PARAMS = Set.of(ACCEPT_ENTERPRISE_PARAM);
 
     public RestGetLicenseAction() {}
 
@@ -48,6 +60,16 @@ public class RestGetLicenseAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "get_license";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 
     /**
@@ -64,14 +86,14 @@ public class RestGetLicenseAction extends BaseRestHandler {
         overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));
 
         // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0+ the flag is deprecated and can only be true
-        if (request.hasParam("accept_enterprise")) {
+        if (request.hasParam(ACCEPT_ENTERPRISE_PARAM)) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "get_license_accept_enterprise",
                 "Including [accept_enterprise] in get license requests is deprecated."
                     + " The parameter will be removed in the next major version"
             );
-            if (request.paramAsBoolean("accept_enterprise", true) == false) { // consumes the parameter to avoid error
+            if (request.paramAsBoolean(ACCEPT_ENTERPRISE_PARAM, true) == false) { // consumes the parameter to avoid error
                 throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
             }
         }

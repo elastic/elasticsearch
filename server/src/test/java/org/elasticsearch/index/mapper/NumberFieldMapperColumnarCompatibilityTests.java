@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -1132,7 +1133,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "all").endObject();
         }));
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
     }
 
     private void assertTsdbKeepModeArrayBailsOut(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)
@@ -1288,6 +1289,33 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             () -> mapperService.documentMapper().parse(source("{\"f\":\"\"}"))
         );
         assertThat(row.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+    }
+
+    /**
+     * A keyword sub-field indexes the client's spelling of a floating-point number, as the row path does, even when
+     * that spelling is not the canonical rendering of the double (#163555). Both encoders must agree.
+     */
+    public void testDoubleParentWithKeywordSubFieldKeepsSpelling() throws IOException {
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertColumnarMatchesXContent(mapping(b -> {
+                b.startObject(FIELD).field("type", "double");
+                b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+                b.endObject();
+            }),
+                columnarSettings(),
+                encoder,
+                batch(
+                    "double parent, keyword sub-field, " + encoder,
+                    1L,
+                    doc("d1", 1L, "{\"f\":-1.90}"),
+                    doc("d2", 2L, "{\"f\":3.14}"),
+                    doc("d3", 3L, "{\"f\":1e3}"),
+                    doc("d4", 4L, "{}"),
+                    doc("d5", 5L, "{\"f\":123.41999816894531}"),
+                    doc("d6", 6L, "{\"f\":12.40}")
+                )
+            );
+        }
     }
 
     public void testLongParentWithKeywordSubField() throws IOException {

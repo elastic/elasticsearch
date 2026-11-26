@@ -1,0 +1,30 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "across_series",
+  "name" : "count_values",
+  "description" : "Counts the elements that have the same sample value, returning one series per distinct value with the value as the label `label`. When used with `by`, `count_values` counts independently within each group.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "label",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Name of the label holding each sample value."
+        },
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "count_values(\"version\", build_version)"
+  ],
+  "snapshot_only" : false
+}

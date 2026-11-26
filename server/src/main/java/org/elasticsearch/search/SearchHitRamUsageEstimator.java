@@ -10,6 +10,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.RamUsageEstimates;
@@ -17,8 +18,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.Map;
 
@@ -33,22 +32,10 @@ public final class SearchHitRamUsageEstimator {
     private static final long HIGHLIGHT_FIELD_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HighlightField.class);
     private static final long TEXT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Text.class);
     private static final long EXPLANATION_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Explanation.class);
-    private static final long FLOAT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Float.class);
-    private static final long HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    );
-    // LinkedHashMap.Entry adds a before/after pair to HashMap.Node
-    private static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    );
-    /**
-     * Wrapper {@link Collections#unmodifiableList} puts around an {@link Explanation}'s details. This and the
-     * {@link ArrayList} term below track how Lucene currently builds that list; revisit on an upgrade that changes it,
-     * since the tests assert relative growth rather than exact bytes and would not catch the drift.
-     */
-    private static final long UNMODIFIABLE_LIST_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOf(
-        Collections.unmodifiableList(new ArrayList<>())
-    );
+    private static final long FLOAT_SHALLOW_SIZE = RamUsageEstimates.FLOAT_SHALLOW_SIZE;
+    private static final long BYTES_REF_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+    private static final long HASH_MAP_NODE_SIZE = RamUsageEstimates.HASH_MAP_NODE_SIZE;
+    private static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimates.LINKED_HASH_MAP_NODE_SIZE;
 
     /**
      * Bounds the per-hit walk of an explanation tree, which runs on the fetch thread. Past this the walk stops and the
@@ -66,6 +53,12 @@ public final class SearchHitRamUsageEstimator {
     static final long EXPLANATION_NODE_CAP_PENALTY_BYTES = 1L << 20;
 
     static final long RAM_BYTES_FLOOR = 512L;
+
+    /**
+     * The part of {@link #estimate} that every hit costs whatever it holds: the hit itself and the small objects it always has,
+     * like its id. {@code FetchPhase} charges the rest, so a caller that keeps the hits a fetch built charges this for each of them.
+     */
+    public static final long BASE_BYTES = SEARCH_HIT_SHALLOW_SIZE + RAM_BYTES_FLOOR;
 
     private SearchHitRamUsageEstimator() {}
 
@@ -88,8 +81,21 @@ public final class SearchHitRamUsageEstimator {
     }
 
     public static long estimate(SearchHit hit) {
-        long size = SEARCH_HIT_SHALLOW_SIZE + RAM_BYTES_FLOOR + hit.rawSourceLength();
+        return estimate(hit, true);
+    }
+
+    /**
+     * Like {@link #estimate}, but leaves out the source of {@code hit} and of its inner hits at every level, for a hit read from a
+     * buffer whose size the caller already charges.
+     */
+    public static long estimateWithoutSources(SearchHit hit) {
+        return estimate(hit, false);
+    }
+
+    private static long estimate(SearchHit hit, boolean withSources) {
+        long size = BASE_BYTES + (withSources ? hit.rawSourceLength() : 0);
         size += estimateSubPhaseOutput(hit);
+        size += estimateSortValues(hit.getSortValues()) + estimateSortValues(hit.getRawSortValues());
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {
             size += RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHits.size()
@@ -100,7 +106,7 @@ public final class SearchHitRamUsageEstimator {
                 size += SEARCH_HITS_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHitsArray.length
                     * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
                 for (SearchHit innerHit : innerHitsArray) {
-                    size += estimate(innerHit);
+                    size += estimate(innerHit, withSources);
                 }
             }
         }
@@ -172,11 +178,9 @@ public final class SearchHitRamUsageEstimator {
             visited++;
             size += EXPLANATION_SHALLOW_SIZE;
             size += RamUsageEstimator.sizeOf(node.getDescription());
-            // Always a boxed float in practice; shallowSizeOf falls back to uncached reflection per node.
-            Number value = node.getValue();
-            size += value instanceof Float ? FLOAT_SHALLOW_SIZE : RamUsageEstimator.shallowSizeOf(value);
+            size += RamUsageEstimates.shallowSizeOf(node.getValue());
             // An unmodifiable view over an exactly sized ArrayList, both allocated even when empty.
-            size += UNMODIFIABLE_LIST_SHALLOW_SIZE + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE;
+            size += RamUsageEstimates.UNMODIFIABLE_LIST_SHALLOW_SIZE + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE;
             // getDetails() copies into a fresh array per call, so ask once and size the retained list instead.
             Explanation[] details = node.getDetails();
             if (details.length > 0) {
@@ -199,6 +203,20 @@ public final class SearchHitRamUsageEstimator {
             * (LINKED_HASH_MAP_NODE_SIZE + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         for (String name : matchedQueries.keySet()) {
             size += RamUsageEstimator.sizeOf(name) + FLOAT_SHALLOW_SIZE;
+        }
+        return size;
+    }
+
+    private static long estimateSortValues(Object[] sortValues) {
+        if (sortValues.length == 0) {
+            return 0L;
+        }
+        long size = RamUsageEstimator.shallowSizeOf(sortValues);
+        for (Object value : sortValues) {
+            // RamUsageEstimator.sizeOfObject bills a BytesRef at its unknown object default, whatever its length
+            size += value instanceof BytesRef bytesRef
+                ? BYTES_REF_SHALLOW_SIZE + RamUsageEstimator.sizeOf(bytesRef.bytes)
+                : RamUsageEstimator.sizeOfObject(value);
         }
         return size;
     }

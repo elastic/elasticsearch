@@ -91,6 +91,8 @@ Arithmetic between operands aggregated without grouping, such as `sum(a) / sum(b
 {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` One-to-one, many-to-one, and one-to-many matching between operands aggregated with `by(...)`, including `on`, `ignoring`, `group_left`, and `group_right`.
 For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A number operand with empty `on()` or `ignoring()` matching, such as `a + on() 2`. Like {{prom}}, {{es}} drops the empty matching and computes `a + 2`.
+
 **Not supported yet**
 
 :::{table}
@@ -99,8 +101,8 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
 | 23 | Different unaggregated metrics stored as separate series with a `__name__` dimension, such as data ingested with {{prom}} remote write {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `a / b` | Aggregate both by the labels to match on: `sum by (instance) (a) / sum by (instance) (b)` | [#158184]({{es-issue}}158184) |
-| 24 | `on`, `ignoring`, `group_left`, or `group_right` with an operand that isn't aggregated | `a / on(instance) b`, `a * on(pod) group_left(node) b` | Aggregate both operands by the labels to match on | [#157669]({{es-issue}}157669) |
-| 25 | Operands aggregated differently {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `sum(a) / b`, `b / scalar(sum(a))`, `topk(2, a) * b` | Aggregate both operands alike: `sum(a) / sum(b)`. A number, such as `sum(a) * 2`, and `or` are supported | [#158184]({{es-issue}}158184) |
+| 24 | `on`, `ignoring`, `group_left`, or `group_right` between two vectors when one isn't aggregated | `a / on(instance) b`, `a * on(pod) group_left(node) b` | Aggregate both operands by the labels to match on | [#157669]({{es-issue}}157669) |
+| 25 | Operands aggregated differently {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `sum(a) / b`, `b / scalar(sum(a))`, `topk(2, a) * b`, `count_values("v", a) / b` | Aggregate both operands alike: `sum(a) / sum(b)`. {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` For `count_values`, aggregate the other operand by the labels to match on: `count_values by (pod) ("v", a) * on (pod) group_left sum by (pod) (b)`. A number, such as `sum(a) * 2`, and `or` are supported | [#158184]({{es-issue}}158184) |
 | 26 | Nested aggregation next to an operand that reads a metric {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `count(count by (pod) (a)) / sum(b)` | - | [#158184]({{es-issue}}158184) |
 | 27 | A different `offset` per operand {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `rate(x[5m]) / rate(x[5m] offset 1h)` | `or` is supported | [#158184]({{es-issue}}158184) |
 | 28 | `label_replace` or `label_join` as an operand | `label_replace(a, ...) * on(pod) group_left(node) b` | - | [#157672]({{es-issue}}157672) |
@@ -123,6 +125,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 - `sum`, `avg`, `min`, `max`, `count`, `quantile`, `stddev`, and `stdvar`, with `by(...)`, `without(...)`, or no grouping.
 - {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `topk`, `bottomk`, `limitk`, and `limit_ratio`.
+- {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` `count_values`, with `by(...)` or no grouping, such as `count_values("version", build_version)`.
 
 **Not supported yet**
 
@@ -131,12 +134,14 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 31 | `group`, `count_values` | `group by (job) (x)`, `count_values("v", x)` | - | [#164009]({{es-issue}}164009), [#136248]({{es-issue}}136248) |
-| 32 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
-| 33 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
-| 34 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
-| 35 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
-| 36 | Grouping by a label named `step` | `sum by (step) (x)` | `step` is an output column of the `PROMQL` command | - |
+| 31 | `group` | `group by (job) (x)` | - | [#164009]({{es-issue}}164009) |
+| 32 | `count_values` on native histograms {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `count_values("v", h)` | - | [#152263]({{es-issue}}152263) |
+| 33 | `or` between `count_values` and a vector whose label of the same name is mapped as a type other than `keyword` {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `sum by (shard) (x) or count_values("shard", x)`, where `shard` is a `long` field | - | - |
+| 34 | `topk`, `bottomk`, `limitk`, `limit_ratio`, or `count_values` with `without(...)` | `topk without (instance) (1, x)`, `count_values without (instance) ("v", x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 35 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
+| 36 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 37 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
+| 38 | Grouping by a label named `step`, or a `count_values` label named `step`, `_timeseries`, or with the same name as the value column (set by `name=(...)`) | `sum by (step) (x)`, `count_values("step", x)`, `value=(count_values("value", x))` | `step`, `_timeseries`, and the value column are output columns of the `PROMQL` command | - |
 :::
 
 **Behaves differently**
@@ -146,6 +151,6 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 37 | `quantile` | `quantile(0.9, x)` | Approximate, using t-digest | Exact, with linear interpolation | - |
-| 38 | `limitk`, `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `limitk(10, x)` | A different, equally valid subset | A deterministic pseudo-random subset, with the `promql-experimental-functions` feature flag | - |
+| 39 | `quantile` | `quantile(0.9, x)` | Approximate, using t-digest | Exact, with linear interpolation | - |
+| 40 | `limitk`, `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `limitk(10, x)` | A different, equally valid subset | A deterministic pseudo-random subset, with the `promql-experimental-functions` feature flag | - |
 :::

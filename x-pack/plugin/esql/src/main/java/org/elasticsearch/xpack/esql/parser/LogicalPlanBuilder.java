@@ -13,8 +13,10 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -24,8 +26,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
-import org.elasticsearch.xpack.eql.EqlClientException;
-import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.PlanSize;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -73,7 +75,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -92,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -115,7 +118,11 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -162,6 +169,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * Maximum number of commands allowed per query
      */
     public static final int MAX_QUERY_DEPTH = 500;
+
+    /**
+     * Words lexed as keywords in {@code FROM} mode (see {@code lexer/From.g4}). A named subquery with one of these names
+     * could be declared but never referenced, because {@code FROM <name>} would not parse.
+     */
+    private static final Set<String> FROM_MODE_KEYWORDS = Set.of("metadata", "with");
 
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
@@ -212,7 +225,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EsqlBaseParser.LetCommandContext letCommandContext : ctx.letCommand()) {
             LetBinding binding = visitLetCommand(letCommandContext);
             if (seenNames.add(binding.name()) == false) {
-                throw new ParsingException(source(letCommandContext), "duplicate LET binding name [{}]", binding.name());
+                throw new ParsingException(source(letCommandContext), "duplicate LET subquery name [{}]", binding.name());
             }
             letBindings.add(binding);
         }
@@ -231,7 +244,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         String name = ctx.UNQUOTED_IDENTIFIER().getText();
         if (name.equals(name.toLowerCase(Locale.ROOT)) == false) {
-            throw new ParsingException(source, "LET binding name [{}] must be lowercase", name);
+            throw new ParsingException(source, "LET subquery name [{}] must be lowercase", name);
+        }
+        // Named subqueries are referenced through FROM, so the name must also be usable there as an index name
+        MetadataCreateIndexService.validateIndexOrAliasName(
+            name,
+            (n, reason) -> new ParsingException(source, "LET subquery name [{}] {}", n, reason)
+        );
+        if (FROM_MODE_KEYWORDS.contains(name)) {
+            throw new ParsingException(source, "LET subquery name [{}] is a reserved keyword in FROM", name);
         }
         LogicalPlan plan = visitSubquery(ctx.subquery());
         return new LetBinding(source, name, plan);
@@ -397,6 +418,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) {
+        UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
+        Source src = source(ctx);
+        return child -> new NestedExpand(src, child, field);
+    }
+
+    @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
@@ -506,6 +534,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             plan = processingCommand.apply(plan);
         }
         forkSeenInScope = forkSeenInEnclosingScope;
+        plan.forEachDown(Into.class, into -> { throw new ParsingException(into.source(), "INTO must be the last command of the query"); });
         return plan;
     }
 
@@ -556,6 +585,71 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
+    }
+
+    @Override
+    public PlanFactory visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) {
+        Source source = source(ctx);
+        Source destinationSource = source(ctx.indexPattern());
+        String destination = visitIndexPattern(List.of(ctx.indexPattern()));
+        if (destination.contains(WILDCARD)) {
+            throw new ParsingException(destinationSource, "invalid index pattern [{}], * is not allowed in INTO", destination);
+        }
+        if (RemoteClusterAware.splitIndexName(destination).clusterAlias() != null) {
+            throw new ParsingException(
+                destinationSource,
+                "invalid index pattern [{}], remote clusters are not supported with INTO",
+                destination
+            );
+        }
+        if (destination.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                destinationSource,
+                "invalid index pattern [{}], index pattern selectors are not supported in INTO",
+                destination
+            );
+        }
+        IntoOptions options = intoOptions(source, visitCommandNamedParameters(ctx.commandNamedParameters()));
+        return input -> new Into(source, input, destination, options);
+    }
+
+    /** Option names are case-insensitive, so they are lowercased before lookup. */
+    private static IntoOptions intoOptions(Source source, @Nullable MapExpression optionsExpression) {
+        if (optionsExpression == null) {
+            return IntoOptions.DEFAULT;
+        }
+        Map<String, Expression> optionExpressionsByName = new LinkedHashMap<>();
+        // The entries, not the folded map: it keeps only the last value of a name, which would hide an invalid one before it
+        for (EntryExpression entry : optionsExpression.entryExpressions()) {
+            if (entry.key() instanceof Literal key) {
+                String name = BytesRefs.toString(key.value()).toLowerCase(Locale.ROOT);
+                if (optionExpressionsByName.put(name, entry.value()) != null) {
+                    throw new ParsingException(entry.value().source(), "Duplicate option [{}] in INTO", name);
+                }
+            } else {
+                throw new ParsingException(entry.key().source(), "Option names must be literals in INTO");
+            }
+        }
+
+        boolean refresh = IntoOptions.DEFAULT.refresh();
+        Expression refreshExpr = optionExpressionsByName.remove("refresh");
+        if (refreshExpr != null) {
+            if (refreshExpr instanceof Literal lit && lit.value() instanceof Boolean value) {
+                refresh = value;
+            } else {
+                throw new ParsingException(refreshExpr.source(), "Option [refresh] must be a boolean literal");
+            }
+        }
+
+        if (optionExpressionsByName.isEmpty() == false) {
+            throw new ParsingException(
+                source,
+                "Invalid option{} {} in INTO, expected one of [refresh]",
+                optionExpressionsByName.size() > 1 ? "s" : "",
+                optionExpressionsByName.keySet()
+            );
+        }
+        return new IntoOptions(refresh);
     }
 
     @Override
@@ -837,10 +931,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
         // After METRICS_INFO, TS_INFO or DESCRIBE, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
-            boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
-            boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
+            boolean hasAggregate = IndependentSubqueryJoin.anyMatchInMainScope(input, p -> p instanceof Aggregate);
+            boolean hasPromqlCommand = IndependentSubqueryJoin.anyMatchInMainScope(input, p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = hasOuterTimeSeries(input);
-            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo || p instanceof Describe);
+            boolean hasInfoCommand = IndependentSubqueryJoin.anyMatchInMainScope(
+                input,
+                p -> p instanceof MetricsInfo || p instanceof TsInfo || p instanceof Describe
+            );
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
@@ -860,7 +957,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /**
      * Returns {@code true} if {@code plan} (or any of its non-{@link Subquery}/{@link UnionAll} descendants) holds an
-     * {@link UnresolvedRelation} with a time-series {@link IndexMode}.
+     * {@link UnresolvedRelation} with a time-series {@link IndexMode}. The right side of an {@link IndependentSubqueryJoin}
+     * is not searched either.
      * <p>
      * Traversal stops at {@link Subquery} and {@link UnionAll} boundaries so that a {@code TS} command nested inside a
      * {@code FROM} subquery (e.g. {@code FROM (TS k8s), (FROM employees)}) does not cause the outer
@@ -875,7 +973,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (plan instanceof UnresolvedRelation ur && ur.indexMode().isTsdb()) {
             return true;
         }
-        for (LogicalPlan child : plan.children()) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             if (hasOuterTimeSeries(child)) {
                 return true;
             }
@@ -1030,16 +1128,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
+            // A JOIN subquery runs on its own, so its LOOKUP JOINs are left alone.
             if (mode == Mode.REMOTE) {
-                child = child.transformDown(
-                    LookupJoin.class,
-                    lj -> new LookupJoin(
-                        lj.source(),
-                        lj.left(),
-                        lj.right(),
-                        lj.config(),
-                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
-                    )
+                child = child.transformUpSkipBranch(
+                    IndependentSubqueryJoin::isSubqueryBranch,
+                    p -> p instanceof LookupJoin lj
+                        ? new LookupJoin(
+                            lj.source(),
+                            lj.left(),
+                            lj.right(),
+                            lj.config(),
+                            lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                        )
+                        : p
                 );
             }
 
@@ -1170,19 +1271,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // shared field-caps path in ResolveEqlRelation.
         IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         String query = eqlQuery(ctx.stringOrParameter());
-        EqlQueryIntrospection.Shape shape;
-        try {
-            shape = EqlQueryIntrospection.inspect(query);
-        } catch (RuntimeException e) {
-            // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
-            String reason = e instanceof EqlClientException ? ": " + e.getMessage() : "";
-            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]{}", query, reason);
-        }
-        EqlRelation.Mode mode = switch (shape.mode()) {
-            case EVENT -> EqlRelation.Mode.EVENT;
-            case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
-            case SAMPLE -> EqlRelation.Mode.SAMPLE;
-        };
+        // No eql/ql types in this class: they would load with it, failing every ES|QL query in a runtime without those plugins.
+        EqlRequests.QueryShape shape = EqlRequests.inspectQuery(source(ctx.stringOrParameter()), query);
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = new LinkedHashMap<>(options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of());
         if (config.containsKey("indices")) {
@@ -1192,7 +1282,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
         // ones the EQL delegate can populate and appends them to the output.
         List<NamedExpression> metadataFields = visitMetadataFields(ctx.metadata());
-        return new UnresolvedEqlRelation(source, indexPattern, query, config, mode, shape.hasExplicitLimit(), metadataFields);
+        return new UnresolvedEqlRelation(source, indexPattern, query, config, shape.mode(), shape.hasExplicitLimit(), metadataFields);
     }
 
     private String eqlQuery(EsqlBaseParser.StringOrParameterContext ctx) {
@@ -1317,12 +1407,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
         }
 
-        if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.JOIN_LOOKUP) {
-            String joinType = ctx.type == null ? "(INNER)" : ctx.type.getText();
-            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
+        if (ctx.type.getType() == EsqlBaseParser.DEV_JOIN_LEFT && ctx.subqueryJoinTarget() != null) {
+            return leftOuterSubqueryJoin(source, ctx.subqueryJoinTarget(), ctx.joinCondition());
         }
 
-        var target = ctx.joinTarget();
+        if (ctx.type.getType() != EsqlBaseParser.JOIN_LOOKUP) {
+            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", ctx.type.getText());
+        }
+
+        var target = ctx.lookupJoinTarget();
         var rightPattern = visitIndexPattern(List.of(target.index));
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
@@ -1364,6 +1457,37 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
             mode
         );
+    }
+
+    /**
+     * Builds {@code LEFT OUTER JOIN (subquery) ON field1, field2}. Each field names a column on both sides.
+     */
+    private PlanFactory leftOuterSubqueryJoin(
+        Source source,
+        EsqlBaseParser.SubqueryJoinTargetContext target,
+        EsqlBaseParser.JoinConditionContext condition
+    ) {
+        if (target.subquery() == null) {
+            throw new ParsingException(
+                source(target),
+                "LEFT OUTER JOIN requires a subquery, found [{}]; use [(FROM {})] instead",
+                target.getText(),
+                target.getText()
+            );
+        }
+        var expressions = visitList(this, condition.booleanExpression(), Expression.class);
+        for (Expression expression : expressions) {
+            if (expression instanceof UnresolvedAttribute == false) {
+                throw new ParsingException(
+                    expression.source(),
+                    "JOIN on a subquery only supports a comma separated list of fields in ON, found [{}]",
+                    expression.sourceText()
+                );
+            }
+        }
+        List<Attribute> joinFields = processFieldBasedJoin(expressions).joinFields();
+        LogicalPlan subquery = visitSubquery(target.subquery());
+        return p -> new SubqueryJoin(source, p, subquery, new JoinConfig(JoinTypes.LEFT, joinFields, joinFields, null));
     }
 
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}
@@ -2115,20 +2239,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         PromqlParser promqlParser = new PromqlParser();
-        LogicalPlan promqlPlan;
-        try {
-            // The existing PromqlParser is used to parse the inner query
-            promqlPlan = promqlParser.createStatement(
-                promqlQuery,
-                params.startLiteral(),
-                params.endLiteral(),
-                promqlStartLine,
-                promqlStartColumn,
-                context.params()
-            );
-        } catch (ParsingException pe) {
-            throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
-        }
+        // The existing PromqlParser is used to parse the inner query
+        LogicalPlan promqlPlan = promqlParser.createStatement(
+            promqlQuery,
+            params.startLiteral(),
+            params.endLiteral(),
+            promqlStartLine,
+            promqlStartColumn,
+            context.params(),
+            context.viewName()
+        );
 
         String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
 

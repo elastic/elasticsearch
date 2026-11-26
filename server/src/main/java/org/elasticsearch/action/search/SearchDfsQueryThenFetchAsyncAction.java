@@ -132,6 +132,11 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     }
 
     @Override
+    SearchPhaseResults<?> queryPhaseResults() {
+        return queryPhaseResultConsumer;
+    }
+
+    @Override
     protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
         progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
     }

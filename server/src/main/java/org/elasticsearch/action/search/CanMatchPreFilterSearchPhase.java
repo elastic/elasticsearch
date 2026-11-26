@@ -205,7 +205,7 @@ final class CanMatchPreFilterSearchPhase {
                 if (logger.isDebugEnabled()) {
                     logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
                 }
-                listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "start", e, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "start", e, List.of()));
             }
 
             @Override
@@ -466,7 +466,7 @@ final class CanMatchPreFilterSearchPhase {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
             }
-            listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "round", e, ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException(PHASE_NAME, "round", e, List.of()));
         }
     }
 

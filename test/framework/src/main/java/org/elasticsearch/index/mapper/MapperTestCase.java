@@ -784,7 +784,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MappingParserContext parserContext = mapperService.parserContext();
         FieldMapper.Builder multiField = (FieldMapper.Builder) parserContext.typeParser("keyword")
             .parse("dynamic_sub", new HashMap<>(), parserContext);
-        DocumentParserContext context = new TestDocumentParserContext(parserContext, mapperService.mappingLookup());
+        DocumentParserContext context = new TestDocumentParserContext(mapperService);
         context.updateMapping("field", builder -> ((FieldMapper.Builder) builder).addMultiField(multiField));
         List<Mapper.Builder> added = context.getDynamicMappers("field");
         assertThat(added, hasSize(1));

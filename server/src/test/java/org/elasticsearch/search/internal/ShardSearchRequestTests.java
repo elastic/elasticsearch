@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -84,7 +83,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     private ShardSearchRequest createShardSearchRequest() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         if (randomBoolean()) {
-            final String slice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(2, 10);
+            final String slice = randomAlphaOfLengthBetween(2, 10);
             searchRequest.searchSlice(slice);
         }
         return createShardSearchRequest(searchRequest);

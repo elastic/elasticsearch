@@ -98,6 +98,15 @@ public interface CircuitBreaker {
     }
 
     /**
+     * Moves {@code bytes} from the category of {@code fromLabel} to the category of {@code toLabel}. The used bytes
+     * stay the same.
+     */
+    default void moveHeld(long bytes, String fromLabel, String toLabel) {
+        addWithoutBreaking(-bytes, fromLabel);
+        addWithoutBreaking(bytes, toLabel);
+    }
+
+    /**
      * @return the currently used bytes the breaker is tracking
      */
     long getUsed();

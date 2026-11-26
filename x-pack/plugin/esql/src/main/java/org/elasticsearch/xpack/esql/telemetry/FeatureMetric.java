@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -145,12 +147,13 @@ public enum FeatureMetric {
     IP_LOCATION(plan -> plan instanceof IpLocation || plan instanceof UnresolvedIpLocation),
     DEDUP(Dedup.class::isInstance),
     DESCRIBE(Describe.class::isInstance),
+    INTO(Into.class::isInstance),
     HIGHLIGHT(Highlight.class::isInstance),
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,
     // InSubquery has already been rewritten to SemiJoin/AntiJoin/MarkJoin.
     IN_SUBQUERY(plan -> false),
-    // LET bindings are consumed by LetResolver before analysis, so they are never visible to the plan walk.
+    // LET named subqueries are consumed by LetResolver before analysis, so they are never visible to the plan walk.
     // The counter is incremented in EsqlSession.gatherLetMetrics, from the parsed statement.
     LET(plan -> false);
 
@@ -167,7 +170,9 @@ public enum FeatureMetric {
         Aggregate.class, // STATS is managed in another way, see above
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
         UnresolvedMetadata.class, // temporary plan node stripped in the Analyzer
-        NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
+        // temporary plan node removed by Analyzer: a resolved view (ViewSubquery) or a LET named subquery carrying its name to
+        // METADATA _name; VIEW and LET have their own counters
+        NamedSubquery.class,
         ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
         DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
@@ -177,6 +182,7 @@ public enum FeatureMetric {
         // records the telemetry; STATS itself is counted via the Aggregate exclusion above.
         MarkJoin.class,
         HashJoin.class, // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
+        SubqueryJoin.class, // JOIN on a subquery is rejected after analysis, so it has no counter of its own yet
         UnionAll.class // synthesized FROM/subquery/view union; SUBQUERY and VIEW metrics cover the user-facing constructs
     );
 

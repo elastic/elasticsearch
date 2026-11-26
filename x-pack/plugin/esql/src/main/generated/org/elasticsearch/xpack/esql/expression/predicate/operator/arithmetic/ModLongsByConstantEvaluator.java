@@ -94,7 +94,7 @@ public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator
   }
 
   public LongVector eval(int positionCount, LongVector lhsVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long lhs = lhsVector.getLong(p);
         result.appendLong(p, Mod.processLongsByConstant(lhs, rhs()));

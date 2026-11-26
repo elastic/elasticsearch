@@ -31,12 +31,6 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     implements
         AbstractBatchedCompoundCommit {
 
-    public static final String PREFIX = "stateless_commit_";
-
-    /// Prefix of merge blobs (`stateless_merge_<gen>_<segment>_<discriminator>`). Nothing writes them yet; nodes must ignore them.
-    /// TODO(szybia): move to MergeBlobFile (#162535) along with startsWithMergeBlobPrefix.
-    public static final String MERGE_BLOB_PREFIX = "stateless_merge_";
-
     public BatchedCompoundCommit {
         if (primaryTermAndGeneration == null) {
             throw new IllegalArgumentException("Batched compound commits must have a non-null primary term and generation");
@@ -92,14 +86,13 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         return blobLength;
     }
 
-    public BlobFile toBlobFile() {
-        String blobName = blobNameFromGeneration(primaryTermAndGeneration.generation());
-        return new BlobFile(blobName, primaryTermAndGeneration);
+    public BccBlob toBccBlob() {
+        return new BccBlob(primaryTermAndGeneration);
     }
 
     @Override
     public String toString() {
-        return '[' + blobNameFromGeneration(primaryTermAndGeneration().generation()) + ']' + lastCompoundCommit().toShortDescription();
+        return "[" + toBccBlob().blobName() + "]" + lastCompoundCommit().toShortDescription();
     }
 
     /**
@@ -199,7 +192,7 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
                 var compoundCommit = StatelessCompoundCommit.readFromStoreAtOffset(
                     streamInput,
                     offset,
-                    ignored -> parseGenerationFromBlobName(blobName)
+                    ignored -> BccBlob.parseGenerationFromBlobName(blobName)
                 );
 
                 assert assertPaddingComposedOfZeros(blobName, maxBlobLength, blobReader, offset, compoundCommit);
@@ -253,24 +246,5 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         for (BlobLocation blobLocation : commit.commitFiles().values()) {
             primaryTermAndGenerations.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
         }
-    }
-
-    // A batched compound commit is stored as a single blob whose name is derived from the generation of its first compound commit.
-    public static boolean startsWithBlobPrefix(String name) {
-        return name.startsWith(PREFIX);
-    }
-
-    public static boolean startsWithMergeBlobPrefix(String name) {
-        return name.startsWith(MERGE_BLOB_PREFIX);
-    }
-
-    public static String blobNameFromGeneration(long generation) {
-        assert generation > 0 : generation;
-        return PREFIX + generation;
-    }
-
-    public static long parseGenerationFromBlobName(String name) {
-        assert startsWithBlobPrefix(name) : name;
-        return Long.parseLong(name.substring(PREFIX.length()));
     }
 }

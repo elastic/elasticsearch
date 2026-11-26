@@ -32,11 +32,12 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -46,8 +47,10 @@ import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DocValueFormat;
@@ -62,9 +65,11 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -100,6 +105,7 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
+import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -109,6 +115,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1324,6 +1331,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             false,
             (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {},
             new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")),
+            SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE,
             result -> {
                 openedContexts.add(result.getContextId());
                 result.topDocs(
@@ -1339,6 +1347,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 );
                 result.from(0);
                 result.size(1);
+                return result;
             },
             freedContexts::add
         );
@@ -1459,6 +1468,114 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         }
     }
 
+    /**
+     * The node response reports the load of merging its shard results.
+     */
+    public void testBatchedNodeResponseReportsTheMergeLoad() throws Exception {
+        AtomicLong merged = new AtomicLong();
+        RecordingChannel channel = runBatchedNodeQuery(
+            TransportVersion.current(),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            between(2, 5),
+            false,
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> merged.addAndGet(nanos)
+        );
+        assertNull(channel.failure);
+        long reported = reportedLoad(channel);
+        assertThat(reported, greaterThan(0L));
+        assertThat(reported, lessThanOrEqualTo(merged.get()));
+    }
+
+    /**
+     * When the last shard result starts a partial merge, the merge task completes the shards and builds the response. The
+     * response reports the merge that task did before.
+     */
+    public void testBatchedNodeResponseReportsThePartialMergeThatCompletesIt() throws Exception {
+        long mergeNanos = TimeUnit.MILLISECONDS.toNanos(10);
+        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                // charged by a partial merge only, as the request has no aggregations
+                if ("<reduce_aggs>".equals(label)) {
+                    spin(mergeNanos);
+                }
+            }
+        };
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return breaker;
+            }
+        };
+        // with three shards merged two at a time, only the last result starts a partial merge
+        RecordingChannel channel = runBatchedNodeQuery(
+            TransportVersion.current(),
+            breakerService,
+            3,
+            false,
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {},
+            new SearchSourceBuilder().size(1),
+            2,
+            SearchQueryThenFetchAsyncActionTests::noHits,
+            contextId -> {}
+        );
+        assertNull(channel.failure);
+        assertThat(reportedLoad(channel), greaterThanOrEqualTo(mergeNanos));
+    }
+
+    /**
+     * The load of merging the shard results is not reported with a null result, which is written without its metrics.
+     */
+    public void testBatchedNodeResponseReportsTheMergeLoadWithANullResult() throws Exception {
+        RecordingChannel channel = runBatchedNodeQuery(
+            TransportVersion.current(),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            between(2, 5),
+            false,
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {},
+            new SearchSourceBuilder().size(0),
+            SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE,
+            result -> {
+                if (result.getSearchShardTarget().getShardId().id() == 0) {
+                    result.decRef();
+                    return QuerySearchResult.nullInstance();
+                }
+                return noHits(result);
+            },
+            contextId -> {}
+        );
+        assertNull(channel.failure);
+        assertThat(reportedLoad(channel), greaterThan(0L));
+    }
+
+    /**
+     * The search load the shard results of a node response report, which releases the response.
+     */
+    private static long reportedLoad(RecordingChannel channel) throws IOException {
+        long reported = 0;
+        var registry = new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, SearchLoadMetrics.NAME, SearchLoadMetrics::new)
+            )
+        );
+        try (StreamInput in = new NamedWriteableAwareStreamInput(((BytesTransportResponse) channel.response).streamInput(), registry)) {
+            var response = new SearchQueryThenFetchAsyncAction.NodeQueryResponse(in);
+            try {
+                for (Object result : response.getResults()) {
+                    if (result instanceof QuerySearchResult q
+                        && q.getDirectoryMetrics().metrics(SearchLoadMetrics.NAME) instanceof SearchLoadMetrics m) {
+                        reported += m.loadNanos();
+                    }
+                }
+            } finally {
+                response.decRef();
+            }
+        } finally {
+            channel.response.decRef();
+        }
+        return reported;
+    }
+
     private RecordingChannel runBatchedNodeQuery(
         TransportVersion channelVersion,
         CircuitBreakerService breakerService,
@@ -1495,20 +1612,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             failWrites,
             searchLoad,
             new SearchSourceBuilder().size(0),
-            result -> {
-                result.topDocs(
-                    new TopDocsAndMaxScore(
-                        new TopDocs(
-                            new TotalHits(result.getSearchShardTarget().getShardId().id(), TotalHits.Relation.EQUAL_TO),
-                            new ScoreDoc[0]
-                        ),
-                        Float.NaN
-                    ),
-                    new DocValueFormat[0]
-                );
-                result.from(0);
-                result.size(0);
-            },
+            SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE,
+            SearchQueryThenFetchAsyncActionTests::noHits,
             contextId -> {}
         );
     }
@@ -1520,7 +1625,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
      * @param failWrites whether the response stream throws on its first write
      * @param searchLoad builds the target the node charges merging the results of its shards to, from the shards and their weights
      * @param source the search source of the request
-     * @param shardResult fills in the query result each shard returns
+     * @param batchedReduceSize how many shard results the node merges at once
+     * @param shardResult fills in the query result of a shard and returns the result it sends
      * @param onFreeContext called with the id of each reader context the node asks to free
      */
     private RecordingChannel runBatchedNodeQuery(
@@ -1530,7 +1636,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         boolean failWrites,
         BiFunction<List<ShardId>, ToLongFunction<ShardId>, TaskLoadAttribution.Target> searchLoad,
         SearchSourceBuilder source,
-        Consumer<QuerySearchResult> shardResult,
+        int batchedReduceSize,
+        UnaryOperator<QuerySearchResult> shardResult,
         Consumer<ShardSearchContextId> onFreeContext
     ) throws Exception {
         TestThreadPool threadPool = new TestThreadPool(getTestName());
@@ -1565,12 +1672,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 };
             }
         };
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            null
-        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         SearchService searchService = new SearchService(
             clusterService,
@@ -1596,7 +1698,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget(transport.getLocalNode().getId(), req.shardId(), null),
                     null
                 );
-                shardResult.accept(result);
+                result = shardResult.apply(result);
                 resultsToRelease.add(result);
                 listener.onResponse(result);
             }
@@ -1619,6 +1721,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(source);
+            searchRequest.setBatchedReduceSize(batchedReduceSize);
             // The coordinator always sets it before sending. Unset, building each shard request fails.
             searchRequest.allowPartialSearchResults(true);
             var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, shards, 0L, null);
@@ -1651,6 +1754,22 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         } finally {
             IOUtils.closeWhileHandlingException(searchService, clusterService, transport, threadPool);
         }
+    }
+
+    /**
+     * Fills in a shard result with no hits, matching as many docs as its shard number.
+     */
+    private static QuerySearchResult noHits(QuerySearchResult result) {
+        result.topDocs(
+            new TopDocsAndMaxScore(
+                new TopDocs(new TotalHits(result.getSearchShardTarget().getShardId().id(), TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]),
+                Float.NaN
+            ),
+            new DocValueFormat[0]
+        );
+        result.from(0);
+        result.size(0);
+        return result;
     }
 
     /**
@@ -1713,12 +1832,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             Collections.emptySet(),
             nodeId
         );
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            null
-        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         SearchService searchService = new SearchService(
             clusterService,

@@ -28,6 +28,7 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -232,7 +233,7 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
             mapperService.mappingLookup()
                 .getMapping()
                 .getMetadataMapperByName(SourceFieldMapper.NAME)
-                .supportsColumnarParse(mapperService.getIndexSettings())
+                .supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
     }
 
@@ -319,7 +320,17 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
             try (
                 EscfBatch escfBatch = encoder.buildPartition(0);
                 BatchMappingContext ctx = new BatchMappingContext(
-                    IndexOperationBatch.initFromBulk(items, 0, items.length, escfBatch, Engine.Operation.Origin.PRIMARY, 0L, 0L, null),
+                    IndexOperationBatch.initFromBulk(
+                        items,
+                        0,
+                        items.length,
+                        escfBatch,
+                        IndexMode.STANDARD,
+                        Engine.Operation.Origin.PRIMARY,
+                        0L,
+                        0L,
+                        null
+                    ),
                     mapperService.mappingLookup(),
                     mapperService.getIndexSettings(),
                     new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))

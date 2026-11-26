@@ -81,7 +81,7 @@ public class RestActions {
             response.getSuccessfulShards(),
             -1,
             response.getFailedShards(),
-            response.shardFailuresList()
+            response.getShardFailures()
         );
     }
 

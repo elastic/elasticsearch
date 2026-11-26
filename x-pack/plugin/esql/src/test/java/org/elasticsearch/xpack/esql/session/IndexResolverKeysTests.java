@@ -105,7 +105,7 @@ public class IndexResolverKeysTests extends ESTestCase {
         return IndexResolver.mergedMappings(
             "*",
             false,
-            new IndexResolver.FieldsInfo(caps, minimumVersion, false, false, false, false, false, false, true, namedFields),
+            new IndexResolver.FieldsInfo(caps, minimumVersion, false, false, false, false, false, false, true, namedFields, false),
             false,
             IndexResolver.DO_NOT_GROUP
         ).get().mapping();
@@ -120,6 +120,6 @@ public class IndexResolverKeysTests extends ESTestCase {
         for (IndexFieldCapabilities field : fields) {
             byName.put(field.name(), field);
         }
-        return new FieldCapabilitiesIndexResponse(index, index, byName, true, IndexMode.STANDARD, 1, 0, 1L, 1L);
+        return new FieldCapabilitiesIndexResponse(index, index, byName, true, IndexMode.STANDARD, 1, 0, 1L, 1L, null);
     }
 }

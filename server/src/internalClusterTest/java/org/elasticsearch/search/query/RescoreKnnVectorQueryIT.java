@@ -41,7 +41,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -69,7 +68,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return List.of(CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -93,6 +92,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         String type = randomFrom(
             Arrays.stream(VectorIndexType.values())
                 .filter(VectorIndexType::isQuantized)
+                .filter(t -> t != VectorIndexType.BBQ_DISK) // diskbbq needs a special plugin
                 .map(t -> t.name().toLowerCase(Locale.ROOT))
                 .toList()
         );

@@ -54,6 +54,18 @@ public interface LuceneColumn extends SliceableColumn {
     Column toLuceneColumn();
 
     /**
+     * Like {@link #toLuceneColumn()}, for a column that has a {@link #withFilter filter}: the documents that pass the filter are
+     * renumbered to the doc ids in {@code compactedDocIds}. Lucene adds one document per doc id of a batch, so the documents a filter
+     * excludes must not keep one, and every column of the batch has to number the remaining ones alike.
+     *
+     * <p>The result is a view and never the column itself, whose own cursors keep the numbering of the window for
+     * {@link #rowFieldCursor()}. {@link CompactedColumns} has such a view for each type of Lucene column.
+     *
+     * @param compactedDocIds the doc id each document of this column's window takes in the batch, {@code -1} for the excluded ones
+     */
+    Column toLuceneColumn(int[] compactedDocIds);
+
+    /**
      * Creates a forward-only cursor for the row-oriented (soft-update / non-{@code addBatch}) path.
      * The cursor iterates over rows in this column's current window; each position yields the
      * Lucene field(s) for that row via {@link RowFieldCursor#appendCurrentFields}.

@@ -38,6 +38,10 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         parse("row a = 1 | into foo", "into");
     }
 
+    public void testDevelopmentNestedExpand() throws Exception {
+        parse("row a = 1 | nested_expand items", "nested_expand");
+    }
+
     public void testDevelopmentLambda() throws Exception {
         // outside of dev mode, `->` lexes as ARROW but the lambda parser rule is predicate-guarded
         expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = invoke(a, x -> x)"));

@@ -17,6 +17,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -124,6 +125,22 @@ public final class EscfBatchBuilder implements Releasable {
         return partition == null ? 0 : partition.docCount;
     }
 
+    /**
+     * The memory of the partitions not built yet, heap and recycled pages. It is never less than what their batches report.
+     */
+    public long ramBytesUsed() {
+        long bytes = 0;
+        for (Partition partition : partitions) {
+            if (partition != null) {
+                bytes += EscfBatch.BASE_RAM_BYTES_USED;
+                for (EscfColumnBuilder builder : partition.builders) {
+                    bytes += builder.ramBytesUsed();
+                }
+            }
+        }
+        return bytes;
+    }
+
     /** Returns {@code true} if at least one row has been committed to {@code partitionKey}. */
     public boolean hasPartition(int partitionKey) {
         return partitionKey < partitions.length && partitions[partitionKey] != null;
@@ -165,7 +182,7 @@ public final class EscfBatchBuilder implements Releasable {
                 Double.longBitsToDouble(rowBuffer.scratchNumeric(col)),
                 (XContentString.UTF8Bytes) rowBuffer.scratchVar(col) // the stored spelling, or null
             );
-            case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) rowBuffer.scratchVar(col));
+            case SourceValueType.STRING -> builder.addUtf8String((Utf8Value) rowBuffer.scratchVar(col));
             case SourceValueType.BINARY -> addBinary(builder, rowBuffer.scratchVar(col));
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));

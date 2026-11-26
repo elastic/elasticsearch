@@ -105,7 +105,7 @@ public final class RoundToLong8Evaluator implements ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount, LongVector fieldVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long field = fieldVector.getLong(p);
         result.appendLong(p, RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7));

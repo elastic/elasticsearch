@@ -46,7 +46,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.FileNotFoundException;
@@ -251,7 +251,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
             blobContainer.writeBlob(
                 randomFrom(OperationPurpose.values()),
-                BatchedCompoundCommit.blobNameFromGeneration(1),
+                BccBlob.blobNameFromGeneration(1),
                 new InputStreamIndexInput(input, length),
                 length,
                 false

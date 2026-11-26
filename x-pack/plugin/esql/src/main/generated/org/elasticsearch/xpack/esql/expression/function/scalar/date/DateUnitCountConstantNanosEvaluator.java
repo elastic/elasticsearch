@@ -92,7 +92,7 @@ public final class DateUnitCountConstantNanosEvaluator implements ExpressionEval
   }
 
   public LongVector eval(int positionCount, LongVector dateVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long date = dateVector.getLong(p);
         result.appendLong(p, DateUnitCount.processNanos(this.toUnit, this.fromUnit, date, this.zoneId));

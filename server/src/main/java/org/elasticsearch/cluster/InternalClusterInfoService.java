@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
@@ -98,8 +99,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Property.Dynamic,
         Property.NodeScope
     );
-
     private volatile boolean diskThresholdEnabled;
+    private volatile boolean snapshotRestoreAllocationEnabled;
     private volatile WriteLoadDeciderStatus writeLoadConstraintEnabled;
     private volatile WriteLoadDeciderShardWriteLoadType writeLoadDeciderShardWriteLoadType;
     private volatile TimeValue updateFrequency;
@@ -117,6 +118,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final PartitionSizeCollector partitionSizeCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
     private final SearchLaneRequirementsCollector searchLaneRequirementsCollector;
+    private final SearchLoadMetricsCollector searchLoadMetricsCollector;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     private AsyncRefresh currentRefresh;
@@ -135,7 +137,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
         PartitionSizeCollector partitionSizeCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector,
-        SearchLaneRequirementsCollector searchLaneRequirementsCollector
+        SearchLaneRequirementsCollector searchLaneRequirementsCollector,
+        SearchLoadMetricsCollector searchLoadMetricsCollector
     ) {
         this.threadPool = threadPool;
         this.client = client;
@@ -144,6 +147,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.partitionSizeCollector = partitionSizeCollector;
         this.nodeUsageStatsForThreadPoolsCollector = nodeUsageStatsForThreadPoolsCollector;
         this.searchLaneRequirementsCollector = searchLaneRequirementsCollector;
+        this.searchLoadMetricsCollector = searchLoadMetricsCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -156,6 +160,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             this::setDiskThresholdEnabled
         );
+        clusterSettings.initializeAndWatchIfRegistered(
+            SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            this::setSnapshotRestoreAllocationEnabled
+        );
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
@@ -165,6 +173,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
         this.diskThresholdEnabled = diskThresholdEnabled;
+    }
+
+    private void setSnapshotRestoreAllocationEnabled(boolean snapshotRestoreAllocationEnabled) {
+        this.snapshotRestoreAllocationEnabled = snapshotRestoreAllocationEnabled;
     }
 
     private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
@@ -224,8 +236,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
         private volatile Map<String, Long> hostedShardsPartitionSizeByNodeId = Map.of();
         private volatile Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
+        private volatile Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of();
+        private volatile Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
+        private final boolean collectStoreStats = diskThresholdEnabled || snapshotRestoreAllocationEnabled;
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 
@@ -237,13 +252,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || needIndicesStatsForShardWriteLoads());
-                fetchNodeStats(diskThresholdEnabled);
+                maybeFetchIndicesStats(collectStoreStats || needIndicesStatsForShardWriteLoads());
+                fetchNodeStats(collectStoreStats);
                 fetchEstimatedHeapUsage();
                 maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 fetchCacheUsageAndCommitments();
                 fetchPartitionSizes();
                 fetchSearchLaneRequirements();
+                fetchSearchLoadMetrics();
             }
         }
 
@@ -353,6 +369,28 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
+        private void fetchSearchLoadMetrics() {
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                final ActionListener<SearchLoadMetrics> listener = ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchLoadMetrics searchLoadMetrics) {
+                        searchCopyDemands = searchLoadMetrics.searchCopyDemands();
+                        nodeSearchCapacities = searchLoadMetrics.nodeSearchCapacities();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to fetch search load metrics", e);
+                        searchCopyDemands = Map.of();
+                        nodeSearchCapacities = Map.of();
+                    }
+                }, fetchRefs.acquire());
+                // An Exception before the collector notifies its listener is forwarded to onFailure, which releases the refresh ref.
+                // A normal return keeps that ref until the listener runs, including when the collector completes it later.
+                ActionListener.run(listener, l -> searchLoadMetricsCollector.collectSearchLoadMetrics(clusterStateSupplier.get(), l));
+            }
+        }
+
         private void fetchEstimatedHeapUsage() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                 estimatedHeapUsageCollector.collectEstimatedHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
@@ -375,7 +413,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchIndicesStats() {
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
-            if (diskThresholdEnabled) {
+            if (collectStoreStats) {
                 // This returns the shard sizes on disk
                 indicesStatsRequest.store(true);
             }
@@ -398,9 +436,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 logger.trace("received indices stats response");
 
-                                if (indicesStatsResponse.shardFailuresList().isEmpty() == false) {
+                                if (indicesStatsResponse.getShardFailures().isEmpty() == false) {
                                     final Set<String> failedNodeIds = new HashSet<>();
-                                    for (final var shardFailure : indicesStatsResponse.shardFailuresList()) {
+                                    for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
                                         if (shardFailure.getCause() instanceof final FailedNodeException failedNodeException) {
                                             if (failedNodeIds.add(failedNodeException.nodeId())) {
                                                 logger.warn(
@@ -587,7 +625,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 shardCacheRequirements,
                 hostedShardsPartitionSizeByNodeId,
                 shardSearchLaneRequirements,
-                indicesStatsSummary.shardSearchLoads()
+                indicesStatsSummary.shardSearchLoads(),
+                searchCopyDemands,
+                nodeSearchCapacities
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;

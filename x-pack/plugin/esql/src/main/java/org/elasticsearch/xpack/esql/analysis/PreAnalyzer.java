@@ -135,15 +135,18 @@ public class PreAnalyzer {
         // EQL is always STANDARD mode; reject a collision with a same-pattern non-STANDARD relation, matching the
         // UnresolvedRelation conflict above. Reachable via a mixed subquery (e.g. FROM (TS idx), (EQL idx "…")),
         // where it throws exactly as the FROM/TS twin does.
+        // Under a request filter or a time range on its pattern, an EQL pattern gets its own key (IndexPattern#forEqlSource) and is not
+        // shared, but the collision is checked on the unscoped key so that neither decides whether the query is valid.
         Set<IndexPattern> eqlPatterns = new LinkedHashSet<>();
         plan.forEachUp(UnresolvedEqlRelation.class, p -> {
             eqlPatterns.add(p.indexPattern());
-            IndexMode existing = indexes.putIfAbsent(p.indexPattern(), IndexMode.STANDARD);
+            IndexMode existing = indexes.get(p.indexPattern().withoutEqlSource());
             if (existing != null && existing != IndexMode.STANDARD) {
                 throw new IllegalStateException(
                     "index pattern '" + p.indexPattern() + "' found with different index mode: " + existing + " != " + IndexMode.STANDARD
                 );
             }
+            indexes.putIfAbsent(p.indexPattern(), IndexMode.STANDARD);
         });
         List<LookupIndexPattern> lookupIndices = new ArrayList<>();
         plan.forEachUp(LookupJoin.class, lj -> {
@@ -237,7 +240,7 @@ public class PreAnalyzer {
         });
         // Only a HIGHLIGHT analyzing with the mapping analyzers reads which indices use which one; skip the cost otherwise.
         boolean needsAnalyzerGroups = plan.anyMatch(p -> p instanceof Highlight h && h.hasAnalyzerOption() == false);
-        // Only DESCRIBE reads the field semantics; skip building them otherwise.
+        // DESCRIBE reads the field semantics; column_metadata asks for them with withFieldSemantics(). Skip them otherwise.
         boolean needsFieldSemantics = plan.anyMatch(Describe.class::isInstance);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)

@@ -15,6 +15,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
@@ -146,17 +147,25 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
-    /** Stages a UTF-8 string value. Returns the leaf column index. */
-    public int stringField(String name, XContentString.UTF8Bytes value) {
+    /**
+     * Stages a string value, copied into its column on {@link EscfBatchBuilder#commit}, so its bytes must not change before then.
+     * Returns the leaf column index.
+     */
+    int utf8StringField(String name, Utf8Value value) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.STRING;
         scratchVar[colIdx] = value;
         return colIdx;
     }
 
+    /** Stages a UTF-8 string value. Returns the leaf column index. */
+    public int stringField(String name, XContentString.UTF8Bytes value) {
+        return stringField(name, value.bytes(), value.offset(), value.length());
+    }
+
     /** Stages a UTF-8 string value from a raw byte slice. Returns the leaf column index. */
     public int stringField(String name, byte[] bytes, int offset, int length) {
-        return stringField(name, new XContentString.UTF8Bytes(bytes, offset, length));
+        return utf8StringField(name, Utf8Value.of(bytes, offset, length));
     }
 
     /**
@@ -178,6 +187,16 @@ public final class EscfRowBuffer {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.BINARY;
         scratchVar[colIdx] = writer;
+        return colIdx;
+    }
+
+    /**
+     * Encodes a packed KEY_VALUE object. The bytes are copied on commit, so {@code packed} must not change before then.
+     */
+    public int keyValueField(String name, byte[] packed) {
+        int colIdx = addLeaf(name);
+        scratchType[colIdx] = SourceValueType.KEY_VALUE;
+        scratchVar[colIdx] = packed;
         return colIdx;
     }
 

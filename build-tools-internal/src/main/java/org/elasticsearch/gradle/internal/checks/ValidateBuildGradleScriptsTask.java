@@ -16,9 +16,9 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
@@ -50,6 +50,10 @@ import javax.inject.Inject;
 /**
  * Validates repository {@code build.gradle} scripts against authoring guardrails.
  *
+ * <p>Most rules and the execution-closure scan only apply to {@code build.gradle} files. Rules that guard against APIs
+ * that must not be used anywhere in build logic (such as the Ant integration) also apply to the other script files
+ * passed in {@link #getScriptFiles()}, e.g. settings scripts, precompiled script plugins and Groovy build logic sources.
+ *
  * <p>The task is intentionally repository-wide and root-owned. Each rule produces structured
  * Gradle Problems so failures are visible in the problems report as well as the console output.
  */
@@ -60,6 +64,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     private final File rootBuildFile;
     private final ProjectLayout projectLayout;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     @Inject
     public ValidateBuildGradleScriptsTask(ProjectLayout projectLayout, Problems problems) {
@@ -67,6 +72,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         this.rootBuildFile = projectLayout.getSettingsDirectory().file("build.gradle").getAsFile();
         this.projectLayout = projectLayout;
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS.group(problems);
         setDescription("Validates build.gradle scripts against repository guardrails");
     }
 
@@ -129,6 +135,8 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         addDistributionBundledJdkRules(rules);
         addDistributionClosureAssignmentRules(rules);
         addDistributionExtClosureRules(rules);
+        addAntUsageRules(rules);
+        addEagerTestSeedRules(rules);
         return rules;
     }
 
@@ -140,7 +148,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             new ScriptRule(
                 "cross-project-dereference",
                 "Direct cross-project dereference in build.gradle",
-                path -> true,
+                ValidateBuildGradleScriptsTask::isBuildScript,
                 Pattern.compile("project\\s*\\(\\s*['\"]:[^'\"]+['\"]\\s*\\)\\s*\\."),
                 "Build scripts must not read another project's model directly via project(\":path\").* because that couples "
                     + "project configuration and breaks isolated-project-safe authoring.",
@@ -151,7 +159,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             new ScriptRule(
                 "cross-project-configuration",
                 "Cross-project configuration closure in build.gradle",
-                path -> true,
+                ValidateBuildGradleScriptsTask::isBuildScript,
                 Pattern.compile("project\\s*\\(\\s*['\"]:[^'\"]+['\"]\\s*\\)\\s*\\{"),
                 "Build scripts must not configure another project via project(\":path\") { ... } because configuration should live "
                     + "in the target project or a plugin applied there.",
@@ -215,6 +223,240 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         );
     }
 
+    /**
+     * Gradle 9.9 deprecated the Ant integration and Gradle 10 removes it, together with the Ant classes on the build
+     * script classpath. This rule applies to all scanned script files, not only {@code build.gradle}.
+     */
+    private void addAntUsageRules(List<ScriptRule> rules) {
+        rules.add(
+            new ScriptRule(
+                ANT_USAGE_RULE_ID,
+                "Ant usage in build logic",
+                path -> true,
+                ANT_USAGE_PATTERN,
+                true,
+                "The Gradle Ant integration (ant.*, getAnt(), createAntBuilder(), AntBuilder, addToAntBuilder) is deprecated "
+                    + "since Gradle 9.9 and removed in Gradle 10, which also removes the org.apache.tools.ant classes from the "
+                    + "build script classpath.",
+                "Use Gradle APIs instead: Copy/Sync tasks or FileSystemOperations for file operations, "
+                    + "org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens / FixCrLfFilter for copy filters, "
+                    + "or a typed task in build-tools-internal."
+            )
+        );
+    }
+
+    static final String ANT_USAGE_RULE_ID = "ant-usage";
+
+    /**
+     * Matches Ant usages in code (comments and string literal text are blanked out before matching, see
+     * {@link #blankCommentsAndStrings(String)}): {@code ant.xyz},
+     * {@code ant { }}, {@code ant(...)}, a read of the {@code ant} property of a project ({@code project.ant}), {@code getAnt()},
+     * {@code createAntBuilder}, {@code addToAntBuilder}, the deprecated Gradle types {@code AntBuilder}, {@code AntTarget},
+     * {@code AntBuilderAware} and {@code FileCollection.AntType}, and references to the {@code org.apache.tools.ant} or
+     * {@code groovy.ant} packages.
+     */
+    static final Pattern ANT_USAGE_PATTERN = Pattern.compile(
+        "(?:(?<![\\w$])ant\\s*[.({]|\\b(?:project|rootProject|getProject\\s*\\(\\s*\\))\\s*\\.\\s*ant\\b"
+            + "|\\bgetAnt\\s*\\(|\\bcreateAntBuilder\\b|\\baddToAntBuilder\\b|\\bAntBuilder\\b|\\bAntBuilderAware\\b"
+            + "|\\bAntTarget\\b|\\bAntType\\b"
+            + "|\\borg\\.apache\\.tools\\.ant\\b|\\bgroovy\\.ant\\b)"
+    );
+
+    /**
+     * Replaces line and block comments and the literal text of strings with spaces, keeping line breaks so that offsets and
+     * line numbers are unchanged. This lets a rule match Groovy code only: an explanatory comment or a task description that
+     * mentions an API is not reported. Recognised strings are single, double and triple quoted strings, slashy strings
+     * ({@code /.../}) and dollar-slashy strings ({@code $/.../$}); a {@code /*} or {@code //} inside them does not start a
+     * comment. The parts of a string that are code are kept: the {@code ${...}} and {@code $a.b.c} interpolations of GStrings
+     * and a quoted method or property name after a dot ({@code project."createAntBuilder"()}).
+     * <p>
+     * This is a lexer, not a parser, so it uses heuristics. A {@code /} starts a slashy string only where a value is
+     * expected, that is when the code before it does not end with an identifier, a number, a closing bracket or a string.
+     * A string without its closing delimiter is treated as code, so a misdetected string never hides the rest of the script.
+     */
+    static String blankCommentsAndStrings(String content) {
+        GroovyCodeMasker masker = new GroovyCodeMasker(content);
+        masker.code(false);
+        return masker.result.toString();
+    }
+
+    /**
+     * The lexer behind {@link #blankCommentsAndStrings(String)}.
+     */
+    private static final class GroovyCodeMasker {
+        private enum Escapes {
+            /** A backslash escapes the next character, as in quoted strings. */
+            BACKSLASH,
+            /** Only {@code \/} is an escape, as in slashy strings. */
+            SLASH,
+            /** {@code $$} and {@code $/} are escapes, as in dollar-slashy strings. */
+            DOLLAR
+        }
+
+        private final String content;
+        private final int length;
+        private final StringBuilder result;
+        private int pos;
+
+        GroovyCodeMasker(String content) {
+            this.content = content;
+            this.length = content.length();
+            this.result = new StringBuilder(length);
+        }
+
+        /**
+         * Copies code, blanking comments and string literal text, up to the end of the content or, for the body of a
+         * {@code ${...}} interpolation, up to and including the brace that closes it.
+         */
+        void code(boolean interpolation) {
+            int depth = 0;
+            while (pos < length) {
+                char c = content.charAt(pos);
+                if (content.startsWith("//", pos)) {
+                    int end = content.indexOf('\n', pos);
+                    blankUntil(end < 0 ? length : end);
+                } else if (content.startsWith("/*", pos)) {
+                    int end = content.indexOf("*/", pos + 2);
+                    blankUntil(end < 0 ? length : end + 2);
+                } else if (content.startsWith("$/", pos) && (pos == 0 || isIdentifierPart(content.charAt(pos - 1)) == false)) {
+                    string("$/", "/$", true, true, Escapes.DOLLAR, false);
+                } else if (c == '/' && valueExpected()) {
+                    string("/", "/", true, true, Escapes.SLASH, false);
+                } else if (c == '\'' || c == '"') {
+                    String triple = String.valueOf(c).repeat(3);
+                    String quote = content.startsWith(triple, pos) ? triple : String.valueOf(c);
+                    // a quoted name after a dot is a method or property name, so it is code
+                    boolean selector = lastCodeChar() == '.';
+                    string(quote, quote, c == '"', quote.length() == 3, Escapes.BACKSLASH, selector);
+                } else {
+                    result.append(c);
+                    pos++;
+                    if (interpolation && c == '{') {
+                        depth++;
+                    } else if (interpolation && c == '}' && depth-- == 0) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        /**
+         * Masks the string literal at the current position. If the string has no closing delimiter, the opening character is
+         * copied as code instead, so that a misdetected string does not hide the code after it.
+         */
+        private void string(String open, String close, boolean gString, boolean multiLine, Escapes escapes, boolean keepText) {
+            int start = pos;
+            int resultStart = result.length();
+            result.append(open);
+            pos += open.length();
+            while (pos < length) {
+                char c = content.charAt(pos);
+                if (content.startsWith(close, pos)) {
+                    result.append(close);
+                    pos += close.length();
+                    return;
+                } else if (c == '\n' && multiLine == false) {
+                    break;
+                } else if (escapes == Escapes.BACKSLASH && c == '\\' && pos + 1 < length) {
+                    text(2, keepText);
+                } else if (escapes == Escapes.SLASH && content.startsWith("\\/", pos)) {
+                    text(2, keepText);
+                } else if (escapes == Escapes.DOLLAR && (content.startsWith("$$", pos) || content.startsWith("$/", pos))) {
+                    text(2, keepText);
+                } else if (gString && content.startsWith("${", pos)) {
+                    result.append("${");
+                    pos += 2;
+                    code(true);
+                } else if (gString && c == '$' && pos + 1 < length && Character.isJavaIdentifierStart(content.charAt(pos + 1))) {
+                    // an unbraced interpolation of a dotted path such as $project.version
+                    int end = pos + 1;
+                    do {
+                        end++;
+                        while (end < length && Character.isJavaIdentifierPart(content.charAt(end)) && content.charAt(end) != '$') {
+                            end++;
+                        }
+                    } while (end + 1 < length && content.charAt(end) == '.' && Character.isJavaIdentifierStart(content.charAt(end + 1)));
+                    result.append(content, pos, end);
+                    pos = end;
+                } else {
+                    text(1, keepText);
+                }
+            }
+            // unterminated: treat the opening character as code and continue after it
+            result.setLength(resultStart);
+            pos = start;
+            result.append(content.charAt(pos++));
+        }
+
+        /**
+         * Whether a {@code /} at the current position starts a slashy string rather than being a division.
+         */
+        private boolean valueExpected() {
+            char last = lastCodeChar();
+            return last == 0 || (isIdentifierPart(last) == false && ")]}'\"/".indexOf(last) < 0);
+        }
+
+        /**
+         * Returns the last non-whitespace character copied to the result, or {@code 0} if there is none. Comments are already
+         * blanked in the result, so they are skipped.
+         */
+        private char lastCodeChar() {
+            for (int i = result.length() - 1; i >= 0; i--) {
+                char c = result.charAt(i);
+                if (Character.isWhitespace(c) == false) {
+                    return c;
+                }
+            }
+            return 0;
+        }
+
+        private void text(int count, boolean keep) {
+            for (int end = Math.min(length, pos + count); pos < end; pos++) {
+                char c = content.charAt(pos);
+                result.append(keep || c == '\n' ? c : ' ');
+            }
+        }
+
+        private void blankUntil(int end) {
+            text(end - pos, false);
+        }
+
+        private static boolean isIdentifierPart(char c) {
+            return Character.isJavaIdentifierPart(c);
+        }
+    }
+
+    /**
+     * Adds a guardrail against reading the test seed at configuration time. The seed is a configuration cache input when
+     * it is read while configuring, so a script that reads it ({@code get()}, {@code getOrNull()}, {@code getOrElse(...)}
+     * or {@code orNull}), or reads {@code buildParams.random}, which is derived from it, makes every build with a new seed
+     * miss the configuration cache. The rule follows the call chain from the provider, so a read inside a lazy closure such
+     * as {@code map { ... }} is not flagged. The chain may continue on later lines, but each argument list or closure in it
+     * must sit on one line, and the rule does not follow the provider through a variable.
+     */
+    private void addEagerTestSeedRules(List<ScriptRule> rules) {
+        rules.add(
+            new ScriptRule(
+                "eager-test-seed",
+                "Build scripts must not read the test seed at configuration time",
+                ValidateBuildGradleScriptsTask::isBuildScript,
+                Pattern.compile(
+                    // the provider, then a chain of calls (arguments and closures on one line each, closures may hold ${...}),
+                    // then a read. The whitespace before an argument list or closure sits inside the optional group: if two
+                    // parts of the pattern could match the same whitespace, a failed match would backtrack exponentially.
+                    "\\bbuildParams\\s*\\.\\s*(?:testSeedProvider\\b|getTestSeedProvider\\s*\\(\\s*\\)|random\\b|getRandom\\s*\\(\\s*\\))"
+                        + "(?:\\s*\\.\\s*\\w+(?:\\s*\\([^()\\n]*\\)|\\s*\\{(?:[^{}\\n]|\\$\\{[^{}\\n]*\\})*\\})?)*?"
+                        + "\\s*\\.\\s*(?:get\\s*\\(\\s*\\)|getOrNull\\s*\\(\\s*\\)|getOrElse\\s*\\(|orNull\\b)"
+                ),
+                "Calling get() on buildParams.testSeedProvider or buildParams.random reads the test seed while the build is "
+                    + "configured. The seed then becomes a configuration cache input and changes with every build, so the "
+                    + "configuration cache can never be reused.",
+                "Keep the value lazy: map the provider (buildParams.testSeedProvider.map { seed -> ... }) and pass it to "
+                    + "nonInputProperties.systemProperty, which reads it when the test JVM starts."
+            )
+        );
+    }
+
     private void validateFile(
         File scriptFile,
         String content,
@@ -229,7 +471,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             if (rule.appliesToPath().test(relativePath) == false) {
                 continue;
             }
-            Matcher matcher = rule.pattern().matcher(content);
+            Matcher matcher = rule.pattern().matcher(rule.codeOnly() ? blankCommentsAndStrings(content) : content);
             while (matcher.find()) {
                 int lineNumber = lineNumber(content, matcher.start());
                 String lineText = lineText(content, matcher.start()).trim();
@@ -243,7 +485,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                 violations.add("- " + label + System.lineSeparator() + "  " + lineText);
                 problems.add(
                     problemReporter.create(
-                        ProblemId.create(rule.id(), rule.title(), ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS),
+                        problemGroup.problemId(rule.title()),
                         spec -> spec.contextualLabel(label)
                             .details(rule.details())
                             .lineInFileLocation(scriptFile.getAbsolutePath(), lineNumber)
@@ -252,7 +494,17 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                 );
             }
         }
-        validateExecutionClosures(scriptFile, content, relativePath, ignoreEntriesByKey, matchedIgnoredViolations, problems, violations);
+        if (isBuildScript(relativePath)) {
+            validateExecutionClosures(
+                scriptFile,
+                content,
+                relativePath,
+                ignoreEntriesByKey,
+                matchedIgnoredViolations,
+                problems,
+                violations
+            );
+        }
     }
 
     private void validateExecutionClosures(
@@ -272,11 +524,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             violations.add("- " + label + System.lineSeparator() + "  " + e.getMessage());
             problems.add(
                 problemReporter.create(
-                    ProblemId.create(
-                        "build-script-parse-failure",
-                        "Cannot parse build.gradle for execution-closure validation",
-                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
-                    ),
+                    problemGroup.problemId("Cannot parse build.gradle for execution-closure validation"),
                     spec -> spec.contextualLabel(label)
                         .details(e.getMessage())
                         .fileLocation(scriptFile.getAbsolutePath())
@@ -297,11 +545,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             violations.add("- " + label + " (" + finding.reference() + ")");
             problems.add(
                 problemReporter.create(
-                    ProblemId.create(
-                        ExecutionClosureScanner.RULE_ID,
-                        "Project-model reference in task execution closure",
-                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
-                    ),
+                    problemGroup.problemId("Project-model reference in task execution closure"),
                     spec -> spec.contextualLabel(label)
                         .details(
                             "Direct "
@@ -340,11 +584,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             violations.add("- " + label);
             problems.add(
                 problemReporter.create(
-                    ProblemId.create(
-                        "stale-ignore-entry",
-                        "Stale build.gradle validation ignore entry",
-                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
-                    ),
+                    problemGroup.problemId("Stale build.gradle validation ignore entry"),
                     spec -> spec.contextualLabel(label)
                         .details(details)
                         .fileLocation(rootBuildFile.getAbsolutePath())
@@ -428,8 +668,12 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         return lineNumber;
     }
 
+    private static boolean isBuildScript(String relativePath) {
+        return relativePath.equals("build.gradle") || relativePath.endsWith("/build.gradle");
+    }
+
     private boolean isDistributionBuildScript(String relativePath) {
-        return relativePath.startsWith("distribution/");
+        return relativePath.startsWith("distribution/") && isBuildScript(relativePath);
     }
 
     private static String lineText(String content, int offset) {
@@ -440,7 +684,23 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         return content.substring(start, end);
     }
 
-    private record ScriptRule(String id, String title, Predicate<String> appliesToPath, Pattern pattern, String details, String solution) {}
+    /**
+     * @param codeOnly whether the pattern is matched against the script with comments and string literal text blanked out,
+     *                 so that commented-out code, an explanatory comment or a description never counts as a violation
+     */
+    private record ScriptRule(
+        String id,
+        String title,
+        Predicate<String> appliesToPath,
+        Pattern pattern,
+        boolean codeOnly,
+        String details,
+        String solution
+    ) {
+        ScriptRule(String id, String title, Predicate<String> appliesToPath, Pattern pattern, String details, String solution) {
+            this(id, title, appliesToPath, pattern, false, details, solution);
+        }
+    }
 
     private record IgnoreKey(String ruleId, String relativePath) {}
 

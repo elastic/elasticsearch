@@ -69,7 +69,7 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                     int listenersCount = randomIntBetween(0, 2);
                     for (int i = 0; i < listenersCount; i++) {
                         var shardsClosedListener = new SubscribableListener<Void>();
-                        shardsClosedListener.addListener(indicesClusterStateService.getShardsClosedListener());
+                        shardsClosedListener.addListener(ActionListener.releasing(indicesClusterStateService.getShardsClosedReleasable()));
                         shardsClosedListenersForRoundMap.get(round).add(shardsClosedListener);
                         allShardsClosedListeners.add(shardsClosedListener);
                         shardsClosedListener.andThen(l -> {

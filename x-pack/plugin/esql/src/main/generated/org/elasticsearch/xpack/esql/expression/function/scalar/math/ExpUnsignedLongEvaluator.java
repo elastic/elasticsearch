@@ -83,7 +83,7 @@ public final class ExpUnsignedLongEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, LongVector valVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long val = valVector.getLong(p);
         result.appendDouble(p, Exp.processUnsignedLong(val));

@@ -127,7 +127,7 @@ public class Highlight extends UnaryPlan
      */
     private final Map<String, TextEsField> fieldMappings;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Highlight(
         Source source,

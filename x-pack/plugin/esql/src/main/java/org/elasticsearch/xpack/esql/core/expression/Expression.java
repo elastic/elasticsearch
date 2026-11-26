@@ -107,17 +107,21 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
      * {@link Set} of {@link Attribute}s referenced by this {@link Expression}.
      */
     public AttributeSet references() {
-        if (lazyReferences == null) {
-            lazyReferences = Expressions.references(children());
+        AttributeSet references = lazyReferences;
+        if (references == null) {
+            references = Expressions.references(children());
+            lazyReferences = references;
         }
-        return lazyReferences;
+        return references;
     }
 
     public boolean childrenResolved() {
-        if (lazyChildrenResolved == null) {
-            lazyChildrenResolved = Boolean.valueOf(Resolvables.resolved(children()));
+        Boolean childrenResolved = lazyChildrenResolved;
+        if (childrenResolved == null) {
+            childrenResolved = Boolean.valueOf(Resolvables.resolved(children()));
+            lazyChildrenResolved = childrenResolved;
         }
-        return lazyChildrenResolved;
+        return childrenResolved;
     }
 
     /**
@@ -141,10 +145,12 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
      * </p>
      */
     public final TypeResolution typeResolved() {
-        if (lazyTypeResolution == null) {
-            lazyTypeResolution = resolveType();
+        TypeResolution typeResolution = lazyTypeResolution;
+        if (typeResolution == null) {
+            typeResolution = resolveType();
+            lazyTypeResolution = typeResolution;
         }
-        return lazyTypeResolution;
+        return typeResolution;
     }
 
     /**
@@ -163,10 +169,12 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     }
 
     public final Expression canonical() {
-        if (lazyCanonical == null) {
-            lazyCanonical = canonicalize();
+        Expression canonical = lazyCanonical;
+        if (canonical == null) {
+            canonical = canonicalize();
+            lazyCanonical = canonical;
         }
-        return lazyCanonical;
+        return canonical;
     }
 
     protected Expression canonicalize() {

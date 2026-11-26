@@ -21,7 +21,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.internal.ShardGenerationListener;
+import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.Snapshot;
@@ -56,7 +56,7 @@ public final class RepositoriesModule {
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings,
         TelemetryProvider telemetryProvider,
-        ShardGenerationListener shardGenerationListener
+        ShardGenerationSizeListener shardGenerationSizeListener
     ) {
         this.snapshotMetrics = new SnapshotMetrics(
             telemetryProvider.getMeterRegistry(),
@@ -115,9 +115,9 @@ public final class RepositoriesModule {
             }
         }
 
-        if (shardGenerationListener != ShardGenerationListener.NOOP) {
-            factories.replaceAll((type, factory) -> withShardGenerationListener(factory, shardGenerationListener));
-            internalFactories.replaceAll((type, factory) -> withShardGenerationListener(factory, shardGenerationListener));
+        if (shardGenerationSizeListener != ShardGenerationSizeListener.NOOP) {
+            factories.replaceAll((type, factory) -> withShardGenerationSizeListener(factory, shardGenerationSizeListener));
+            internalFactories.replaceAll((type, factory) -> withShardGenerationSizeListener(factory, shardGenerationSizeListener));
         }
 
         List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks = new ArrayList<>();
@@ -158,7 +158,7 @@ public final class RepositoriesModule {
         );
     }
 
-    private static Repository.Factory withShardGenerationListener(Repository.Factory factory, ShardGenerationListener listener) {
+    private static Repository.Factory withShardGenerationSizeListener(Repository.Factory factory, ShardGenerationSizeListener listener) {
         return new Repository.Factory() {
             @Override
             public Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception {
@@ -175,7 +175,7 @@ public final class RepositoriesModule {
             }
 
             private Repository register(Repository repository) {
-                repository.setShardGenerationListener(listener);
+                repository.setShardGenerationSizeListener(listener);
                 return repository;
             }
         };

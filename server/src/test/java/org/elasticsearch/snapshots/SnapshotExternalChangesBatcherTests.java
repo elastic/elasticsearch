@@ -205,7 +205,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
     private static SnapshotsService.RepositoryDataWriteTaskRunner repositoryWriteTaskRunner(Set<ProjectRepo> triggeredRepositories) {
         return (projectId, repository, repositoryData) -> {
             assertNull(repositoryData);
-            triggeredRepositories.add(new ProjectRepo(projectId, repository));
+            assertTrue(triggeredRepositories.add(new ProjectRepo(projectId, repository))); // asserts no duplicate triggers
         };
     }
 

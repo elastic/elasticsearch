@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -67,6 +68,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -144,7 +146,9 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -156,7 +160,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -180,6 +183,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -962,6 +966,19 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * A part left open by its owner is closed when the owner's task is removed, so the node stops tracking the query.
+     */
+    public void testRemovedTaskClosesItsQueryParts() {
+        SearchService service = getInstanceFromNode(SearchService.class);
+        TaskManager taskManager = getInstanceFromNode(TransportService.class).getTaskManager();
+        Task task = taskManager.register("transport", "test", new SearchRequest());
+        service.queryScheduler().part(new TaskId("coordinator", randomNonNegativeLong()), task.getId());
+        assertThat(service.queryScheduler().queries(), equalTo(1));
+        taskManager.unregister(task);
+        assertThat(service.queryScheduler().queries(), equalTo(0));
+    }
+
     public void testRankFeaturePhaseUsingClient() {
         final String indexName = "index";
         final String rankFeatureFieldName = "field";
@@ -1486,7 +1503,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 ),
             (searchResponse) -> {
                 assertEquals(1, searchResponse.getSuccessfulShards());
-                assertEquals("simulated failure", searchResponse.getShardFailures()[0].getCause().getMessage());
+                assertEquals("simulated failure", searchResponse.getShardFailures().getFirst().getCause().getMessage());
                 assertNotEquals(0, searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     assertEquals(fetchFieldValue + "_" + hit.getId(), hit.getFields().get(fetchFieldName).getValue());
@@ -3861,6 +3878,101 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 assertTrue(IndicesService.canCache(sizeZeroShardRequest, ctx));
             }
         }
+    }
+
+    /**
+     * Parallel segment searches are charged to the phase that created the context.
+     */
+    public void testSlicesAreChargedToThePhaseOfTheirContext() throws Exception {
+        IndexService indexService = createIndex("index", Settings.EMPTY);
+        Executor executor = indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+        for (int i = 0; i < 30; i++) {
+            prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
+            if (i % 5 == 0) {
+                indicesAdmin().prepareRefresh("index").get();
+            }
+        }
+        final IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(randomBoolean()),
+            indexShard.shardId(),
+            0,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+        SearchService service = getInstanceFromNode(SearchService.class);
+        QueryLoad phaseLoad = new QueryLoad();
+        TaskLoadAttribution.Target phaseTarget = phaseLoad.charging(indexShard.shardSearchStats().searchLoadTarget());
+        long chargedBefore = indexShard.shardSearchStats().totalSearchLoadNanos();
+        try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
+            SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
+            PlainActionFuture<SearchContext> created = new PlainActionFuture<>();
+            executor.execute(ActionRunnable.supply(created, () -> {
+                TaskLoadAttribution.attribute(phaseTarget);
+                return service.createContext(readerContext, request, task, ResultsType.QUERY, true);
+            }));
+            try (SearchContext searchContext = created.get()) {
+                ContextIndexSearcher searcher = searchContext.searcher();
+                assertTrue(searcher.hasExecutor());
+                assertThat(searcher.getSlices().length, greaterThan(1));
+                searcher.search(
+                    new NonCountingTermQuery(new Term("field", "value")),
+                    new TotalHitCountCollectorManager(searcher.getSlices())
+                );
+            }
+        }
+        assertBusy(() -> {
+            long charged = indexShard.shardSearchStats().totalSearchLoadNanos() - chargedBefore;
+            assertThat(charged, greaterThan(0L));
+            assertThat(phaseLoad.snapshot().loadNanos(), equalTo(charged));
+        });
+    }
+
+    /**
+     * Parallel segment searches of a context with no phase, as ES|QL opens, are charged to the load of the task that starts them.
+     */
+    public void testSlicesAreChargedToTheTaskThatStartsThem() throws Exception {
+        IndexService indexService = createIndex("index", Settings.EMPTY);
+        Executor executor = indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+        for (int i = 0; i < 30; i++) {
+            prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
+            if (i % 5 == 0) {
+                indicesAdmin().prepareRefresh("index").get();
+            }
+        }
+        indicesAdmin().prepareRefresh("index").get();
+        final IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId(), System.currentTimeMillis(), AliasFilter.EMPTY);
+        SearchService service = getInstanceFromNode(SearchService.class);
+        QueryLoad taskLoad = new QueryLoad();
+        AtomicLong taskNanos = new AtomicLong();
+        TaskLoadAttribution.Target taskTarget = taskLoad.charging((nanos, cpuNanos, finishNanos) -> taskNanos.addAndGet(nanos));
+        long chargedBefore = indexShard.shardSearchStats().totalSearchLoadNanos();
+        try (SearchContext searchContext = service.createSearchContext(request, SearchService.NO_TIMEOUT)) {
+            assertNull(searchContext.searchLoad());
+            ContextIndexSearcher searcher = searchContext.searcher();
+            assertTrue(searcher.hasExecutor());
+            assertThat(searcher.getSlices().length, greaterThan(1));
+            PlainActionFuture<Integer> searched = new PlainActionFuture<>();
+            executor.execute(ActionRunnable.supply(searched, () -> {
+                TaskLoadAttribution.attribute(taskTarget);
+                return searcher.search(
+                    new NonCountingTermQuery(new Term("field", "value")),
+                    new TotalHitCountCollectorManager(searcher.getSlices())
+                );
+            }));
+            assertThat(searched.get(), equalTo(30));
+        }
+        assertBusy(() -> {
+            long shardNanos = indexShard.shardSearchStats().totalSearchLoadNanos() - chargedBefore;
+            assertThat(shardNanos, greaterThan(0L));
+            assertThat(taskNanos.get(), greaterThan(0L));
+            assertThat(taskLoad.snapshot().loadNanos(), equalTo(taskNanos.get() + shardNanos));
+        });
     }
 
     /**

@@ -25,6 +25,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -199,6 +200,85 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
                 message,
                 b -> b.startArray("sv").startObject().field("a", 1.0).endObject().nullValue().endArray()
             );
+        }
+    }
+
+    private static final List<String> RANGES = List.of(
+        "integer_range",
+        "long_range",
+        "float_range",
+        "double_range",
+        "date_range",
+        "ip_range"
+    );
+
+    private static String canonicalRange(Object value) {
+        return value instanceof Map<?, ?> map ? new TreeMap<>(map).toString() : String.valueOf(value);
+    }
+
+    // NOTE: the range types do not implement batch indexing today, so the scenario lists no batched shape and the BATCH tests are not
+    // required to execute as a batch. They exercise batch indexing as soon as a mapper accepts a column.
+    static Scenario range(String type) {
+        return switch (type) {
+            case "integer_range", "long_range" -> scenario(type, () -> {
+                final int lower = randomIntBetween(0, 1000);
+                return Map.of("gte", lower, "lte", lower + randomIntBetween(0, 50));
+            }).withoutIndex().withCanonical(ColumnarNullContractTests::canonicalRange);
+            case "float_range", "double_range" -> scenario(type, () -> {
+                final double lower = randomIntBetween(0, 1000) / 4.0;
+                return Map.of("gte", lower, "lte", lower + randomIntBetween(0, 50));
+            }).withoutIndex().withCanonical(ColumnarNullContractTests::canonicalRange);
+            case "date_range" -> scenario(type, () -> {
+                final long lower = randomLongBetween(0, 4_000_000_000_000L);
+                return Map.of(
+                    "gte",
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lower),
+                    "lte",
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lower + randomIntBetween(0, 1000))
+                );
+            }).withoutIndex().withCanonical(ColumnarNullContractTests::canonicalRange);
+            case "ip_range" -> scenario(type, () -> {
+                final int second = randomIntBetween(0, 255);
+                final int third = randomIntBetween(0, 255);
+                return Map.of("gte", "10." + second + "." + third + ".0", "lte", "10." + second + "." + third + ".255");
+            }).withoutIndex().withCanonical(ColumnarNullContractTests::canonicalRange);
+            default -> throw new AssertionError("no range scenario for [" + type + "]");
+        };
+    }
+
+    public void testRangeExistsMatchesOnlyDocumentsWithValueDocument() throws IOException {
+        for (final String type : RANGES) {
+            assertExistsMatchesOnlyDocumentsWithValue(range(type), IndexingStrategy.DOCUMENT);
+        }
+    }
+
+    public void testRangeExistsMatchesOnlyDocumentsWithValueBatch() throws IOException {
+        for (final String type : RANGES) {
+            assertExistsMatchesOnlyDocumentsWithValue(range(type), IndexingStrategy.BATCH);
+        }
+    }
+
+    public void testRangeExistsCountAgreesWithHitsDocument() throws IOException {
+        for (final String type : RANGES) {
+            assertExistsCountAgreesWithHits(range(type), IndexingStrategy.DOCUMENT);
+        }
+    }
+
+    public void testRangeExistsCountAgreesWithHitsBatch() throws IOException {
+        for (final String type : RANGES) {
+            assertExistsCountAgreesWithHits(range(type), IndexingStrategy.BATCH);
+        }
+    }
+
+    public void testRangeSourceDropsNullElementsDocument() throws IOException {
+        for (final String type : RANGES) {
+            assertSourceDropsNullElements(range(type), IndexingStrategy.DOCUMENT);
+        }
+    }
+
+    public void testRangeSourceDropsNullElementsBatch() throws IOException {
+        for (final String type : RANGES) {
+            assertSourceDropsNullElements(range(type), IndexingStrategy.BATCH);
         }
     }
 

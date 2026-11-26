@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.startsWith;
 
 public class InternalAggregationsTests extends ESTestCase {
 
@@ -275,6 +276,48 @@ public class InternalAggregationsTests extends ESTestCase {
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(List.of(aggs), maxBucketReduceContext().forFinalReduction());
         assertEquals(2, reducedAggs.asList().size());
+    }
+
+    public void testTopLevelReduceAssertsCountMatchesIterator() {
+        assumeTrue("requires assertions enabled", InternalAggregations.class.desiredAssertionStatus());
+        InternalAggregations aggs = InternalAggregations.from(
+            new StringTerms(
+                "name",
+                BucketOrder.key(true),
+                BucketOrder.key(true),
+                10,
+                1,
+                Collections.emptyMap(),
+                DocValueFormat.RAW,
+                25,
+                false,
+                10,
+                Collections.emptyList(),
+                0L
+            )
+        );
+        AggregationReduceContext.Builder builder = maxBucketReduceContext();
+        // a matching count reduces
+        assertNotNull(InternalAggregations.topLevelReduce(List.of(aggs, aggs).iterator(), 2, builder.forPartialReduction()));
+
+        // a wrong count trips an assertion, rows are {number of aggregations, count}
+        int[][] mismatches = {
+            { 2, 0 }, // too low, would return null
+            { 2, 1 }, // too low, would drop the second
+            { 0, 1 }, // too high, would throw NoSuchElementException
+            { 3, 2 }, // too low, would reduce with the wrong size
+            { 1, 2 }, // too high, would reduce with the wrong size
+            { 0, 2 } // too high, would throw NoSuchElementException
+        };
+        for (int[] mismatch : mismatches) {
+            List<InternalAggregations> list = Collections.nCopies(mismatch[0], aggs);
+            int count = mismatch[1];
+            AssertionError e = expectThrows(
+                AssertionError.class,
+                () -> InternalAggregations.topLevelReduce(list.iterator(), count, builder.forPartialReduction())
+            );
+            assertThat(e.getMessage(), startsWith("count is " + count + " but the iterator has"));
+        }
     }
 
     private AggregationReduceContext.Builder maxBucketReduceContext() {

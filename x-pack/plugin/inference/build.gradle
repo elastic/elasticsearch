@@ -68,6 +68,8 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(':server'), 'internalClusterTest'))
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':x-pack:plugin:diskbbq')
+  testImplementation(testArtifact(project(xpackModule('diskbbq'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('diskbbq'))))
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:mapper-extras')
   testImplementation project(':x-pack:plugin:ml')

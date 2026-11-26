@@ -205,6 +205,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     public void testElectionSchedulingAfterDiscoveryOutage() {}
 
     @Override
+    public void testMasterIneligibleDataNodePersistsStateAsynchronously() {
+        // node state is not persisted by a GatewayMetaState when using an atomic register, so there are no asynchronous writes to test
+    }
+
+    @Override
+    public void testMasterIneligibleDataNodeRestartedBeforeAsynchronousWritesRun() {
+        // node state is not persisted by a GatewayMetaState when using an atomic register, so there are no asynchronous writes to test
+    }
+
+    @Override
     protected CoordinatorStrategy createCoordinatorStrategy() {
         return new AtomicRegisterCoordinatorStrategy();
     }

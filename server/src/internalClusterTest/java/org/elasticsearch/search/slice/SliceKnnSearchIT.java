@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.slice;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.startsWith;
  * vectors to the query all live in another slice than the one searched, so the search only returns hits when the neighbours
  * are selected among the documents of the requested slice.
  */
+@LuceneTestCase.SuppressCodecs("*")
 public class SliceKnnSearchIT extends ESIntegTestCase {
 
     private static final int DIMS = 8;

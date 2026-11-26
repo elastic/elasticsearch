@@ -28,8 +28,10 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -37,6 +39,9 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -46,6 +51,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -83,7 +89,12 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new InferencePlugin(Settings.EMPTY));
+        return List.of(new InferencePlugin(Settings.EMPTY), new DiskBBQPlugin(Settings.EMPTY) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -241,7 +252,9 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
         var doc = mapperService.documentMapper().parse(source);
         assertNull(doc.dynamicMappingsUpdate());
         try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer());
+            IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer()).setCodec(
+                new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).codec("default")
+            );
             RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
             iw.addDocuments(doc.docs());
             try (DirectoryReader reader = wrapInMockESDirectoryReader(iw.getReader())) {

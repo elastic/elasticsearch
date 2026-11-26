@@ -24,8 +24,10 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -38,6 +40,9 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -52,6 +57,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.mockito.Mockito;
@@ -87,7 +93,12 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new InferencePlugin(Settings.EMPTY));
+        return List.of(new InferencePlugin(Settings.EMPTY), new DiskBBQPlugin(Settings.EMPTY) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -308,7 +319,9 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
         var doc = mapperService.documentMapper().parse(source);
         assertNull(doc.dynamicMappingsUpdate());
         try (Directory dir = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer());
+            IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer()).setCodec(
+                new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).codec("default")
+            );
             RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
             iw.addDocuments(doc.docs());
             try (DirectoryReader reader = wrapInMockESDirectoryReader(iw.getReader())) {

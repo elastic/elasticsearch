@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -59,6 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+@LuceneTestCase.SuppressCodecs("*")
 public class LinearRetrieverIT extends ESIntegTestCase {
 
     protected static String INDEX = "test_index";

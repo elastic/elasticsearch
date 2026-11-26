@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.vectors;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -36,6 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.SuppressCodecs("*")
 public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "update_index";
     public static final String VECTOR_FIELD = "vector";

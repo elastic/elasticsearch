@@ -98,8 +98,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 // initializing a shard should succeed when enableRandomFailures is disabled
                 // active shards can be failed if state persistence was disabled in an earlier CS update
                 Predicate<IndicesClusterStateService.PendingAllocationState> failedAndInitializing =
-                    s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported(var routing, var a, var b)
-                        && routing.initializing();
+                    s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported failureReported
+                        && failureReported.routing().initializing();
                 if (pendingAllocationStates.values().stream().anyMatch(failedAndInitializing)) {
                     fail("failed shard cache should not contain initializing shard routing: " + pendingAllocationStates.values());
                 }

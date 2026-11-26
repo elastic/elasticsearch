@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -41,7 +42,8 @@ public class Not extends UnaryScalarFunction
         Negatable<Expression>,
         TranslationAware,
         AnyNullIsNull,
-        NullMisuseSuggestion {
+        NullMisuseSuggestion,
+        Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Not", Not::new);
 
     public Not(Source source, Expression child) {

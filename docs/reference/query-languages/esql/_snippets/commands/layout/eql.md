@@ -113,14 +113,17 @@ The setting defaults to `false`, which returns no sequences rather than the ones
 `WITH { "allow_partial_sequence_results": … }` overrides the setting for a single query; set it to `true` to
 prefer resilience over completeness. Whenever a shard fails and the query still returns, even with no sequences,
 the response sets `is_partial` to `true` and lists the failed shards under `_clusters`, on the cluster each
-belongs to. Each EQL search lists at most five failed shards per cluster, so the list can be incomplete.
+belongs to. A `sequence` or `sample` match is dropped, and reported the same way, when the fetch does not
+return one of its documents. Each EQL search lists at most five failed shards per cluster, so the list can
+be incomplete.
 
 ### Unavailable remote clusters
 
 A remote cluster that is unavailable follows its `skip_unavailable` setting. When the setting is `true`, the EQL
 search leaves the cluster out, or skips it if it becomes unavailable during the search, and returns the events of
-the other clusters. The response marks the cluster `skipped` under `_clusters`, with the failure, and sets
-`is_partial` to `true`. When the setting is `false`, the query fails. A remote cluster lost while a `sequence` or
+the other clusters. The response marks the cluster `skipped` under `_clusters` when it contributed no events, or
+`partial` when it already contributed events, with the failure, and sets `is_partial` to `true`. When the setting
+is `false`, the query fails. A remote cluster lost while a `sequence` or
 `sample` query is already searching it counts as failed shards instead (see [Partial results](#partial-results)).
 
 ### Unmapped fields

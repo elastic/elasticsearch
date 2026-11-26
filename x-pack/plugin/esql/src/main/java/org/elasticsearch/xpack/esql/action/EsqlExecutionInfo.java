@@ -99,6 +99,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public final ConcurrentMap<String, Cluster> clusterInfo;
     // Is the clusterInfo map initialization in progress? If so, we should not try to serialize it.
     private transient volatile boolean clusterInfoInitializing;
+    private transient volatile Map<String, Cluster.Status> planningClusterStatuses;
+    private final transient Set<String> clustersReturningEvents = ConcurrentHashMap.newKeySet();
     // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
     private transient boolean inSubplan = false;
     // Is the current subplan a subquery-join (IN-subquery) subplan? Used to distinguish from INLINE STATS subplans.
@@ -359,6 +361,31 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public Cluster getCluster(String clusterAlias) {
         return clusterInfo.get(clusterAlias);
+    }
+
+    public void capturePlanningClusterStatuses(Map<String, Cluster.Status> statuses) {
+        planningClusterStatuses = Map.copyOf(statuses);
+    }
+
+    public void clearClustersReturningEvents() {
+        clustersReturningEvents.clear();
+    }
+
+    public boolean hasPlanningClusterStatuses() {
+        return planningClusterStatuses != null;
+    }
+
+    public Cluster.Status planningClusterStatus(String clusterAlias) {
+        Map<String, Cluster.Status> snapshot = planningClusterStatuses;
+        return snapshot == null ? null : snapshot.get(clusterAlias);
+    }
+
+    public void noteClusterReturnedEvents(String clusterAlias) {
+        clustersReturningEvents.add(clusterAlias);
+    }
+
+    public boolean clusterReturnedEvents(String clusterAlias) {
+        return clustersReturningEvents.contains(clusterAlias);
     }
 
     public Map<String, Cluster> getClusters() {

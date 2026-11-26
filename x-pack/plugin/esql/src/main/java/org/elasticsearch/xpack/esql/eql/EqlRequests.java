@@ -199,13 +199,17 @@ public final class EqlRequests {
         if (crossProject) {
             return indices;
         }
+        boolean planningSnapshot = executionInfo.hasPlanningClusterStatuses();
         Set<String> searched = searchedClusters(indices, executionInfo.clusterAliases(), false);
         List<String> skipped = new ArrayList<>();
         for (String cluster : searched) {
-            EsqlExecutionInfo.Cluster info = executionInfo.getCluster(cluster);
-            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster) == false
-                && info != null
-                && info.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
+                continue;
+            }
+            EsqlExecutionInfo.Cluster.Status status = planningSnapshot
+                ? executionInfo.planningClusterStatus(cluster)
+                : liveStatus(executionInfo, cluster);
+            if (status == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                 skipped.add(cluster);
             }
         }
@@ -240,6 +244,11 @@ public final class EqlRequests {
             }
         }
         return clusters;
+    }
+
+    private static EsqlExecutionInfo.Cluster.Status liveStatus(EsqlExecutionInfo executionInfo, String cluster) {
+        EsqlExecutionInfo.Cluster info = executionInfo.getCluster(cluster);
+        return info == null ? null : info.getStatus();
     }
 
     private static List<String> clustersMatching(String cluster, Set<String> queryClusters) {

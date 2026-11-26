@@ -124,6 +124,40 @@ public class EqlRequestsTests extends ESTestCase {
         );
     }
 
+    public void testRuntimeSkipDoesNotExcludeAClusterThatWasRunningAtPlanning() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1", "remote2");
+        executionInfo.capturePlanningClusterStatuses(
+            Map.of(
+                LOCAL,
+                EsqlExecutionInfo.Cluster.Status.RUNNING,
+                "remote1",
+                EsqlExecutionInfo.Cluster.Status.RUNNING,
+                "remote2",
+                EsqlExecutionInfo.Cluster.Status.SKIPPED
+            )
+        );
+        skip(executionInfo, "remote1");
+        String[] indices = { "logs", "remote1:logs", "remote2:logs" };
+        assertThat(
+            EqlRequests.searchableIndices(indices, executionInfo, false),
+            arrayContaining("logs", "remote1:logs", "remote2:logs", "-remote2:*")
+        );
+    }
+
+    public void testALaterPlanningSnapshotReplacesTheEarlierOne() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1");
+        executionInfo.capturePlanningClusterStatuses(
+            Map.of(LOCAL, EsqlExecutionInfo.Cluster.Status.RUNNING, "remote1", EsqlExecutionInfo.Cluster.Status.RUNNING)
+        );
+        skip(executionInfo, "remote1");
+        String[] indices = { "remote1:logs" };
+        assertThat(EqlRequests.searchableIndices(indices, executionInfo, false), equalTo(indices));
+        executionInfo.capturePlanningClusterStatuses(
+            Map.of(LOCAL, EsqlExecutionInfo.Cluster.Status.RUNNING, "remote1", EsqlExecutionInfo.Cluster.Status.SKIPPED)
+        );
+        assertThat(EqlRequests.searchableIndices(indices, executionInfo, false), emptyArray());
+    }
+
     public void testCrossProjectSearchIsNotNarrowed() {
         EsqlExecutionInfo executionInfo = executionInfo("p1", "p2");
         skip(executionInfo, "p1");

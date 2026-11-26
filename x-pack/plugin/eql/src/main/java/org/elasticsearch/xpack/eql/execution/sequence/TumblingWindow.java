@@ -27,6 +27,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
+import org.elasticsearch.xpack.eql.execution.search.FetchedHits;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
@@ -765,18 +766,22 @@ public class TumblingWindow implements Executable {
         }
 
         // get results through search (to keep using PIT)
-        client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> {
-            if (criteria.get(matcher.firstPositiveStage).descending()) {
-                Collections.reverse(completed);
-            }
-            return new SequencePayload(
-                completed,
-                addMissingEventPlaceholders(listOfHits),
-                false,
-                timeTook(),
-                List.copyOf(shardFailures.values())
-            );
-        }));
+        client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> sequencesFromFetch(completed, listOfHits)));
+    }
+
+    Payload sequencesFromFetch(List<Sequence> completed, List<List<SearchHit>> listOfHits) {
+        if (criteria.get(matcher.firstPositiveStage).descending()) {
+            Collections.reverse(completed);
+        }
+        List<Sequence> kept = new ArrayList<>();
+        List<List<SearchHit>> keptHits = new ArrayList<>();
+        int dropped = FetchedHits.dropIncomplete(completed, listOfHits, kept, keptHits);
+        List<ShardSearchFailure> failures = FetchedHits.reportDrops(shardFailures.values(), dropped);
+        if (dropped > 0 && allowPartialSequenceResults == false) {
+            FetchedHits.releaseRows(keptHits);
+            return new EmptyPayload(Type.SEQUENCE, timeTook(), failures);
+        }
+        return new SequencePayload(kept, addMissingEventPlaceholders(keptHits), false, timeTook(), failures);
     }
 
     private List<List<SearchHit>> addMissingEventPlaceholders(List<List<SearchHit>> hitLists) {

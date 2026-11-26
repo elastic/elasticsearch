@@ -1278,6 +1278,8 @@ public class ComputeService {
             for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
                 initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
             }
+            execInfo.clearClustersReturningEvents();
+            execInfo.capturePlanningClusterStatuses(initialClusterStatuses);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -2078,7 +2080,7 @@ public class ComputeService {
                 .setSkippedShards(zeroIfNull(v.getSkippedShards()))
                 .setFailedShards(zeroIfNull(v.getFailedShards()))
                 .addFailures(failures);
-            applyClusterStatusAfterBranch(builder, v, true, receivedResults);
+            applyClusterStatusAfterBranch(builder, v, true, receivedResults || executionInfo.clusterReturnedEvents(clusterAlias));
             return builder.build();
         });
     }

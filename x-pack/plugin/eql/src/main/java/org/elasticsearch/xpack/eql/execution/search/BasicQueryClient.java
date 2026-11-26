@@ -78,6 +78,7 @@ public class BasicQueryClient implements QueryClient {
             return;
         }
 
+        search.setCcsMinimizeRoundtrips(cfg.ccsMinimizeRoundtrips());
         if (log.isTraceEnabled()) {
             log.trace("About to execute query {} on {}", StringUtils.toString(search.source()), indices);
         }
@@ -99,6 +100,9 @@ public class BasicQueryClient implements QueryClient {
             return;
         }
 
+        for (SearchRequest request : search.requests()) {
+            request.setCcsMinimizeRoundtrips(cfg.ccsMinimizeRoundtrips());
+        }
         if (log.isTraceEnabled()) {
             StringJoiner sj = new StringJoiner("\n");
             for (SearchRequest request : search.requests()) {

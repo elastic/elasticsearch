@@ -634,6 +634,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         SourceOperator operator = new EqlSourceOperator.Factory(
             client,
             eqlRequest(1000),
+            Set.of(LOCAL),
             EqlRelation.Mode.EVENT,
             List.of(fieldAttribute("process.name", KEYWORD)),
             source,
@@ -877,6 +878,77 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
         assertThat(executionInfo.getCluster(LOCAL).getFailures(), empty());
         assertThat(executionInfo.getCluster("remote9"), nullValue());
+    }
+
+    public void testASubplanDoesNotPromoteARemoteThatReturnedEvents() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
+        executionInfo.startSubPlans(false);
+        pullResponse(executionInfo, eventResponse(List.of(envelopeEvent("remote1:logs", "1", null, Map.of("process.name", List.of("a"))))));
+        assertFalse(executionInfo.clusterReturnedEvents("remote1"));
+
+        ShardSearchFailure lost = new ShardSearchFailure(new NoSuchRemoteClusterException("remote1"));
+        EqlSearchResponse skipped = eventResponse(List.of(fieldEvent("local")));
+        skipped.setSkippedClusters(Map.of("remote1", List.of(lost)));
+        pullResponse(executionInfo, skipped);
+        assertThat(executionInfo.getCluster("remote1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        executionInfo.finishSubPlans();
+    }
+
+    public void testReturnedEventsDoNotCarryIntoTheNextPhase() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
+        executionInfo.noteClusterReturnedEvents("remote1");
+        executionInfo.clearClustersReturningEvents();
+        assertFalse(executionInfo.clusterReturnedEvents("remote1"));
+    }
+
+    public void testSuccessfulBranchPromotesAClusterAnEarlierBranchSkipped() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
+        ShardSearchFailure lost = new ShardSearchFailure(new NoSuchRemoteClusterException("remote1"));
+        EqlSearchResponse skipped = eventResponse(List.of(fieldEvent("local")));
+        skipped.setSkippedClusters(Map.of("remote1", List.of(lost)));
+        pullResponse(executionInfo, skipped);
+        assertThat(executionInfo.getCluster("remote1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+
+        pullResponse(executionInfo, eventResponse(List.of(envelopeEvent("remote1:logs", "1", null, Map.of("process.name", List.of("a"))))));
+        assertThat(executionInfo.getCluster("remote1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(executionInfo.getCluster("remote1").getFailures(), equalTo(List.of(lost)));
+    }
+
+    public void testEventsFromAnEarlierBranchKeepALaterSkipPartial() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "remote1");
+        pullResponse(executionInfo, eventResponse(List.of(envelopeEvent("remote1:logs", "1", null, Map.of("process.name", List.of("a"))))));
+        assertThat(executionInfo.getCluster("remote1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+
+        ShardSearchFailure lost = new ShardSearchFailure(new NoSuchRemoteClusterException("remote1"));
+        EqlSearchResponse skipped = eventResponse(List.of(fieldEvent("local")));
+        skipped.setSkippedClusters(Map.of("remote1", List.of(lost)));
+        pullResponse(executionInfo, skipped);
+        assertThat(executionInfo.getCluster("remote1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(executionInfo.getCluster("remote1").getFailures(), equalTo(List.of(lost)));
+    }
+
+    public void testUnavailableRemoteAfterAnotherBranchReturnedEventsIsPartial() {
+        EsqlExecutionInfo executionInfo = executionInfo(alias -> true, LOCAL, "remote1");
+        pullResponse(executionInfo, eventResponse(List.of(envelopeEvent("remote1:logs", "1", null, Map.of("process.name", List.of("a"))))));
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequestOn("remote1:logs"),
+            EqlRelation.Mode.EVENT,
+            keywordSchema(),
+            executionInfo
+        );
+        try {
+            assertBlocked(operator);
+            client.capturedListener.onFailure(new NoSuchRemoteClusterException("remote1"));
+            assertThat(operator.getOutput(), nullValue());
+            assertTrue(operator.isFinished());
+        } finally {
+            operator.close();
+        }
+        assertThat(executionInfo.getCluster("remote1").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
     }
 
     public void testClusterSkippedAfterItReturnedEventsIsPartial() {
@@ -1182,6 +1254,31 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
 
     private static ShardSearchFailure shardFailure(Exception cause, int shard, String node, String clusterAlias) {
         return new ShardSearchFailure(cause, new SearchShardTarget(node, new ShardId("logs", "_na_", shard), clusterAlias));
+    }
+
+    private void pullResponse(EsqlExecutionInfo executionInfo, EqlSearchResponse response) {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequestOn("logs", "remote1:logs"),
+            EqlRelation.Mode.EVENT,
+            keywordSchema(),
+            executionInfo
+        );
+        Page page = null;
+        try {
+            assertBlocked(operator);
+            client.capturedListener.onResponse(response);
+            page = operator.getOutput();
+        } finally {
+            if (page != null) {
+                page.releaseBlocks();
+            }
+            operator.close();
+            response.decRef();
+        }
     }
 
     private DriverContext pullEventPage(

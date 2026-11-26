@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.planner.Planner;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
+import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -67,6 +69,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -93,6 +96,104 @@ public class PITAwareQueryClientTests extends ESTestCase {
 
     public void testQueryFilterUsedInPitAndSearches() {
         runSequence(frequently() ? randomFrom(FILTERS) : null, SearchResponse.Clusters.EMPTY, SearchResponse.Clusters.EMPTY);
+    }
+
+    public void testAHitMissingAfterMatchingDropsTheSequence() {
+        List<Payload> missed = new ArrayList<>();
+        runSequence(null, SearchResponse.Clusters.EMPTY, SearchResponse.Clusters.EMPTY, true, missed::add);
+        assertEquals(0, missed.get(0).values().size());
+        assertEquals(1, missed.get(0).shardFailures().size());
+        List<Payload> complete = new ArrayList<>();
+        runSequence(null, SearchResponse.Clusters.EMPTY, SearchResponse.Clusters.EMPTY, false, complete::add);
+        assertEquals(1, complete.get(0).values().size());
+        assertEquals(0, complete.get(0).shardFailures().size());
+    }
+
+    public void testInnerSearchFollowsTheRequestRoundTripsFlag() {
+        assertFalse(innerSearchMinimizesRoundTrips(false));
+        assertTrue(innerSearchMinimizesRoundTrips(true));
+    }
+
+    private boolean innerSearchMinimizesRoundTrips(boolean ccsMinimizeRoundtrips) {
+        try (var threadPool = createThreadPool()) {
+            SearchRequest[] captured = new SearchRequest[1];
+            NoOpClient esClient = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    if (request instanceof MultiSearchRequest multi) {
+                        captured[0] = multi.requests().get(0);
+                        listener.onFailure(new IllegalStateException("stop"));
+                        return;
+                    }
+                    captured[0] = (SearchRequest) request;
+                    SearchResponse response = SearchResponse.emptyResponseBuilder().build();
+                    try {
+                        listener.onResponse((Response) response);
+                    } finally {
+                        response.decRef();
+                    }
+                }
+            };
+            EqlConfiguration eqlConfiguration = new EqlConfiguration(
+                INDICES,
+                INDICES,
+                org.elasticsearch.xpack.ql.util.DateUtils.UTC,
+                "nobody",
+                "cluster",
+                null,
+                emptyMap(),
+                null,
+                TimeValue.timeValueSeconds(30),
+                null,
+                123,
+                1,
+                true,
+                true,
+                null,
+                "",
+                new TaskId("test", 123),
+                new EqlSearchTask(
+                    randomLong(),
+                    "transport",
+                    EqlSearchAction.NAME,
+                    "",
+                    null,
+                    emptyMap(),
+                    emptyMap(),
+                    new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
+                    TimeValue.timeValueDays(5)
+                ),
+                false,
+                null,
+                null,
+                ccsMinimizeRoundtrips
+            );
+            EqlSession eqlSession = new EqlSession(
+                esClient,
+                eqlConfiguration,
+                new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet()),
+                new PreAnalyzer(),
+                new PostAnalyzer(),
+                new EqlFunctionRegistry(),
+                new Verifier(new Metrics()),
+                new Optimizer(),
+                new Planner(),
+                NoopCircuitBreaker.INSTANCE
+            );
+            BasicQueryClient queryClient = new BasicQueryClient(eqlSession);
+            queryClient.query(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()), ActionListener.noop());
+            boolean single = captured[0].isCcsMinimizeRoundtrips();
+            SearchRequest inner = new SearchRequest("remote1:logs");
+            inner.source(SearchSourceBuilder.searchSource().query(matchAllQuery()));
+            queryClient.multiQuery(List.of(inner), ActionListener.noop());
+            assertThat(captured[0].isCcsMinimizeRoundtrips(), equalTo(ccsMinimizeRoundtrips));
+            return single;
+        }
     }
 
     public void testRemoteClustersSkippedByThePitOrASearchAreRecorded() {
@@ -128,6 +229,16 @@ public class PITAwareQueryClientTests extends ESTestCase {
     }
 
     private EqlSession runSequence(QueryBuilder filter, SearchResponse.Clusters pitClusters, SearchResponse.Clusters searchClusters) {
+        return runSequence(filter, pitClusters, searchClusters, false, payload -> {});
+    }
+
+    private EqlSession runSequence(
+        QueryBuilder filter,
+        SearchResponse.Clusters pitClusters,
+        SearchResponse.Clusters searchClusters,
+        boolean missFetchedHit,
+        Consumer<Payload> payloadConsumer
+    ) {
         try (var threadPool = createThreadPool()) {
             int stages = randomIntBetween(2, 5);
             final var esClient = new ESMockClient(threadPool, filter, stages, pitClusters, searchClusters);
@@ -179,11 +290,19 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 @Override
                 public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
                     List<List<SearchHit>> searchHits = new ArrayList<>();
+                    boolean first = true;
                     for (List<HitReference> ref : refs) {
                         List<SearchHit> hits = new ArrayList<>(ref.size());
+                        int index = 0;
                         for (HitReference hitRef : ref) {
-                            hits.add(new SearchHit(-1, hitRef.id()));
+                            if (missFetchedHit && first && index == ref.size() - 1) {
+                                hits.add(null);
+                            } else {
+                                hits.add(new SearchHit(-1, hitRef.id()));
+                            }
+                            index++;
                         }
+                        first = false;
                         searchHits.add(hits);
                     }
                     listener.onResponse(searchHits);
@@ -222,9 +341,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 randomBoolean(),
                 randomBoolean()
             );
-            window.execute(wrap(response -> {
-                // do nothing, we don't care about the query results
-            }, ex -> { fail("Shouldn't have failed"); }));
+            window.execute(wrap(response -> payloadConsumer.accept(response), ex -> { fail("Shouldn't have failed"); }));
             return eqlSession;
         }
     }

@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -163,7 +162,7 @@ public class EqlSourceOperator extends SourceOperator {
                 // the root factory: the driver's local breaker may only be touched by the driver thread.
                 // isPartial() only flags a still-running async response; a completed one reports lost shards in shardFailures().
                 recordPartialResults(response);
-                recordSkippedClusters(response);
+                recordClusterResults(response);
                 Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory().parent());
                 synchronized (this) {
                     if (closed) {
@@ -349,11 +348,27 @@ public class EqlSourceOperator extends SourceOperator {
         return failure.shard() == null ? failure.reason() : failure.shard().getShardId().toString();
     }
 
-    private void recordSkippedClusters(EqlSearchResponse response) {
+    private void recordClusterResults(EqlSearchResponse response) {
+        Set<String> clustersWithEvents = clustersWithEvents(response);
+        boolean settleRemoteStatus = executionInfo.isMainPlan();
+        for (String cluster : clustersWithEvents) {
+            if (LOCAL_CLUSTER.equals(cluster) || settleRemoteStatus == false) {
+                continue;
+            }
+            executionInfo.noteClusterReturnedEvents(cluster);
+            if (executionInfo.getCluster(cluster) == null) {
+                continue;
+            }
+            executionInfo.swapCluster(cluster, (alias, current) -> {
+                if (current == null || current.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                    return current;
+                }
+                return new EsqlExecutionInfo.Cluster.Builder(current).setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL).build();
+            });
+        }
         if (response.skippedClusters().isEmpty()) {
             return;
         }
-        Set<String> clustersWithEvents = clustersWithEvents(response);
         response.skippedClusters().forEach((cluster, failures) -> {
             if (LOCAL_CLUSTER.equals(cluster)) {
                 return;
@@ -361,7 +376,8 @@ public class EqlSourceOperator extends SourceOperator {
             executionInfo.markPartial();
             if (executionInfo.getCluster(cluster) != null) {
                 List<ShardSearchFailure> listed = failures.subList(0, Math.min(failures.size(), MAX_REPORTED_FAILURES));
-                ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, cluster, clustersWithEvents.contains(cluster), listed);
+                boolean returnedEvents = settleRemoteStatus && clustersWithEvents.contains(cluster);
+                ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, cluster, returnedEvents, listed);
             }
         });
     }
@@ -405,7 +421,12 @@ public class EqlSourceOperator extends SourceOperator {
         }
         List<ShardSearchFailure> failures = List.of(new ShardSearchFailure(e));
         for (String cluster : remotes) {
-            ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, cluster, false, failures);
+            ComputeService.markClusterAfterRuntimeBranchFailure(
+                executionInfo,
+                cluster,
+                executionInfo.isMainPlan() && executionInfo.clusterReturnedEvents(cluster),
+                failures
+            );
         }
         return true;
     }

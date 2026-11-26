@@ -106,7 +106,8 @@ public class EqlSessionTests extends ESTestCase {
             EqlTestUtils.randomTask(),
             false,
             null,
-            preResolvedFieldCaps
+            preResolvedFieldCaps,
+            true
         );
     }
 

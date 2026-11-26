@@ -89,7 +89,7 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends ListTasksHeapAtt
             } catch (Exception | Error e) {
                 try {
                     cleanUp(asyncIds);
-                } catch (Exception cleanUpFailure) {
+                } catch (Exception | Error cleanUpFailure) {
                     e.addSuppressed(cleanUpFailure);
                 }
                 throw e;

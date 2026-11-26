@@ -129,32 +129,35 @@ abstract class ListTasksHeapAttackTestCase extends HeapAttackRestHelpers {
      * reported together.
      */
     protected void cleanUp(List<String> asyncIds) throws Exception {
-        Exception failure = null;
+        Throwable failure = null;
         try {
             client().performRequest(new Request("POST", "/_pause_field/unblock"));
-        } catch (Exception e) {
+        } catch (Exception | AssertionError e) {
             failure = e;
         }
         for (String id : asyncIds) {
             try {
                 deleteAsyncQuery(id);
-            } catch (Exception e) {
+            } catch (Exception | AssertionError e) {
                 failure = accumulate(failure, e);
             }
         }
         for (String id : asyncIds) {
             try {
                 awaitAsyncQueryGone(id);
-            } catch (Exception e) {
+            } catch (Exception | AssertionError e) {
                 failure = accumulate(failure, e);
             }
         }
-        if (failure != null) {
-            throw failure;
+        if (failure instanceof Exception exception) {
+            throw exception;
+        }
+        if (failure instanceof Error error) {
+            throw error;
         }
     }
 
-    private static Exception accumulate(Exception first, Exception next) {
+    private static Throwable accumulate(Throwable first, Throwable next) {
         if (first == null) {
             return next;
         }
@@ -166,11 +169,17 @@ abstract class ListTasksHeapAttackTestCase extends HeapAttackRestHelpers {
         assertBusy(() -> {
             try {
                 client().performRequest(new Request("DELETE", "/_query/async/" + id));
+                return;
             } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() != HttpStatus.SC_NOT_FOUND) {
+                int statusCode = ex.getResponse().getStatusLine().getStatusCode();
+                if (statusCode == HttpStatus.SC_NOT_FOUND) {
+                    return;
+                }
+                if (statusCode != HttpStatus.SC_TOO_MANY_REQUESTS) {
                     throw ex;
                 }
             }
+            fail("deleting async query [" + id + "] was rejected");
         });
     }
 

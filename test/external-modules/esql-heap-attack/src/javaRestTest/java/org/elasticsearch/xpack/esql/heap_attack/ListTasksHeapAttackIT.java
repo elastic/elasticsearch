@@ -109,9 +109,10 @@ public class ListTasksHeapAttackIT extends ListTasksHeapAttackTestCase {
                 );
                 assertThat("listings that tripped the breaker on the replies", tripped.get(), greaterThan(0));
             } catch (Exception | Error e) {
+                executor.shutdownNow();
                 try {
                     cleanUp(asyncIds);
-                } catch (Exception cleanUpFailure) {
+                } catch (Exception | Error cleanUpFailure) {
                     e.addSuppressed(cleanUpFailure);
                 }
                 throw e;

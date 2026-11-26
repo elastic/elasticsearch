@@ -36,9 +36,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Parquet's collections: a {@code LIST} whose element is a group, and a {@code MAP}, whose element is its key/value entry.
- * Both are a repeated group whose element is a structure, so one walk finds both and one decode reads both; the map
- * differs only in naming its key. A {@code LIST} of primitives is not one: it is already a multivalued column.
+ * Parquet's collections: a {@code LIST} whose element is a group. A {@code LIST} of primitives is not one: it is already a
+ * multivalued column. A {@code MAP} is not one either.
  * <p>
  * The decode turns each leaf's repetition and definition levels into the columnar form of {@link ChildRelationColumns}:
  * offsets per row and one block per leaf positioned by element.
@@ -62,7 +61,7 @@ final class ParquetCollections {
         GroupType group = field.asGroupType();
         GroupType element = element(group);
         if (element != null) {
-            out.add(collection(path, group, element));
+            out.add(collection(path, element));
             return;
         }
         if (group.getLogicalTypeAnnotation() == null) {
@@ -80,10 +79,6 @@ final class ParquetCollections {
             return null;
         }
         Type repeated = group.getType(0);
-        if (logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
-            || logical instanceof LogicalTypeAnnotation.MapKeyValueTypeAnnotation) {
-            return repeated.isPrimitive() ? null : repeated.asGroupType();
-        }
         if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
             Type elementType = ParquetFormatReader.isListElementType(repeated, group.getName())
                 ? repeated
@@ -93,14 +88,12 @@ final class ParquetCollections {
         return null;
     }
 
-    private static CollectionSchema collection(String path, GroupType group, GroupType element) {
-        boolean map = group.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
-            || group.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.MapKeyValueTypeAnnotation;
+    private static CollectionSchema collection(String path, GroupType element) {
         List<CollectionSchema.Leaf> leaves = new ArrayList<>();
         String[] unsupported = new String[1];
         leaves(element, "", path, leaves, unsupported);
         leaves.sort(Comparator.comparing(CollectionSchema.Leaf::name));
-        return new CollectionSchema(path, map ? element.getFields().getFirst().getName() : null, leaves, unsupported[0]);
+        return new CollectionSchema(path, leaves, unsupported[0]);
     }
 
     /**
@@ -119,11 +112,12 @@ final class ParquetCollections {
             }
             GroupType childGroup = child.asGroupType();
             LogicalTypeAnnotation logical = childGroup.getLogicalTypeAnnotation();
-            if (logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation) {
+            if (logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation
+                || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
+                || logical instanceof LogicalTypeAnnotation.MapKeyValueTypeAnnotation) {
                 continue;
             }
-            if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
-                || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+            if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
                 List<PrimitiveType> inner = new ArrayList<>();
                 primitives(childGroup, inner);
                 if (inner.size() == 1) {

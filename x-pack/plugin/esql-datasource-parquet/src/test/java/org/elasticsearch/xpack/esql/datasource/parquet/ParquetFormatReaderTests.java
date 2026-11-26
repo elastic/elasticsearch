@@ -9352,9 +9352,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A {@code LIST} of structures and a {@code MAP} are collections, each with its element's leaves; a {@code LIST} of
-     * primitives is a multivalued column and is not one; a list inside an element is a multivalued leaf; a map inside an
-     * element would arrive unpaired, so its collection says why it cannot be read.
+     * A {@code LIST} of structures is a collection with its element's leaves; a {@code LIST} of primitives is a multivalued
+     * column and is not one, and neither is a {@code MAP}; a list inside an element is a multivalued leaf and a map inside an
+     * element is skipped; a list of structures with more than one field inside an element would arrive unpaired, so its
+     * collection says why it cannot be read.
      */
     public void testCollectionsDescribedFromFooter() throws Exception {
         MessageType schema = MessageTypeParser.parseMessageType("""
@@ -9362,18 +9363,28 @@ public class ParquetFormatReaderTests extends ESTestCase {
               required binary id (UTF8);
               optional group tags (LIST) { repeated group list { optional binary element (UTF8); } }
               optional group answers (LIST) {
-                repeated group list { optional group element { optional binary type (UTF8); optional int64 ttl; } }
-              }
-              optional group headers (MAP) {
-                repeated group key_value {
-                  required binary key (UTF8);
-                  optional group value (LIST) { repeated group list { optional binary element (UTF8); } }
+                repeated group list {
+                  optional group element {
+                    optional binary type (UTF8);
+                    optional int64 ttl;
+                    optional group flags (LIST) { repeated group list { optional binary element (UTF8); } }
+                    optional group labels (MAP) {
+                      repeated group key_value { required binary key (UTF8); optional binary value (UTF8); }
+                    }
+                  }
                 }
               }
-              optional group by_host (MAP) {
-                repeated group key_value {
-                  required binary key (UTF8);
-                  optional group value (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+              optional group headers (MAP) {
+                repeated group key_value { required binary key (UTF8); optional binary value (UTF8); }
+              }
+              optional group hops (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary host (UTF8);
+                    optional group links (LIST) {
+                      repeated group list { optional group element { optional binary to (UTF8); optional int64 ms; } }
+                    }
+                  }
                 }
               }
             }
@@ -9386,22 +9397,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 List.of(
                     new CollectionSchema(
                         "answers",
-                        null,
-                        List.of(new CollectionSchema.Leaf("ttl", DataType.LONG), new CollectionSchema.Leaf("type", DataType.KEYWORD)),
+                        List.of(
+                            new CollectionSchema.Leaf("flags", DataType.KEYWORD),
+                            new CollectionSchema.Leaf("ttl", DataType.LONG),
+                            new CollectionSchema.Leaf("type", DataType.KEYWORD)
+                        ),
                         null
                     ),
                     new CollectionSchema(
-                        "headers",
-                        "key",
-                        List.of(new CollectionSchema.Leaf("key", DataType.KEYWORD), new CollectionSchema.Leaf("value", DataType.KEYWORD)),
-                        null
-                    ),
-                    new CollectionSchema(
-                        "by_host",
-                        "key",
-                        List.of(new CollectionSchema.Leaf("key", DataType.KEYWORD)),
-                        "[by_host.value] is a collection with more than one field inside each element of [by_host], "
-                            + "which cannot be read yet"
+                        "hops",
+                        List.of(new CollectionSchema.Leaf("host", DataType.KEYWORD)),
+                        "[hops.links] is a collection with more than one field inside each element of [hops], which cannot be read yet"
                     )
                 )
             )

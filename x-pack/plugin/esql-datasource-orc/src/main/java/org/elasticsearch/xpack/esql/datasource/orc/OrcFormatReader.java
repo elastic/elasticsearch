@@ -367,7 +367,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     /**
-     * ORC's collections are a {@code LIST} of {@code STRUCT} and a {@code MAP}, whose vectors already hold the offsets of
+     * ORC's collections are a {@code LIST} of {@code STRUCT}, whose vectors already hold the offsets of
      * {@code ChildRelationColumns}. They are described so a query naming one
      * is refused with the reason, not told the field is unknown; the decode into a carrier is not written yet.
      */
@@ -380,9 +380,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 walkDottedLeaves(reader.getSchema(), (dottedPath, type, truncated) -> {
                     boolean listOfStruct = type.getCategory() == TypeDescription.Category.LIST
                         && type.getChildren().get(0).getCategory() == TypeDescription.Category.STRUCT;
-                    if (truncated == false && (listOfStruct || type.getCategory() == TypeDescription.Category.MAP)) {
+                    if (truncated == false && listOfStruct) {
                         collections.add(
-                            new CollectionSchema(dottedPath, null, List.of(), "reading collections from ORC files is not implemented yet")
+                            new CollectionSchema(dottedPath, List.of(), "reading collections from ORC files is not implemented yet")
                         );
                     }
                 });

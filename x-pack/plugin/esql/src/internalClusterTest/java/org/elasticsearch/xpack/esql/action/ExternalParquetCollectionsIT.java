@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * {@code NESTED_EXPAND} and {@code NESTED_ANY} over Parquet collections — a {@code LIST} of structures and a {@code MAP} —
+ * {@code NESTED_EXPAND} and {@code NESTED_ANY} over Parquet collections, each a {@code LIST} of structures,
  * running the queries of the collection representation specification over files written here, each against the table
  * the specification prints beneath it.
  */
@@ -66,34 +66,6 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
                 optional binary type (UTF8);
                 optional int64 ttl;
                 optional binary data (UTF8);
-              }
-            }
-          }
-        }
-        """);
-
-    private static final MessageType SPANS = MessageTypeParser.parseMessageType("""
-        message spans {
-          required binary span_id (UTF8);
-          optional group attributes (MAP) {
-            repeated group key_value {
-              required binary key (UTF8);
-              optional binary value (UTF8);
-            }
-          }
-          optional group metrics (MAP) {
-            repeated group key_value {
-              required binary key (UTF8);
-              optional int64 value;
-            }
-          }
-          optional group headers (MAP) {
-            repeated group key_value {
-              required binary key (UTF8);
-              optional group value (LIST) {
-                repeated group list {
-                  optional binary element (UTF8);
-                }
               }
             }
           }
@@ -200,76 +172,28 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
             | KEEP email.subject""", email), row("quarterly report"));
     }
 
-    public void testOtelSpans() throws Exception {
-        String spans = registerDataset("otel_spans", StoragePath.fileUri(write("otel_spans", SPANS, List.of(g -> {
+    /** A {@code MAP} is not a collection: neither operator reads it. */
+    public void testMapIsNotACollection() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message spans {
+              required binary span_id (UTF8);
+              optional group attributes (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional binary value (UTF8);
+                }
+              }
+            }
+            """);
+        String spans = registerDataset("spans", StoragePath.fileUri(write("spans", schema, List.of(g -> {
             g.add("span_id", "s1");
-            Group attributes = g.addGroup("attributes");
-            entry(attributes, "service.name", "checkout");
-            entry(attributes, "http.request.method", "POST");
-            entry(attributes, "k8s.pod.label.app", "checkout");
-            entry(attributes, "k8s.pod.label.tier", "frontend");
-            Group metrics = g.addGroup("metrics");
-            metrics.addGroup("key_value").append("key", "http.response.status_code").append("value", 500L);
-            metrics.addGroup("key_value").append("key", "duration_ms").append("value", 1840L);
-            Group headers = g.addGroup("headers");
-            header(headers, "accept", "text/html", "*/*");
-            header(headers, "user-agent", "curl/8.4");
-        }, g -> {
-            g.add("span_id", "s2");
-            Group attributes = g.addGroup("attributes");
-            entry(attributes, "service.name", "cart");
-            entry(attributes, "http.request.method", "GET");
-            entry(attributes, "k8s.pod.label.app", "cart");
-            Group metrics = g.addGroup("metrics");
-            metrics.addGroup("key_value").append("key", "http.response.status_code").append("value", 200L);
-            metrics.addGroup("key_value").append("key", "duration_ms").append("value", 12L);
-            header(g.addGroup("headers"), "accept", "application/json");
-        }, g -> {
-            g.add("span_id", "s3");
-            Group attributes = g.addGroup("attributes");
-            entry(attributes, "service.name", "checkout");
-            entry(attributes, "http.request.method", "GET");
-            Group metrics = g.addGroup("metrics");
-            metrics.addGroup("key_value").append("key", "http.response.status_code").append("value", 200L);
-            metrics.addGroup("key_value").append("key", "duration_ms").append("value", 31L);
-            g.addGroup("headers");
+            g.addGroup("attributes").addGroup("key_value").append("key", "service.name").append("value", "checkout");
         }))), Map.of());
-
-        // Which checkout spans failed? The value comparison is numeric because that value column is int64 in the footer.
-        assertRows(Strings.format("""
-            FROM %s
-            | WHERE NESTED_ANY(attributes, attributes.key == "service.name" AND attributes.value == "checkout")
-                AND NESTED_ANY(metrics, metrics.key == "http.response.status_code" AND metrics.value >= 500)
-            | KEEP span_id""", spans), row("s1"));
-
-        // Which pods carry both of these labels?
-        assertRows(Strings.format("""
-            FROM %s
-            | WHERE NESTED_ANY(attributes, attributes.key == "k8s.pod.label.app" AND attributes.value == "checkout")
-                AND NESTED_ANY(attributes, attributes.key == "k8s.pod.label.tier" AND attributes.value == "frontend")
-            | KEEP span_id""", spans), row("s1"));
-
-        // Which spans carry any pod label at all?
-        assertRows(
-            "FROM " + spans + " | WHERE NESTED_ANY(attributes, attributes.key LIKE \"k8s.pod.label.*\") | KEEP span_id",
-            row("s1"),
-            row("s2")
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM " + spans + " | NESTED_EXPAND attributes | KEEP span_id")).close()
         );
-
-        // What attribute keys does this file actually use?
-        assertRows(
-            "FROM " + spans + " | NESTED_EXPAND attributes | STATS spans = COUNT() BY attributes.key",
-            row(3L, "service.name"),
-            row(3L, "http.request.method"),
-            row(2L, "k8s.pod.label.app"),
-            row(1L, "k8s.pod.label.tier")
-        );
-
-        // Which requests would accept HTML? A list-valued map, so two levels: the entries, then the values of the entry.
-        assertRows(Strings.format("""
-            FROM %s | NESTED_EXPAND headers
-            | WHERE headers.key == "accept" AND MV_CONTAINS(headers.value, "text/html")
-            | KEEP span_id""", spans), row("s1"));
+        assertThat(e.getMessage(), containsString("NESTED_EXPAND requires a mapped nested field, not [attributes]"));
     }
 
     /** A collection operator with no KEEP after it returns the dataset's own columns, the collection unreadable as before. */
@@ -339,69 +263,66 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
 
     /** A later file whose element field has another type is refused rather than read as the first file's type. */
     public void testElementTypeDiffersBetweenFiles() throws Exception {
-        MessageType asDouble = MessageTypeParser.parseMessageType("""
+        String template = """
             message spans {
               required binary span_id (UTF8);
-              optional group metrics (MAP) {
-                repeated group key_value {
-                  required binary key (UTF8);
-                  optional double value;
+              optional group measurements (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary name (UTF8);
+                    optional %s value;
+                  }
                 }
               }
             }
-            """);
-        MessageType asLong = MessageTypeParser.parseMessageType("""
-            message spans {
-              required binary span_id (UTF8);
-              optional group metrics (MAP) {
-                repeated group key_value {
-                  required binary key (UTF8);
-                  optional int64 value;
-                }
-              }
-            }
-            """);
+            """;
         Path dir = createTempDir();
-        write(dir, "a", asDouble, List.of(g -> {
+        write(dir, "a", MessageTypeParser.parseMessageType(Strings.format(template, "double")), List.of(g -> {
             g.add("span_id", "s1");
-            g.addGroup("metrics").addGroup("key_value").append("key", "latency").append("value", 1.5);
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency").append("value", 1.5);
         }));
-        write(dir, "b", asLong, List.of(g -> {
+        write(dir, "b", MessageTypeParser.parseMessageType(Strings.format(template, "int64")), List.of(g -> {
             g.add("span_id", "s2");
-            g.addGroup("metrics").addGroup("key_value").append("key", "latency").append("value", 500L);
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency").append("value", 500L);
         }));
         String dataset = registerDataset("mixed", StoragePath.fileUri(dir) + "/*.parquet", Map.of());
         Exception e = expectThrows(
             Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE NESTED_ANY(metrics, metrics.value >= 500) | KEEP span_id")).close()
+            () -> run(
+                syncEsqlQueryRequest("FROM " + dataset + " | WHERE NESTED_ANY(measurements, measurements.value >= 500) | KEEP span_id")
+            ).close()
         );
-        assertThat(e.getMessage(), containsString("[metrics.value]"));
+        assertThat(e.getMessage(), containsString("[measurements.value]"));
     }
 
     public void testCollectionInsideElementIsRefused() throws Exception {
         MessageType schema = MessageTypeParser.parseMessageType("""
-            message nested {
+            message traces {
               required binary id (UTF8);
-              optional group by_host (MAP) {
-                repeated group key_value {
-                  required binary key (UTF8);
-                  optional group value (MAP) {
-                    repeated group key_value {
-                      required binary key (UTF8);
-                      optional int64 value;
+              optional group hops (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary host (UTF8);
+                    optional group links (LIST) {
+                      repeated group list {
+                        optional group element {
+                          optional binary to (UTF8);
+                          optional int64 ms;
+                        }
+                      }
                     }
                   }
                 }
               }
             }
             """);
-        String nested = registerDataset("by_host", StoragePath.fileUri(write("by_host", schema, List.of(g -> {
+        String traces = registerDataset("traces", StoragePath.fileUri(write("traces", schema, List.of(g -> {
             g.add("id", "a");
-            Group inner = g.addGroup("by_host").addGroup("key_value").append("key", "web01").addGroup("value");
-            inner.addGroup("key_value").append("key", "cpu").append("value", 93L);
+            Group hop = g.addGroup("hops").addGroup("list").addGroup("element").append("host", "web01");
+            hop.addGroup("links").addGroup("list").addGroup("element").append("to", "db01").append("ms", 3L);
         }))), Map.of());
-        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM " + nested + " | NESTED_EXPAND by_host")).close());
-        assertThat(e.getMessage(), containsString("is a collection with more than one field inside each element of [by_host]"));
+        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM " + traces + " | NESTED_EXPAND hops")).close());
+        assertThat(e.getMessage(), containsString("is a collection with more than one field inside each element of [hops]"));
     }
 
     private void assertRows(String query, List<?>... expected) {
@@ -447,17 +368,6 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
             .append("name", name)
             .append("size", size)
             .append("mime_type", mimeType);
-    }
-
-    private static void entry(Group map, String key, String value) {
-        map.addGroup("key_value").append("key", key).append("value", value);
-    }
-
-    private static void header(Group headers, String key, String... values) {
-        Group list = headers.addGroup("key_value").append("key", key).addGroup("value");
-        for (String value : values) {
-            list.addGroup("list").append("element", value);
-        }
     }
 
     private Path write(String name, MessageType schema, List<Consumer<Group>> rows) throws IOException {

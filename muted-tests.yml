@@ -999,3 +999,9 @@ tests:
   method: testEvaluateInManyThreads {TestCase=<long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>, <long>,
     <long>, <long>, <long>, <long>, <null>}
   issue: https://github.com/elastic/elasticsearch/issues/167613
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <double>, <double>, <double>, <double>, <null>, <double>, <double>, <double>, <double>,
+    <double>, <double>}
+  issue: https://github.com/elastic/elasticsearch/issues/167615

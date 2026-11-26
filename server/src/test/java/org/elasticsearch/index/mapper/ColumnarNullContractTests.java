@@ -203,14 +203,7 @@ public class ColumnarNullContractTests extends AbstractColumnarNullContractTestC
         }
     }
 
-    private static final List<String> RANGES = List.of(
-        "integer_range",
-        "long_range",
-        "float_range",
-        "double_range",
-        "date_range",
-        "ip_range"
-    );
+    static final List<String> RANGES = List.of("integer_range", "long_range", "float_range", "double_range", "date_range", "ip_range");
 
     private static String canonicalRange(Object value) {
         return value instanceof Map<?, ?> map ? new TreeMap<>(map).toString() : String.valueOf(value);

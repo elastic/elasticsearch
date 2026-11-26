@@ -95,6 +95,14 @@ public class BwcVersions implements Serializable {
     }
 
     /**
+     * Returns all known versions, including the current one. Allows recreating an instance with different development branches,
+     * e.g. at execution time, as the version list is not serialized with the configuration cache.
+     */
+    public List<Version> getAllVersions() {
+        return versions;
+    }
+
+    /**
      * Returns info about the unreleased version, or {@code null} if the version is released.
      */
     public UnreleasedVersionInfo unreleasedInfo(Version version) {
@@ -174,20 +182,7 @@ public class BwcVersions implements Serializable {
     }
 
     public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {
-        compareToAuthoritative(getReleased(), getUnreleased(), authoritativeReleasedVersions);
-    }
-
-    /**
-     * Variant of {@link #compareToAuthoritative(List)} working on precomputed version lists. This allows callers to capture
-     * the released and unreleased versions at configuration time, which is required for configuration cache compatibility
-     * as the full list of versions is not serialized with {@link BwcVersions}.
-     */
-    public static void compareToAuthoritative(
-        List<Version> released,
-        List<Version> unreleased,
-        List<Version> authoritativeReleasedVersions
-    ) {
-        Set<Version> notReallyReleased = new HashSet<>(released);
+        Set<Version> notReallyReleased = new HashSet<>(getReleased());
         notReallyReleased.removeAll(authoritativeReleasedVersions);
         if (notReallyReleased.isEmpty() == false) {
             throw new IllegalStateException(
@@ -198,7 +193,7 @@ public class BwcVersions implements Serializable {
         }
 
         Set<Version> incorrectlyConsideredUnreleased = new HashSet<>(authoritativeReleasedVersions);
-        incorrectlyConsideredUnreleased.retainAll(unreleased);
+        incorrectlyConsideredUnreleased.retainAll(getUnreleased());
         if (incorrectlyConsideredUnreleased.isEmpty() == false) {
             throw new IllegalStateException(
                 "out-of-date released versions"

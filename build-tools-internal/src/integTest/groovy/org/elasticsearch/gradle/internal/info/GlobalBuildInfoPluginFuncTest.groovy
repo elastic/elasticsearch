@@ -16,6 +16,7 @@ import org.gradle.testkit.runner.TaskOutcome
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
@@ -145,6 +146,51 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
         then:
         assertOutputContains(result.output, "Failed to download branches.json from:")
         requests.get() == 3
+
+        cleanup:
+        server.stop(0)
+    }
+
+    def "development branches value source is re-evaluated when configuration cache is reused"() {
+        given:
+        buildFile.text = """
+            import org.elasticsearch.gradle.internal.info.DevelopmentBranchesValueSource
+
+            plugins {
+              id 'elasticsearch.global-build-info'
+            }
+
+            tasks.register("printDevelopmentBranches") {
+              def developmentBranches = DevelopmentBranchesValueSource.developmentBranches(project)
+              doLast {
+                println("BRANCHES=" + developmentBranches.get().collect { it.name() }.join(','))
+              }
+            }
+        """.stripIndent()
+
+        AtomicReference<String> body = new AtomicReference<>(branchesJsonBody())
+        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        server.createContext(
+            "/branches.json", { exchange ->
+            byte[] bytes = body.get().getBytes(StandardCharsets.UTF_8)
+            exchange.sendResponseHeaders(200, bytes.length)
+            exchange.responseBody.withCloseable { os -> os.write(bytes) }
+            exchange.close()
+        } as com.sun.net.httpserver.HttpHandler
+        )
+        server.start()
+        String url = branchesUrl(server)
+
+        when:
+        def first = gradleRunner("printDevelopmentBranches", "-Porg.elasticsearch.build.branches-file-location=${url}").build()
+        // simulate a remote change, e.g. a renamed development branch, without any local change
+        body.set(branchesJsonBody().replace('"9.0"', '"9.0-renamed"'))
+        def second = gradleRunner("printDevelopmentBranches", "-Porg.elasticsearch.build.branches-file-location=${url}").build()
+
+        then:
+        assertOutputContains(first.output, "BRANCHES=main,9.0")
+        assertOutputContains(second.output, "Configuration cache entry reused.")
+        assertOutputContains(second.output, "BRANCHES=main,9.0-renamed")
 
         cleanup:
         server.stop(0)

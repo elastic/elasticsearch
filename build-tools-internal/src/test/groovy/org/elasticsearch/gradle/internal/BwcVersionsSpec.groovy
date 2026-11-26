@@ -366,34 +366,6 @@ class BwcVersionsSpec extends Specification {
         bwc.indexCompatible == [v('7.16.3'), v('7.17.0'), v('7.17.1'), v('8.14.0'), v('8.14.1'), v('8.14.2'), v('8.15.0'), v('8.15.1'), v('8.15.2')]
     }
 
-    def "compare to authoritative passes when released and unreleased versions match"() {
-        when:
-        BwcVersions.compareToAuthoritative([v('9.0.0'), v('9.0.1')], [v('9.0.2'), v('9.1.0')], [v('9.0.0'), v('9.0.1')])
-
-        then:
-        noExceptionThrown()
-    }
-
-    def "compare to authoritative fails when a released version is not really released"() {
-        when:
-        BwcVersions.compareToAuthoritative([v('9.0.0'), v('9.0.1')], [v('9.0.2'), v('9.1.0')], [v('9.0.0')])
-
-        then:
-        def e = thrown(IllegalStateException)
-        e.message.contains('not really released')
-        e.message.contains('9.0.1')
-    }
-
-    def "compare to authoritative fails when an unreleased version is already released"() {
-        when:
-        BwcVersions.compareToAuthoritative([v('9.0.0'), v('9.0.1')], [v('9.0.2'), v('9.1.0')], [v('9.0.0'), v('9.0.1'), v('9.0.2')])
-
-        then:
-        def e = thrown(IllegalStateException)
-        e.message.contains('Build considers versions unreleased')
-        e.message.contains('9.0.2')
-    }
-
     private void addVersion(String elasticsearch) {
         versions.add(Version.fromString(elasticsearch))
     }

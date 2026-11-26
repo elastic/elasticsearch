@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.internal.checks.ValidateBuildGradleScriptsTask
+import org.elasticsearch.gradle.internal.info.DevelopmentBranchesValueSource
 import org.elasticsearch.gradle.util.GradleUtils
 
 import groovy.xml.XmlParser;
@@ -236,37 +237,28 @@ tasks.register("updateCIBwcVersions") {
 }
 
 tasks.register("verifyVersions") {
-  // The BWC versions and development branches are derived from the remote branches.json, which Gradle does not track as a
-  // configuration input. Never reuse a cached configuration so this check always validates against the latest branches.json.
-  notCompatibleWithConfigurationCache("Must always validate against the latest remote branches.json")
   // Capture everything needed at execution time during configuration to stay compatible with the configuration cache
   boolean offline = gradle.startParameter.offline
-  // BwcVersions does not serialize its full version list, so only capture the plain data we need
-  def bwcVersionsProvider = buildParams.bwcVersionsProvider
-  def releasedProvider = bwcVersionsProvider.map { it.released }
-  def unreleasedProvider = bwcVersionsProvider.map { it.unreleased }
-  def previousUnreleasedBranchesProvider = bwcVersionsProvider.map { bwcVersions ->
-    List<String> branches = []
-    bwcVersions.forPreviousUnreleased { branches.add(it.branch) }
-    branches
-  }
+  // BwcVersions does not serialize its full version list, so capture the plain version data
+  def currentVersionProvider = buildParams.bwcVersionsProvider.map { it.currentVersion }
+  def allVersionsProvider = buildParams.bwcVersionsProvider.map { it.allVersions }
+  // branches.json is a remote file that can change without any local change. Querying this provider only at execution time
+  // makes Gradle fetch it on every run, also when reusing the configuration cache, so we always validate the latest state.
+  def developmentBranchesProvider = DevelopmentBranchesValueSource.developmentBranches(project)
   File bwcVersionsFile = file(".ci/bwcVersions")
   File snapshotBwcVersionsFile = file(".ci/snapshotBwcVersions")
   File backportConfigFile = file(".backportrc.json")
   String elasticsearchVersion = VersionProperties.elasticsearch
-  def indexCompatibleProvider = bwcVersionsProvider.map { filterIntermediatePatches(it.indexCompatible) }
-  def unreleasedIndexCompatibleProvider = bwcVersionsProvider.map { it.unreleasedIndexCompatible }
   doLast {
     if (offline) {
       throw new GradleException("Must run in online mode to verify versions")
     }
+    def bwcVersions = new BwcVersions(currentVersionProvider.get(), allVersionsProvider.get(), developmentBranchesProvider.get())
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      BwcVersions.compareToAuthoritative(
-        releasedProvider.get(),
-        unreleasedProvider.get(),
+      bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
@@ -274,8 +266,8 @@ tasks.register("verifyVersions") {
       )
     }
     [
-      (bwcVersionsFile): indexCompatibleProvider.get(),
-      (snapshotBwcVersionsFile): unreleasedIndexCompatibleProvider.get()
+      (bwcVersionsFile): filterIntermediatePatches(bwcVersions.indexCompatible),
+      (snapshotBwcVersionsFile): bwcVersions.unreleasedIndexCompatible
     ].each { File ciFile, List<Version> expectedVersions ->
       String ciYml = ciFile.text
       expectedVersions.each {
@@ -287,7 +279,8 @@ tasks.register("verifyVersions") {
 
     // Make sure backport bot config file is up to date
     JsonNode backportConfig = new ObjectMapper().readTree(backportConfigFile)
-    previousUnreleasedBranchesProvider.get().each { String unreleasedBranch ->
+    bwcVersions.forPreviousUnreleased { unreleasedVersion ->
+      String unreleasedBranch = unreleasedVersion.branch
       boolean valid = backportConfig.get("targetBranchChoices").elements().any { branchChoice ->
         if (branchChoice.isObject()) {
           return branchChoice.get("name").textValue() == unreleasedBranch

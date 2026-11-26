@@ -143,18 +143,14 @@ public class ComputeServiceBranchStatusTests extends ESTestCase {
 
     public void testFailIfAllShardsFailedThrowsWhenEveryShardFailed() {
         ShardSearchFailure failure = new ShardSearchFailure(new IllegalStateException("all failed"));
-        EsqlExecutionInfo executionInfo = executionInfoWith(
-            cluster(EsqlExecutionInfo.Cluster.Status.PARTIAL, 2, 0, 2, List.of(failure))
-        );
+        EsqlExecutionInfo executionInfo = executionInfoWith(cluster(EsqlExecutionInfo.Cluster.Status.PARTIAL, 2, 0, 2, List.of(failure)));
         Exception e = expectThrows(Exception.class, () -> ComputeService.failIfAllShardsFailed(executionInfo, List.of()));
         assertThat(e.getMessage(), containsString("all failed"));
     }
 
     public void testFailIfAllShardsFailedReturnsWhenAShardSucceeded() {
         ShardSearchFailure failure = new ShardSearchFailure(new IllegalStateException("one failed"));
-        EsqlExecutionInfo executionInfo = executionInfoWith(
-            cluster(EsqlExecutionInfo.Cluster.Status.PARTIAL, 2, 1, 1, List.of(failure))
-        );
+        EsqlExecutionInfo executionInfo = executionInfoWith(cluster(EsqlExecutionInfo.Cluster.Status.PARTIAL, 2, 1, 1, List.of(failure)));
         ComputeService.failIfAllShardsFailed(executionInfo, List.of());
     }
 

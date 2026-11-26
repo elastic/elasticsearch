@@ -385,7 +385,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 .put(Node.NODE_NAME_SETTING.getKey(), "test")
                 .build();
             TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
-            cleanup.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            cleanup.add(() -> ThreadPool.terminate(threadPool, SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
             // a single thread, as in production, tracked so that we can wait for all the async writes to complete
             final ExecutorService asyncWriteExecutor = EsExecutors.newFixed(
                 "async-persisted-state-writes",
@@ -395,7 +395,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 threadPool.getThreadContext(),
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
-            cleanup.add(() -> ThreadPool.terminate(asyncWriteExecutor, 10, TimeUnit.SECONDS));
+            cleanup.add(() -> ThreadPool.terminate(asyncWriteExecutor, SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
             final TrackingExecutor trackingExecutor = new TrackingExecutor(asyncWriteExecutor);
             final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, trackingExecutor);
             cleanup.add(gateway);

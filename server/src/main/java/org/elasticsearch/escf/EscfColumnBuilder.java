@@ -57,8 +57,8 @@ public final class EscfColumnBuilder implements Releasable {
 
     /**
      * Holds the padding reserved past each string written with {@link Utf8Value#copyTo}.
-     * This is a separate class so that it is initialized lazily, and only when simdjson is enabled
-     * (the {@code byte[]} paths never do).
+     * It is a separate class so that its value is computed on the first string write, not when {@link EscfColumnBuilder}
+     * is loaded. Computing it can load the simdjson native library.
      */
     static final class StringPadding {
         /**
@@ -206,7 +206,7 @@ public final class EscfColumnBuilder implements Releasable {
      * Adds a {@code STRING} value for the next row. The {@code STRING} case of {@link #newRowScalar}, with the value written by
      * {@link Utf8Value#copyTo} so that its bytes are copied once, into the column's buffer.
      */
-    public void addString(Utf8Value value) {
+    void addUtf8String(Utf8Value value) {
         final int row = nextAppendRow();
         assert lockedKind == -1 || lockedKind == EscfColumnKind.STRING
             : "column locked to " + EscfColumnKind.name(lockedKind) + " but received STRING";
@@ -1012,6 +1012,10 @@ public final class EscfColumnBuilder implements Releasable {
             return validity == null ? 0 : validity.ramBytesUsed();
         }
 
+        final long stringScratchBytes() {
+            return stringScratch == null ? 0 : RamUsageEstimator.sizeOf(stringScratch);
+        }
+
         @Override
         public int rowsConsumed() {
             return count;
@@ -1371,7 +1375,7 @@ public final class EscfColumnBuilder implements Releasable {
     private static final class VarBuilder extends BaseBuilder {
         @Override
         public long ramBytesUsed() {
-            return allocatedBytes(data) + arrayBytes(offsets) + validityBytes();
+            return allocatedBytes(data) + arrayBytes(offsets) + validityBytes() + stringScratchBytes();
         }
 
         private final byte kind;
@@ -1522,7 +1526,8 @@ public final class EscfColumnBuilder implements Releasable {
     private static final class ArrayBuilder extends BaseBuilder {
         @Override
         public long ramBytesUsed() {
-            return (consumed ? 0 : allocatedBytes(childData)) + arrayBytes(childOffsets) + arrayBytes(rowOffsets) + validityBytes();
+            return (consumed ? 0 : allocatedBytes(childData)) + arrayBytes(childOffsets) + arrayBytes(rowOffsets) + validityBytes()
+                + stringScratchBytes();
         }
 
         private byte childKind;
@@ -1738,7 +1743,8 @@ public final class EscfColumnBuilder implements Releasable {
     private static final class UnionBuilder extends BaseBuilder {
         @Override
         public long ramBytesUsed() {
-            return allocatedBytes(data) + arrayBytes(offsets) + (typeVec == null ? 0 : RamUsageEstimator.sizeOf(typeVec)) + validityBytes();
+            return allocatedBytes(data) + arrayBytes(offsets) + (typeVec == null ? 0 : RamUsageEstimator.sizeOf(typeVec)) + validityBytes()
+                + stringScratchBytes();
         }
 
         private final RecyclerBytesStreamOutput data;

@@ -82,10 +82,10 @@ public class EscfColumnBuilderTests extends ESTestCase {
 
     public void testUtf8ValueStringKind() {
         EscfColumnBuilder b = builder();
-        b.addString(utf8Value("alpha"));
+        b.addUtf8String(utf8Value("alpha"));
         b.addAbsent();
-        b.addString(utf8Value(""));
-        b.addString(utf8Value("gamma"));
+        b.addUtf8String(utf8Value(""));
+        b.addUtf8String(utf8Value("gamma"));
         EscfColumnData data = b.finish(4);
         assertEquals(EscfColumnKind.STRING, data.kind());
         EscfColumn col = EscfColumn.from(data);
@@ -104,7 +104,7 @@ public class EscfColumnBuilderTests extends ESTestCase {
             String value = randomRealisticUnicodeOfLengthBetween(0, 3000);
             expected.add(value);
             totalBytes += value.getBytes(StandardCharsets.UTF_8).length;
-            b.addString(utf8Value(value));
+            b.addUtf8String(utf8Value(value));
         }
         EscfColumnData data = b.finish(expected.size());
         assertEquals(EscfColumnKind.STRING, data.kind());
@@ -117,9 +117,9 @@ public class EscfColumnBuilderTests extends ESTestCase {
     public void testUtf8ValuePromotesToUnion() {
         EscfColumnBuilder b = builder();
         b.addLong(7);
-        b.addString(utf8Value("text"));
+        b.addUtf8String(utf8Value("text"));
         b.addDouble(2.5);
-        b.addString(utf8Value("more"));
+        b.addUtf8String(utf8Value("more"));
         EscfColumnData data = b.finish(4);
         assertEquals(EscfColumnKind.UNION, data.kind());
         EscfColumn col = EscfColumn.from(data);
@@ -135,7 +135,7 @@ public class EscfColumnBuilderTests extends ESTestCase {
         EscfColumnBuilder b = mergeBuilder();
         b.setString(0, bytesRef("x"));
         b.setString(0, bytesRef("y")); // second element for doc 0 → ARRAY
-        b.addString(utf8Value("z"));
+        b.addUtf8String(utf8Value("z"));
         EscfColumnData data = b.finish(2);
         assertEquals(EscfColumnKind.ARRAY, data.kind());
         assertEquals(2, elemCount(data, 0));

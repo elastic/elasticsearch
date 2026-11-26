@@ -151,7 +151,7 @@ public final class EscfRowBuffer {
      * Stages a string value, copied into its column on {@link EscfBatchBuilder#commit}, so its bytes must not change before then.
      * Returns the leaf column index.
      */
-    public int stringField(String name, Utf8Value value) {
+    int utf8StringField(String name, Utf8Value value) {
         int colIdx = addLeaf(name);
         scratchType[colIdx] = SourceValueType.STRING;
         scratchVar[colIdx] = value;
@@ -165,7 +165,7 @@ public final class EscfRowBuffer {
 
     /** Stages a UTF-8 string value from a raw byte slice. Returns the leaf column index. */
     public int stringField(String name, byte[] bytes, int offset, int length) {
-        return stringField(name, Utf8Value.of(bytes, offset, length));
+        return utf8StringField(name, Utf8Value.of(bytes, offset, length));
     }
 
     /**

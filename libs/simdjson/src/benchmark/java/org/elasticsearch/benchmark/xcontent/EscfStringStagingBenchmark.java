@@ -89,8 +89,9 @@ public class EscfStringStagingBenchmark {
             int offset = 0;
             for (int r = 0; r < rowCount; r++) {
                 EscfRowBuffer row = builder.beginRow();
+                int rowInPartition = r / partitionCount;
                 for (int f = 0; f < fieldsPerRow; f++) {
-                    if (mixedTypes && ((r + f) & 1) == 1) {
+                    if (mixedTypes && ((rowInPartition + f) & 1) == 1) {
                         row.longField(fieldNames[f], r);
                     } else {
                         row.stringField(fieldNames[f], values, offset, valueLength);

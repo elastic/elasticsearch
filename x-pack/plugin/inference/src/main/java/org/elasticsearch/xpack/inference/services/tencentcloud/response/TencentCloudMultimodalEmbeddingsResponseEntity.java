@@ -153,6 +153,11 @@ public class TencentCloudMultimodalEmbeddingsResponseEntity {
         if (values == null) {
             throw new IllegalStateException(Strings.format(FAILED_TO_FIND_FIELD_TEMPLATE, "embedding"));
         }
+        if (values.isEmpty()) {
+            throw new IllegalStateException(
+                Strings.format("TencentCloud embeddings response contains an empty embedding at index [%d]", index)
+            );
+        }
         return new IndexedEmbedding(index, EmbeddingFloatResults.Embedding.of(values));
     }
 

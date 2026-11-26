@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.tencentcloud;
 
 import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
@@ -16,6 +17,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
@@ -58,7 +62,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -350,6 +353,114 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
         assertThat(webServer.requests(), empty());
     }
 
+    public void testParseRequestConfig_EmbeddingTask_RejectsClusterWithoutEmbeddingTask() throws IOException {
+        try (var service = createService(TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED)) {
+            service.parseRequestConfig(INFERENCE_ID, TaskType.EMBEDDING, embeddingConfig(), assertNoSuccessListener(e -> {
+                assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
+                assertThat(e.getMessage(), containsString("All nodes in the cluster are not aware of the [embedding] task type"));
+            }));
+        }
+    }
+
+    public void testParseRequestConfig_TextEmbeddingTask_AllowedOnClusterWithoutEmbeddingTask() throws IOException {
+        try (var service = createService(TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED)) {
+            var listener = new PlainActionFuture<Model>();
+            service.parseRequestConfig(INFERENCE_ID, TaskType.TEXT_EMBEDDING, map("""
+                {
+                  "service_settings": { "model_id": "bge-m3", "api_key": "sk-12345" }
+                }
+                """), listener);
+            assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT).getTaskType(), is(TaskType.TEXT_EMBEDDING));
+        }
+    }
+
+    public void testChunkedInfer_EmbeddingTask_SplitsBatchesByModalityLimits() throws IOException {
+        var batchResponse = new StringBuilder("{\"data\": {\"image_embeddings\": [");
+        for (int i = 0; i < 8; i++) {
+            batchResponse.append(i == 0 ? "" : ",").append("{\"embedding\": [").append(i).append(".0], \"index\": ").append(i).append("}");
+        }
+        batchResponse.append("]}}");
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(batchResponse.toString()));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(batchResponse.toString()));
+
+        var inputs = IntStream.range(0, 10)
+            .mapToObj(
+                i -> new ChunkInferenceInput(
+                    new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.URL, IMAGE_URL + "?i=" + i)),
+                    null
+                )
+            )
+            .toList();
+
+        try (var service = createService()) {
+            var listener = new PlainActionFuture<List<ChunkedInference>>();
+            service.chunkedInfer(
+                createMultimodalModel("WeMM-Embedding-2B"),
+                inputs,
+                Map.of(),
+                InputType.UNSPECIFIED,
+                TEST_REQUEST_TIMEOUT,
+                listener
+            );
+            assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT), hasSize(10));
+        }
+        assertThat(webServer.requests(), hasSize(2));
+        assertThat((List<?>) entityAsMap(webServer.requests().get(0).getBody()).get("image_url"), hasSize(8));
+        assertThat((List<?>) entityAsMap(webServer.requests().get(1).getBody()).get("image_url"), hasSize(2));
+    }
+
+    public void testChunkedInfer_EmbeddingTask_RejectsUnsupportedInputs() throws IOException {
+        var inputs = List.of(
+            new ChunkInferenceInput(new InferenceStringGroup("text"), null),
+            new ChunkInferenceInput(
+                new InferenceStringGroup(new InferenceString(DataType.AUDIO, DataFormat.BASE64, "data:audio/mpeg;base64,abcd")),
+                null
+            )
+        );
+
+        try (var service = createService()) {
+            var listener = new PlainActionFuture<List<ChunkedInference>>();
+            service.chunkedInfer(
+                createMultimodalModel("WeMM-Embedding-2B"),
+                inputs,
+                Map.of(),
+                InputType.UNSPECIFIED,
+                TEST_REQUEST_TIMEOUT,
+                listener
+            );
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(exception.getMessage(), containsString("does not support [audio] inputs"));
+        }
+        assertThat(webServer.requests(), empty());
+    }
+
+    public void testEmbeddingInfer_TruncatesTextsToMaxInputTokens() throws IOException {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+            {"data":{"image_embeddings":[{"embedding":[0.1,0.2],"index":0}],"text_embeddings":[{"embedding":[0.3,0.4],"index":0}]}}"""));
+
+        var inputs = List.of(
+            new InferenceStringGroup("abcdef"),
+            new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,abcdef"))
+        );
+        try (var service = createService()) {
+            var listener = new PlainActionFuture<InferenceServiceResults>();
+            service.embeddingInfer(
+                createMultimodalModel("WeMM-Embedding-2B", 1),
+                new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()),
+                TEST_REQUEST_TIMEOUT,
+                listener
+            );
+            assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT), instanceOf(GenericDenseEmbeddingFloatResults.class));
+        }
+
+        var body = entityAsMap(webServer.requests().getFirst().getBody());
+        // One token is three characters
+        assertThat(body.get("texts"), is(List.of("abc")));
+        assertThat(body.get("image_data"), is(List.of("data:image/png;base64,abcdef")));
+    }
+
     private GenericDenseEmbeddingFloatResults embeddingInfer(String modelId, List<InferenceStringGroup> inputs, InputType inputType)
         throws IOException {
         try (var service = createService()) {
@@ -366,11 +477,23 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    private Map<String, Object> embeddingConfig() throws IOException {
+        return map("""
+            {
+              "service_settings": { "model_id": "EmbeddingGemma-2", "api_key": "sk-12345" }
+            }
+            """);
+    }
+
     private TencentCloudEmbeddingsModel createMultimodalModel(String modelId) {
+        return createMultimodalModel(modelId, null);
+    }
+
+    private TencentCloudEmbeddingsModel createMultimodalModel(String modelId, @Nullable Integer maxInputTokens) {
         return new TencentCloudEmbeddingsModel(
             INFERENCE_ID,
             TaskType.EMBEDDING,
-            new TencentCloudEmbeddingServiceSettings(modelId, null, null, null, null, null),
+            new TencentCloudEmbeddingServiceSettings(modelId, null, null, null, null, maxInputTokens),
             TencentCloudMultimodalEmbeddingsTaskSettings.EMPTY_SETTINGS,
             null,
             new DefaultSecretSettings(new SecureString(TencentCloudServiceParameterizedTestConfiguration.API_KEY_VALUE.toCharArray())),
@@ -477,10 +600,14 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
     }
 
     private TencentCloudService createService() {
+        return createService(TransportVersion.current());
+    }
+
+    private TencentCloudService createService(TransportVersion minTransportVersion) {
         return new TencentCloudService(
             HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
             createWithEmptySettings(threadPool),
-            mockClusterServiceEmpty()
+            TencentCloudServiceParameterizedTestConfiguration.mockClusterServiceWithMinTransportVersion(minTransportVersion)
         );
     }
 

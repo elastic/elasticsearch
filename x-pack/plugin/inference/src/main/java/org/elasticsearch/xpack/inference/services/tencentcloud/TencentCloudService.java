@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -125,6 +126,8 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
     private static final Map<TaskType, ModelCreator<? extends TencentCloudModel>> MODEL_CREATORS = initModelCreators();
 
+    private final ClusterService clusterService;
+
     private static Map<TaskType, ModelCreator<? extends TencentCloudModel>> initModelCreators() {
         var embeddingsCreator = new TencentCloudEmbeddingsModelCreator();
         var completionCreator = new TencentCloudChatCompletionModelCreator();
@@ -168,6 +171,36 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
      */
     public TencentCloudService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         super(factory, serviceComponents, clusterService, MODEL_CREATORS);
+        this.clusterService = clusterService;
+    }
+
+    /**
+     * Parses the configuration of a new endpoint. An {@code embedding} endpoint is only created once every node in the cluster can
+     * read its settings.
+     */
+    @Override
+    public void parseRequestConfig(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        ActionListener<Model> parsedModelListener
+    ) {
+        if (taskType == TaskType.EMBEDDING
+            && clusterService.state().getMinTransportVersion().supports(TENCENT_CLOUD_EMBEDDING_TASK_ADDED) == false) {
+            parsedModelListener.onFailure(
+                new ElasticsearchStatusException(
+                    Strings.format(
+                        "All nodes in the cluster are not aware of the [%s] task type of the [%s] service. "
+                            + "Wait for the cluster to finish upgrading and try again.",
+                        TaskType.EMBEDDING,
+                        NAME
+                    ),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+        super.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
     }
 
     @Override
@@ -277,27 +310,39 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
                 return;
             }
 
-            var limits = TencentCloudMultimodalModelLimits.forModel(embeddingsModel.getServiceSettings().modelId());
-            var batches = limits.partition(request.inputs());
             var actionCreator = new TencentCloudActionCreator(getSender(), getServiceComponents());
             var action = embeddingsModel.accept(actionCreator, request.taskSettings());
-
-            var batchResults = new AtomicReferenceArray<InferenceServiceResults>(batches.size());
-            try (var refs = new RefCountingListener(listener.map(ignored -> mergeEmbeddingResults(batchResults)))) {
-                for (int i = 0; i < batches.size(); i++) {
-                    int batchIndex = i;
-                    var batch = batches.get(i);
-                    action.execute(
-                        new EmbeddingsInput(batch, request.inputType()),
-                        timeout,
-                        refs.acquire(results -> batchResults.set(batchIndex, results))
-                    );
-                }
-            }
+            executeMultimodalEmbeddings(embeddingsModel, action, request.inputs(), request.inputType(), timeout, listener);
             return;
         }
 
         listener.onFailure(createInvalidModelException(model));
+    }
+
+    /**
+     * Splits the inputs into batches that fit the per-request limits of the model, sends the batches concurrently, and returns the
+     * embeddings in input order.
+     */
+    private static void executeMultimodalEmbeddings(
+        TencentCloudEmbeddingsModel model,
+        ExecutableAction action,
+        List<InferenceStringGroup> inputs,
+        @Nullable InputType inputType,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        var batches = TencentCloudMultimodalModelLimits.forModel(model.getServiceSettings().modelId()).partition(inputs);
+        var batchResults = new AtomicReferenceArray<InferenceServiceResults>(batches.size());
+        try (var refs = new RefCountingListener(listener.map(ignored -> mergeEmbeddingResults(batchResults)))) {
+            for (int i = 0; i < batches.size(); i++) {
+                int batchIndex = i;
+                action.execute(
+                    new EmbeddingsInput(batches.get(i), inputType),
+                    timeout,
+                    refs.acquire(results -> batchResults.set(batchIndex, results))
+                );
+            }
+        }
     }
 
     /**
@@ -404,6 +449,14 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
         }
 
         var embeddingsModel = (TencentCloudEmbeddingsModel) model;
+        var isMultimodal = model.getTaskType() == TaskType.EMBEDDING;
+        if (isMultimodal) {
+            var unsupportedInputError = findUnsupportedEmbeddingInput(ChunkInferenceInput.inputs(inputs));
+            if (unsupportedInputError != null) {
+                listener.onFailure(new ElasticsearchStatusException(unsupportedInputError, RestStatus.BAD_REQUEST));
+                return;
+            }
+        }
         var actionCreator = new TencentCloudActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
@@ -414,11 +467,23 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
         for (var request : batchedRequests) {
             var action = embeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(
-                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
-                timeout,
-                request.listener()
-            );
+            if (isMultimodal) {
+                // A chunk batch can exceed the per-modality limits or mix base64 and URL inputs, so split it further
+                executeMultimodalEmbeddings(
+                    embeddingsModel,
+                    action,
+                    request.batch().inputs().get(),
+                    inputType,
+                    timeout,
+                    request.listener()
+                );
+            } else {
+                action.execute(
+                    new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                    timeout,
+                    request.listener()
+                );
+            }
         }
     }
 

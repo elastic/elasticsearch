@@ -78,7 +78,13 @@ Requests are split automatically using these limits per provider call:
 
 A batch cannot mix URL and base64 inputs within the same modality. Calls use the
 existing sender's rate limiting and retries. If a batch fails or the provider
-returns missing, duplicate, or unexpected embeddings, the request fails.
+returns missing, duplicate, empty, or unexpected embeddings, the request fails.
+The same limits apply to chunked inference requests, where each chunk batch is
+split further before it is sent.
+
+`max_input_tokens` truncates each text input to that many tokens, using the same
+character-based estimate as other embedding services. Images and videos are sent
+unchanged.
 
 ## Text task prefixes
 

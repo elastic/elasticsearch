@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelSecrets;
@@ -16,6 +22,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceParameterizedTests;
@@ -46,7 +53,6 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.ESTestCase.assertThat;
-import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
@@ -55,6 +61,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TencentCloudServiceParameterizedTestConfiguration {
 
@@ -80,6 +88,18 @@ public class TencentCloudServiceParameterizedTestConfiguration {
     private static final String CHAT_COMPLETIONS_PATH = "chat/completions";
     private static final String RERANK_PATH = "rerank";
 
+    /**
+     * Returns a cluster service whose cluster state reports {@code minTransportVersion} as the minimum transport version across nodes.
+     */
+    static ClusterService mockClusterServiceWithMinTransportVersion(TransportVersion minTransportVersion) {
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, InferencePlugin.getClusterSettings()));
+        when(clusterService.state()).thenReturn(
+            ClusterState.builder(ClusterName.DEFAULT).putCompatibilityVersions("node", minTransportVersion, Map.of()).build()
+        );
+        return clusterService;
+    }
+
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(
             EnumSet.of(TEXT_EMBEDDING, EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK),
@@ -89,7 +109,11 @@ public class TencentCloudServiceParameterizedTestConfiguration {
             @Override
             protected TencentCloudService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                 var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-                return new TencentCloudService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+                return new TencentCloudService(
+                    senderFactory,
+                    createWithEmptySettings(threadPool),
+                    mockClusterServiceWithMinTransportVersion(TransportVersion.current())
+                );
             }
 
             @Override

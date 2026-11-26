@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudServi
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -209,9 +208,13 @@ public class TencentCloudMultimodalEmbeddingsTaskSettings implements TaskSetting
         out.writeOptionalString(promptName);
     }
 
+    /**
+     * Applies an endpoint update. The recognized fields are removed from {@code newSettings}, so the caller can reject any field left
+     * in the map.
+     */
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        return of(this, fromMap(new HashMap<>(newSettings)));
+        return of(this, fromMap(newSettings));
     }
 
     @Override

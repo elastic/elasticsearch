@@ -113,6 +113,20 @@ public class TencentCloudMultimodalEmbeddingsResponseEntityTests extends ESTestC
         assertThat(exception.getMessage(), containsString("invalid index [0]"));
     }
 
+    public void testFromResponse_EmptyEmbedding_Throws() {
+        var responseJson = """
+            {
+              "data": { "text_embeddings": [ { "embedding": [], "index": 0 } ] }
+            }
+            """;
+
+        var exception = expectThrows(
+            IllegalStateException.class,
+            () -> TencentCloudMultimodalEmbeddingsResponseEntity.fromResponse(request(List.of(text("t0"))), httpResult(responseJson))
+        );
+        assertThat(exception.getMessage(), containsString("contains an empty embedding at index [0]"));
+    }
+
     public void testFromResponse_MissingData_Throws() {
         var exception = expectThrows(
             IllegalStateException.class,

@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.action;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -36,6 +39,7 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentClo
 import org.elasticsearch.xpack.inference.services.tencentcloud.response.TencentCloudMultimodalEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.tencentcloud.response.TencentCloudRerankResponseEntity;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -115,7 +119,10 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
             model,
             MULTIMODAL_EMBEDDINGS_HANDLER,
             (embeddingsInput) -> new TencentCloudMultimodalEmbeddingsRequest(
-                InferenceStringGroup.toInferenceStringList(embeddingsInput.getInputs()),
+                truncateTexts(
+                    InferenceStringGroup.toInferenceStringList(embeddingsInput.getInputs()),
+                    model.getServiceSettings().maxInputTokens()
+                ),
                 limits.supportsPromptName() ? model.getMultimodalTaskSettings().resolvePromptName(embeddingsInput.getInputType()) : null,
                 model
             ),
@@ -126,6 +133,22 @@ public class TencentCloudActionCreator implements TencentCloudActionVisitor {
             requestManager,
             constructFailedToSendRequestMessage("TencentCloud multimodal embeddings")
         );
+    }
+
+    /**
+     * Truncates the text inputs to {@code max_input_tokens}. Image and video inputs are returned unchanged.
+     */
+    static List<InferenceString> truncateTexts(List<InferenceString> inputs, @Nullable Integer maxInputTokens) {
+        if (maxInputTokens == null) {
+            return inputs;
+        }
+        return inputs.stream()
+            .map(
+                input -> input.isText()
+                    ? InferenceString.ofText(Truncator.truncate(List.of(input.value()), maxInputTokens).input().getFirst())
+                    : input
+            )
+            .toList();
     }
 
     /**

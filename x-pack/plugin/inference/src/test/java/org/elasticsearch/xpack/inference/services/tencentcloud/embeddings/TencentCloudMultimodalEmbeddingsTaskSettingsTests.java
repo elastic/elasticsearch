@@ -107,10 +107,22 @@ public class TencentCloudMultimodalEmbeddingsTaskSettingsTests extends AbstractW
         );
     }
 
-    public void testUpdatedTaskSettings_MergesFields() {
+    public void testUpdatedTaskSettings_MergesFieldsAndConsumesMap() {
         var original = new TencentCloudMultimodalEmbeddingsTaskSettings(InputType.INGEST, null);
-        var updated = original.updatedTaskSettings(Map.of(TencentCloudMultimodalEmbeddingsTaskSettings.PROMPT_NAME, "STS"));
+        var newSettings = new HashMap<String, Object>(Map.of(TencentCloudMultimodalEmbeddingsTaskSettings.PROMPT_NAME, "STS"));
+        var updated = original.updatedTaskSettings(newSettings);
         assertThat(updated, is(new TencentCloudMultimodalEmbeddingsTaskSettings(InputType.INGEST, "STS")));
+        assertThat(newSettings.isEmpty(), is(true));
+    }
+
+    public void testUpdatedTaskSettings_LeavesUnknownFieldsInMap() {
+        var original = new TencentCloudMultimodalEmbeddingsTaskSettings(null, null);
+        var newSettings = new HashMap<String, Object>(
+            Map.of(TencentCloudMultimodalEmbeddingsTaskSettings.INPUT_TYPE, "search", "prompt", "STS")
+        );
+        var updated = original.updatedTaskSettings(newSettings);
+        assertThat(updated, is(new TencentCloudMultimodalEmbeddingsTaskSettings(InputType.SEARCH, null)));
+        assertThat(newSettings, is(Map.of("prompt", "STS")));
     }
 
     public void testResolvePromptName_ExplicitPromptNameWins() {
